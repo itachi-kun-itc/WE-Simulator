@@ -40,16 +40,22 @@ const server = http.createServer((request, response) => {
 listen(preferredPort);
 
 function listen(port) {
-  server.once("error", (error) => {
+  const onError = (error) => {
     if (error.code === "EADDRINUSE") {
+      server.off("listening", onListening);
       listen(port + 1);
       return;
     }
 
     throw error;
-  });
+  };
 
-  server.listen(port, "127.0.0.1", () => {
+  const onListening = () => {
+    server.off("error", onError);
     console.log(`Serving http://127.0.0.1:${port}/`);
-  });
+  };
+
+  server.once("error", onError);
+  server.once("listening", onListening);
+  server.listen(port, "127.0.0.1");
 }

@@ -25,6 +25,68 @@
 
         <div class="map-wrap">
           <div id="map" aria-label="地震地域区分の日本地図"></div>
+          <section class="sim-panel" aria-label="震源設定">
+            <div class="sim-panel-head">
+              <div>
+                <p class="eyebrow">Epicenter</p>
+                <h2>震源設定</h2>
+              </div>
+              <button class="icon-button" id="reset-epicenter" type="button" title="震源を初期位置に戻す">
+                ↺
+              </button>
+            </div>
+
+            <label class="field">
+              <span>震央地名グループ</span>
+              <select id="epicenter-region"></select>
+            </label>
+
+            <div class="field-grid">
+              <label class="field">
+                <span>緯度</span>
+                <input id="latitude-input" type="number" min="20" max="46" step="0.001" />
+              </label>
+              <label class="field">
+                <span>経度</span>
+                <input id="longitude-input" type="number" min="122" max="154" step="0.001" />
+              </label>
+            </div>
+
+            <div class="field-grid">
+              <label class="field">
+                <span>深さ km</span>
+                <input id="depth-input" type="number" min="0" max="700" step="10" />
+              </label>
+              <label class="field">
+                <span>マグニチュード</span>
+                <input id="magnitude-input" type="number" min="1" max="9.5" step="0.1" />
+              </label>
+            </div>
+
+            <label class="field">
+              <span>M種別</span>
+              <select id="magnitude-type">
+                <option value="Mj">Mj 気象庁マグニチュード</option>
+                <option value="Mw">Mw モーメントマグニチュード</option>
+              </select>
+            </label>
+
+            <label class="toggle-row">
+              <input id="municipality-toggle" type="checkbox" />
+              <span>市町村区分を表示</span>
+            </label>
+
+            <dl class="result-list">
+              <div>
+                <dt>市町村区分</dt>
+                <dd id="municipality-output">未選択</dd>
+              </div>
+              <div>
+                <dt>推定半径</dt>
+                <dd id="radius-output">-</dd>
+              </div>
+            </dl>
+          </section>
           <aside class="legend" aria-label="地震地域区分">
             <div class="legend-title">地震地域区分</div>
             <div id="legend-items"></div>

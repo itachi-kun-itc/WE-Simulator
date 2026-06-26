@@ -1,0 +1,211 @@
+const fs = require("node:fs");
+const path = require("node:path");
+
+const root = path.resolve(__dirname, "..");
+const inputDir = path.join(root, "N03-180101_GML");
+const outputPath = path.join(root, "web", "data", "municipalities.geojson");
+const decoder = new TextDecoder("shift_jis");
+const tolerance = Number(process.env.SIMPLIFY_TOLERANCE || 0.018);
+const minArea = Number(process.env.MIN_RING_AREA || 0.00005);
+
+const shpPath = findFile(".shp");
+const dbfPath = findFile(".dbf");
+const records = readDbf(dbfPath);
+const municipalityMap = new Map();
+
+readShp(shpPath, (recordIndex, rings) => {
+  const record = records[recordIndex];
+  const code = record.N03_007;
+
+  if (!code) {
+    return;
+  }
+
+  if (!municipalityMap.has(code)) {
+    municipalityMap.set(code, {
+      code,
+      prefecture: record.N03_001,
+      subprefecture: record.N03_002,
+      county: record.N03_003,
+      municipality: record.N03_004,
+      rings: [],
+    });
+  }
+
+  municipalityMap.get(code).rings.push(...rings);
+});
+
+const features = [...municipalityMap.values()]
+  .map((municipality) => ({
+    type: "Feature",
+    properties: {
+      code: municipality.code,
+      prefecture: municipality.prefecture,
+      subprefecture: municipality.subprefecture,
+      county: municipality.county,
+      municipality: municipality.municipality,
+      name: [municipality.prefecture, municipality.county, municipality.municipality]
+        .filter(Boolean)
+        .join(""),
+      source: "nlftp_n03_2018",
+    },
+    geometry: {
+      type: "MultiPolygon",
+      coordinates: municipality.rings.map((ring) => [ring]),
+    },
+  }))
+  .filter((feature) => feature.geometry.coordinates.length > 0);
+
+fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+fs.writeFileSync(
+  outputPath,
+  JSON.stringify({
+    type: "FeatureCollection",
+    name: "N03 municipalities 2018 simplified",
+    source: "N03-180101_GML",
+    features,
+  }),
+);
+
+console.log(`Wrote ${features.length} municipalities to ${path.relative(root, outputPath)}`);
+
+function findFile(extension) {
+  const fileName = fs.readdirSync(inputDir).find((name) => name.endsWith(extension));
+  if (!fileName) {
+    throw new Error(`No ${extension} file found in ${inputDir}`);
+  }
+  return path.join(inputDir, fileName);
+}
+
+function readDbf(filePath) {
+  const buffer = fs.readFileSync(filePath);
+  const recordCount = buffer.readUInt32LE(4);
+  const headerLength = buffer.readUInt16LE(8);
+  const recordLength = buffer.readUInt16LE(10);
+  const fields = [];
+
+  for (let offset = 32; buffer[offset] !== 0x0d; offset += 32) {
+    fields.push({
+      name: buffer.subarray(offset, offset + 11).toString("ascii").replace(/\0/g, ""),
+      length: buffer[offset + 16],
+      offset: fields.reduce((sum, field) => sum + field.length, 1),
+    });
+  }
+
+  return Array.from({ length: recordCount }, (_, recordIndex) => {
+    const start = headerLength + recordIndex * recordLength;
+    const record = {};
+
+    for (const field of fields) {
+      const raw = buffer.subarray(start + field.offset, start + field.offset + field.length);
+      record[field.name] = decoder.decode(raw).trim();
+    }
+
+    return record;
+  });
+}
+
+function readShp(filePath, onRecord) {
+  const buffer = fs.readFileSync(filePath);
+  let offset = 100;
+  let recordIndex = 0;
+
+  while (offset < buffer.length) {
+    const contentLength = buffer.readInt32BE(offset + 4) * 2;
+    const recordStart = offset + 8;
+    const shapeType = buffer.readInt32LE(recordStart);
+
+    if (shapeType !== 5) {
+      offset += 8 + contentLength;
+      recordIndex += 1;
+      continue;
+    }
+
+    const partCount = buffer.readInt32LE(recordStart + 36);
+    const pointCount = buffer.readInt32LE(recordStart + 40);
+    const partOffsets = Array.from({ length: partCount }, (_, index) =>
+      buffer.readInt32LE(recordStart + 44 + index * 4),
+    );
+    const pointStart = recordStart + 44 + partCount * 4;
+    const points = Array.from({ length: pointCount }, (_, index) => {
+      const pointOffset = pointStart + index * 16;
+      return [buffer.readDoubleLE(pointOffset), buffer.readDoubleLE(pointOffset + 8)];
+    });
+
+    const rings = partOffsets
+      .map((start, index) => {
+        const end = partOffsets[index + 1] ?? points.length;
+        return simplifyRing(points.slice(start, end));
+      })
+      .filter((ring) => ring.length >= 4 && Math.abs(ringArea(ring)) >= minArea);
+
+    onRecord(recordIndex, rings);
+    offset += 8 + contentLength;
+    recordIndex += 1;
+  }
+}
+
+function simplifyRing(ring) {
+  const openRing = pointsEqual(ring[0], ring.at(-1)) ? ring.slice(0, -1) : ring;
+  const sampled = openRing.length > 2000 ? openRing.filter((_, index) => index % 2 === 0) : openRing;
+  const simplified = douglasPeucker(sampled, tolerance);
+  const rounded = simplified.map(([longitude, latitude]) => [
+    Number(longitude.toFixed(5)),
+    Number(latitude.toFixed(5)),
+  ]);
+
+  if (!pointsEqual(rounded[0], rounded.at(-1))) {
+    rounded.push([...rounded[0]]);
+  }
+
+  return rounded;
+}
+
+function douglasPeucker(points, epsilon) {
+  if (points.length <= 3) {
+    return points;
+  }
+
+  let maxDistance = 0;
+  let maxIndex = 0;
+
+  for (let index = 1; index < points.length - 1; index += 1) {
+    const distance = perpendicularDistance(points[index], points[0], points.at(-1));
+    if (distance > maxDistance) {
+      maxDistance = distance;
+      maxIndex = index;
+    }
+  }
+
+  if (maxDistance <= epsilon) {
+    return [points[0], points.at(-1)];
+  }
+
+  return [
+    ...douglasPeucker(points.slice(0, maxIndex + 1), epsilon).slice(0, -1),
+    ...douglasPeucker(points.slice(maxIndex), epsilon),
+  ];
+}
+
+function perpendicularDistance(point, start, end) {
+  const dx = end[0] - start[0];
+  const dy = end[1] - start[1];
+
+  if (dx === 0 && dy === 0) {
+    return Math.hypot(point[0] - start[0], point[1] - start[1]);
+  }
+
+  return Math.abs(dy * point[0] - dx * point[1] + end[0] * start[1] - end[1] * start[0]) /
+    Math.hypot(dx, dy);
+}
+
+function ringArea(ring) {
+  return ring.reduce((sum, point, index) => {
+    const next = ring[(index + 1) % ring.length];
+    return sum + point[0] * next[1] - next[0] * point[1];
+  }, 0) / 2;
+}
+
+function pointsEqual(a, b) {
+  return a[0] === b[0] && a[1] === b[1];
+}
