@@ -9,7 +9,9 @@ const jmaLocalAreaInputDir = process.env.JMA_LOCAL_AREA_INPUT_DIR
   ? path.resolve(root, process.env.JMA_LOCAL_AREA_INPUT_DIR)
   : path.join(root, "data", "raw", "jma_earthquake_local_areas");
 const outputPath = path.join(root, "web", "data", "boundary_layers.geojson");
+const jmaLocalAreasOutputPath = path.join(root, "web", "data", "jma_local_areas.geojson");
 const decoder = new TextDecoder("shift_jis");
+const jmaDecoder = new TextDecoder("utf-8");
 const coordinatePrecision = Number(process.env.BOUNDARY_COORDINATE_PRECISION || 5);
 const simplifyTolerance = Number(process.env.BOUNDARY_SIMPLIFY_TOLERANCE || 0.0008);
 const jmaAreaSimplifyTolerance = Number(process.env.JMA_AREA_SIMPLIFY_TOLERANCE || 0.002);
@@ -56,7 +58,12 @@ for (const segment of segmentMap.values()) {
 const prefectureLines = joinSegments(prefectureSegments)
   .map((line) => simplifyLine(line, simplifyTolerance))
   .filter((line) => line.length >= 2);
-const jmaRegionLines = readAreaBoundaryLines(jmaLocalAreaInputDir);
+const jmaLocalAreas = readAreaFeatures(jmaLocalAreaInputDir);
+const jmaRegionLines = jmaLocalAreas.features.flatMap((feature) =>
+  feature.geometry.coordinates.flatMap((polygon) =>
+    polygon.map((ring) => simplifyLine(trimClosingPoint(ring), jmaAreaSimplifyTolerance)),
+  ),
+);
 
 const boundaryLayers = {
   type: "FeatureCollection",
@@ -93,11 +100,13 @@ const boundaryLayers = {
 };
 
 fs.writeFileSync(outputPath, JSON.stringify(boundaryLayers));
+fs.writeFileSync(jmaLocalAreasOutputPath, JSON.stringify(jmaLocalAreas));
 
 console.log(`Found ${prefectureSegments.length} prefecture boundary segments`);
 console.log(`Wrote ${prefectureLines.length} prefecture boundary lines`);
 console.log(`Wrote ${jmaRegionLines.length} JMA local area boundary lines`);
 console.log(`Wrote ${path.relative(root, outputPath)}`);
+console.log(`Wrote ${path.relative(root, jmaLocalAreasOutputPath)}`);
 
 function findFile(extension, directory = inputDir) {
   const fileName = fs.readdirSync(directory).find((name) => name.endsWith(extension));
@@ -174,11 +183,14 @@ function readShp(filePath, onSegment) {
   }
 }
 
-function readAreaBoundaryLines(directory) {
-  const filePath = findFile(".shp", directory);
-  const buffer = fs.readFileSync(filePath);
-  const lines = [];
+function readAreaFeatures(directory) {
+  const shpPath = findFile(".shp", directory);
+  const dbfPath = findFile(".dbf", directory);
+  const records = readAreaDbf(dbfPath);
+  const buffer = fs.readFileSync(shpPath);
+  const features = [];
   let offset = 100;
+  let recordIndex = 0;
 
   while (offset < buffer.length) {
     const contentLength = buffer.readInt32BE(offset + 4) * 2;
@@ -192,6 +204,7 @@ function readAreaBoundaryLines(directory) {
         buffer.readInt32LE(recordStart + 44 + index * 4),
       );
       const pointStart = recordStart + 44 + partCount * 4;
+      const polygons = [];
 
       for (let partIndex = 0; partIndex < partOffsets.length; partIndex += 1) {
         const startIndex = partOffsets[partIndex];
@@ -205,15 +218,65 @@ function readAreaBoundaryLines(directory) {
         const area = ringArea(ring);
 
         if (ring.length >= 4 && area <= -minJmaAreaRingArea) {
-          lines.push(simplifyLine(trimClosingPoint(ring), jmaAreaSimplifyTolerance));
+          const simplified = simplifyLine(trimClosingPoint(ring), jmaAreaSimplifyTolerance);
+          if (!pointsEqual(simplified[0], simplified.at(-1))) {
+            simplified.push([...simplified[0]]);
+          }
+          polygons.push([simplified]);
         }
+      }
+
+      if (polygons.length > 0) {
+        features.push({
+          type: "Feature",
+          properties: records[recordIndex],
+          geometry: {
+            type: "MultiPolygon",
+            coordinates: polygons,
+          },
+        });
       }
     }
 
     offset += 8 + contentLength;
+    recordIndex += 1;
   }
 
-  return lines.filter((line) => line.length >= 2);
+  return {
+    type: "FeatureCollection",
+    name: "JMA earthquake information local areas",
+    source: path.relative(root, directory),
+    features,
+  };
+}
+
+function readAreaDbf(filePath) {
+  const buffer = fs.readFileSync(filePath);
+  const recordCount = buffer.readUInt32LE(4);
+  const headerLength = buffer.readUInt16LE(8);
+  const recordLength = buffer.readUInt16LE(10);
+  const fields = [];
+
+  for (let offset = 32; buffer[offset] !== 0x0d; offset += 32) {
+    fields.push({
+      name: buffer.subarray(offset, offset + 11).toString("ascii").replace(/\0/g, ""),
+      length: buffer[offset + 16],
+      offset: fields.reduce((sum, field) => sum + field.length, 1),
+    });
+  }
+
+  return Array.from({ length: recordCount }, (_, recordIndex) => {
+    const start = headerLength + recordIndex * recordLength;
+    const record = {};
+
+    for (const field of fields) {
+      const raw = buffer.subarray(start + field.offset, start + field.offset + field.length);
+      const value = jmaDecoder.decode(raw).trim();
+      record[field.name] = field.name === "code" ? value.padStart(3, "0") : value;
+    }
+
+    return record;
+  });
 }
 
 function readPoint(buffer, pointStart, pointIndex) {

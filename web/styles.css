@@ -241,6 +241,19 @@ h1 {
   line-height: 1.35;
 }
 
+.simulation-start {
+  width: 100%;
+  margin-top: 14px;
+  border: 1px solid #ff6b7f;
+  border-radius: 6px;
+  padding: 11px 12px;
+  background: #e11d48;
+  color: #ffffff;
+  cursor: default;
+  font-size: 0.96rem;
+  font-weight: 800;
+}
+
 .epicenter-marker {
   display: grid;
   width: 28px;

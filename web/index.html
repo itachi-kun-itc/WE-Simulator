@@ -37,8 +37,8 @@
             </div>
 
             <label class="field">
-              <span>震央地名グループ</span>
-              <select id="epicenter-region"></select>
+              <span>震央名</span>
+              <input id="epicenter-region" type="text" readonly />
             </label>
 
             <div class="field-grid">
@@ -55,37 +55,22 @@
             <div class="field-grid">
               <label class="field">
                 <span>深さ km</span>
-                <input id="depth-input" type="number" min="0" max="700" step="10" />
+                <select id="depth-input"></select>
               </label>
               <label class="field">
                 <span>マグニチュード</span>
-                <input id="magnitude-input" type="number" min="1" max="9.5" step="0.1" />
+                <input id="magnitude-input" type="number" min="0" max="10" step="0.1" />
               </label>
             </div>
 
-            <label class="field">
-              <span>M種別</span>
-              <select id="magnitude-type">
-                <option value="Mj">Mj 気象庁マグニチュード</option>
-                <option value="Mw">Mw モーメントマグニチュード</option>
-              </select>
-            </label>
-
-            <label class="toggle-row">
-              <input id="municipality-toggle" type="checkbox" />
-              <span>市町村区分を表示</span>
-            </label>
-
             <dl class="result-list">
               <div>
-                <dt>市町村区分</dt>
+                <dt>市町村</dt>
                 <dd id="municipality-output">未選択</dd>
               </div>
-              <div>
-                <dt>推定半径</dt>
-                <dd id="radius-output">-</dd>
-              </div>
             </dl>
+
+            <button class="simulation-start" type="button">シミュレーション開始</button>
           </section>
         </div>
       </section>
