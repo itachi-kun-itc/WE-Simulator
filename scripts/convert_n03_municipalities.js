@@ -2,11 +2,15 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const root = path.resolve(__dirname, "..");
-const inputDir = path.join(root, "N03-180101_GML");
+const inputDir = process.env.MUNICIPALITIES_INPUT_DIR
+  ? path.resolve(root, process.env.MUNICIPALITIES_INPUT_DIR)
+  : path.join(root, "N03-180101_GML");
 const outputPath = path.join(root, "web", "data", "municipalities.geojson");
+const namesOutputPath = path.join(root, "data", "processed", "municipality_names.json");
 const decoder = new TextDecoder("shift_jis");
-const tolerance = Number(process.env.SIMPLIFY_TOLERANCE || 0.018);
-const minArea = Number(process.env.MIN_RING_AREA || 0.00005);
+const tolerance = Number(process.env.SIMPLIFY_TOLERANCE || 0.0004);
+const minArea = Number(process.env.MIN_RING_AREA || 0.000001);
+const sourceName = path.relative(root, inputDir);
 
 const shpPath = findFile(".shp");
 const dbfPath = findFile(".dbf");
@@ -28,11 +32,11 @@ readShp(shpPath, (recordIndex, rings) => {
       subprefecture: record.N03_002,
       county: record.N03_003,
       municipality: record.N03_004,
-      rings: [],
+      polygons: [],
     });
   }
 
-  municipalityMap.get(code).rings.push(...rings);
+  municipalityMap.get(code).polygons.push(...buildPolygons(rings));
 });
 
 const features = [...municipalityMap.values()]
@@ -44,30 +48,54 @@ const features = [...municipalityMap.values()]
       subprefecture: municipality.subprefecture,
       county: municipality.county,
       municipality: municipality.municipality,
-      name: [municipality.prefecture, municipality.county, municipality.municipality]
-        .filter(Boolean)
-        .join(""),
-      source: "nlftp_n03_2018",
+      name: municipalityName(municipality),
+      source: sourceName,
     },
     geometry: {
       type: "MultiPolygon",
-      coordinates: municipality.rings.map((ring) => [ring]),
+      coordinates: municipality.polygons,
     },
   }))
   .filter((feature) => feature.geometry.coordinates.length > 0);
+
+const municipalityNames = [...municipalityMap.values()]
+  .map((municipality) => ({
+    code: municipality.code,
+    prefecture: municipality.prefecture,
+    subprefecture: municipality.subprefecture,
+    county: municipality.county,
+    municipality: municipality.municipality,
+    name: municipalityName(municipality),
+  }))
+  .sort((a, b) => a.code.localeCompare(b.code, "ja"));
 
 fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 fs.writeFileSync(
   outputPath,
   JSON.stringify({
     type: "FeatureCollection",
-    name: "N03 municipalities 2018 simplified",
-    source: "N03-180101_GML",
+    name: "N03 municipalities 2018",
+    source: sourceName,
     features,
   }),
 );
 
+fs.mkdirSync(path.dirname(namesOutputPath), { recursive: true });
+fs.writeFileSync(
+  namesOutputPath,
+  JSON.stringify(
+    {
+      source: sourceName,
+      count: municipalityNames.length,
+      municipalities: municipalityNames,
+    },
+    null,
+    2,
+  ),
+);
+
 console.log(`Wrote ${features.length} municipalities to ${path.relative(root, outputPath)}`);
+console.log(`Wrote ${municipalityNames.length} municipality names to ${path.relative(root, namesOutputPath)}`);
 
 function findFile(extension) {
   const fileName = fs.readdirSync(inputDir).find((name) => name.endsWith(extension));
@@ -75,6 +103,17 @@ function findFile(extension) {
     throw new Error(`No ${extension} file found in ${inputDir}`);
   }
   return path.join(inputDir, fileName);
+}
+
+function municipalityName(municipality) {
+  const area = municipality.county ?? "";
+  const name = municipality.municipality ?? "";
+
+  if (area && name.startsWith(area)) {
+    return [municipality.prefecture, name].filter(Boolean).join("");
+  }
+
+  return [municipality.prefecture, area, name].filter(Boolean).join("");
 }
 
 function readDbf(filePath) {
@@ -147,8 +186,7 @@ function readShp(filePath, onRecord) {
 
 function simplifyRing(ring) {
   const openRing = pointsEqual(ring[0], ring.at(-1)) ? ring.slice(0, -1) : ring;
-  const sampled = openRing.length > 2000 ? openRing.filter((_, index) => index % 2 === 0) : openRing;
-  const simplified = douglasPeucker(sampled, tolerance);
+  const simplified = tolerance > 0 ? douglasPeucker(openRing, tolerance) : openRing;
   const rounded = simplified.map(([longitude, latitude]) => [
     Number(longitude.toFixed(5)),
     Number(latitude.toFixed(5)),
@@ -159,6 +197,68 @@ function simplifyRing(ring) {
   }
 
   return rounded;
+}
+
+function buildPolygons(rings) {
+  const outers = [];
+  const holes = [];
+
+  for (const ring of rings) {
+    const item = { ring, area: ringArea(ring) };
+
+    if (item.area < 0) {
+      outers.push(item);
+    } else {
+      holes.push(item);
+    }
+  }
+
+  if (outers.length === 0) {
+    return rings.map((ring) => [ensureClockwise(ring)]);
+  }
+
+  const polygons = outers
+    .sort((a, b) => Math.abs(b.area) - Math.abs(a.area))
+    .map((outer) => [ensureClockwise(outer.ring)]);
+
+  for (const hole of holes) {
+    const point = hole.ring[0];
+    const containerIndex = outers.findIndex((outer) => pointInRing(point, outer.ring));
+
+    if (containerIndex >= 0) {
+      polygons[containerIndex].push(ensureCounterClockwise(hole.ring));
+    }
+  }
+
+  return polygons;
+}
+
+function ensureClockwise(ring) {
+  return ringArea(ring) <= 0 ? ring : [...ring].reverse();
+}
+
+function ensureCounterClockwise(ring) {
+  return ringArea(ring) >= 0 ? ring : [...ring].reverse();
+}
+
+function pointInRing(point, ring) {
+  let inside = false;
+
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i, i += 1) {
+    const xi = ring[i][0];
+    const yi = ring[i][1];
+    const xj = ring[j][0];
+    const yj = ring[j][1];
+    const intersects =
+      yi > point[1] !== yj > point[1] &&
+      point[0] < ((xj - xi) * (point[1] - yi)) / (yj - yi) + xi;
+
+    if (intersects) {
+      inside = !inside;
+    }
+  }
+
+  return inside;
 }
 
 function douglasPeucker(points, epsilon) {

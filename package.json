@@ -5,6 +5,7 @@
   "scripts": {
     "build:jma-earthquake-map": "node scripts/convert_jma_earthquake_areas.js",
     "build:municipalities": "node scripts/convert_n03_municipalities.js",
+    "build:boundaries": "node --max-old-space-size=8192 scripts/build_boundary_layers.js",
     "web": "node web/dev-server.js"
   }
 }

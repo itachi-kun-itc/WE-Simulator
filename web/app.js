@@ -1,5 +1,8 @@
 const JMA_EARTHQUAKE_AREAS_URL = "./data/jma_earthquake_areas.geojson";
 const MUNICIPALITIES_URL = "./data/municipalities.geojson";
+const BOUNDARY_LAYERS_URL = "./data/boundary_layers.geojson";
+const INITIAL_ZOOM_OFFSET = 1;
+const MUNICIPALITY_BOUNDARY_MIN_ZOOM = 8;
 
 const REGIONS = [
   { name: "北海道", color: "#62d8ff", codes: ["01"] },
@@ -119,7 +122,6 @@ const regionByCode = new Map(
 
 const els = {
   status: document.querySelector("#map-status"),
-  legendItems: document.querySelector("#legend-items"),
   epicenterRegion: document.querySelector("#epicenter-region"),
   latitude: document.querySelector("#latitude-input"),
   longitude: document.querySelector("#longitude-input"),
@@ -136,11 +138,14 @@ let map;
 let epicenterMarker;
 let impactCircle;
 let municipalityLayer;
+let boundaryLayer;
 let municipalityData;
 let municipalityLoadPromise;
+let boundaryData;
+let boundaryLoadPromise;
+let municipalityBoundariesVisible;
 
 setupTabs();
-renderLegend();
 renderEpicenterOptions();
 bindSimulationControls();
 initEarthquakeMap();
@@ -159,25 +164,6 @@ function setupTabs() {
       }
     });
   });
-}
-
-function renderLegend() {
-  els.legendItems.replaceChildren(
-    ...REGIONS.map((region) => {
-      const row = document.createElement("div");
-      row.className = "legend-row";
-
-      const swatch = document.createElement("span");
-      swatch.className = "swatch";
-      swatch.style.backgroundColor = region.color;
-
-      const label = document.createElement("span");
-      label.textContent = region.name;
-
-      row.append(swatch, label);
-      return row;
-    }),
-  );
 }
 
 function renderEpicenterOptions() {
@@ -216,6 +202,9 @@ function bindSimulationControls() {
       await showMunicipalities();
     } else if (municipalityLayer) {
       map.removeLayer(municipalityLayer);
+      if (boundaryLayer) {
+        map.removeLayer(boundaryLayer);
+      }
     }
 
     updateMunicipalityOutput();
@@ -229,6 +218,7 @@ async function initEarthquakeMap() {
     attributionControl: true,
     zoomControl: true,
     scrollWheelZoom: true,
+    preferCanvas: true,
     minZoom: 4,
     maxZoom: 10,
   });
@@ -239,22 +229,22 @@ async function initEarthquakeMap() {
     syncInputs();
     updateEpicenter();
   });
+  map.on("zoomend", () => {
+    updateMunicipalityLayerStyle();
+    keepBoundaryLayersOnTop();
+  });
+
+  els.municipalityToggle.checked = true;
 
   try {
-    const response = await fetch(JMA_EARTHQUAKE_AREAS_URL);
-    if (!response.ok) {
-      throw new Error(`JMA GeoJSON request failed: ${response.status}`);
-    }
-
-    const geojson = await response.json();
-    drawEarthquakeAreas(geojson);
-    els.status.textContent = "気象庁GISデータ（地震情報／都道府県等）を表示中";
+    await showMunicipalities({ fitBounds: true });
+    els.status.textContent = "市町村区分地図を表示中";
     map.attributionControl.addAttribution(
-      '<a href="https://www.data.jma.go.jp/developer/gis.html" target="_blank" rel="noreferrer">気象庁GISデータ</a>',
+      '<a href="https://nlftp.mlit.go.jp/ksj/" target="_blank" rel="noreferrer">国土数値情報</a>',
     );
   } catch (error) {
     drawEarthquakeAreas(FALLBACK_FEATURES);
-    els.status.textContent = "JMA地図データの読み込みに失敗。簡易地図を表示中";
+    els.status.textContent = "市町村地図データの読み込みに失敗。簡易地図を表示中";
     console.warn(error);
   }
 
@@ -288,21 +278,20 @@ function drawEarthquakeAreas(geojson) {
   });
 }
 
-async function showMunicipalities() {
+async function showMunicipalities(options = {}) {
   municipalityData = await loadMunicipalities();
 
   if (municipalityLayer) {
     municipalityLayer.addTo(map);
+    await showBoundaryLayers();
+    if (options.fitBounds) {
+      fitInitialMapBounds(municipalityLayer.getBounds());
+    }
     return;
   }
 
   municipalityLayer = L.geoJSON(municipalityData, {
-    style: {
-      color: "#ffffff",
-      fillOpacity: 0,
-      opacity: 0.28,
-      weight: 0.6,
-    },
+    style: () => municipalityStyle(),
     onEachFeature: (feature, layerItem) => {
       layerItem.bindTooltip(feature.properties.name, {
         direction: "top",
@@ -310,6 +299,82 @@ async function showMunicipalities() {
       });
     },
   }).addTo(map);
+
+  await showBoundaryLayers();
+
+  if (options.fitBounds) {
+    fitInitialMapBounds(municipalityLayer.getBounds());
+  }
+}
+
+function fitInitialMapBounds(bounds) {
+  map.fitBounds(bounds, {
+    padding: [8, 8],
+  });
+
+  map.setZoom(Math.min(map.getZoom() + INITIAL_ZOOM_OFFSET, map.getMaxZoom()));
+}
+
+function municipalityStyle() {
+  const showBoundaries = map && map.getZoom() >= MUNICIPALITY_BOUNDARY_MIN_ZOOM;
+
+  return {
+    color: "#ffffff",
+    fillColor: "#8c9298",
+    fillOpacity: 0.94,
+    opacity: showBoundaries ? 0.58 : 0,
+    weight: showBoundaries ? 0.42 : 0,
+  };
+}
+
+function updateMunicipalityLayerStyle() {
+  if (!municipalityLayer) {
+    return;
+  }
+
+  const shouldShow = map.getZoom() >= MUNICIPALITY_BOUNDARY_MIN_ZOOM;
+  if (municipalityBoundariesVisible === shouldShow) {
+    return;
+  }
+
+  municipalityBoundariesVisible = shouldShow;
+  municipalityLayer.setStyle(() => municipalityStyle());
+}
+
+async function showBoundaryLayers() {
+  boundaryData = await loadBoundaryLayers();
+
+  if (boundaryLayer) {
+    boundaryLayer.addTo(map);
+    keepBoundaryLayersOnTop();
+    return;
+  }
+
+  boundaryLayer = L.geoJSON(boundaryData, {
+    style: (feature) => {
+      if (feature.properties.layer === "jma_region") {
+        return {
+          color: "#111827",
+          opacity: 0.94,
+          weight: 2.6,
+        };
+      }
+
+      return {
+        color: "#ffffff",
+        opacity: 0.92,
+        weight: 1.35,
+      };
+    },
+    interactive: false,
+  }).addTo(map);
+  keepBoundaryLayersOnTop();
+}
+
+function keepBoundaryLayersOnTop() {
+  if (boundaryLayer) {
+    boundaryLayer.bringToFront();
+  }
 }
 
 async function loadMunicipalities() {
@@ -329,6 +394,25 @@ async function loadMunicipalities() {
 
   municipalityData = await municipalityLoadPromise;
   return municipalityData;
+}
+
+async function loadBoundaryLayers() {
+  if (boundaryData) {
+    return boundaryData;
+  }
+
+  if (!boundaryLoadPromise) {
+    boundaryLoadPromise = fetch(BOUNDARY_LAYERS_URL).then((response) => {
+      if (!response.ok) {
+        throw new Error(`Boundary GeoJSON request failed: ${response.status}`);
+      }
+
+      return response.json();
+    });
+  }
+
+  boundaryData = await boundaryLoadPromise;
+  return boundaryData;
 }
 
 function updateStateFromInputs() {
@@ -425,10 +509,12 @@ function estimateImpactRadiusKm(magnitude, depthKm) {
 
 function findFeatureAtPoint(geojson, longitude, latitude) {
   return geojson.features.find((feature) =>
-    feature.geometry.coordinates.some((polygon) =>
-      polygon.some((ring) => pointInRing([longitude, latitude], ring)),
-    ),
+    feature.geometry.coordinates.some((polygon) => pointInPolygon([longitude, latitude], polygon)),
   );
+}
+
+function pointInPolygon(point, polygon) {
+  return pointInRing(point, polygon[0]) && polygon.slice(1).every((ring) => !pointInRing(point, ring));
 }
 
 function pointInRing(point, ring) {
