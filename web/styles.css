@@ -40,7 +40,7 @@ select {
 }
 
 .app-shell {
-  height: calc(100vh - 76px);
+  height: 100vh;
   min-height: 520px;
   background:
     radial-gradient(circle at 24% 18%, rgba(38, 217, 255, 0.08), transparent 28%),
@@ -57,6 +57,15 @@ select {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+#earthquake-panel.panel-active {
+  gap: 0;
+  padding: 0;
+}
+
+#earthquake-panel .topbar {
+  display: none;
 }
 
 .topbar {
@@ -99,7 +108,7 @@ h1 {
   position: relative;
   flex: 1;
   min-height: 0;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 0;
   background: #061a3a;
 }
 
@@ -109,19 +118,28 @@ h1 {
   background: #061a3a;
 }
 
-.leaflet-container {
+.maplibregl-map {
   background: #061a3a;
   font: inherit;
 }
 
-.leaflet-control-attribution {
+.maplibregl-ctrl-attrib {
   border-radius: 4px 0 0 0;
   background: rgba(0, 0, 0, 0.58);
   color: #b8c7ce;
 }
 
-.leaflet-control-attribution a {
+.maplibregl-ctrl-attrib a {
   color: #8eeaff;
+}
+
+.maplibregl-ctrl-group {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(2, 4, 5, 0.72);
+}
+
+.maplibregl-ctrl-group button {
+  filter: invert(1);
 }
 
 .sim-panel {
@@ -254,23 +272,74 @@ h1 {
   font-weight: 800;
 }
 
+.intensity-legend {
+  position: absolute;
+  right: 14px;
+  bottom: 18px;
+  z-index: 420;
+  width: 94px;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  background: rgba(245, 248, 250, 0.94);
+  color: #111827;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
+}
+
+.intensity-legend h2 {
+  margin: 0;
+  border-bottom: 1px solid rgba(17, 24, 39, 0.28);
+  padding: 6px 4px;
+  font-size: 1rem;
+  line-height: 1;
+  text-align: center;
+}
+
+.intensity-scale {
+  display: grid;
+}
+
+.intensity-scale span {
+  display: grid;
+  min-height: 30px;
+  place-items: center;
+  border-bottom: 1px solid rgba(17, 24, 39, 0.28);
+  background: var(--color);
+  color: var(--text-color, #ffffff);
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.intensity-scale span:last-child {
+  border-bottom: 0;
+}
+
+.epicenter-marker-shell {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+}
+
 .epicenter-marker {
   display: grid;
-  width: 28px;
-  height: 28px;
+  width: 34px;
+  height: 34px;
   place-items: center;
-  border: 2px solid #ffffff;
-  border-radius: 50%;
-  background: #ff3b5f;
-  box-shadow: 0 0 0 8px rgba(255, 59, 95, 0.18);
+  border: 3px solid #ffd84d;
+  border-radius: 4px;
+  background: #e11d48;
+  box-shadow: 0 0 0 7px rgba(225, 29, 72, 0.16);
+  transform: rotate(45deg);
 }
 
 .epicenter-marker::after {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #ffffff;
+  width: 18px;
+  height: 18px;
+  background:
+    linear-gradient(#ffffff, #ffffff) center / 100% 4px no-repeat,
+    linear-gradient(#ffffff, #ffffff) center / 4px 100% no-repeat;
   content: "";
+  transform: rotate(45deg);
 }
 
 .empty-state {
@@ -285,7 +354,7 @@ h1 {
 .bottom-tabs {
   position: fixed;
   inset: auto 0 0;
-  display: grid;
+  display: none;
   grid-template-columns: 1fr 1fr;
   height: 76px;
   border-top: 1px solid var(--line);
@@ -334,6 +403,10 @@ h1 {
     padding: 14px;
   }
 
+  #earthquake-panel.panel-active {
+    padding: 0;
+  }
+
   .topbar {
     align-items: flex-start;
     flex-direction: column;
@@ -349,6 +422,17 @@ h1 {
     top: 10px;
     max-height: calc(100% - 110px);
     overflow: auto;
+  }
+
+  .intensity-legend {
+    right: 10px;
+    bottom: 10px;
+    width: 76px;
+  }
+
+  .intensity-scale span {
+    min-height: 25px;
+    font-size: 0.88rem;
   }
 
   .bottom-tabs {

@@ -2,70 +2,74 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const root = path.resolve(__dirname, "..");
+const defaultJmaInputDir = path.join(root, "data", "raw", "jma_weather_city_areas");
+const defaultN03InputDir = path.join(root, "data", "raw", "N03-20230101_GML");
+const legacyN03InputDir = path.join(root, "N03-180101_GML");
 const inputDir = process.env.MUNICIPALITIES_INPUT_DIR
   ? path.resolve(root, process.env.MUNICIPALITIES_INPUT_DIR)
-  : path.join(root, "N03-180101_GML");
+  : firstExistingDirectory([defaultJmaInputDir, defaultN03InputDir, legacyN03InputDir]);
 const outputPath = path.join(root, "web", "data", "municipalities.geojson");
 const namesOutputPath = path.join(root, "data", "processed", "municipality_names.json");
-const decoder = new TextDecoder("shift_jis");
 const tolerance = Number(process.env.SIMPLIFY_TOLERANCE || 0.0004);
 const minArea = Number(process.env.MIN_RING_AREA || 0.000001);
 const sourceName = path.relative(root, inputDir);
 
 const shpPath = findFile(".shp");
 const dbfPath = findFile(".dbf");
-const records = readDbf(dbfPath);
+const { records, schema } = readDbf(dbfPath);
 const municipalityMap = new Map();
 
 readShp(shpPath, (recordIndex, rings) => {
   const record = records[recordIndex];
-  const code = record.N03_007;
+  const municipality = normalizeMunicipalityRecord(record, schema);
 
-  if (!code) {
+  if (!municipality?.code) {
     return;
   }
 
-  if (!municipalityMap.has(code)) {
-    municipalityMap.set(code, {
-      code,
-      prefecture: record.N03_001,
-      subprefecture: record.N03_002,
-      county: record.N03_003,
-      municipality: record.N03_004,
+  if (!municipalityMap.has(municipality.code)) {
+    municipalityMap.set(municipality.code, {
+      ...municipality,
       polygons: [],
     });
   }
 
-  municipalityMap.get(code).polygons.push(...buildPolygons(rings));
+  municipalityMap.get(municipality.code).polygons.push(...buildPolygons(rings));
 });
 
-const features = [...municipalityMap.values()]
-  .map((municipality) => ({
-    type: "Feature",
-    properties: {
-      code: municipality.code,
-      prefecture: municipality.prefecture,
-      subprefecture: municipality.subprefecture,
-      county: municipality.county,
-      municipality: municipality.municipality,
-      name: municipalityName(municipality),
-      source: sourceName,
-    },
-    geometry: {
-      type: "MultiPolygon",
-      coordinates: municipality.polygons,
-    },
-  }))
-  .filter((feature) => feature.geometry.coordinates.length > 0);
+const municipalities = [...municipalityMap.values()].filter(
+  (municipality) => municipality.polygons.length > 0,
+);
 
-const municipalityNames = [...municipalityMap.values()]
-  .map((municipality) => ({
+const features = municipalities.map((municipality) => ({
+  type: "Feature",
+  properties: {
     code: municipality.code,
+    prefectureCode: municipality.prefectureCode,
     prefecture: municipality.prefecture,
     subprefecture: municipality.subprefecture,
     county: municipality.county,
     municipality: municipality.municipality,
-    name: municipalityName(municipality),
+    name: municipality.name,
+    nameKana: municipality.nameKana,
+    source: sourceName,
+  },
+  geometry: {
+    type: "MultiPolygon",
+    coordinates: municipality.polygons,
+  },
+}));
+
+const municipalityNames = municipalities
+  .map((municipality) => ({
+    code: municipality.code,
+    prefectureCode: municipality.prefectureCode,
+    prefecture: municipality.prefecture,
+    subprefecture: municipality.subprefecture,
+    county: municipality.county,
+    municipality: municipality.municipality,
+    name: municipality.name,
+    nameKana: municipality.nameKana,
   }))
   .sort((a, b) => a.code.localeCompare(b.code, "ja"));
 
@@ -74,7 +78,7 @@ fs.writeFileSync(
   outputPath,
   JSON.stringify({
     type: "FeatureCollection",
-    name: "N03 municipalities 2018",
+    name: schema === "jma_weather_city" ? "JMA weather warning municipalities" : "N03 municipalities",
     source: sourceName,
     features,
   }),
@@ -86,6 +90,7 @@ fs.writeFileSync(
   JSON.stringify(
     {
       source: sourceName,
+      schema,
       count: municipalityNames.length,
       municipalities: municipalityNames,
     },
@@ -94,8 +99,19 @@ fs.writeFileSync(
   ),
 );
 
+console.log(`Input schema: ${schema}`);
 console.log(`Wrote ${features.length} municipalities to ${path.relative(root, outputPath)}`);
 console.log(`Wrote ${municipalityNames.length} municipality names to ${path.relative(root, namesOutputPath)}`);
+
+function firstExistingDirectory(directories) {
+  const directory = directories.find((candidate) => fs.existsSync(candidate));
+
+  if (!directory) {
+    throw new Error(`No municipality input directory found: ${directories.join(", ")}`);
+  }
+
+  return directory;
+}
 
 function findFile(extension) {
   const fileName = fs.readdirSync(inputDir).find((name) => name.endsWith(extension));
@@ -103,6 +119,43 @@ function findFile(extension) {
     throw new Error(`No ${extension} file found in ${inputDir}`);
   }
   return path.join(inputDir, fileName);
+}
+
+function normalizeMunicipalityRecord(record, schema) {
+  if (schema === "jma_weather_city") {
+    const code = record.regioncode;
+
+    return {
+      code,
+      prefectureCode: code.slice(0, 2),
+      prefecture: record.regionname.match(/^(東京都|北海道|(?:京都|大阪)府|.{2,3}県)/u)?.[0] ?? "",
+      subprefecture: "",
+      county: "",
+      municipality: record.name,
+      name: record.regionname,
+      nameKana: record.namekana,
+    };
+  }
+
+  const code = record.N03_007;
+  if (!code) {
+    return null;
+  }
+
+  const municipality = {
+    code,
+    prefectureCode: code.slice(0, 2),
+    prefecture: record.N03_001,
+    subprefecture: record.N03_002,
+    county: record.N03_003,
+    municipality: record.N03_004,
+    nameKana: "",
+  };
+
+  return {
+    ...municipality,
+    name: municipalityName(municipality),
+  };
 }
 
 function municipalityName(municipality) {
@@ -131,17 +184,26 @@ function readDbf(filePath) {
     });
   }
 
-  return Array.from({ length: recordCount }, (_, recordIndex) => {
-    const start = headerLength + recordIndex * recordLength;
-    const record = {};
+  const fieldNames = fields.map((field) => field.name);
+  const schema = fieldNames.includes("regioncode") && fieldNames.includes("regionname")
+    ? "jma_weather_city"
+    : "n03";
+  const decoder = new TextDecoder(schema === "jma_weather_city" ? "utf-8" : "shift_jis");
 
-    for (const field of fields) {
-      const raw = buffer.subarray(start + field.offset, start + field.offset + field.length);
-      record[field.name] = decoder.decode(raw).trim();
-    }
+  return {
+    schema,
+    records: Array.from({ length: recordCount }, (_, recordIndex) => {
+      const start = headerLength + recordIndex * recordLength;
+      const record = {};
 
-    return record;
-  });
+      for (const field of fields) {
+        const raw = buffer.subarray(start + field.offset, start + field.offset + field.length);
+        record[field.name] = decoder.decode(raw).trim();
+      }
+
+      return record;
+    }),
+  };
 }
 
 function readShp(filePath, onRecord) {
