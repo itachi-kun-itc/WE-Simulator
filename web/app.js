@@ -3,6 +3,8 @@ const BOUNDARY_LAYERS_URL = "./data/boundary_layers.geojson";
 const JMA_LOCAL_AREAS_URL = "./data/jma_local_areas.geojson";
 const SEA_EPICENTER_AREAS_URL = "./data/sea_epicenter_areas.geojson";
 const SURROUNDING_LAND_URL = "./data/surrounding_land.geojson";
+const GROUND_MODEL_URL = "./data/ground_model.json";
+const SHINDO_STATIONS_URL = "./data/jma_shindo_stations.json";
 
 const INITIAL_CENTER = [139.767, 35.681];
 const INITIAL_ZOOM = 5.25;
@@ -34,6 +36,9 @@ const state = {
   epicenterName: "未選択",
   municipalityName: "未選択",
   maxIntensityLabel: "未計算",
+  epicenterEditEnabled: false,
+  showStationLayer: false,
+  showRegionLayer: true,
 };
 
 const els = {
@@ -45,6 +50,9 @@ const els = {
   magnitude: document.querySelector("#magnitude-input"),
   municipalityOutput: document.querySelector("#municipality-output"),
   maxIntensityOutput: document.querySelector("#max-intensity-output"),
+  epicenterEditToggle: document.querySelector("#epicenter-edit-toggle"),
+  stationLayerToggle: document.querySelector("#station-layer-toggle"),
+  regionLayerToggle: document.querySelector("#region-layer-toggle"),
   resetEpicenter: document.querySelector("#reset-epicenter"),
 };
 
@@ -61,6 +69,10 @@ let seaEpicenterData;
 let seaEpicenterLoadPromise;
 let surroundingLandData;
 let surroundingLandLoadPromise;
+let groundModelData;
+let groundModelLoadPromise;
+let shindoStationData;
+let shindoStationLoadPromise;
 let locationResolveTimer;
 
 setupTabs();
@@ -110,6 +122,9 @@ function bindSimulationControls() {
   els.longitude.addEventListener("input", () => updateStateFromInputs({ resolveLocation: true }));
   els.depth.addEventListener("input", () => updateStateFromInputs());
   els.magnitude.addEventListener("input", () => updateStateFromInputs());
+  els.epicenterEditToggle.addEventListener("change", () => updateEpicenterEditMode());
+  els.stationLayerToggle.addEventListener("change", () => updateDisplayMode());
+  els.regionLayerToggle.addEventListener("change", () => updateDisplayMode());
 
   els.resetEpicenter.addEventListener("click", () => {
     state.latitude = 35.681;
@@ -124,6 +139,7 @@ function bindSimulationControls() {
   });
 
   syncInputs();
+  updateDisplayMode();
 }
 
 async function initEarthquakeMap() {
@@ -157,8 +173,13 @@ async function initEarthquakeMap() {
         '<a href="https://nlftp.mlit.go.jp/ksj/" target="_blank" rel="noreferrer">国土数値情報</a>',
     }),
   );
+  updateEpicenterEditMode();
 
   map.on("click", (event) => {
+    if (!state.epicenterEditEnabled) {
+      return;
+    }
+
     state.latitude = Number(event.lngLat.lat.toFixed(3));
     state.longitude = Number(event.lngLat.lng.toFixed(3));
     syncInputs();
@@ -186,11 +207,12 @@ function onceMapLoaded() {
 }
 
 async function showMapLayers() {
-  const [surroundingLand, municipalities, boundaries, localAreas] = await Promise.all([
+  const [surroundingLand, municipalities, boundaries, localAreas, shindoStations] = await Promise.all([
     loadSurroundingLand(),
     loadMunicipalities(),
     loadBoundaryLayers(),
     loadLocalAreas(),
+    loadShindoStations(),
   ]);
 
   municipalityDisplayData = municipalityDisplayData ?? withoutInteriorRings(municipalities);
@@ -198,10 +220,14 @@ async function showMapLayers() {
   addGeoJsonSource("surrounding-land", surroundingLand);
   addGeoJsonSource("municipalities", municipalityDisplayData);
   addGeoJsonSource("jma-local-areas", buildIntensityAreaData(localAreas));
+  addGeoJsonSource("shindo-stations", buildStationIntensityData(shindoStations));
   addGeoJsonSource("boundaries", boundaries);
 
   addMapLayers();
   fitInitialMapBounds(getGeoJsonBounds(municipalityDisplayData));
+  loadGroundModel()
+    .then(() => updateIntensityLayer())
+    .catch((error) => console.warn(error));
 }
 
 function addGeoJsonSource(id, data) {
@@ -257,6 +283,7 @@ function addMapLayers() {
       "fill-opacity": ["interpolate", ["linear"], ["get", "intensityRank"], 0, 0.36, 2, 0.72, 9, 0.94],
     },
   });
+  updateLayerVisibility("jma-intensity-fill", state.showRegionLayer);
 
   addLayerIfMissing({
     id: "municipality-boundaries",
@@ -293,11 +320,32 @@ function addMapLayers() {
       "line-width": ["interpolate", ["linear"], ["zoom"], 4, 1.05, 7, 1.7, 10, 2.45],
     },
   });
+
+  addLayerIfMissing({
+    id: "shindo-station-points",
+    type: "circle",
+    source: "shindo-stations",
+    paint: {
+      "circle-color": ["get", "intensityColor"],
+      "circle-opacity": 0.94,
+      "circle-radius": ["interpolate", ["linear"], ["get", "intensityRank"], 1, 4, 5, 6.5, 9, 9],
+      "circle-stroke-color": "#ffffff",
+      "circle-stroke-opacity": 0.9,
+      "circle-stroke-width": 1.1,
+    },
+  });
+  updateLayerVisibility("shindo-station-points", state.showStationLayer);
 }
 
 function addLayerIfMissing(layer) {
   if (!map.getLayer(layer.id)) {
     map.addLayer(layer);
+  }
+}
+
+function updateLayerVisibility(layerId, visible) {
+  if (map?.getLayer(layerId)) {
+    map.setLayoutProperty(layerId, "visibility", visible ? "visible" : "none");
   }
 }
 
@@ -319,6 +367,25 @@ function scheduleLocationResolve() {
   locationResolveTimer = window.setTimeout(() => {
     updateEpicenter({ resolveLocation: true });
   }, 180);
+}
+
+function updateEpicenterEditMode() {
+  state.epicenterEditEnabled = els.epicenterEditToggle.checked;
+
+  if (map) {
+    map.getCanvas().classList.toggle("epicenter-edit-enabled", state.epicenterEditEnabled);
+  }
+
+  if (epicenterMarker) {
+    epicenterMarker.setDraggable(state.epicenterEditEnabled);
+  }
+}
+
+function updateDisplayMode() {
+  state.showStationLayer = els.stationLayerToggle.checked;
+  state.showRegionLayer = els.regionLayerToggle.checked;
+  updateLayerVisibility("shindo-station-points", state.showStationLayer);
+  updateLayerVisibility("jma-intensity-fill", state.showRegionLayer);
 }
 
 async function loadMunicipalities() {
@@ -386,6 +453,32 @@ async function loadSurroundingLand() {
   return surroundingLandData;
 }
 
+async function loadGroundModel() {
+  if (groundModelData) {
+    return groundModelData;
+  }
+
+  if (!groundModelLoadPromise) {
+    groundModelLoadPromise = fetchJson(GROUND_MODEL_URL, "J-SHIS ground model");
+  }
+
+  groundModelData = await groundModelLoadPromise;
+  return groundModelData;
+}
+
+async function loadShindoStations() {
+  if (shindoStationData) {
+    return shindoStationData;
+  }
+
+  if (!shindoStationLoadPromise) {
+    shindoStationLoadPromise = fetchJson(SHINDO_STATIONS_URL, "JMA shindo stations");
+  }
+
+  shindoStationData = await shindoStationLoadPromise;
+  return shindoStationData;
+}
+
 async function fetchJson(url, label) {
   const response = await fetch(url);
   if (!response.ok) {
@@ -431,6 +524,8 @@ function syncInputs() {
   els.epicenterRegion.value = state.epicenterName;
   els.municipalityOutput.textContent = state.municipalityName;
   els.maxIntensityOutput.textContent = state.maxIntensityLabel;
+  els.stationLayerToggle.checked = state.showStationLayer;
+  els.regionLayerToggle.checked = state.showRegionLayer;
 }
 
 async function updateEpicenter(options = {}) {
@@ -453,7 +548,7 @@ async function updateEpicenter(options = {}) {
 
     epicenterMarker = new maplibregl.Marker({
       element: markerElement,
-      draggable: true,
+      draggable: state.epicenterEditEnabled,
     })
       .setLngLat(lngLat)
       .addTo(map);
@@ -465,6 +560,7 @@ async function updateEpicenter(options = {}) {
       syncInputs();
       updateEpicenter({ resolveLocation: true });
     });
+    updateEpicenterEditMode();
   }
 
   epicenterMarker
@@ -515,19 +611,34 @@ async function updateLocationNames() {
 }
 
 function updateIntensityLayer() {
-  if (!map?.getSource("jma-local-areas") || !localAreaData) {
+  if (!map || !localAreaData) {
     return;
   }
 
-  map.getSource("jma-local-areas").setData(buildIntensityAreaData(localAreaData));
+  if (map.getSource("shindo-stations") && shindoStationData) {
+    map.getSource("shindo-stations").setData(buildStationIntensityData(shindoStationData));
+  }
+
+  if (map.getSource("jma-local-areas")) {
+    map.getSource("jma-local-areas").setData(buildIntensityAreaData(localAreaData));
+  }
 }
 
 function buildIntensityAreaData(geojson) {
+  const stationFeatures = shindoStationData ? buildStationIntensityFeatures(shindoStationData) : [];
   let maxClass = INTENSITY_CLASSES[0];
   let maxValue = 0;
 
   const features = geojson.features.map((feature) => {
-    const intensityValue = estimateMaxIntensityForFeature(feature);
+    const areaStations = stationFeatures.filter((stationFeature) =>
+      getFeaturePolygons(feature).some((polygon) =>
+        pointInPolygon(stationFeature.geometry.coordinates, polygon),
+      ),
+    );
+    const intensityValue =
+      areaStations.length > 0
+        ? Math.max(...areaStations.map((stationFeature) => stationFeature.properties.intensityValue))
+        : estimateMaxIntensityForFeature(feature);
     const intensityClass = toJmaIntensityClass(intensityValue);
 
     if (intensityClass.rank > maxClass.rank || intensityValue > maxValue) {
@@ -556,18 +667,61 @@ function buildIntensityAreaData(geojson) {
   };
 }
 
+function buildStationIntensityData(data) {
+  return {
+    type: "FeatureCollection",
+    name: "Observed JMA shindo stations with estimated intensity",
+    source: data.source,
+    updated: data.updated,
+    features: buildStationIntensityFeatures(data).filter(
+      (feature) => feature.properties.intensityRank >= 1,
+    ),
+  };
+}
+
+function buildStationIntensityFeatures(data) {
+  return data.stations
+    .filter((station) => station.active)
+    .map((station) => {
+      const intensityValue = estimateIntensityAtPoint(station.longitude, station.latitude);
+      const intensityClass = toJmaIntensityClass(intensityValue);
+      return {
+        type: "Feature",
+        properties: {
+          id: station.id,
+          name: station.name,
+          areaName: station.areaName,
+          address: station.address,
+          intensityValue: Number(intensityValue.toFixed(2)),
+          intensityLabel: intensityClass.label,
+          intensityRank: intensityClass.rank,
+          intensityColor: intensityClass.color,
+        },
+        geometry: {
+          type: "Point",
+          coordinates: [station.longitude, station.latitude],
+        },
+      };
+    });
+}
+
 function estimateMaxIntensityForFeature(feature) {
   const epicenter = [state.longitude, state.latitude];
-  const epicentralDistanceKm = getFeaturePolygons(feature).reduce(
-    (minimum, polygon) => Math.min(minimum, distanceToPolygonKilometers(epicenter, polygon)),
-    Infinity,
-  );
+  const nearestPoint = getNearestPointOnFeature(epicenter, feature);
+  return estimateIntensityAtPoint(nearestPoint.point[0], nearestPoint.point[1], nearestPoint.distanceKm);
+}
+
+function estimateIntensityAtPoint(longitude, latitude, knownEpicentralDistanceKm = null) {
+  const epicenter = [state.longitude, state.latitude];
+  const epicentralDistanceKm =
+    knownEpicentralDistanceKm ?? haversineKilometers(epicenter, [longitude, latitude]);
   const hypocentralDistanceKm = Math.hypot(epicentralDistanceKm, state.depthKm);
+  const ground = getGroundModelAt(longitude, latitude);
 
   return estimateInstrumentalIntensity({
     magnitude: state.magnitude,
     hypocentralDistanceKm,
-    siteAmplification: EARTHQUAKE_MODEL.defaultSiteAmplification,
+    siteAmplification: ground?.intensityAmplification ?? EARTHQUAKE_MODEL.defaultSiteAmplification,
   });
 }
 
@@ -596,6 +750,53 @@ function toJmaIntensityClass(instrumentalIntensity) {
   }
 
   return INTENSITY_CLASSES[0];
+}
+
+function getGroundModelAt(longitude, latitude) {
+  if (!groundModelData?.meshes) {
+    return null;
+  }
+
+  const code = meshCode1km(longitude, latitude);
+  const values = groundModelData.meshes[code];
+  if (!values) {
+    return null;
+  }
+
+  const [arv, avs, s0, maxDepthM] = values;
+  return {
+    code,
+    arv,
+    avs,
+    s0,
+    maxDepthM,
+    intensityAmplification: arvToIntensityAmplification(arv),
+  };
+}
+
+function arvToIntensityAmplification(arv) {
+  if (!Number.isFinite(arv) || arv <= 0) {
+    return EARTHQUAKE_MODEL.defaultSiteAmplification;
+  }
+
+  // ARV is a peak velocity amplification factor. JMA instrumental intensity is
+  // logarithmic, so use a modest log10 correction to avoid over-amplifying.
+  return clamp(0.9 * Math.log10(arv), -0.35, 0.55);
+}
+
+function meshCode1km(longitude, latitude) {
+  const latBase = Math.floor(latitude * 1.5);
+  const lonBase = Math.floor(longitude) - 100;
+  const latRemainder = latitude - latBase / 1.5;
+  const lonRemainder = longitude - Math.floor(longitude);
+  const latSecond = clamp(Math.floor(latRemainder / (5 / 60)), 0, 7);
+  const lonSecond = clamp(Math.floor(lonRemainder / (7.5 / 60)), 0, 7);
+  const latThirdRemainder = latRemainder - latSecond * (5 / 60);
+  const lonThirdRemainder = lonRemainder - lonSecond * (7.5 / 60);
+  const latThird = clamp(Math.floor(latThirdRemainder / (30 / 3600)), 0, 9);
+  const lonThird = clamp(Math.floor(lonThirdRemainder / (45 / 3600)), 0, 9);
+
+  return `${String(latBase).padStart(2, "0")}${String(lonBase).padStart(2, "0")}${latSecond}${lonSecond}${latThird}${lonThird}`;
 }
 
 function formatDepth(depthKm) {
@@ -655,6 +856,44 @@ function distanceToPolygonKilometers(point, polygon) {
   );
 }
 
+function getNearestPointOnFeature(point, feature) {
+  let nearest = {
+    point,
+    distanceKm: Infinity,
+  };
+
+  for (const polygon of getFeaturePolygons(feature)) {
+    const candidate = getNearestPointOnPolygon(point, polygon);
+    if (candidate.distanceKm < nearest.distanceKm) {
+      nearest = candidate;
+    }
+  }
+
+  return nearest.distanceKm === Infinity ? { point, distanceKm: 0 } : nearest;
+}
+
+function getNearestPointOnPolygon(point, polygon) {
+  if (pointInPolygon(point, polygon)) {
+    return { point, distanceKm: 0 };
+  }
+
+  let nearest = {
+    point,
+    distanceKm: Infinity,
+  };
+
+  for (const ring of polygon) {
+    for (let index = 0; index < ring.length - 1; index += 1) {
+      const candidate = nearestPointOnSegmentKilometers(point, ring[index], ring[index + 1]);
+      if (candidate.distanceKm < nearest.distanceKm) {
+        nearest = candidate;
+      }
+    }
+  }
+
+  return nearest;
+}
+
 function distanceToRingKilometers(point, ring) {
   let minimum = Infinity;
 
@@ -669,6 +908,10 @@ function distanceToRingKilometers(point, ring) {
 }
 
 function distanceToSegmentKilometers(point, start, end) {
+  return nearestPointOnSegmentKilometers(point, start, end).distanceKm;
+}
+
+function nearestPointOnSegmentKilometers(point, start, end) {
   const startPoint = toLocalKilometers(start, point);
   const endPoint = toLocalKilometers(end, point);
   const segmentX = endPoint[0] - startPoint[0];
@@ -676,7 +919,10 @@ function distanceToSegmentKilometers(point, start, end) {
   const segmentLengthSquared = segmentX * segmentX + segmentY * segmentY;
 
   if (segmentLengthSquared === 0) {
-    return Math.hypot(startPoint[0], startPoint[1]);
+    return {
+      point: start,
+      distanceKm: Math.hypot(startPoint[0], startPoint[1]),
+    };
   }
 
   const t = clamp(
@@ -684,7 +930,15 @@ function distanceToSegmentKilometers(point, start, end) {
     0,
     1,
   );
-  return Math.hypot(startPoint[0] + segmentX * t, startPoint[1] + segmentY * t);
+  const nearestPoint = [
+    start[0] + (end[0] - start[0]) * t,
+    start[1] + (end[1] - start[1]) * t,
+  ];
+
+  return {
+    point: nearestPoint,
+    distanceKm: Math.hypot(startPoint[0] + segmentX * t, startPoint[1] + segmentY * t),
+  };
 }
 
 function toLocalKilometers(coordinate, origin) {
@@ -695,6 +949,23 @@ function toLocalKilometers(coordinate, origin) {
     (coordinate[0] - origin[0]) * longitudeScale,
     (coordinate[1] - origin[1]) * latitudeScale,
   ];
+}
+
+function haversineKilometers(start, end) {
+  const earthRadiusKm = 6371;
+  const startLat = toRadians(start[1]);
+  const endLat = toRadians(end[1]);
+  const deltaLat = toRadians(end[1] - start[1]);
+  const deltaLon = toRadians(end[0] - start[0]);
+  const a =
+    Math.sin(deltaLat / 2) ** 2 +
+    Math.cos(startLat) * Math.cos(endLat) * Math.sin(deltaLon / 2) ** 2;
+
+  return 2 * earthRadiusKm * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function toRadians(value) {
+  return (value * Math.PI) / 180;
 }
 
 function pointInRing(point, ring) {

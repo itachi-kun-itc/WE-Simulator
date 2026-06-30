@@ -142,6 +142,10 @@ h1 {
   filter: invert(1);
 }
 
+.maplibregl-canvas.epicenter-edit-enabled {
+  cursor: crosshair;
+}
+
 .sim-panel {
   position: absolute;
   left: 14px;
@@ -232,6 +236,17 @@ h1 {
   accent-color: var(--accent);
 }
 
+.toggle-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.toggle-grid .toggle-row {
+  margin: 0;
+}
+
 .result-list {
   display: grid;
   gap: 8px;
@@ -277,16 +292,16 @@ h1 {
   right: 14px;
   bottom: 18px;
   z-index: 420;
-  width: 94px;
-  border: 1px solid rgba(255, 255, 255, 0.34);
-  background: rgba(245, 248, 250, 0.94);
-  color: #111827;
+  width: auto;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(2, 4, 5, 0.78);
+  color: #f4fbff;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
 }
 
 .intensity-legend h2 {
   margin: 0;
-  border-bottom: 1px solid rgba(17, 24, 39, 0.28);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.22);
   padding: 6px 4px;
   font-size: 1rem;
   line-height: 1;
@@ -295,21 +310,29 @@ h1 {
 
 .intensity-scale {
   display: grid;
+  grid-template-columns: repeat(2, 34px);
+  gap: 0;
 }
 
 .intensity-scale span {
   display: grid;
-  min-height: 30px;
+  width: 34px;
+  height: 34px;
   place-items: center;
-  border-bottom: 1px solid rgba(17, 24, 39, 0.28);
+  border-right: 1px solid rgba(17, 24, 39, 0.32);
+  border-bottom: 1px solid rgba(17, 24, 39, 0.32);
   background: var(--color);
   color: var(--text-color, #ffffff);
-  font-size: 1rem;
+  font-size: 0.9rem;
   font-weight: 900;
   line-height: 1;
 }
 
-.intensity-scale span:last-child {
+.intensity-scale span:nth-child(2n) {
+  border-right: 0;
+}
+
+.intensity-scale span:nth-last-child(-n + 2) {
   border-bottom: 0;
 }
 
@@ -326,10 +349,11 @@ h1 {
   height: 34px;
   place-items: center;
   border: 3px solid #ffd84d;
-  border-radius: 4px;
+  border-radius: 50%;
   background: #e11d48;
-  box-shadow: 0 0 0 7px rgba(225, 29, 72, 0.16);
-  transform: rotate(45deg);
+  box-shadow:
+    0 0 0 2px rgba(0, 0, 0, 0.28),
+    0 0 0 8px rgba(225, 29, 72, 0.16);
 }
 
 .epicenter-marker::after {
@@ -427,12 +451,12 @@ h1 {
   .intensity-legend {
     right: 10px;
     bottom: 10px;
-    width: 76px;
   }
 
   .intensity-scale span {
-    min-height: 25px;
-    font-size: 0.88rem;
+    width: 30px;
+    height: 30px;
+    font-size: 0.8rem;
   }
 
   .bottom-tabs {

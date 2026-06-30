@@ -23,15 +23,12 @@ async function main() {
 
   for (const [code, surface] of surfaceMeshes) {
     const deep = deepMeshes.get(code);
-    const center = meshCenter(code);
-    meshes[code] = {
-      lat: round(center.latitude, 5),
-      lon: round(center.longitude, 5),
-      arv: round(surface.arvSum / surface.count, 4),
-      avs: round(surface.avsSum / surface.count, 1),
-      surfaceCount: surface.count,
-      ...(deep ? deep : {}),
-    };
+    meshes[code] = [
+      round(surface.arvSum / surface.count, 4),
+      round(surface.avsSum / surface.count, 1),
+      deep?.s0 ?? null,
+      deep?.maxDepthM ?? null,
+    ];
   }
 
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
@@ -51,6 +48,7 @@ async function main() {
         s0: "S0 column from D-V4-STRUCT_DEEP-LYRD",
         maxDepthM: "Maximum numeric D* column value for the mesh",
       },
+      meshValueFormat: ["arv", "avs", "s0", "maxDepthM"],
       count: Object.keys(meshes).length,
       meshes,
     }),
@@ -144,20 +142,6 @@ function readLines(filePath) {
     input: fs.createReadStream(filePath, { encoding: "utf8" }),
     crlfDelay: Infinity,
   });
-}
-
-function meshCenter(code) {
-  const lat1 = Number(code.slice(0, 2)) / 1.5;
-  const lon1 = Number(code.slice(2, 4)) + 100;
-  const lat2 = Number(code[4]) * (5 / 60);
-  const lon2 = Number(code[5]) * (7.5 / 60);
-  const lat3 = Number(code[6]) * (30 / 3600);
-  const lon3 = Number(code[7]) * (45 / 3600);
-
-  return {
-    latitude: lat1 + lat2 + lat3 + 15 / 3600,
-    longitude: lon1 + lon2 + lon3 + 22.5 / 3600,
-  };
 }
 
 function round(value, digits) {

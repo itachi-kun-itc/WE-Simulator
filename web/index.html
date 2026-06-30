@@ -31,6 +31,22 @@
               </button>
             </div>
 
+            <label class="toggle-row">
+              <input id="epicenter-edit-toggle" type="checkbox" />
+              <span>震源地を設定</span>
+            </label>
+
+            <div class="toggle-grid" aria-label="震度表示切り替え">
+              <label class="toggle-row">
+                <input id="station-layer-toggle" type="checkbox" />
+                <span>観測点</span>
+              </label>
+              <label class="toggle-row">
+                <input id="region-layer-toggle" type="checkbox" checked />
+                <span>地震区分</span>
+              </label>
+            </div>
+
             <label class="field">
               <span>震央名</span>
               <input id="epicenter-region" type="text" readonly />
