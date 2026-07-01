@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Weather EarthQuake Simulator</title>
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.css" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="panel panel-active" id="earthquake-panel" aria-labelledby="earthquake-tab">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Earthquake Simulation</p>
+            <h1>地震</h1>
+          </div>
+          <div class="status" id="map-status">地図データを読み込み中</div>
+        </header>
+
+        <div class="map-wrap">
+          <div id="map" aria-label="地震地域区分の日本地図"></div>
+
+          <section class="sim-panel" id="setup-panel" aria-label="震源設定">
+            <div class="sim-panel-head">
+              <div>
+                <p class="eyebrow">Epicenter</p>
+                <h2>震源設定</h2>
+              </div>
+              <button class="icon-button" id="reset-epicenter" type="button" title="震源を初期位置に戻す">
+                ↺
+              </button>
+            </div>
+
+            <label class="toggle-row">
+              <input id="epicenter-edit-toggle" type="checkbox" />
+              <span>震源地を設定</span>
+            </label>
+
+            <div class="toggle-grid" aria-label="震度表示切り替え">
+              <label class="toggle-row">
+                <input id="station-layer-toggle" type="checkbox" />
+                <span>観測点</span>
+              </label>
+              <label class="toggle-row">
+                <input id="region-layer-toggle" type="checkbox" checked />
+                <span>地震区分</span>
+              </label>
+              <label class="toggle-row">
+                <input id="eew-warning-toggle" type="checkbox" />
+                <span>緊急地震速報発表地域</span>
+              </label>
+            </div>
+
+            <label class="field">
+              <span>震央名</span>
+              <input id="epicenter-region" type="text" readonly />
+            </label>
+
+            <div class="field-grid">
+              <label class="field">
+                <span>緯度</span>
+                <input id="latitude-input" type="number" min="20" max="47" step="0.001" />
+              </label>
+              <label class="field">
+                <span>経度</span>
+                <input id="longitude-input" type="number" min="117" max="154" step="0.001" />
+              </label>
+            </div>
+
+            <div class="field-grid">
+              <label class="field">
+                <span>深さ</span>
+                <select id="depth-input"></select>
+              </label>
+              <label class="field">
+                <span>マグニチュード</span>
+                <input id="magnitude-input" type="number" min="0" max="10" step="0.1" />
+              </label>
+            </div>
+
+            <dl class="result-list">
+              <div>
+                <dt>市町村</dt>
+                <dd id="municipality-output">未選択</dd>
+              </div>
+              <div>
+                <dt>最大震度</dt>
+                <dd id="max-intensity-output">未計算</dd>
+              </div>
+            </dl>
+
+            <button class="simulation-start" id="simulation-start" type="button">
+              シミュレーション開始
+            </button>
+          </section>
+
+          <section class="sim-panel simulation-panel hidden" id="simulation-panel" aria-label="シミュレーション結果">
+            <div class="simulation-summary">
+              <div class="max-shindo-card">
+                <span>最大震度</span>
+                <strong id="simulation-max-intensity">-</strong>
+              </div>
+              <div class="magnitude-card">
+                <span>マグニチュード</span>
+                <strong id="simulation-magnitude">M -</strong>
+              </div>
+            </div>
+
+            <div class="wave-readout">
+              <div>
+                <dt>経過</dt>
+                <dd id="simulation-time">0.0 秒</dd>
+              </div>
+              <div>
+                <dt>P波</dt>
+                <dd id="p-wave-radius">0 km</dd>
+              </div>
+              <div>
+                <dt>S波</dt>
+                <dd id="s-wave-radius">0 km</dd>
+              </div>
+            </div>
+
+            <section class="max-stations-block">
+              <h2>最大震度を観測した観測点</h2>
+              <ol id="max-station-list"></ol>
+            </section>
+
+            <button class="simulation-stop" id="simulation-stop" type="button">設定に戻る</button>
+          </section>
+
+          <section class="intensity-legend" aria-label="震度凡例">
+            <h2>震度</h2>
+            <div class="intensity-scale">
+              <span style="--color: #7b003f">7</span>
+              <span style="--color: #c0002b">6強</span>
+              <span style="--color: #ff1f3d">6弱</span>
+              <span style="--color: #f07a00">5強</span>
+              <span style="--color: #ffb000">5弱</span>
+              <span style="--color: #fff000; --text-color: #111827">4</span>
+              <span style="--color: #95e600; --text-color: #111827">3</span>
+              <span style="--color: #00b7e8; --text-color: #ffffff">2</span>
+              <span style="--color: #2f3e9e">1</span>
+              <span style="--color: #f6f7f8; --text-color: #111827">0</span>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section class="panel" id="weather-panel" aria-labelledby="weather-tab">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Weather Simulation</p>
+            <h1>気象</h1>
+          </div>
+          <div class="status">準備中</div>
+        </header>
+        <div class="empty-state">
+          <p>気象タブの表示エリアです。</p>
+        </div>
+      </section>
+    </main>
+
+    <nav class="bottom-tabs" aria-label="シミュレーション切り替え">
+      <button class="tab active" id="earthquake-tab" type="button" data-panel="earthquake-panel">
+        地震
+      </button>
+      <button class="tab" id="weather-tab" type="button" data-panel="weather-panel">気象</button>
+    </nav>
+
+    <script src="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
