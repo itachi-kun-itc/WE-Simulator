@@ -5,6 +5,10 @@ on:
     branches:
       - main
 
+# Allow the workflow to push to the repository (required for gh-pages publish)
+permissions:
+  contents: write
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -23,3 +27,5 @@ jobs:
 
       - name: Deploy to GitHub Pages
         run: npx gh-pages -d web
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
