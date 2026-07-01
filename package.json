@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "build:jma-earthquake-map": "node scripts/convert_jma_earthquake_areas.js",
+    "build:jma-eew-forecast-areas": "node scripts/fetch_jma_eew_forecast_areas.js",
     "build:jma-shindo-stations": "node scripts/fetch_jma_shindo_stations.js",
     "build:municipalities": "node scripts/convert_n03_municipalities.js",
     "build:surrounding-land": "node scripts/convert_surrounding_land.js",

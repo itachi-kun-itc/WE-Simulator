@@ -9,6 +9,8 @@ const SHINDO_STATIONS_URL = "./data/jma_shindo_stations.json";
 const INITIAL_CENTER = [139.767, 35.681];
 const INITIAL_ZOOM = 5.25;
 const MUNICIPALITY_BOUNDARY_MIN_ZOOM = 8;
+const EARTH_RADIUS_KM = 6371;
+const INTENSITY_RISE_SECONDS = 7.5;
 const EARTHQUAKE_MODEL = {
   pWaveVelocityKmPerSec: 6.5,
   sWaveVelocityKmPerSec: 3.8,
@@ -39,6 +41,8 @@ const state = {
   epicenterEditEnabled: false,
   showStationLayer: false,
   showRegionLayer: true,
+  showEewWarningLayer: false,
+  simulationRunning: false,
 };
 
 const els = {
@@ -53,7 +57,18 @@ const els = {
   epicenterEditToggle: document.querySelector("#epicenter-edit-toggle"),
   stationLayerToggle: document.querySelector("#station-layer-toggle"),
   regionLayerToggle: document.querySelector("#region-layer-toggle"),
+  eewWarningToggle: document.querySelector("#eew-warning-toggle"),
   resetEpicenter: document.querySelector("#reset-epicenter"),
+  setupPanel: document.querySelector("#setup-panel"),
+  simulationPanel: document.querySelector("#simulation-panel"),
+  simulationStart: document.querySelector("#simulation-start"),
+  simulationStop: document.querySelector("#simulation-stop"),
+  simulationMaxIntensity: document.querySelector("#simulation-max-intensity"),
+  simulationMagnitude: document.querySelector("#simulation-magnitude"),
+  simulationTime: document.querySelector("#simulation-time"),
+  pWaveRadius: document.querySelector("#p-wave-radius"),
+  sWaveRadius: document.querySelector("#s-wave-radius"),
+  maxStationList: document.querySelector("#max-station-list"),
 };
 
 let map;
@@ -73,7 +88,12 @@ let groundModelData;
 let groundModelLoadPromise;
 let shindoStationData;
 let shindoStationLoadPromise;
+let stationIntensityFeatureCache;
+let stationPopup;
+let stationHoverEventsBound = false;
 let locationResolveTimer;
+let simulationFrame;
+let simulationStartedAt;
 
 setupTabs();
 renderDepthOptions();
@@ -125,6 +145,9 @@ function bindSimulationControls() {
   els.epicenterEditToggle.addEventListener("change", () => updateEpicenterEditMode());
   els.stationLayerToggle.addEventListener("change", () => updateDisplayMode());
   els.regionLayerToggle.addEventListener("change", () => updateDisplayMode());
+  els.eewWarningToggle.addEventListener("change", () => updateDisplayMode());
+  els.simulationStart.addEventListener("click", () => startSimulation());
+  els.simulationStop.addEventListener("click", () => stopSimulation());
 
   els.resetEpicenter.addEventListener("click", () => {
     state.latitude = 35.681;
@@ -133,6 +156,7 @@ function bindSimulationControls() {
     state.magnitude = 6.0;
     state.epicenterName = "未選択";
     state.municipalityName = "未選択";
+    invalidateIntensityEstimateCache();
     syncInputs();
     updateEpicenter({ resolveLocation: true });
     map.easeTo({ center: INITIAL_CENTER, zoom: 6, duration: 450 });
@@ -170,7 +194,12 @@ async function initEarthquakeMap() {
     new maplibregl.AttributionControl({
       compact: true,
       customAttribution:
-        '<a href="https://nlftp.mlit.go.jp/ksj/" target="_blank" rel="noreferrer">国土数値情報</a>',
+        [
+          '<a href="https://www.jma.go.jp/" target="_blank" rel="noreferrer">気象庁</a>',
+          '<a href="https://nlftp.mlit.go.jp/ksj/" target="_blank" rel="noreferrer">国土数値情報</a>',
+          '<a href="https://www.j-shis.bosai.go.jp/" target="_blank" rel="noreferrer">J-SHIS</a>',
+          '<a href="https://www.naturalearthdata.com/" target="_blank" rel="noreferrer">Natural Earth</a>',
+        ].join(" / "),
     }),
   );
   updateEpicenterEditMode();
@@ -182,8 +211,21 @@ async function initEarthquakeMap() {
 
     state.latitude = Number(event.lngLat.lat.toFixed(3));
     state.longitude = Number(event.lngLat.lng.toFixed(3));
+    invalidateIntensityEstimateCache();
     syncInputs();
     updateEpicenter({ resolveLocation: true });
+  });
+
+  map.on("zoom", () => {
+    if (!state.simulationRunning) {
+      return;
+    }
+
+    const elapsedSec = getSimulationElapsedSec();
+    setWaveRadiusData(
+      elapsedSec * EARTHQUAKE_MODEL.pWaveVelocityKmPerSec,
+      elapsedSec * EARTHQUAKE_MODEL.sWaveVelocityKmPerSec,
+    );
   });
 
   try {
@@ -207,11 +249,12 @@ function onceMapLoaded() {
 }
 
 async function showMapLayers() {
-  const [surroundingLand, municipalities, boundaries, localAreas, shindoStations] = await Promise.all([
+  const [surroundingLand, municipalities, boundaries, localAreas, seaAreas, shindoStations] = await Promise.all([
     loadSurroundingLand(),
     loadMunicipalities(),
     loadBoundaryLayers(),
     loadLocalAreas(),
+    loadSeaEpicenterAreas(),
     loadShindoStations(),
   ]);
 
@@ -220,13 +263,20 @@ async function showMapLayers() {
   addGeoJsonSource("surrounding-land", surroundingLand);
   addGeoJsonSource("municipalities", municipalityDisplayData);
   addGeoJsonSource("jma-local-areas", buildIntensityAreaData(localAreas));
+  addGeoJsonSource("sea-epicenter-areas", seaAreas);
   addGeoJsonSource("shindo-stations", buildStationIntensityData(shindoStations));
+  addGeoJsonSource("p-wave", emptyFeatureCollection());
+  addGeoJsonSource("s-wave", emptyFeatureCollection());
   addGeoJsonSource("boundaries", boundaries);
 
   addMapLayers();
+  setupStationHoverPopup();
   fitInitialMapBounds(getGeoJsonBounds(municipalityDisplayData));
   loadGroundModel()
-    .then(() => updateIntensityLayer())
+    .then(() => {
+      invalidateIntensityEstimateCache();
+      updateIntensityLayer();
+    })
     .catch((error) => console.warn(error));
 }
 
@@ -275,6 +325,18 @@ function addMapLayers() {
   });
 
   addLayerIfMissing({
+    id: "sea-epicenter-boundaries",
+    type: "line",
+    source: "sea-epicenter-areas",
+    paint: {
+      "line-color": "#b6dcff",
+      "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.2, 7, 0.34, 10, 0.48],
+      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.45, 7, 0.7, 10, 1.05],
+      "line-dasharray": [2, 2],
+    },
+  });
+
+  addLayerIfMissing({
     id: "jma-intensity-fill",
     type: "fill",
     source: "jma-local-areas",
@@ -284,6 +346,18 @@ function addMapLayers() {
     },
   });
   updateLayerVisibility("jma-intensity-fill", state.showRegionLayer);
+
+  addLayerIfMissing({
+    id: "eew-warning-fill",
+    type: "fill",
+    source: "jma-local-areas",
+    filter: ["==", ["get", "eewWarning"], true],
+    paint: {
+      "fill-color": "#e60012",
+      "fill-opacity": 0.7,
+    },
+  });
+  updateLayerVisibility("eew-warning-fill", state.showRegionLayer && state.showEewWarningLayer);
 
   addLayerIfMissing({
     id: "municipality-boundaries",
@@ -326,15 +400,48 @@ function addMapLayers() {
     type: "circle",
     source: "shindo-stations",
     paint: {
-      "circle-color": ["get", "intensityColor"],
-      "circle-opacity": 0.94,
-      "circle-radius": ["interpolate", ["linear"], ["get", "intensityRank"], 1, 4, 5, 6.5, 9, 9],
-      "circle-stroke-color": "#ffffff",
+      "circle-color": ["case", ["==", ["get", "waveState"], "p"], "#7de7ff", ["get", "intensityColor"]],
+      "circle-opacity": ["case", ["==", ["get", "waveState"], "p"], 0.56, 0.94],
+      "circle-radius": [
+        "case",
+        ["==", ["get", "waveState"], "p"],
+        3.2,
+        ["interpolate", ["linear"], ["get", "intensityRank"], 1, 4, 5, 6.5, 9, 9],
+      ],
+      "circle-stroke-color": ["case", ["==", ["get", "waveState"], "p"], "#e9fbff", "#ffffff"],
       "circle-stroke-opacity": 0.9,
-      "circle-stroke-width": 1.1,
+      "circle-stroke-width": ["case", ["==", ["get", "waveState"], "p"], 0.8, 1.1],
     },
   });
   updateLayerVisibility("shindo-station-points", state.showStationLayer);
+
+  addLayerIfMissing({
+    id: "p-wave-circle",
+    type: "circle",
+    source: "p-wave",
+    paint: {
+      "circle-color": "rgba(45, 212, 255, 0.08)",
+      "circle-opacity": 1,
+      "circle-radius": ["get", "radiusPx"],
+      "circle-stroke-color": "#7de7ff",
+      "circle-stroke-opacity": 0.9,
+      "circle-stroke-width": 2,
+    },
+  });
+
+  addLayerIfMissing({
+    id: "s-wave-circle",
+    type: "circle",
+    source: "s-wave",
+    paint: {
+      "circle-color": "rgba(255, 55, 95, 0.1)",
+      "circle-opacity": 1,
+      "circle-radius": ["get", "radiusPx"],
+      "circle-stroke-color": "#ff6b7f",
+      "circle-stroke-opacity": 0.95,
+      "circle-stroke-width": 3,
+    },
+  });
 }
 
 function addLayerIfMissing(layer) {
@@ -384,8 +491,198 @@ function updateEpicenterEditMode() {
 function updateDisplayMode() {
   state.showStationLayer = els.stationLayerToggle.checked;
   state.showRegionLayer = els.regionLayerToggle.checked;
+  state.showEewWarningLayer = els.eewWarningToggle.checked;
   updateLayerVisibility("shindo-station-points", state.showStationLayer);
   updateLayerVisibility("jma-intensity-fill", state.showRegionLayer);
+  updateLayerVisibility("eew-warning-fill", state.showRegionLayer && state.showEewWarningLayer);
+}
+
+function setupStationHoverPopup() {
+  if (stationHoverEventsBound) {
+    return;
+  }
+
+  stationHoverEventsBound = true;
+  stationPopup = new maplibregl.Popup({
+    closeButton: false,
+    closeOnClick: false,
+    className: "station-popup",
+    offset: 10,
+  });
+
+  map.on("mouseenter", "shindo-station-points", () => {
+    map.getCanvas().style.cursor = "pointer";
+  });
+
+  map.on("mousemove", "shindo-station-points", (event) => {
+    const feature = event.features?.[0];
+    if (!feature) {
+      return;
+    }
+
+    const properties = feature.properties;
+    const waveLabel =
+      properties.waveState === "p"
+        ? `P波到達 / S波 ${Number(properties.sArrivalSec).toFixed(1)}秒`
+        : `震度${properties.intensityLabel}`;
+
+    stationPopup
+      .setLngLat(event.lngLat)
+      .setHTML(
+        [
+          `<strong>${escapeHtml(properties.name)}</strong>`,
+          `<span>${escapeHtml(properties.areaName ?? "")}</span>`,
+          `<span>${escapeHtml(waveLabel)}</span>`,
+          `<span>現在計測震度 ${Number(properties.currentIntensityValue).toFixed(1)}</span>`,
+          `<span>予測最大 ${properties.predictedIntensityLabel}（${Number(properties.predictedIntensityValue).toFixed(1)}）</span>`,
+          `<span>震央距離 ${Number(properties.epicentralDistanceKm).toFixed(0)} km</span>`,
+        ].join(""),
+      )
+      .addTo(map);
+  });
+
+  map.on("mouseleave", "shindo-station-points", () => {
+    map.getCanvas().style.cursor = "";
+    stationPopup.remove();
+  });
+}
+
+function startSimulation() {
+  state.simulationRunning = true;
+  state.showStationLayer = true;
+  els.stationLayerToggle.checked = true;
+  updateDisplayMode();
+  els.setupPanel.classList.add("hidden");
+  els.simulationPanel.classList.remove("hidden");
+  updateSimulationSummary();
+  simulationStartedAt = performance.now();
+  cancelAnimationFrame(simulationFrame);
+  tickSimulation(simulationStartedAt);
+}
+
+function stopSimulation() {
+  state.simulationRunning = false;
+  cancelAnimationFrame(simulationFrame);
+  simulationFrame = null;
+  simulationStartedAt = null;
+  els.setupPanel.classList.remove("hidden");
+  els.simulationPanel.classList.add("hidden");
+  setWaveRadiusData(0, 0);
+  updateIntensityLayer();
+}
+
+function tickSimulation(now) {
+  if (!state.simulationRunning) {
+    return;
+  }
+
+  const elapsedSec = getSimulationElapsedSec(now);
+  const pRadiusKm = elapsedSec * EARTHQUAKE_MODEL.pWaveVelocityKmPerSec;
+  const sRadiusKm = elapsedSec * EARTHQUAKE_MODEL.sWaveVelocityKmPerSec;
+
+  setWaveRadiusData(pRadiusKm, sRadiusKm);
+  els.simulationTime.textContent = `${elapsedSec.toFixed(1)} 秒`;
+  els.pWaveRadius.textContent = `${Math.round(pRadiusKm)} km`;
+  els.sWaveRadius.textContent = `${Math.round(sRadiusKm)} km`;
+
+  if (map?.getSource("shindo-stations") && shindoStationData) {
+    map.getSource("shindo-stations").setData(buildStationIntensityData(shindoStationData, elapsedSec));
+  }
+
+  updateSimulationSummary(elapsedSec);
+  simulationFrame = requestAnimationFrame(tickSimulation);
+}
+
+function getSimulationElapsedSec(now = performance.now()) {
+  return simulationStartedAt ? Math.max((now - simulationStartedAt) / 1000, 0) : 0;
+}
+
+function updateSimulationSummary(elapsedSec = getSimulationStationElapsedSec()) {
+  const stationFeatures = shindoStationData
+    ? buildStationIntensityData(shindoStationData, elapsedSec).features.filter(
+        (feature) => feature.properties.waveState === "s" && feature.properties.intensityRank > 0,
+      )
+    : [];
+  const maxRank = stationFeatures.reduce(
+    (rank, feature) => Math.max(rank, feature.properties.intensityRank),
+    0,
+  );
+  const maxStations = stationFeatures
+    .filter((feature) => feature.properties.intensityRank === maxRank && maxRank > 0)
+    .sort((a, b) => b.properties.currentIntensityValue - a.properties.currentIntensityValue)
+    .slice(0, 12);
+  const maxClass = INTENSITY_CLASSES.find((item) => item.rank === maxRank) ?? INTENSITY_CLASSES[0];
+
+  els.simulationMaxIntensity.textContent = maxClass.label;
+  els.simulationMagnitude.textContent = `M ${state.magnitude.toFixed(1)}`;
+  els.maxStationList.replaceChildren(
+    ...(maxStations.length > 0
+      ? maxStations.map((feature) => {
+          const item = document.createElement("li");
+          item.textContent = `${feature.properties.name}　震度${feature.properties.intensityLabel}（${feature.properties.currentIntensityValue.toFixed(1)}）`;
+          return item;
+        })
+      : [document.createElement("li")]),
+  );
+
+  if (maxStations.length === 0) {
+    els.maxStationList.firstElementChild.textContent = "震度1以上の観測点はありません";
+  }
+}
+
+function setWaveRadiusData(pRadiusKm, sRadiusKm) {
+  const pSource = map?.getSource("p-wave");
+  const sSource = map?.getSource("s-wave");
+
+  if (pSource) {
+    pSource.setData(waveRadiusFeatureCollection(pRadiusKm));
+  }
+
+  if (sSource) {
+    sSource.setData(waveRadiusFeatureCollection(sRadiusKm));
+  }
+}
+
+function waveRadiusFeatureCollection(radiusKm) {
+  if (!Number.isFinite(radiusKm) || radiusKm <= 0) {
+    return emptyFeatureCollection();
+  }
+
+  return {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        properties: {
+          radiusKm: Number(radiusKm.toFixed(2)),
+          radiusPx: kilometersToScreenPixels(radiusKm),
+        },
+        geometry: {
+          type: "Point",
+          coordinates: [state.longitude, state.latitude],
+        },
+      },
+    ],
+  };
+}
+
+function kilometersToScreenPixels(radiusKm) {
+  if (!map) {
+    return 0;
+  }
+
+  const metersPerPixel =
+    (156543.03392 * Math.cos(toRadians(state.latitude))) / 2 ** map.getZoom();
+  const canvas = map.getCanvas();
+  const maxVisibleRadius = Math.hypot(canvas.width, canvas.height) * 1.2;
+  return Math.min(Math.max((radiusKm * 1000) / metersPerPixel, 0), maxVisibleRadius);
+}
+
+function emptyFeatureCollection() {
+  return {
+    type: "FeatureCollection",
+    features: [],
+  };
 }
 
 async function loadMunicipalities() {
@@ -509,11 +806,25 @@ function updateStateFromInputs(options = {}) {
   state.longitude = clamp(Number(els.longitude.value), 117, 154);
   state.depthKm = clamp(Number(els.depth.value), 0, 500);
   state.magnitude = clamp(Number(els.magnitude.value), 0, 10);
+  invalidateIntensityEstimateCache();
   updateEpicenter();
+
+  if (state.simulationRunning) {
+    updateSimulationSummary();
+    const elapsedSec = getSimulationElapsedSec();
+    setWaveRadiusData(
+      elapsedSec * EARTHQUAKE_MODEL.pWaveVelocityKmPerSec,
+      elapsedSec * EARTHQUAKE_MODEL.sWaveVelocityKmPerSec,
+    );
+  }
 
   if (options.resolveLocation) {
     scheduleLocationResolve();
   }
+}
+
+function invalidateIntensityEstimateCache() {
+  stationIntensityFeatureCache = null;
 }
 
 function syncInputs() {
@@ -526,6 +837,7 @@ function syncInputs() {
   els.maxIntensityOutput.textContent = state.maxIntensityLabel;
   els.stationLayerToggle.checked = state.showStationLayer;
   els.regionLayerToggle.checked = state.showRegionLayer;
+  els.eewWarningToggle.checked = state.showEewWarningLayer;
 }
 
 async function updateEpicenter(options = {}) {
@@ -544,7 +856,7 @@ async function updateEpicenter(options = {}) {
   if (!epicenterMarker) {
     const markerElement = document.createElement("span");
     markerElement.className = "epicenter-marker-shell";
-    markerElement.innerHTML = '<span class="epicenter-marker"></span>';
+    markerElement.innerHTML = '<span class="epicenter-marker">×</span>';
 
     epicenterMarker = new maplibregl.Marker({
       element: markerElement,
@@ -557,6 +869,7 @@ async function updateEpicenter(options = {}) {
       const markerLngLat = epicenterMarker.getLngLat();
       state.latitude = Number(markerLngLat.lat.toFixed(3));
       state.longitude = Number(markerLngLat.lng.toFixed(3));
+      invalidateIntensityEstimateCache();
       syncInputs();
       updateEpicenter({ resolveLocation: true });
     });
@@ -616,7 +929,9 @@ function updateIntensityLayer() {
   }
 
   if (map.getSource("shindo-stations") && shindoStationData) {
-    map.getSource("shindo-stations").setData(buildStationIntensityData(shindoStationData));
+    map
+      .getSource("shindo-stations")
+      .setData(buildStationIntensityData(shindoStationData, getSimulationStationElapsedSec()));
   }
 
   if (map.getSource("jma-local-areas")) {
@@ -624,12 +939,16 @@ function updateIntensityLayer() {
   }
 }
 
+function getSimulationStationElapsedSec() {
+  return state.simulationRunning ? getSimulationElapsedSec() : Infinity;
+}
+
 function buildIntensityAreaData(geojson) {
   const stationFeatures = shindoStationData ? buildStationIntensityFeatures(shindoStationData) : [];
   let maxClass = INTENSITY_CLASSES[0];
   let maxValue = 0;
 
-  const features = geojson.features.map((feature) => {
+  const areaFeatures = geojson.features.map((feature) => {
     const areaStations = stationFeatures.filter((stationFeature) =>
       getFeaturePolygons(feature).some((polygon) =>
         pointInPolygon(stationFeature.geometry.coordinates, polygon),
@@ -658,6 +977,15 @@ function buildIntensityAreaData(geojson) {
     };
   });
 
+  const shouldIssueEew = maxClass.rank >= 5;
+  const features = areaFeatures.map((feature) => ({
+    ...feature,
+    properties: {
+      ...feature.properties,
+      eewWarning: shouldIssueEew && feature.properties.intensityRank >= 4,
+    },
+  }));
+
   state.maxIntensityLabel = `${maxClass.label}（計測震度 ${maxValue.toFixed(1)}）`;
 
   return {
@@ -667,24 +995,70 @@ function buildIntensityAreaData(geojson) {
   };
 }
 
-function buildStationIntensityData(data) {
+function buildStationIntensityData(data, elapsedSec = Infinity) {
+  const isSimulation = Number.isFinite(elapsedSec);
+
   return {
     type: "FeatureCollection",
     name: "Observed JMA shindo stations with estimated intensity",
     source: data.source,
     updated: data.updated,
-    features: buildStationIntensityFeatures(data).filter(
-      (feature) => feature.properties.intensityRank >= 1,
-    ),
+    features: buildStationIntensityFeatures(data)
+      .filter(
+        (feature) =>
+          feature.properties.intensityRank >= 1 &&
+          (isSimulation
+            ? feature.properties.pArrivalSec <= elapsedSec
+            : feature.properties.sArrivalSec <= elapsedSec),
+      )
+      .map((feature) => ({
+        ...feature,
+        properties: {
+          ...feature.properties,
+          ...getCurrentIntensityProperties(feature.properties, elapsedSec),
+        },
+      })),
+  };
+}
+
+function getCurrentIntensityProperties(properties, elapsedSec = Infinity) {
+  const isSimulation = Number.isFinite(elapsedSec);
+  const waveState = isSimulation && properties.sArrivalSec > elapsedSec ? "p" : "s";
+  const riseProgress = isSimulation
+    ? smoothStep(clamp((elapsedSec - properties.sArrivalSec) / INTENSITY_RISE_SECONDS, 0, 1))
+    : 1;
+  const currentIntensityValue = waveState === "p" ? 0 : properties.predictedIntensityValue * riseProgress;
+  const currentClass = toJmaIntensityClass(currentIntensityValue);
+
+  return {
+    waveState,
+    riseProgress: Number(riseProgress.toFixed(3)),
+    currentIntensityValue: Number(currentIntensityValue.toFixed(2)),
+    intensityValue: Number(currentIntensityValue.toFixed(2)),
+    intensityLabel: currentClass.label,
+    intensityRank: currentClass.rank,
+    intensityColor: currentClass.color,
   };
 }
 
 function buildStationIntensityFeatures(data) {
-  return data.stations
+  if (stationIntensityFeatureCache) {
+    return stationIntensityFeatureCache;
+  }
+
+  stationIntensityFeatureCache = data.stations
     .filter((station) => station.active)
     .map((station) => {
       const intensityValue = estimateIntensityAtPoint(station.longitude, station.latitude);
       const intensityClass = toJmaIntensityClass(intensityValue);
+      const epicentralDistanceKm = haversineKilometers(
+        [state.longitude, state.latitude],
+        [station.longitude, station.latitude],
+      );
+      const hypocentralDistanceKm = Math.hypot(epicentralDistanceKm, state.depthKm);
+      const pArrivalSec = hypocentralDistanceKm / EARTHQUAKE_MODEL.pWaveVelocityKmPerSec;
+      const sArrivalSec = hypocentralDistanceKm / EARTHQUAKE_MODEL.sWaveVelocityKmPerSec;
+
       return {
         type: "Feature",
         properties: {
@@ -692,10 +1066,18 @@ function buildStationIntensityFeatures(data) {
           name: station.name,
           areaName: station.areaName,
           address: station.address,
+          predictedIntensityValue: Number(intensityValue.toFixed(2)),
+          predictedIntensityLabel: intensityClass.label,
+          predictedIntensityRank: intensityClass.rank,
+          predictedIntensityColor: intensityClass.color,
           intensityValue: Number(intensityValue.toFixed(2)),
           intensityLabel: intensityClass.label,
           intensityRank: intensityClass.rank,
           intensityColor: intensityClass.color,
+          epicentralDistanceKm: Number(epicentralDistanceKm.toFixed(1)),
+          hypocentralDistanceKm: Number(hypocentralDistanceKm.toFixed(1)),
+          pArrivalSec: Number(pArrivalSec.toFixed(2)),
+          sArrivalSec: Number(sArrivalSec.toFixed(2)),
         },
         geometry: {
           type: "Point",
@@ -703,6 +1085,8 @@ function buildStationIntensityFeatures(data) {
         },
       };
     });
+
+  return stationIntensityFeatureCache;
 }
 
 function estimateMaxIntensityForFeature(feature) {
@@ -952,7 +1336,6 @@ function toLocalKilometers(coordinate, origin) {
 }
 
 function haversineKilometers(start, end) {
-  const earthRadiusKm = 6371;
   const startLat = toRadians(start[1]);
   const endLat = toRadians(end[1]);
   const deltaLat = toRadians(end[1] - start[1]);
@@ -961,7 +1344,7 @@ function haversineKilometers(start, end) {
     Math.sin(deltaLat / 2) ** 2 +
     Math.cos(startLat) * Math.cos(endLat) * Math.sin(deltaLon / 2) ** 2;
 
-  return 2 * earthRadiusKm * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return 2 * EARTH_RADIUS_KM * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 function toRadians(value) {
@@ -1035,6 +1418,11 @@ function escapeHtml(value) {
     };
     return entities[character];
   });
+}
+
+function smoothStep(value) {
+  const t = clamp(value, 0, 1);
+  return t * t * (3 - 2 * t);
 }
 
 function clamp(value, min, max) {

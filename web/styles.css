@@ -399,10 +399,10 @@ h1 {
 
 .intensity-legend {
   position: absolute;
-  right: 14px;
-  bottom: 18px;
+  right: 10px;
+  bottom: 52px;
   z-index: 420;
-  width: auto;
+  width: 34px;
   border: 1px solid rgba(255, 255, 255, 0.28);
   background: rgba(2, 4, 5, 0.78);
   color: #f4fbff;
@@ -412,8 +412,8 @@ h1 {
 .intensity-legend h2 {
   margin: 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.22);
-  padding: 6px 4px;
-  font-size: 1rem;
+  padding: 6px 0;
+  font-size: 0.86rem;
   line-height: 1;
   text-align: center;
 }
@@ -442,32 +442,63 @@ h1 {
 
 .epicenter-marker-shell {
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 44px;
+  height: 44px;
   place-items: center;
 }
 
 .epicenter-marker {
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 44px;
+  height: 44px;
   place-items: center;
-  border: 3px solid #ffd84d;
-  border-radius: 50%;
-  background: #e11d48;
-  box-shadow:
-    0 0 0 2px rgba(0, 0, 0, 0.28),
-    0 0 0 8px rgba(225, 29, 72, 0.16);
+  background: transparent;
+  color: #e11d48;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 50px;
+  font-weight: 1000;
+  line-height: 1;
+  text-shadow:
+    -2px -2px 0 #fff000,
+    0 -2px 0 #fff000,
+    2px -2px 0 #fff000,
+    -2px 0 0 #fff000,
+    2px 0 0 #fff000,
+    -2px 2px 0 #fff000,
+    0 2px 0 #fff000,
+    2px 2px 0 #fff000,
+    0 2px 6px rgba(0, 0, 0, 0.35);
+  -webkit-text-stroke: 5px #fff000;
+  paint-order: stroke fill;
 }
 
-.epicenter-marker::after {
-  width: 18px;
-  height: 18px;
-  background:
-    linear-gradient(#ffffff, #ffffff) center / 100% 4px no-repeat,
-    linear-gradient(#ffffff, #ffffff) center / 4px 100% no-repeat;
-  content: "";
-  transform: rotate(45deg);
+.station-popup .maplibregl-popup-content {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: rgba(2, 6, 12, 0.88);
+  color: #f8fbff;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.28);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.station-popup .maplibregl-popup-tip {
+  border-top-color: rgba(2, 6, 12, 0.88);
+  border-right-color: rgba(2, 6, 12, 0.88);
+  border-bottom-color: rgba(2, 6, 12, 0.88);
+  border-left-color: rgba(2, 6, 12, 0.88);
+}
+
+.station-popup strong,
+.station-popup span {
+  display: block;
+  white-space: nowrap;
+}
+
+.station-popup strong {
+  margin-bottom: 3px;
+  font-size: 0.84rem;
 }
 
 .empty-state {
@@ -554,7 +585,8 @@ h1 {
 
   .intensity-legend {
     right: 10px;
-    bottom: 10px;
+    bottom: 46px;
+    width: 30px;
   }
 
   .intensity-scale span {
