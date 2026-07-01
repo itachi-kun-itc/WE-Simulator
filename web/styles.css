@@ -448,7 +448,7 @@ h1 {
 .intensity-legend {
   position: absolute;
   right: 10px;
-  bottom: 52px;
+  bottom: 82px;
   z-index: 420;
   width: 34px;
   border: 1px solid rgba(255, 255, 255, 0.28);
@@ -538,41 +538,20 @@ h1 {
 
 .epicenter-marker-shell {
   display: grid;
-  width: 44px;
-  height: 44px;
+  width: 38px;
+  height: 38px;
   place-items: center;
 }
 
 .epicenter-marker {
-  position: relative;
-  display: grid;
-  width: 44px;
-  height: 44px;
-  place-items: center;
-  background: transparent;
-  color: transparent;
-  font-size: 0;
-  line-height: 1;
+  display: block;
+  width: 38px;
+  height: 38px;
+  fill: #e11d48;
+  stroke: #fff000;
+  stroke-linejoin: round;
+  stroke-width: 5px;
   filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.36));
-}
-
-.epicenter-marker::before,
-.epicenter-marker::after {
-  position: absolute;
-  width: 34px;
-  height: 11px;
-  border: 4px solid #fff000;
-  border-radius: 2px;
-  background: #e11d48;
-  content: "";
-}
-
-.epicenter-marker::before {
-  transform: rotate(45deg);
-}
-
-.epicenter-marker::after {
-  transform: rotate(-45deg);
 }
 
 .station-popup .maplibregl-popup-content {
@@ -697,7 +676,7 @@ h1 {
   }
 
   .sim-panel[data-sheet-state="collapsed"] {
-    transform: translateY(calc(100% - 58px));
+    transform: translateY(calc(100% - 42px));
   }
 
   .sim-panel[data-sheet-state="open"] {
@@ -706,27 +685,22 @@ h1 {
 
   .sheet-handle {
     position: absolute;
-    top: 0;
+    top: -25px;
     left: 50%;
     display: block;
-    width: 92px;
-    height: 24px;
-    border: 0;
-    background: transparent;
+    width: 76px;
+    height: 36px;
+    border: 1px solid var(--line);
+    border-bottom: 0;
+    border-radius: 76px 76px 0 0;
+    background: rgba(2, 4, 5, 0.9);
+    color: #d8e5eb;
     cursor: grab;
+    font-size: 1.2rem;
+    font-weight: 900;
+    line-height: 36px;
+    text-align: center;
     touch-action: none;
-    transform: translateX(-50%);
-  }
-
-  .sheet-handle::before {
-    position: absolute;
-    top: 8px;
-    left: 50%;
-    width: 46px;
-    height: 4px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.28);
-    content: "";
     transform: translateX(-50%);
   }
 
@@ -740,7 +714,7 @@ h1 {
 
   .intensity-legend {
     right: 10px;
-    bottom: 46px;
+    bottom: 78px;
     width: 30px;
   }
 

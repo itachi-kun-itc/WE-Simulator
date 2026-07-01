@@ -87,6 +87,8 @@
     { "type": "Feature", "properties": { "name": "壱岐・対馬近海" }, "geometry": { "type": "Polygon", "coordinates": [[[128.5, 33.5], [130.5, 33.5], [130.5, 35.0], [128.5, 35.0], [128.5, 33.5]]] } },
     { "type": "Feature", "properties": { "name": "五島列島近海" }, "geometry": { "type": "Polygon", "coordinates": [[[127.8, 31.8], [129.8, 31.8], [129.8, 33.6], [127.8, 33.6], [127.8, 31.8]]] } },
     { "type": "Feature", "properties": { "name": "橘湾" }, "geometry": { "type": "Polygon", "coordinates": [[[129.6, 32.5], [130.2, 32.5], [130.2, 33.0], [129.6, 33.0], [129.6, 32.5]]] } },
-    { "type": "Feature", "properties": { "name": "有明海" }, "geometry": { "type": "Polygon", "coordinates": [[[130.0, 32.4], [130.7, 32.4], [130.7, 33.2], [130.0, 33.2], [130.0, 32.4]]] } }
+    { "type": "Feature", "properties": { "name": "有明海" }, "geometry": { "type": "Polygon", "coordinates": [[[130.0, 32.4], [130.7, 32.4], [130.7, 33.2], [130.0, 33.2], [130.0, 32.4]]] } },
+    { "type": "Feature", "properties": { "name": "台湾付近" }, "geometry": { "type": "Polygon", "coordinates": [[[119.4, 21.4], [122.4, 21.4], [122.4, 25.8], [119.4, 25.8], [119.4, 21.4]]] } },
+    { "type": "Feature", "properties": { "name": "台湾東方沖" }, "geometry": { "type": "Polygon", "coordinates": [[[121.7, 21.4], [124.0, 21.4], [124.0, 24.1], [121.7, 24.1], [121.7, 21.4]]] } }
   ]
 }

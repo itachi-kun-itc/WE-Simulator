@@ -46,18 +46,18 @@
               </label>
               <label class="toggle-row">
                 <input id="region-layer-toggle" type="checkbox" checked />
-                <span>地震区分</span>
+                <span>震央区分</span>
               </label>
               <label class="toggle-row">
                 <input id="eew-warning-toggle" type="checkbox" />
-                <span>緊急地震速報発令地域</span>
+                <span>緊急地震速報を表示</span>
               </label>
             </div>
 
             <label class="field">
-              <span>過去地震</span>
+              <span>地震プリセット</span>
               <select id="historical-earthquake-select">
-                <option value="">過去地震を選択</option>
+                <option value="">プリセットを選択</option>
               </select>
             </label>
 
@@ -69,11 +69,11 @@
             <div class="field-grid">
               <label class="field">
                 <span>緯度</span>
-                <input id="latitude-input" type="number" min="20" max="47" step="0.001" />
+                <input id="latitude-input" type="text" inputmode="decimal" autocomplete="off" pattern="[0-9.]*" />
               </label>
               <label class="field">
                 <span>経度</span>
-                <input id="longitude-input" type="number" min="117" max="154" step="0.001" />
+                <input id="longitude-input" type="text" inputmode="decimal" autocomplete="off" pattern="[0-9.]*" />
               </label>
             </div>
 
@@ -84,7 +84,7 @@
               </label>
               <label class="field">
                 <span>マグニチュード</span>
-                <input id="magnitude-input" type="number" min="0" max="10" step="0.1" />
+                <input id="magnitude-input" type="text" inputmode="decimal" autocomplete="off" pattern="[0-9.]*" />
               </label>
             </div>
 
@@ -119,27 +119,27 @@
 
             <div class="wave-readout">
               <div>
-                <dt>震源地</dt>
-                <dd id="simulation-epicenter">-</dd>
-              </div>
-              <div>
                 <dt>経過時間</dt>
                 <dd id="simulation-time">0.0 秒</dd>
               </div>
               <div>
-                <dt>P波半径</dt>
-                <dd id="p-wave-radius">0 km</dd>
+                <dt>震源地</dt>
+                <dd id="simulation-epicenter">-</dd>
               </div>
               <div>
-                <dt>S波半径</dt>
-                <dd id="s-wave-radius">0 km</dd>
+                <dt>震央名</dt>
+                <dd id="simulation-region-name">-</dd>
+              </div>
+              <div>
+                <dt>深さ</dt>
+                <dd id="simulation-depth">-</dd>
               </div>
             </div>
 
             <div class="simulation-layer-toggles" aria-label="シミュレーション表示切り替え">
               <label class="toggle-row">
                 <input id="simulation-region-layer-toggle" type="checkbox" checked />
-                <span>地震区分</span>
+                <span>震央区分</span>
               </label>
               <label class="toggle-row">
                 <input id="simulation-station-layer-toggle" type="checkbox" />
@@ -158,21 +158,21 @@
           <section class="intensity-legend" aria-label="震度凡例">
             <h2>震度</h2>
             <div class="intensity-scale">
-              <span style="--color: #7b003f">7</span>
-              <span style="--color: #c0002b">6強</span>
-              <span style="--color: #ff1f3d">6弱</span>
-              <span style="--color: #f07a00">5強</span>
-              <span style="--color: #ffb000">5弱</span>
-              <span style="--color: #fff000; --text-color: #111827">4</span>
-              <span style="--color: #95e600; --text-color: #111827">3</span>
-              <span style="--color: #00b7e8; --text-color: #ffffff">2</span>
-              <span style="--color: #2f3e9e">1</span>
-              <span style="--color: #f6f7f8; --text-color: #111827">0</span>
+              <span style="--color: #5f007e">7</span>
+              <span style="--color: #a50034">6+</span>
+              <span style="--color: #e60012">6-</span>
+              <span style="--color: #ff8a00; --text-color: #111827">5+</span>
+              <span style="--color: #ffd400; --text-color: #111827">5-</span>
+              <span style="--color: #fff2a8; --text-color: #111827">4</span>
+              <span style="--color: #0068b7">3</span>
+              <span style="--color: #74d7ff; --text-color: #111827">2</span>
+              <span style="--color: #ffffff; --text-color: #111827">1</span>
+              <span style="--color: #d9dde3; --text-color: #1f2937">0</span>
             </div>
           </section>
 
-          <section class="eew-forecast-panel hidden" id="eew-forecast-panel" aria-label="緊急地震速報発令地域">
-            <h2>緊急地震速報発令地域</h2>
+          <section class="eew-forecast-panel hidden" id="eew-forecast-panel" aria-label="緊急地震速報（警報）地域">
+            <h2>緊急地震速報（警報）地域</h2>
             <ul id="eew-forecast-list"></ul>
           </section>
         </div>
@@ -199,48 +199,26 @@
       <button class="tab" id="weather-tab" type="button" data-panel="weather-panel">気象</button>
     </nav>
 
-    <script>
+<script>
       (function () {
         try {
-          if (sessionStorage.getItem('ws_cache_cleared')) {
+          const bootstrapKey = 'ws_bootstrap_checked';
+          const url = new URL(location.href);
+          const hasBootstrapParam = url.searchParams.has('_wsv');
+
+          if (!sessionStorage.getItem(bootstrapKey) && !hasBootstrapParam) {
+            sessionStorage.setItem(bootstrapKey, '1');
+            url.searchParams.set('_wsv', Date.now());
+            location.replace(url.toString());
             return;
           }
 
-          const clearAll = async () => {
-            try {
-              if ('serviceWorker' in navigator) {
-                const regs = await navigator.serviceWorker.getRegistrations();
-                for (const r of regs) {
-                  try {
-                    await r.unregister();
-                  } catch (e) {
-                    console.warn('serviceWorker unregister failed', e);
-                  }
-                }
-              }
-
-              if ('caches' in window) {
-                const keys = await caches.keys();
-                await Promise.all(keys.map((k) => caches.delete(k)));
-              }
-            } catch (e) {
-              console.warn('cache clear error', e);
-            }
-
-            sessionStorage.setItem('ws_cache_cleared', '1');
-            try {
-              const url = new URL(location.href);
-              url.searchParams.set('_', Date.now());
-              location.replace(url.toString());
-            } catch (e) {
-              location.reload();
-            }
-          };
-
-          // 実行（ページ読み込みごとに一度だけリロード）
-          clearAll();
+          if (hasBootstrapParam) {
+            url.searchParams.delete('_wsv');
+            history.replaceState(null, '', url.toString());
+          }
         } catch (e) {
-          console.warn('cache clear bootstrap failed', e);
+          console.warn('bootstrap refresh failed', e);
         }
       })();
     </script>
