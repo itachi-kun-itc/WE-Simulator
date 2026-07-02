@@ -218,7 +218,14 @@ function bindSimulationControls() {
   els.simulationStationLayerToggle.addEventListener("change", () => syncSimulationLayerToggles());
   els.simulationRegionLayerToggle.addEventListener("change", () => syncSimulationLayerToggles());
   els.simulationEewWarningToggle.addEventListener("change", () => syncSimulationLayerToggles());
-  els.simulationStart.addEventListener("click", () => startSimulation());
+  els.simulationStart.addEventListener("click", () => {
+    if (state.simulationRunning) {
+      stopSimulation();
+      return;
+    }
+
+    startSimulation();
+  });
   els.simulationStop.addEventListener("click", () => stopSimulation());
 
   els.resetEpicenter.addEventListener("click", () => {
@@ -274,6 +281,10 @@ function isCompactViewport() {
   return window.matchMedia("(max-width: 720px)").matches;
 }
 
+function usesSeparateSimulationPanel() {
+  return isCompactViewport();
+}
+
 function setSheetState(panel, stateName) {
   if (!panel) {
     return;
@@ -282,9 +293,17 @@ function setSheetState(panel, stateName) {
   panel.dataset.sheetState = stateName;
   const handle = panel.querySelector(".sheet-handle");
   if (handle) {
-    handle.textContent = stateName === "collapsed" ? "∧" : "∨";
+    handle.textContent = getSheetHandleLabel(stateName);
     handle.setAttribute("aria-expanded", String(stateName === "open"));
   }
+}
+
+function getSheetHandleLabel(stateName) {
+  if (isCompactViewport()) {
+    return stateName === "collapsed" ? "∧" : "∨";
+  }
+
+  return stateName === "collapsed" ? "‹" : "›";
 }
 
 function preventNonMapZoom() {
@@ -598,7 +617,12 @@ function addMapLayers() {
     source: "jma-local-areas",
     paint: {
       "fill-color": ["get", "intensityColor"],
-      "fill-opacity": ["interpolate", ["linear"], ["get", "intensityRank"], 0, 0.36, 2, 0.72, 9, 0.94],
+      "fill-opacity": [
+        "case",
+        ["<=", ["get", "intensityRank"], 0],
+        0,
+        ["interpolate", ["linear"], ["get", "intensityRank"], 1, 0.54, 2, 0.72, 9, 0.94],
+      ],
     },
   });
   updateLayerVisibility("jma-intensity-fill", state.showRegionLayer);
@@ -805,6 +829,11 @@ function updateDisplayMode() {
   updateLayerVisibility("shindo-station-labels", state.showStationLayer);
   updateLayerVisibility("jma-intensity-fill", state.showRegionLayer);
   updateLayerVisibility("eew-warning-fill", state.showEewWarningLayer);
+  if (state.showStationLayer && map?.getSource("shindo-stations")) {
+    map.getSource("shindo-stations").setData(getStationIntensityDataForElapsed(getSimulationStationElapsedSec()));
+    moveLayerToTop("shindo-station-points");
+    moveLayerToTop("shindo-station-labels");
+  }
   updateEewReplacementMode();
   updateEewForecastPanel();
 }
@@ -897,11 +926,19 @@ function startSimulation() {
   els.stationLayerToggle.checked = true;
   updateEpicenterEditMode();
   updateDisplayMode();
-  els.setupPanel.classList.add("hidden");
-  els.simulationPanel.classList.remove("hidden");
-  setSheetState(els.simulationPanel, isCompactViewport() ? "collapsed" : "open");
-  updateSimulationSummary();
   simulationStartedAt = performance.now();
+  updateIntensityLayer();
+  updateSimulationSummary(0);
+  els.simulationStart.textContent = "シミュレーション中止";
+  if (usesSeparateSimulationPanel()) {
+    els.setupPanel.classList.add("hidden");
+    els.simulationPanel.classList.remove("hidden");
+    setSheetState(els.simulationPanel, "collapsed");
+  } else {
+    els.setupPanel.classList.remove("hidden");
+    els.simulationPanel.classList.add("hidden");
+    setSheetState(els.setupPanel, "open");
+  }
   cancelAnimationFrame(simulationFrame);
   tickSimulation(simulationStartedAt);
 }
@@ -915,6 +952,7 @@ function stopSimulation() {
   state.epicenterEditEnabled = simulationPreviousEpicenterEditEnabled;
   els.epicenterEditToggle.checked = state.epicenterEditEnabled;
   updateEpicenterEditMode();
+  els.simulationStart.textContent = "シミュレーション開始";
   els.setupPanel.classList.remove("hidden");
   els.simulationPanel.classList.add("hidden");
   setSheetState(els.setupPanel, isCompactViewport() ? "collapsed" : "open");
@@ -1344,11 +1382,15 @@ function updateSimulationAvailability() {
     return;
   }
 
+  if (state.simulationRunning) {
+    els.simulationStart.disabled = false;
+    els.simulationStart.title = "";
+    return;
+  }
+
   const predictedMaximum = getPredictedMaximumIntensity();
   const canStart =
-    !state.simulationRunning &&
-    Number.isFinite(predictedMaximum.value) &&
-    predictedMaximum.rank >= 1;
+    Number.isFinite(predictedMaximum.value) && predictedMaximum.rank >= 1;
 
   els.simulationStart.disabled = !canStart;
   els.simulationStart.title = canStart
@@ -2520,6 +2562,10 @@ function haversineKilometers(start, end) {
 
 function toRadians(value) {
   return (value * Math.PI) / 180;
+}
+
+function toDegrees(value) {
+  return (value * 180) / Math.PI;
 }
 
 function pointInRing(point, ring) {
