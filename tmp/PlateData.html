@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>数値データ｜プレート形状｜HIROSE Fuyuki</title>
+<meta name="description" content="プレート形状の数値データのページです．">
+<link rel="stylesheet" href="../common/css/normalize.css">
+<link rel="stylesheet" href="../common/css/style.css">
+</head>
+<body>
+
+<div id="fb-root"></div>
+
+
+<div id="page">
+<header id="pageHead">
+	<h1 id="siteTitle" class="pageTitle">HIROSE Fuyuki's HP</h1>
+	<p id="catchcopy">本サイトは，気象庁気象研究所地震津波研究部に所属する一地震研究者が解析結果を紹介しているサイトです．</p>
+	<nav class="globalNavi">
+		<ul>
+			<li><a href="../index.html">ホーム</a></li>
+			<li><a href="../about/index.html">Profile</a></li>
+			<li><a href="../research/index.html">研究紹介</a></li>
+			<li class="current"><a href="../plate/index.html">プレート形状</a></li>
+			<li><a href="../paper_presentation/index.html">論文・発表</a></li>
+			<li><a href="../memo/index.html">メモ</a></li>
+			<li><a href="../link/index.html">リンク</a></li>
+			<li><a href="../en.index.html">English</a></li>
+		</ul>
+	</nav>
+</header>
+
+<p class="topicPath"><a href="../index.html">ホーム</a> &gt; <a href="index.html">プレート形状</a> &gt; 数値データ</p>
+
+<div id="pageBody">
+
+	<div id="pageBodyMain">
+		<article class="articleDetail">
+			<header class="articleDetailHead">
+				<h1 class="pageTitle">プレート形状の数値データ</h1>
+				フィリピン海プレートと太平洋プレートの形状の数値データ「plate_data.tar.gz」を公開しています．</p>
+				<p><a href="../data/plate_data.tar.gz">plate_data.tar.gz [331 KB]</a></p>
+			</header>
+
+			<section class="articleDetailBody">
+				<h2 class="heading-typeA">データを使用した際の引用について</h2>
+		<h3>※データを使用した場合には，使用地域に対応した出典論文を正確に明記するようにお願いします．以下に例を示します．</h3>
+
+		<b>北海道～東北地方の場合</b><br>
+			Kita et al. (2010, EPSL)およびNakajima and Hasegawa (2006, GRL)<br><br>
+		<b>東北地方南部～関東地方の場合</b><br>
+			Nakajima and Hasegawa (2006, GRL)，弘瀬・他 (2008, 地震)，Nakajima et al. (2009, JGR)<br><br>
+		<b>西南日本の場合</b><br>
+			Baba et al. (2002, PEPI)，Nakajima and Hasegawa (2007, JGR)，Hirose et al. (2008, JGR)
+			<p><br>
+			</section>
+
+			<section class="articleDetailBody">
+				<h2 class="heading-typeA">描画の手順</h2>
+
+		<ol>
+        <li>ダウンロードし解凍すると「plate_data」フォルダが作成されます．
+        <li>contour_map_PHS.gmtでフィリピン海スラブのコンター（contour_map_PHS.ps，<a href="PHS.html">PHS</a>）が描画されます．（※）
+        <li>contour_map_PAC.gmtで太平洋スラブのコンター（contour_map_PAC.ps，<a href="PAC.html">PAC</a>）が描画されます．（※）
+      <p>※<a href="http://gmt.soest.hawaii.edu/home" target="_blank">Generic Mapping Tools (GMT)</a>がインストールされていることが前提です．</p><br>
+			</section>
+
+			<section class="articleDetailBody">
+				<h2 class="heading-typeA">プレート形状データのファイル構成</h2>
+
+       <h3>太平洋プレート</h3>
+        <p>　「<b>PAC</b>」：北海道～東北北部<span class="logo_super">［Kita et al. (2010, EPSL)］</span>，<br>
+　　　　　　東北北部～東北南部<span class="logo_super">［Nakajima and Hasegawa (2006, GRL)］</span>，<br>
+　　　　　　関東地方～伊豆弧北部<span class="logo_super">［Nakajima et al. (2009, JGR)］</span><br>
+        <p>　※「PAC」は緯経度0.2度毎の深さデータで構成されているため，GMTのコマンドで補間してコンターを描画しています．</p>
+
+        <p>　</p>
+        <h3>フィリピン海プレート</h3>
+        <p>　「<b>sw</b>」：西南日本<span class="logo_super">［Hirose et al. (2008, JGR)］</span><br>
+　　　　　※紀伊半島の深さ20 kmの等深線<span class="logo_super">［弘瀬・他 (2007, 地震)］</span>を修正．<br>
+        <p>　「<b>kanto</b>」：関東地方<span class="logo_super">［弘瀬・他 (2008, 地震)</span>
+        <p>　「<b>izu3</b>」：伊豆の北部延長領域<span class="logo_super">［Nakajima et al. (2009, JGR)</span>
+        <p>　「<b>nakajima</b>」：フィリピン海スラブの深部<span class="logo_super">［Nakajima and Hasegawa (2007, JGR)］</span>
+        <p>　「<b>baba</b>」：南海トラフ深さ10 km<span class="logo_super">［Baba et al. (2002, PEPI)］</span>
+        </p>
+
+      <aside>
+			<section class="articleDetailBody">
+			<h2 class="heading-typeA">引用文献</h2>
+      <ul>
+      <li>Baba, T., Y. Tanioka, P. R. Cummins, and K. Uhira (2002), The slip distribution of the 1946 Nankai earthquake estimated from tsunami inversion using a new plate model, Phys. Earth Planet. Inter., 132, 59-73.</li>
+      <li>弘瀬冬樹・中島淳一・長谷川　昭 (2007), Double-Difference Tomography法による西南日本の３次元地震波速度構造およびフィリピン海プレートの形状の推定, 地震2, 60, 1-20.</li>
+      <li>Hirose, F., J. Nakajima, and A. Hasegawa (2008), Three-dimensional seismic velocity structure and configuration of the Philippine Sea slab in southwestern Japan estimated by double-difference tomography, J. Geophys. Res., 113, B09315, doi:10.1029/2007JB005274.</li>
+      <li>弘瀬冬樹・中島淳一・長谷川　昭 (2008), Double-Difference Tomography法による関東地方の３次元地震波速度構造およびフィリピン海プレートの形状の推定, 地震2, 60, 123-138.</li>
+      <li>Kita, S., T. Okada, A. Hasegawa, J. Nakajima, and T. Matsuzawa (2010), Anomalous deepening of a seismic belt in the upper-plane of the double seismic zone in the Pacific slab beneath the Hokkaido corner: Possible evidence for thermal shielding caused by subducted forearc crust materials, Earth Planet. Science Lett., 290, 415-426.</li>
+      <li>Nakajima, J., and A. Hasegawa (2006), Anomalous low-velocity zone and linear alignment of seismicity along it in the subducted Pacific slab beneath Kanto, Japan: Reactivation of subducted fracture zone?, Geophys. Res. Lett., 33, L16309, doi: 10.1029/2006GL026773.</li>
+      <li>Nakajima, J., and A. Hasegawa (2007), Subduction of the Philippine Sea plate beneath southwestern Japan: Slab geometry and its relationship to arc magmatism, J. Geophys. Res., 112, B08306, doi:10.1029/2006JB004770.</li>
+      <li>Nakajima, J., F. Hirose, and A. Hasegawa (2009), Seismotectonics beneath the Tokyo metropolitan area, Japan: Effect of slab-slab contact and overlap on seismicity, J. Geophys. Res., 114, B08309, doi:10.1029/2008JB006101.</li>
+      </ul>
+      </aside>
+			</section>
+			
+		</article>
+	</div>
+
+	<div id="pageBodySub">
+		<nav class="localNavi">
+			<ul>
+				<li><a href="PHS.html">フィリピン海プレート</a></li>
+				<li><a href="PAC.html">太平洋プレート</a></li>
+				<li><a href="PlateData.html">数値データ</a></li>
+				<li><a href="Tools.html">断面形状の取得ツール</a></li>
+			</ul>
+
+			<a href="http://www.white-rabbit.jp/project/TectonicPlatesAroundJapan.html" target="_blank"><img src="./images/TectonicPlatesAroundJapan2.jpg" width="200"></a>
+			<a href="http://www.white-rabbit.jp/project/TectonicPlatesAroundJapan.html" target="_blank">3D表示 by (有)ホワイトラビット</a>
+		</nav>
+	</div>
+
+</div>
+
+
+<p class="pagetop"><a href="#page">ページの先頭へ戻る</a></p>
+
+<footer id="pageFoot">
+	<p id="copyright"><small>Copyright&copy; 2013- @HIROSE Fuyuki All Rights Reserved.</small></p>
+</footer>
+
+</div>
+
+</body>
+</html>

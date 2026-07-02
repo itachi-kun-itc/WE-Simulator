@@ -1,0 +1,341 @@
+#!/bin/sh
+
+#-----------------------------------------------
+#       contour_map.gmt
+#             2010/06/24 by fuyuki_H
+#-----------------------------------------------
+
+psfile=./contour_map_PHS.ps
+
+trench=./mapdata/trench.dat
+vol=./mapdata/voldata.dat
+pref=./mapdata/japan.pref.line
+#fault=./mapdata/activef.dat
+
+tokai=./mapdata/tokai.region
+tonankai=./mapdata/tonankai.region
+nankai=./mapdata/nankai.region
+tasp=./mapdata/tokai_asperity.data
+kasp=./mapdata/kanto_eq.dat
+
+# PHS_SW (Baba et al., 2002, PEPI)
+b10=./baba/plate_d10km_baba.dat
+
+# PHS_SW (Nakajima and Hasegawa, 2007, JGR)
+n50=./nakajima/plate_d50km_nakajima2.dat
+n60=./nakajima/plate_d60km_nakajima2.dat
+n80=./nakajima/plate_d80km_nakajima2.dat
+n100=./nakajima/plate_d100km_nakajima2.dat
+n120=./nakajima/plate_d120km_nakajima2.dat
+n140=./nakajima/plate_d140km_nakajima2.dat
+n160=./nakajima/plate_d160km_nakajima2.dat
+n180=./nakajima/plate_d180km_nakajima2.dat
+
+# PHS_SW (Hirose et al., 2008, JGR)
+f10=./sw/plate_d10km.dat
+f20=./sw/plate_d20km.dat
+f30=./sw/plate_d30km.dat
+f30_2=./sw/plate_d30km_2.dat
+f40=./sw/plate_d40km.dat
+f40_2=./sw/plate_d40km_2.dat
+f50=./sw/plate_d50km.dat
+f50_2=./sw/plate_d50km_2.dat
+f60=./sw/plate_d60km.dat
+
+# PHS_Kanto (Hirose et al., 2008, Zishin)
+fk10=./kanto/plate_d10km.dat
+fk20=./kanto/plate_d20km.dat
+fk30=./kanto/plate_d30km.dat
+fk40=./kanto/plate_d40km.dat
+fk50=./kanto/plate_d50km.dat
+fk60=./kanto/plate_d60km.dat
+fk70=./kanto/plate_d70km.dat
+fk80=./kanto/plate_d80km.dat
+fk90=./kanto/plate_d90km.dat
+fk70_2=./kanto/plate_d70km_2.dat
+fk80_2=./kanto/plate_d80km_2.dat
+fk90_2=./kanto/plate_d90km_2.dat
+
+# PHS_Izu (Nakajima et al., 2009, JGR)
+fi10=./izu3/plate_d10km.dat
+fi20=./izu3/plate_d20km.dat
+fi30=./izu3/plate_d30km.dat
+fi40=./izu3/plate_d40km.dat
+fi50=./izu3/plate_d50km.dat
+fi60=./izu3/plate_d60km.dat
+fi70=./izu3/plate_d70km.dat
+fi80=./izu3/plate_d80km.dat
+fi90=./izu3/plate_d90km.dat
+fi100=./izu3/plate_d100km.dat
+fi110=./izu3/plate_d110km.dat
+fi120=./izu3/plate_d120km.dat
+fi130=./izu3/plate_d130km.dat
+fi140=./izu3/plate_d140km.dat
+
+#-------------------------------------------
+# map view
+#-------------------------------------------
+
+proje=-JM17
+range=-R130/141/30.5/37
+tick=-BWeNsa2f1
+
+psbasemap $proje $range $tick -G255/255/255 -X5 -Y5 -K > $psfile 
+
+pscoast $proje $range -G230/230/230 -Dh -K -O >> $psfile
+
+# Anticipated source region
+psxy $proje $range $tokai -: -L -G200/255/200 -K -O >> $psfile
+psxy $proje $range $tonankai -: -L -G200/255/200 -K -O >> $psfile
+psxy $proje $range $nankai -: -L -G200/255/200 -K -O >> $psfile
+psxy $proje $range $kasp -L -G200/255/200 -M -K -O >> $psfile
+
+#
+pscoast $proje $range -W3 -Dh -K -O >> $psfile
+psxy $proje $range $trench -: -W4t20_10:0 -M -K -O >> $psfile
+
+# Slow slip events
+# Tokyo bay (Hirose et al., 2000, Zishin)
+psxy $proje $range -W5/0/127/255 -L -O -K <<EOF >> $psfile
+140 35.3
+139.67 35.3
+139.67 35.48
+140 35.48
+EOF
+# Boso (Ozawa et al., 2003, GRL; Sagiya, 2004, Pageoph.)
+psxy $proje $range -W5/0/127/255 -L -O -K <<EOF >> $psfile
+140.9 35.3
+140.9 34.9
+140.6 34.9
+140.4 35.1
+140.4 35.3
+EOF
+# Tokai & Bungo (Hirose et al., 1999, GRL; Miyazaki et al., 2006, JGR; etc.)
+psxy $proje $range -Sc1 -W5/0/127/255 -O -K <<EOF >> $psfile
+137.6 34.8
+132.35 32.9
+EOF
+
+# Asperities
+# Kanto (Wald and Somerville, 1995, BSSA)
+psxy $proje $range $kasp -W2/0/127/0 -M -K -O >> $psfile
+# Tokai (Matsumura, 1997, Tectono.)
+psxy $proje $range $tasp -: -W2/0/127/0 -L -K -O >> $psfile
+
+# Anticipated source region
+psxy $proje $range $tokai -: -W2/0/127/0 -L -K -O >> $psfile
+psxy $proje $range $tonankai -: -W2/0/127/0 -L -K -O >> $psfile
+psxy $proje $range $nankai -: -W2/0/127/0 -L -K -O >> $psfile
+
+# PHS_SW (Hirose et al., 2008, JGR)
+psxy $f10 $proje $range -W5/255/0/0 -M -O -K >> $psfile
+psxy $f20 $proje $range -W5/255/0/0 -M -O -K >> $psfile
+psxy $f30 $proje $range -W5/255/0/0 -M -O -K >> $psfile
+#psxy $f30_2 $proje $range -W5t10_10:0/255/0/0 -M -O -K >> $psfile
+psxy $f40 $proje $range -W5/255/0/0 -M -O -K >> $psfile
+psxy $f40_2 $proje $range -W5t10_10:0/255/0/0 -M -O -K >> $psfile
+psxy $f50 $proje $range -W5/255/0/0 -M -O -K >> $psfile
+psxy $f50_2 $proje $range -W5t10_10:0/255/0/0 -M -O -K >> $psfile
+psxy $f60 $proje $range -W5/255/0/0 -M -O -K >> $psfile
+#psxy $f60_2 $proje $range -W5t10_10:0/255/0/0 -M -O -K >> $psfile
+
+# PHS_SW (Baba et al., 2002, PEPI)
+psxy $b10 $proje $range -W5/255/0/0 -M -O -K >> $psfile
+
+# PHS_SW (Nakajima and Hasegawa, 2007, JGR)
+psxy $n50 $proje $range -W5/255/0/0 -M -O -K >> $psfile
+psxy $n60 $proje $range -W5/255/0/0 -M -O -K >> $psfile
+psxy $n80 $proje $range -W5/255/0/0 -M -O -K >> $psfile
+psxy $n100 $proje $range -W5/255/0/0 -M -O -K >> $psfile
+psxy $n120 $proje $range -W5/255/0/0 -M -O -K >> $psfile
+psxy $n140 $proje $range -W5/255/0/0 -M -O -K >> $psfile
+psxy $n160 $proje $range -W5/255/0/0 -M -O -K >> $psfile
+psxy $n180 $proje $range -W5/255/0/0 -M -O -K >> $psfile
+
+# PHS_Kanto (Hirose et al., 2008, Zishin)
+psxy $fk10 $proje $range -W5/255/0/0 -M -O -K >> $psfile
+psxy $fk20 $proje $range -W5/255/0/0 -M -O -K >> $psfile
+psxy $fk30 $proje $range -W5/255/0/0 -M -O -K >> $psfile
+psxy $fk40 $proje $range -W5/255/0/0 -M -O -K >> $psfile
+psxy $fk50 $proje $range -W5/255/0/0 -M -O -K >> $psfile
+psxy $fk60 $proje $range -W5/255/0/0 -M -O -K >> $psfile
+psxy $fk70 $proje $range -W5/255/0/0 -M -O -K >> $psfile
+psxy $fk80 $proje $range -W5/255/0/0 -M -O -K >> $psfile
+psxy $fk90 $proje $range -W5/255/0/0 -M -O -K >> $psfile
+psxy $fk70_2 $proje $range -W5t10_10:0/255/0/0 -M -O -K >> $psfile
+psxy $fk80_2 $proje $range -W5t10_10:0/255/0/0 -M -O -K >> $psfile
+psxy $fk90_2 $proje $range -W5t10_10:0/255/0/0 -M -O -K >> $psfile
+
+# PHS_Izu (Nakajima et al., 2009, JGR)
+psxy $fi10 $proje $range -W5/255/0/255 -M -O -K >> $psfile
+psxy $fi20 $proje $range -W5/255/0/255 -M -O -K >> $psfile
+psxy $fi30 $proje $range -W5/255/0/255 -M -O -K >> $psfile
+psxy $fi40 $proje $range -W5/255/0/255 -M -O -K >> $psfile
+psxy $fi50 $proje $range -W5/255/0/255 -M -O -K >> $psfile
+psxy $fi60 $proje $range -W5/255/0/255 -M -O -K >> $psfile
+psxy $fi70 $proje $range -W5/255/0/255 -M -O -K >> $psfile
+psxy $fi80 $proje $range -W5/255/0/255 -M -O -K >> $psfile
+psxy $fi90 $proje $range -W5/255/0/255 -M -O -K >> $psfile
+psxy $fi100 $proje $range -W5/255/0/255 -M -O -K >> $psfile
+psxy $fi110 $proje $range -W5/255/0/255 -M -O -K >> $psfile
+psxy $fi120 $proje $range -W5/255/0/255 -M -O -K >> $psfile
+psxy $fi130 $proje $range -W5/255/0/255 -M -O -K >> $psfile
+psxy $fi140 $proje $range -W5/255/0/255 -M -O -K >> $psfile
+
+# volcanos
+awk '{print$2,$1}' $vol | \
+psxy $proje $range -St0.2 -G255/0/0 -W1 -O -K >> $psfile
+
+# Arrow (Wei & Seno, 1998, Geodynam. Series ed. by M. Flower et al., 27, 337-346)
+psxy $proje $range -Sv0.1/0.3/0.2 -G0 -O -K <<EOF >> $psfile
+140.8 33.5 131 0.6375
+EOF
+#echo 140.8 33.3 9 0 0 6 "34 mm/yr" | \
+#pstext $proje $range -G0/0/0 -O -K >> $psfile
+
+psxy $proje $range -Sv0.1/0.3/0.2 -G0 -O -K <<EOF >> $psfile
+137 31.1 145 1.05
+EOF
+#echo 137.05 31.4 9 0 0 5 "56 mm/yr" | \
+#pstext $proje $range -G0/0/0 -O -K >> $psfile
+
+#psxy $proje $range -Sv0.1/0.3/0.2 -G0 -N -O -K <<EOF >> $psfile
+#145 34.8 156 1.5
+#EOF
+#echo 144.7 35.2 9 0 0 5 "80 mm/yr" | \
+#pstext $proje $range -N -G0/0/0 -O -K >> $psfile
+
+#-------------------------------------------
+# text
+#-------------------------------------------
+#
+pstext $proje $range -O -K <<EOF >> $psfile
+138.6 33.95 10 70 0 6 Suruga Trough
+140.6 34.4 10 -18 0 6 Sagami Trough
+136.5 32.7 12 20 0 6 Nankai Trough
+136 30.7 12 0 0 6 Philippine Sea Plate
+138.1 35 12 35 0 6 Tokai
+137 34 12 30 0 6 Tonankai
+134 32.9 12 20 0 6 Nankai
+133.5 33.65 12 20 0 6 Shikoku
+132.1 33.2 12 -65 0 6 Bungo Channel
+EOF
+
+#Kanto
+pstext $proje $range -O -K <<EOF >> $psfile
+139.05 35.33 8 0 0 6 10
+140.75 35.18 8 0 0 6 20
+140.82 35.92 8 0 0 6 30
+140.49 36.18 8 0 0 6 40
+140.35 36.33 8 0 0 6 50
+140.1  36.44 8 0 0 6 60
+139.85 36.52 8 0 0 6 70
+139.6  36.56 8 0 0 6 80
+139.42 36.64 8 20 0 6 100
+139.1  36.67 8 20 0 6 120
+138.82 36.77 8 20 0 6 140
+EOF
+
+#Izu
+pstext $proje $range -O -K <<EOF >> $psfile
+138.69 35.26 8 0 0 6 10
+138.63 35.44 8 0 0 6 20
+138.6  35.57 8 0 0 6 30
+138.5  35.8  8 0 0 6 60
+138.1  35.8  8 0 0 6 80
+137.9  35.9  8 0 0 6 100
+137.7  36.0  8 0 0 6 120
+137.4  36.2  8 0 0 6 140
+EOF
+
+#Tokai
+pstext $proje $range -O -K <<EOF >> $psfile
+137.3 33.9  8 0 0 6 10
+137.3 34.6  8 0 0 6 20
+137.3 35.0  8 0 0 6 30
+137.3 35.3  8 0 0 6 40
+137.3 35.55 8 0 0 6 50
+135.7  35.9 8 0 0 6 60
+136.3  36.2  8 0 0 6 80
+EOF
+
+#kii
+pstext $proje $range -O -K <<EOF >> $psfile
+135.6  33.0 8 0 0 6 10
+135.55 33.5 8 0 0 6 20
+135.55 33.8 8 0 0 6 30
+135.5  34.0 8 0 0 6 40
+135.5  34.2 8 0 0 6 50
+135.5  34.4 8 0 0 6 60
+EOF
+
+#Shikoku
+pstext $proje $range -O -K <<EOF >> $psfile
+133.8 32.2 8 0 0 6 10
+133.8 33.4 8 0 0 6 20
+133.9 34.0 8 0 0 6 30
+134.0 34.3 8 0 0 6 40
+132.2 33.6 8 0 0 6 40
+134.0 34.7 8 0 0 6 50
+134.1 35.0 8 0 0 6 60
+EOF
+
+#Kyushu
+pstext $proje $range -O -K <<EOF >> $psfile
+131.4  32.8  8 70 0 6 80
+131.4  33.1  8 70 0 6 100
+131.2  32.9  8 70 0 6 120
+131.0  32.7  8 70 0 6 140
+130.7  32.3  8 70 0 6 160
+130.35 31.95 8 70 0 6 180
+EOF
+
+#southern Kyushu
+pstext $proje $range -O -K <<EOF >> $psfile
+132.3  30.9  8 0 0 6 10
+131.55 30.8  8 0 0 6 20
+131.26 30.9  8 0 0 6 30
+131.06 30.95 8 0 0 6 40
+130.86 31.0  8 0 0 6 50
+EOF
+
+#
+pstext $proje $range -G0 -N -O -K <<EOF >> $psfile
+130 30 10 0 0 5 Fig. 1 [Hirose et al.]
+EOF
+
+#----------------------------------------------------------------------
+gmtset BASEMAP_TYPE fancy
+gmtset FRAME_WIDTH 0.05c
+gmtset TICK_LENGTH -0.1c
+
+proje=-JM5
+range=-R120/150/25/46
+tick=-Bwesna10
+
+psbasemap $proje $range -G255/255/255 -X11.9 -Y0.1 -O -K >> $psfile 
+pscoast $proje $range $tick -G230/230/230 -Dh -K -O >> $psfile
+psxy $proje $range $trench -: -W4t20_10:0 -M -O -K >> $psfile
+
+psxy $proje $range -G255/200/200 -O -L -K <<EOF >> $psfile
+130 30.5
+141 30.5
+141 37
+130 37
+EOF
+
+pscoast $proje $range -W3 -Dh -O -K >> $psfile
+
+psxy $proje $range -W4/255/0/0 -O -L <<EOF >> $psfile
+130 30.5
+141 30.5
+141 37
+130 37
+EOF
+
+#
+gmtset BASEMAP_TYPE plain
+gmtset FRAME_WIDTH 0.2c
+gmtset TICK_LENGTH 0.1c
+
+ggv $psfile
