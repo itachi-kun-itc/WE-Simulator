@@ -150,6 +150,24 @@
               </div>
             </div>
 
+            <section class="current-location-panel" aria-label="現在地の予測">
+              <label class="toggle-row current-location-toggle">
+                <input id="current-location-toggle" type="checkbox" />
+                <span>位置情報を連動</span>
+              </label>
+              <div class="current-location-name" id="current-location-name">-</div>
+              <div class="current-location-forecast">
+                <div>
+                  <span>予想最大震度</span>
+                  <strong id="current-location-intensity">-</strong>
+                </div>
+                <div>
+                  <span>地震到達まで</span>
+                  <strong id="current-location-arrival">-</strong>
+                </div>
+              </div>
+            </section>
+
             <div class="simulation-layer-toggles" aria-label="シミュレーション表示切り替え">
               <label class="toggle-row">
                 <input id="simulation-region-layer-toggle" type="checkbox" checked />
