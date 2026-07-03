@@ -68,9 +68,9 @@ function main() {
 function parsePreset(fileName) {
   const eventName = fileName.replace(/\.csv$/i, "");
   const filePath = path.join(sourceDir, fileName);
-  const rows = parseCsv(fs.readFileSync(filePath, "utf8")).filter((row) =>
-    row.some((cell) => String(cell).trim() !== ""),
-  );
+  const rows = parseCsv(fs.readFileSync(filePath, "utf8"))
+    .map((row) => (row.length === 1 && row[0].includes(",") ? parseCsv(row[0])[0] : row))
+    .filter((row) => row.some((cell) => String(cell).trim() !== ""));
   const headers = rows[0];
   const eventRows = [];
   let index = 1;
@@ -105,9 +105,12 @@ function parsePreset(fileName) {
       });
     });
   }
+  const hyogoMunicipalityObservations = parseHyogoNanbuMunicipalityObservations(eventName);
   const detailedObservations = parseDetailedObservations(eventName);
   const finalObservations =
-    detailedObservations.length > 0
+    hyogoMunicipalityObservations.length > 0
+      ? hyogoMunicipalityObservations
+      : detailedObservations.length > 0
       ? dedupeObservations([...detailedObservations, ...observations])
       : dedupeObservations(observations);
 
@@ -126,6 +129,47 @@ function parsePreset(fileName) {
     eewForecastAreas: eewForecastAreasByName[eventName] ?? [],
     eewReports: parseEewReports(eventName),
   };
+}
+
+function parseHyogoNanbuMunicipalityObservations(eventName) {
+  const filePath = path.join(sourceDir, `【詳細3】${eventName}.csv`);
+  if (!fs.existsSync(filePath)) {
+    return [];
+  }
+
+  const rows = parseCsv(fs.readFileSync(filePath, "utf8"))
+    .map((row) => (row.length === 1 && row[0].includes(",") ? parseCsv(row[0])[0] : row))
+    .filter((row) => row.some((cell) => String(cell).trim() !== ""));
+  const observations = [];
+
+  rows.forEach((row) => {
+    const intensityLabel = normalizeIntensityLabel(row[1]);
+    const intensityValue = getHyogoNanbuOldScaleIntensityValue(intensityLabel);
+    if (!Number.isFinite(intensityValue)) {
+      return;
+    }
+
+    splitEewAreas(row[2]).forEach((areaName) => {
+      const place = splitPrefectureAndPlace(areaName.replace(/（[^）]*）/g, ""));
+      if (!place.name) {
+        return;
+      }
+
+      observations.push({
+        prefecture: place.prefecture,
+        stationName: place.name,
+        intensityLabel,
+        displayIntensityLabel: intensityLabel.replace(/^震度/, ""),
+        displayIntensityShortLabel: intensityLabel.replace(/^震度/, ""),
+        intensityValue,
+        measuredIntensity: null,
+        oldJmaScale: true,
+        syntheticMunicipality: true,
+      });
+    });
+  });
+
+  return dedupeObservations(observations);
 }
 
 function parseDetailedObservations(eventName) {
@@ -371,6 +415,31 @@ function getRepresentativeIntensityValue(label) {
   if (/^2$|震度2/.test(normalizedLabel)) return 1.5;
   if (/^1$|震度1/.test(normalizedLabel)) return 0.5;
   return null;
+}
+
+function getHyogoNanbuOldScaleIntensityValue(label) {
+  const normalizedLabel = normalizeIntensityLabel(label).replace(/^震度/, "");
+  if (normalizedLabel === "7") return 6.5;
+  if (normalizedLabel === "6") return 6.0;
+  if (normalizedLabel === "5") return 5.0;
+  if (normalizedLabel === "4") return 3.5;
+  if (normalizedLabel === "3") return 2.5;
+  if (normalizedLabel === "2") return 1.5;
+  if (normalizedLabel === "1") return 0.5;
+  return null;
+}
+
+function splitPrefectureAndPlace(value) {
+  const normalizedValue = String(value ?? "").trim();
+  const match = normalizedValue.match(/^(.+?[都道府県])(.+)$/);
+  if (!match) {
+    return { prefecture: "", name: normalizedValue };
+  }
+
+  return {
+    prefecture: match[1],
+    name: match[2],
+  };
 }
 
 function dedupeObservations(observations) {
