@@ -52,6 +52,56 @@ const representativeIntensity = new Map([
   ["震度１", 0.5],
 ]);
 
+const prefectureNames = [
+  "北海道",
+  "青森県",
+  "岩手県",
+  "宮城県",
+  "秋田県",
+  "山形県",
+  "福島県",
+  "茨城県",
+  "栃木県",
+  "群馬県",
+  "埼玉県",
+  "千葉県",
+  "東京都",
+  "神奈川県",
+  "新潟県",
+  "富山県",
+  "石川県",
+  "福井県",
+  "山梨県",
+  "長野県",
+  "岐阜県",
+  "静岡県",
+  "愛知県",
+  "三重県",
+  "滋賀県",
+  "京都府",
+  "大阪府",
+  "兵庫県",
+  "奈良県",
+  "和歌山県",
+  "鳥取県",
+  "島根県",
+  "岡山県",
+  "広島県",
+  "山口県",
+  "徳島県",
+  "香川県",
+  "愛媛県",
+  "高知県",
+  "福岡県",
+  "佐賀県",
+  "長崎県",
+  "熊本県",
+  "大分県",
+  "宮崎県",
+  "鹿児島県",
+  "沖縄県",
+];
+
 function main() {
   const presets = presetFiles.map((fileName) => parsePreset(fileName));
   const output = {
@@ -431,15 +481,38 @@ function getHyogoNanbuOldScaleIntensityValue(label) {
 
 function splitPrefectureAndPlace(value) {
   const normalizedValue = String(value ?? "").trim();
+  const prefecture = prefectureNames.find((name) => normalizedValue.startsWith(name));
+  if (prefecture) {
+    return {
+      prefecture,
+      name: cleanPrefecturePrefix(normalizedValue.slice(prefecture.length), prefecture),
+    };
+  }
+
   const match = normalizedValue.match(/^(.+?[都道府県])(.+)$/);
   if (!match) {
-    return { prefecture: "", name: normalizedValue };
+    return { prefecture: "", name: cleanPrefecturePrefix(normalizedValue, "") };
   }
 
   return {
     prefecture: match[1],
-    name: match[2],
+    name: cleanPrefecturePrefix(match[2], match[1]),
   };
+}
+
+function cleanPrefecturePrefix(name, prefecture) {
+  let cleanedName = String(name ?? "").trim();
+  const normalizedPrefecture = String(prefecture ?? "").trim();
+  if (normalizedPrefecture && cleanedName.startsWith(normalizedPrefecture)) {
+    cleanedName = cleanedName.slice(normalizedPrefecture.length);
+  }
+
+  const suffix = normalizedPrefecture.match(/[都道府県]$/)?.[0];
+  if (suffix && cleanedName.startsWith(suffix)) {
+    cleanedName = cleanedName.slice(suffix.length);
+  }
+
+  return cleanedName.replace(/^(?:都|道|府|県)(?=.+[市区町村]$)/u, "");
 }
 
 function dedupeObservations(observations) {
