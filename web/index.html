@@ -27,16 +27,16 @@
           <section class="sim-panel" id="setup-panel" aria-label="震源設定">
             <button class="sheet-handle" type="button" aria-label="メニューを開閉"></button>
             <div class="sim-panel-head">
-              <div>
-                <p class="eyebrow">Epicenter</p>
+              <div class="setup-panel-title">
                 <h2>震源設定</h2>
               </div>
-              <button class="icon-button" id="reset-epicenter" type="button" title="震源を初期位置に戻す">
-                ↺
-              </button>
               <button class="mobile-sheet-toggle" id="setup-sheet-toggle" type="button">マップを表示</button>
+              <button class="icon-button" id="reset-epicenter" type="button" title="震源を初期位置に戻す">
+                更新
+              </button>
             </div>
 
+            <div class="sim-panel-scroll">
             <label class="toggle-row">
               <input id="epicenter-edit-toggle" type="checkbox" checked />
               <span>震源地を設定</span>
@@ -112,6 +112,8 @@
               </div>
             </dl>
 
+            </div>
+
             <button class="simulation-start" id="simulation-start" type="button">
               シミュレーション開始
             </button>
@@ -120,6 +122,7 @@
           <section class="sim-panel simulation-panel hidden" id="simulation-panel" aria-label="シミュレーション結果">
             <button class="sheet-handle" type="button" aria-label="メニューを開閉"></button>
             <button class="mobile-sheet-toggle simulation-sheet-toggle" id="simulation-sheet-toggle" type="button">メニューを非表示</button>
+            <div class="sim-panel-scroll">
             <div class="simulation-summary">
               <div class="max-shindo-card">
                 <span>最大震度</span>
@@ -187,6 +190,8 @@
               <h2>地震観測点一覧</h2>
               <ol id="max-station-list"></ol>
             </section>
+
+            </div>
 
             <div class="simulation-actions">
               <button class="simulation-pause" id="simulation-pause" type="button">一時停止</button>

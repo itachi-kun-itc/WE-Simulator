@@ -20,8 +20,13 @@ main().catch((error) => {
 });
 
 async function main() {
-  const surfaceMeshes = await readSurfaceGround(surfaceInputPath);
-  const deepMeshes = await readDeepGround(deepInputPath);
+  const existingModel = readExistingGroundModel(outputPath);
+  const surfaceMeshes = fs.existsSync(surfaceInputPath)
+    ? await readSurfaceGround(surfaceInputPath)
+    : readSurfaceGroundFromExisting(existingModel);
+  const deepMeshes = fs.existsSync(deepInputPath)
+    ? await readDeepGround(deepInputPath)
+    : readDeepGroundFromExisting(existingModel);
   const wm2020Meshes = await readWm2020Ground(wm2020InputPath);
   const meshes = {};
 
@@ -71,7 +76,50 @@ async function main() {
   console.log(`Surface 1km meshes: ${surfaceMeshes.size}`);
   console.log(`Deep meshes: ${deepMeshes.size}`);
   console.log(`WM2020 1km meshes: ${wm2020Meshes.size}`);
+  if (!fs.existsSync(surfaceInputPath)) {
+    console.log(`Surface source missing; reused ${surfaceMeshes.size} meshes from existing ground_model.json`);
+  }
+  if (!fs.existsSync(deepInputPath)) {
+    console.log(`Deep source missing; reused ${deepMeshes.size} meshes from existing ground_model.json`);
+  }
   console.log(`Wrote ${Object.keys(meshes).length} ground meshes to ${path.relative(root, outputPath)}`);
+}
+
+function readExistingGroundModel(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return null;
+  }
+
+  return JSON.parse(fs.readFileSync(filePath, "utf8"));
+}
+
+function readSurfaceGroundFromExisting(existingModel) {
+  const meshes = new Map();
+  for (const [code, values] of Object.entries(existingModel?.meshes ?? {})) {
+    const [arv, avs] = values;
+    if (Number.isFinite(arv) || Number.isFinite(avs)) {
+      meshes.set(code, {
+        arvSum: Number.isFinite(arv) ? arv : 0,
+        avsSum: Number.isFinite(avs) ? avs : 0,
+        count: 1,
+      });
+    }
+  }
+  return meshes;
+}
+
+function readDeepGroundFromExisting(existingModel) {
+  const meshes = new Map();
+  for (const [code, values] of Object.entries(existingModel?.meshes ?? {})) {
+    const [, , s0, maxDepthM] = values;
+    if (Number.isFinite(s0) || Number.isFinite(maxDepthM)) {
+      meshes.set(code, {
+        s0: Number.isFinite(s0) ? s0 : null,
+        maxDepthM: Number.isFinite(maxDepthM) ? maxDepthM : null,
+      });
+    }
+  }
+  return meshes;
 }
 
 async function readSurfaceGround(filePath) {

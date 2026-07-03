@@ -53,3 +53,11 @@
   - https://www.j-shis.bosai.go.jp/map/JSHIS2/download.html?lang=jp
 - 主な生成物:
   - `web/data/ground_model.json`
+
+## Kunijiban（国土地盤情報）
+
+- 国土交通省の道路・河川・港湾事業等の地質・土質調査成果をまとめた地盤情報。現時点ではデータセットメタ情報を出典として記録。
+- 参考URL:
+  - http://www.kunijiban.pwri.go.jp/jp/
+- 参照ファイル:
+  - `dataset.json`

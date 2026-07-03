@@ -10,11 +10,12 @@ const sourceName = path.relative(root, inputDir);
 const coordinatePrecision = Number(process.env.SURROUNDING_LAND_COORDINATE_PRECISION || 5);
 const simplifyTolerance = Number(process.env.SURROUNDING_LAND_SIMPLIFY_TOLERANCE || 0.01);
 const minRingArea = Number(process.env.SURROUNDING_LAND_MIN_RING_AREA || 0.00004);
+const buildWorldMap = process.env.SURROUNDING_LAND_WORLD === "1";
 const clipBounds = {
-  west: Number(process.env.SURROUNDING_LAND_WEST || 116),
-  south: Number(process.env.SURROUNDING_LAND_SOUTH || 18),
-  east: Number(process.env.SURROUNDING_LAND_EAST || 155),
-  north: Number(process.env.SURROUNDING_LAND_NORTH || 54),
+  west: Number(process.env.SURROUNDING_LAND_WEST || (buildWorldMap ? -180 : 116)),
+  south: Number(process.env.SURROUNDING_LAND_SOUTH || (buildWorldMap ? -90 : 18)),
+  east: Number(process.env.SURROUNDING_LAND_EAST || (buildWorldMap ? 180 : 155)),
+  north: Number(process.env.SURROUNDING_LAND_NORTH || (buildWorldMap ? 90 : 54)),
 };
 
 const shpPath = findFile(".shp");
@@ -50,7 +51,7 @@ fs.writeFileSync(
   outputPath,
   JSON.stringify({
     type: "FeatureCollection",
-    name: "Natural Earth 10m surrounding land near Japan",
+    name: buildWorldMap ? "Natural Earth 10m world land" : "Natural Earth 10m surrounding land near Japan",
     source: sourceName,
     version: readVersion(),
     bounds: clipBounds,
