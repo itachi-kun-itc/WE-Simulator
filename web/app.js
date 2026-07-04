@@ -14,8 +14,8 @@ const FEEDBACK_SHEET_URL =
 const FEEDBACK_ENDPOINT_URL =
   "https://script.google.com/macros/s/AKfycbxJSAQowW2Drmh24eET5Qjnys3hDtls7kwM7_utE_f1_8kYhwMkyUdfdOTXdhdm1xfLRg/exec";
 
-const INITIAL_CENTER = [139.767, 35.681];
-const INITIAL_ZOOM = 5.25;
+const INITIAL_CENTER = [136.1, 36.8];
+const INITIAL_ZOOM = 6;
 const JAPAN_AREA_PAN_BOUNDS = [
   [92, 0],
   [176, 64],
@@ -977,7 +977,7 @@ function bindSimulationControls() {
     invalidateIntensityEstimateCache();
     syncInputs();
     updateEpicenter({ resolveLocation: true, enforceManagedArea: true });
-    map.easeTo({ center: INITIAL_CENTER, zoom: 6, duration: 450 });
+    map.easeTo({ center: INITIAL_CENTER, zoom: INITIAL_ZOOM, duration: 450 });
   });
 
   syncInputs();
@@ -1205,6 +1205,10 @@ function getCollapsedSheetOffset(panel) {
 
 function isCompactViewport() {
   return window.matchMedia("(max-width: 720px)").matches;
+}
+
+function isTabletViewport() {
+  return window.matchMedia("(min-width: 721px) and (max-width: 1180px)").matches;
 }
 
 function usesSeparateSimulationPanel() {
@@ -1815,8 +1819,20 @@ function scheduleStartupReadyAfterIntensityPaint() {
       startupMapVisualReadyTimer = null;
       document.body.classList.remove("map-core-loading");
       updateSimulationAvailability();
-    }, 1600);
+    }, getStartupOverlayReleaseDelayMs());
   });
+}
+
+function getStartupOverlayReleaseDelayMs() {
+  if (isCompactViewport()) {
+    return 2400;
+  }
+
+  if (isTabletViewport()) {
+    return 2200;
+  }
+
+  return 1600;
 }
 
 function schedulePostMunicipalityDataHydration() {
@@ -2318,18 +2334,10 @@ function fitInitialMapBounds(bounds) {
     return;
   }
 
-  map.fitBounds(bounds, {
-    padding: getInitialMapPadding(),
-    duration: 0,
+  map.jumpTo({
+    center: INITIAL_CENTER,
+    zoom: INITIAL_ZOOM,
   });
-
-  map.setZoom(Math.min(map.getZoom() + 0.9, map.getMaxZoom()));
-}
-
-function getInitialMapPadding() {
-  return isCompactViewport()
-    ? { top: 22, right: 64, bottom: 88, left: 12 }
-    : { top: 18, right: 90, bottom: 18, left: 390 };
 }
 
 function getInitialJapanBounds() {
