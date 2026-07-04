@@ -19,6 +19,11 @@ const JAPAN_AREA_PAN_BOUNDS = [
   [92, 0],
   [176, 64],
 ];
+const EXCLUDED_JAPAN_LAND_BOUNDS = [
+  { west: 145.2, south: 43.2, east: 149.6, north: 46.3 },
+  { west: 131.75, south: 37.15, east: 131.95, north: 37.35 },
+  { west: 123.2, south: 25.5, east: 124.8, north: 26.3 },
+];
 const MUNICIPALITY_BOUNDARY_MIN_ZOOM = 8;
 const EARTH_RADIUS_KM = 6371;
 const EARTHQUAKE_MODEL = {
@@ -1767,11 +1772,65 @@ function hydrateDeferredMapData() {
 function filterSurroundingLandForDisplay(geojson) {
   return {
     ...geojson,
-    features: (geojson.features ?? []).filter((feature) => {
+    features: (geojson.features ?? []).flatMap((feature) => {
       const properties = feature.properties ?? {};
-      return properties.isoA3 !== "JPN" && properties.nameEn !== "Japan";
+      if (properties.isoA3 !== "JPN" && properties.nameEn !== "Japan") {
+        return [feature];
+      }
+
+      const excludedIslandFeature = getExcludedJapanIslandLandFeature(feature);
+      return excludedIslandFeature ? [excludedIslandFeature] : [];
     }),
   };
+}
+
+function getExcludedJapanIslandLandFeature(feature) {
+  const geometry = feature.geometry;
+  if (!geometry?.coordinates) {
+    return null;
+  }
+
+  const coordinates =
+    geometry.type === "MultiPolygon"
+      ? geometry.coordinates.filter(isExcludedJapanIslandPolygon)
+      : isExcludedJapanIslandPolygon(geometry.coordinates)
+        ? [geometry.coordinates]
+        : [];
+
+  if (coordinates.length === 0) {
+    return null;
+  }
+
+  return {
+    ...feature,
+    properties: {
+      ...feature.properties,
+      name: "対象外島しょ",
+      nameEn: "Excluded islands near Japan",
+    },
+    geometry: {
+      type: "MultiPolygon",
+      coordinates,
+    },
+  };
+}
+
+function isExcludedJapanIslandPolygon(polygon) {
+  const outerRing = polygon?.[0];
+  if (!Array.isArray(outerRing) || outerRing.length === 0) {
+    return false;
+  }
+
+  const center = getRingCentroidCoordinate(outerRing);
+  if (!center) {
+    return false;
+  }
+
+  return EXCLUDED_JAPAN_LAND_BOUNDS.some((bounds) => pointInBounds(center, bounds));
+}
+
+function pointInBounds([longitude, latitude], bounds) {
+  return longitude >= bounds.west && longitude <= bounds.east && latitude >= bounds.south && latitude <= bounds.north;
 }
 
 function buildNeutralIntensityAreaData(geojson) {
@@ -2825,8 +2884,10 @@ function updateSimulationSummary(elapsedSec = getSimulationStationElapsedSec()) 
     0,
   );
   const maxClass = INTENSITY_CLASSES.find((item) => item.rank === maxRank) ?? INTENSITY_CLASSES[0];
+  const hasObservedIntensity = stationFeatures.length > 0;
 
-  els.simulationMaxIntensity.textContent = maxClass.label;
+  els.simulationMaxIntensity.textContent =
+    state.simulationRunning && Number.isFinite(elapsedSec) && !hasObservedIntensity ? "-" : maxClass.label;
   els.simulationMagnitude.textContent = state.magnitude.toFixed(1);
   els.simulationEpicenter.textContent = `${state.latitude.toFixed(3)}, ${state.longitude.toFixed(3)}`;
   els.simulationRegionName.textContent = state.epicenterName;
@@ -2835,7 +2896,9 @@ function updateSimulationSummary(elapsedSec = getSimulationStationElapsedSec()) 
   updateCurrentLocationForecast(elapsedSec);
   updateMaxStationList(stationFeatures, elapsedSec);
 
-  recordMaxIntensityHistory(elapsedSec, maxValue);
+  if (hasObservedIntensity) {
+    recordMaxIntensityHistory(elapsedSec, maxValue);
+  }
 }
 
 function updateMaxStationList(stationFeatures, elapsedSec) {
@@ -3442,7 +3505,7 @@ async function updateLocationNames() {
       inManagedArea = false;
     }
 
-    state.municipalityName = municipality ? cleanDisplayAreaName(municipality.properties.name) : "該当なし";
+    state.municipalityName = municipality ? formatMunicipalityDisplayName(municipality.properties) : "該当なし";
     state.epicenterName = localArea
       ? cleanDisplayAreaName(localArea.properties.name)
       : seaArea
@@ -3458,6 +3521,22 @@ async function updateLocationNames() {
   els.epicenterRegion.value = state.epicenterName;
   els.municipalityOutput.textContent = state.municipalityName;
   return inManagedArea;
+}
+
+function formatMunicipalityDisplayName(properties = {}) {
+  const prefecture = cleanDisplayAreaName(properties.prefecture || "");
+  const municipality = cleanDisplayAreaName(properties.municipality || "");
+  const fullName = cleanDisplayAreaName(properties.name || "");
+
+  if (prefecture && municipality) {
+    return municipality.startsWith(prefecture) ? municipality : `${prefecture}${municipality}`;
+  }
+
+  if (prefecture && fullName) {
+    return fullName.startsWith(prefecture) ? fullName : `${prefecture}${fullName}`;
+  }
+
+  return fullName || municipality || prefecture || "該当なし";
 }
 
 function isExcludedTerritoryName(name) {
@@ -4986,6 +5065,10 @@ function getOldScaleDisplayIntensityClassIfNeeded(intensityClass, intensityValue
   return intensityClass;
 }
 
+function coordinatesKey([longitude, latitude]) {
+  return `${Number(longitude).toFixed(4)},${Number(latitude).toFixed(4)}`;
+}
+
 function buildOldScaleSyntheticStationFeatures(preset, existingFeatures) {
   if (!municipalityDisplayData?.features || !preset?.observedStations) {
     return [];
@@ -5001,9 +5084,14 @@ function buildOldScaleSyntheticStationFeatures(preset, existingFeatures) {
       .filter(Boolean),
   );
   const municipalityCounts = new Map();
+  const placedSyntheticMunicipalityKeys = new Set();
   const features = [];
 
-  preset.observedStations.forEach((observation, index) => {
+  const sortedObservations = [...preset.observedStations].sort(
+    (a, b) => Number(b.intensityValue ?? 0) - Number(a.intensityValue ?? 0),
+  );
+
+  sortedObservations.forEach((observation, index) => {
     const normalizedObservationName = normalizeStationNameForMatch(observation.stationName);
     if (!normalizedObservationName || alreadyPlaced.has(normalizedObservationName)) {
       return;
@@ -5021,6 +5109,14 @@ function buildOldScaleSyntheticStationFeatures(preset, existingFeatures) {
     }
 
     const municipalityName = municipalityFeature?.properties?.name ?? observation.stationName;
+    const syntheticMunicipalityKey = explicitCoordinates
+      ? `coord:${coordinatesKey(explicitCoordinates)}`
+      : `${observation.prefecture ?? ""}|${municipalityName}`;
+    if (placedSyntheticMunicipalityKeys.has(syntheticMunicipalityKey)) {
+      return;
+    }
+    placedSyntheticMunicipalityKeys.add(syntheticMunicipalityKey);
+
     const count = municipalityCounts.get(municipalityName) ?? 0;
     municipalityCounts.set(municipalityName, count + 1);
     const center = explicitCoordinates ?? getMunicipalityRepresentativeCoordinate(municipalityFeature);
