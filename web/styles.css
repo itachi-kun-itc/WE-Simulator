@@ -545,6 +545,10 @@ body.map-core-loading .map-wrap::after {
   opacity: 1;
 }
 
+body.map-core-loading .maplibregl-marker {
+  visibility: hidden;
+}
+
 body.app-loading #setup-panel input,
 body.app-loading #setup-panel select,
 body.app-loading #setup-panel button:not(#simulation-start) {
