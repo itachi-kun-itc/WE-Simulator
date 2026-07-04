@@ -20,7 +20,6 @@ const JAPAN_AREA_PAN_BOUNDS = [
   [176, 64],
 ];
 const EXCLUDED_JAPAN_LAND_BOUNDS = [
-  { west: 145.2, south: 43.2, east: 149.6, north: 46.3 },
   { west: 131.75, south: 37.15, east: 131.95, north: 37.35 },
   { west: 123.2, south: 25.5, east: 124.8, north: 26.3 },
 ];
