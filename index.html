@@ -32,7 +32,7 @@
               </div>
               <button class="mobile-sheet-toggle" id="setup-sheet-toggle" type="button">マップを表示</button>
               <button class="icon-button" id="reset-epicenter" type="button" title="震源を初期位置に戻す">
-                更新
+                リセット
               </button>
             </div>
 
@@ -66,7 +66,7 @@
             </label>
 
             <label class="field">
-              <span>震央名</span>
+              <span>震源地</span>
               <input id="epicenter-region" type="text" readonly />
             </label>
 
@@ -95,9 +95,13 @@
             <label class="field">
               <span>震度配色</span>
               <select id="intensity-color-scheme">
-                <option value="low">低コントラスト</option>
-                <option value="normal" selected>通常</option>
+                <option value="normal" selected>気象庁配色</option>
                 <option value="high">高コントラスト</option>
+                <option value="low">低コントラスト</option>
+                <option value="p">P型色覚</option>
+                <option value="d">D型色覚</option>
+                <option value="t">T型色覚</option>
+                <option value="a">A型色覚</option>
               </select>
             </label>
 
@@ -144,7 +148,7 @@
                 <dd id="simulation-epicenter">-</dd>
               </div>
               <div>
-                <dt>震央名</dt>
+                <dt>震源地</dt>
                 <dd id="simulation-region-name">-</dd>
               </div>
               <div>
@@ -211,7 +215,6 @@
               <span style="--color: #0068b7">3</span>
               <span style="--color: #74d7ff; --text-color: #111827">2</span>
               <span style="--color: #ffffff; --text-color: #111827">1</span>
-              <span style="--color: #d9dde3; --text-color: #1f2937">0</span>
             </div>
           </section>
 
