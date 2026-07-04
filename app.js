@@ -567,7 +567,7 @@ const state = {
   latitude: 35.681,
   longitude: 139.767,
   depthKm: 10,
-  magnitude: 5.0,
+  magnitude: 3.5,
   epicenterName: "未選択",
   municipalityName: "未選択",
   maxIntensityLabel: "未計算",
@@ -970,7 +970,7 @@ function bindSimulationControls() {
     state.latitude = 35.681;
     state.longitude = 139.767;
     state.depthKm = 10;
-    state.magnitude = 5.0;
+    state.magnitude = 3.5;
     state.selectedPresetId = "";
     state.epicenterName = "未選択";
     state.municipalityName = "未選択";
@@ -1681,7 +1681,7 @@ function buildSourceInfoOverlayHtml() {
     <div class="source-info-overlay-content">
       <header class="source-info-header">
         <p>DATA SOURCES</p>
-        <h2>このサイトで使用している出典</h2>
+        <h2>出典一覧</h2>
       </header>
       <div class="source-info-sections">${sections}</div>
     </div>
