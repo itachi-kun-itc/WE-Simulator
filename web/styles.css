@@ -210,12 +210,12 @@ h1 {
 }
 
 .feedback-info-button::before {
-  width: 23px;
-  height: 23px;
+  width: 27px;
+  height: 27px;
   border: 0;
   border-radius: 0;
-  background: center / contain no-repeat
-    url("data:image/svg+xml,%3Csvg%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M5.5%206.5C5.5%205.39543%206.39543%204.5%207.5%204.5H16.5C17.6046%204.5%2018.5%205.39543%2018.5%206.5V12.4C18.5%2013.5046%2017.6046%2014.4%2016.5%2014.4H12.8L8.7%2018.2V14.4H7.5C6.39543%2014.4%205.5%2013.5046%205.5%2012.4V6.5Z%22%20stroke%3D%22white%22%20stroke-width%3D%222.1%22%20stroke-linejoin%3D%22round%22%20stroke-linecap%3D%22round%22/%3E%3Ccircle%20cx%3D%229%22%20cy%3D%229.7%22%20r%3D%221.15%22%20fill%3D%22white%22/%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%229.7%22%20r%3D%221.15%22%20fill%3D%22white%22/%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%229.7%22%20r%3D%221.15%22%20fill%3D%22white%22/%3E%3C/svg%3E");
+  background: center / 27px 27px no-repeat
+    url("data:image/svg+xml,%3Csvg%20width%3D%2228%22%20height%3D%2228%22%20viewBox%3D%220%200%2028%2028%22%20fill%3D%22none%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M7.5%206.75H20.5C21.8807%206.75%2023%207.86929%2023%209.25V15.8C23%2017.1807%2021.8807%2018.3%2020.5%2018.3H15.35L10.15%2022.5V18.3H7.5C6.11929%2018.3%205%2017.1807%205%2015.8V9.25C5%207.86929%206.11929%206.75%207.5%206.75Z%22%20stroke%3D%22white%22%20stroke-width%3D%222.6%22%20stroke-linejoin%3D%22round%22%20stroke-linecap%3D%22round%22/%3E%3Cpath%20d%3D%22M9.7%2012.35H18.3M9.7%2015.1H15.4%22%20stroke%3D%22white%22%20stroke-width%3D%222.35%22%20stroke-linecap%3D%22round%22/%3E%3C/svg%3E");
   transform: translate(-50%, -50%);
 }
 
@@ -491,6 +491,25 @@ h1 {
 
 .maplibregl-canvas.epicenter-edit-enabled {
   cursor: crosshair;
+}
+
+body.app-loading #map,
+body.app-loading .maplibregl-control-container,
+body.app-loading #setup-panel .sim-panel-scroll,
+body.app-loading #setup-panel .sheet-handle,
+body.app-loading #setup-sheet-toggle,
+body.app-loading #reset-epicenter {
+  pointer-events: none;
+}
+
+body.app-loading #map {
+  cursor: wait;
+}
+
+body.app-loading #setup-panel input,
+body.app-loading #setup-panel select,
+body.app-loading #setup-panel button:not(#simulation-start) {
+  cursor: wait;
 }
 
 .sim-panel {
