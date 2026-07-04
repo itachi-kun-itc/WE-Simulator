@@ -1686,6 +1686,7 @@ function formatSourceUpdatedAt(value) {
 async function showMapLayers() {
   addGeoJsonSource("surrounding-land", emptyFeatureCollection());
   addGeoJsonSource("municipalities", emptyFeatureCollection());
+  addGeoJsonSource("municipalities-linework", emptyFeatureCollection());
   addGeoJsonSource("jma-local-areas", emptyFeatureCollection());
   addGeoJsonSource("sea-epicenter-areas", emptyFeatureCollection());
   addGeoJsonSource("plate-boundaries", emptyFeatureCollection());
@@ -1713,6 +1714,10 @@ function hydrateDeferredMapData() {
       const displayMunicipalities = filterExcludedGeoJsonFeatures(municipalities);
       municipalityDisplayData = municipalityDisplayData ?? withoutInteriorRings(displayMunicipalities);
       setGeoJsonSourceData("municipalities", municipalityDisplayData);
+      setGeoJsonSourceData(
+        "municipalities-linework",
+        removeExcludedJapanIslandPolygons(municipalityDisplayData),
+      );
       fitInitialMapBounds(getGeoJsonBounds(municipalityDisplayData));
       scheduleLocationResolve();
       updateIntensityLayer();
@@ -1885,7 +1890,9 @@ function addMapLayers() {
     type: "fill",
     source: "surrounding-land",
     paint: {
+      "fill-antialias": false,
       "fill-color": "#6f777f",
+      "fill-outline-color": "#6f777f",
       "fill-opacity": 1,
     },
   });
@@ -1896,7 +1903,23 @@ function addMapLayers() {
     source: "municipalities",
     paint: {
       "fill-color": "#8c9298",
+      "fill-outline-color": "#8c9298",
       "fill-opacity": 1,
+    },
+  });
+
+  addLayerIfMissing({
+    id: "japan-land-gap-fill",
+    type: "line",
+    source: "municipalities-linework",
+    layout: {
+      "line-cap": "round",
+      "line-join": "round",
+    },
+    paint: {
+      "line-color": "#8c9298",
+      "line-opacity": 1,
+      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 1.4, 7, 1.0, 10, 0.35],
     },
   });
 
@@ -1957,7 +1980,7 @@ function addMapLayers() {
   addLayerIfMissing({
     id: "municipality-boundaries",
     type: "line",
-    source: "municipalities",
+    source: "municipalities-linework",
     minzoom: MUNICIPALITY_BOUNDARY_MIN_ZOOM,
     paint: {
       "line-color": "#ffffff",
@@ -3207,6 +3230,37 @@ function withoutInteriorRings(geojson) {
           coordinates,
         },
       }];
+    }),
+  };
+}
+
+function removeExcludedJapanIslandPolygons(geojson) {
+  return {
+    ...geojson,
+    features: (geojson.features ?? []).flatMap((feature) => {
+      const geometry = feature.geometry;
+      if (!geometry?.coordinates) {
+        return [];
+      }
+
+      if (geometry.type === "MultiPolygon") {
+        const coordinates = geometry.coordinates.filter((polygon) => !isExcludedJapanIslandPolygon(polygon));
+        return coordinates.length > 0
+          ? [{
+              ...feature,
+              geometry: {
+                ...geometry,
+                coordinates,
+              },
+            }]
+          : [];
+      }
+
+      if (geometry.type === "Polygon" && isExcludedJapanIslandPolygon(geometry.coordinates)) {
+        return [];
+      }
+
+      return [feature];
     }),
   };
 }
