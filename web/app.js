@@ -675,6 +675,7 @@ let municipalityBoundaryVisibilityTimer;
 let startupMapVisualReadyTimer;
 let startupMapVisualReady = false;
 let municipalityBoundaryVisible = false;
+let startupLocationResolved = false;
 let simulationStartedAt;
 let simulationPausedAt;
 let simulationPreviousEpicenterEditEnabled = false;
@@ -1700,6 +1701,7 @@ function formatSourceUpdatedAt(value) {
 
 async function showMapLayers() {
   document.body.classList.add("map-core-loading");
+  startupLocationResolved = false;
   addGeoJsonSource("surrounding-land", emptyFeatureCollection());
   addGeoJsonSource("municipalities", emptyFeatureCollection());
   addGeoJsonSource("municipalities-linework", emptyFeatureCollection());
@@ -1798,6 +1800,7 @@ function scheduleStartupReadyAfterIntensityPaint() {
   if (
     startupMapVisualReady ||
     startupMapVisualReadyTimer ||
+    !startupLocationResolved ||
     !municipalityBoundaryVisible ||
     !municipalityDisplayData?.features?.length ||
     !localAreaData?.features?.length ||
@@ -2338,8 +2341,12 @@ function getInitialJapanBounds() {
 
 function scheduleLocationResolve(options = {}) {
   window.clearTimeout(locationResolveTimer);
-  locationResolveTimer = window.setTimeout(() => {
-    updateEpicenter({ resolveLocation: true, enforceManagedArea: true, ...options });
+  locationResolveTimer = window.setTimeout(async () => {
+    await updateEpicenter({ resolveLocation: true, enforceManagedArea: true, ...options });
+    if (document.body.classList.contains("map-core-loading")) {
+      startupLocationResolved = true;
+      updateIntensityLayer();
+    }
   }, 180);
 }
 
@@ -2858,12 +2865,13 @@ function getCurrentLocationForecast() {
     epicentralDistanceKm,
   );
   const intensityClass = toJmaIntensityClass(intensityValue);
-  const hypocentralDistanceKm = Math.hypot(getEffectiveEpicentralDistance(epicentralDistanceKm), state.depthKm);
+  const pWaveCircleArrivalSec = epicentralDistanceKm / EARTHQUAKE_MODEL.pWaveVelocityKmPerSec;
 
   return {
     intensityValue,
     intensityClass,
-    pArrivalSec: hypocentralDistanceKm / EARTHQUAKE_MODEL.pWaveVelocityKmPerSec,
+    // The UI label means "until the drawn P-wave circle reaches the current location".
+    pArrivalSec: pWaveCircleArrivalSec,
   };
 }
 
