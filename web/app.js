@@ -8,6 +8,10 @@ const GROUND_MODEL_URL = "./data/ground_model.json";
 const SHINDO_STATIONS_URL = "./data/jma_shindo_stations.json";
 const EARTHQUAKE_PRESETS_URL = "./data/earthquake_presets.json";
 const EPICENTER_NAMES_URL = "./data/epicenter_names.json";
+const FEEDBACK_SHEET_URL =
+  "https://docs.google.com/spreadsheets/d/1cmR_OGml5ngLuq0zAi_gAs_qgrBNqTSlWZ5-H7tLWV0/edit?usp=sharing";
+const FEEDBACK_ENDPOINT_URL =
+  "https://script.google.com/macros/s/AKfycbxJSAQowW2Drmh24eET5Qjnys3hDtls7kwM7_utE_f1_8kYhwMkyUdfdOTXdhdm1xfLRg/exec";
 
 const INITIAL_CENTER = [139.767, 35.681];
 const INITIAL_ZOOM = 5.25;
@@ -36,11 +40,14 @@ const EEW_BLINK_PHASES = 6;
 const SIMULATION_END_GRACE_SEC = 15;
 const GEOLOCATION_TARGET_ACCURACY_M = 35;
 const GEOLOCATION_ACCEPTABLE_ACCURACY_M = 120;
+const GEOLOCATION_IPAD_ACCEPTABLE_ACCURACY_M = 350;
 const GEOLOCATION_FAST_SETTLE_MS = 2500;
 const GEOLOCATION_MAX_WAIT_MS = 16000;
-const GEOLOCATION_IPAD_MAX_WAIT_MS = 24000;
+const GEOLOCATION_IPAD_MAX_WAIT_MS = 32000;
+const GEOLOCATION_CACHED_MAX_AGE_MS = 15000;
+const GEOLOCATION_IPAD_CACHED_MAX_AGE_MS = 120000;
 const WAVE_RENDER_RADIUS_STEP_KM = 0.25;
-const WAVE_CIRCLE_STEPS = 48;
+const WAVE_CIRCLE_STEPS = 96;
 const EARTHQUAKE_PRESETS = [
   {
     id: "tohoku-2011",
@@ -654,6 +661,7 @@ let simulationPausedAt;
 let simulationPreviousEpicenterEditEnabled = false;
 let simulationEpicenter = [state.longitude, state.latitude];
 let simulationRenderBucket = -1;
+let maxStationListRenderBucket = null;
 let simulationTimeTextCache = "";
 let waveRenderRadiusCache = { p: null, s: null };
 let localAreaStationMembershipCache;
@@ -1423,8 +1431,9 @@ function addZoomOnlyControl() {
 }
 
 function addSourceInfoControl() {
-  const overlay = createSourceInfoOverlay();
-  document.body.append(overlay);
+  const sourceOverlay = createSourceInfoOverlay();
+  const feedbackOverlay = createFeedbackOverlay();
+  document.body.append(sourceOverlay, feedbackOverlay);
 
   const sourceInfoControl = {
     onAdd() {
@@ -1439,16 +1448,32 @@ function addSourceInfoControl() {
       button.setAttribute("aria-expanded", "false");
 
       button.addEventListener("click", () => {
-        overlay.classList.remove("hidden");
+        sourceOverlay.classList.remove("hidden");
         document.body.classList.add("source-overlay-open");
         button.setAttribute("aria-expanded", "true");
       });
 
-      overlay.addEventListener("source-overlay-close", () => {
+      sourceOverlay.addEventListener("source-overlay-close", () => {
         button.setAttribute("aria-expanded", "false");
       });
 
-      container.append(button);
+      const feedbackButton = document.createElement("button");
+      feedbackButton.type = "button";
+      feedbackButton.className = "source-info-button feedback-info-button";
+      feedbackButton.setAttribute("aria-label", "フィードバックを送信");
+      feedbackButton.setAttribute("aria-expanded", "false");
+
+      feedbackButton.addEventListener("click", () => {
+        feedbackOverlay.classList.remove("hidden");
+        document.body.classList.add("source-overlay-open");
+        feedbackButton.setAttribute("aria-expanded", "true");
+      });
+
+      feedbackOverlay.addEventListener("feedback-overlay-close", () => {
+        feedbackButton.setAttribute("aria-expanded", "false");
+      });
+
+      container.append(button, feedbackButton);
       return container;
     },
     onRemove() {},
@@ -1485,6 +1510,128 @@ function createSourceInfoOverlay() {
   });
 
   return overlay;
+}
+
+function createFeedbackOverlay() {
+  const overlay = document.createElement("section");
+  overlay.className = "source-info-overlay feedback-overlay hidden";
+  overlay.setAttribute("aria-modal", "true");
+  overlay.setAttribute("role", "dialog");
+  overlay.setAttribute("aria-label", "フィードバック");
+  overlay.innerHTML = buildFeedbackOverlayHtml();
+
+  const form = overlay.querySelector(".feedback-form");
+  const textarea = overlay.querySelector("#feedback-message");
+  const status = overlay.querySelector(".feedback-status");
+  const submitButton = overlay.querySelector(".feedback-submit");
+  const closeButton = overlay.querySelector(".source-info-close");
+  const closeOverlay = () => {
+    overlay.classList.add("hidden");
+    document.body.classList.remove("source-overlay-open");
+    overlay.dispatchEvent(new CustomEvent("feedback-overlay-close"));
+  };
+
+  closeButton?.addEventListener("click", closeOverlay);
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) {
+      closeOverlay();
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !overlay.classList.contains("hidden")) {
+      closeOverlay();
+    }
+  });
+
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const message = textarea?.value.trim() ?? "";
+    if (!message) {
+      setFeedbackStatus(status, "改善点などを入力してください。", true);
+      textarea?.focus();
+      return;
+    }
+
+    if (!FEEDBACK_ENDPOINT_URL) {
+      setFeedbackStatus(
+        status,
+        "送信用URLが未設定です。Apps ScriptのWebアプリURLをFEEDBACK_ENDPOINT_URLに設定してください。",
+        true,
+      );
+      return;
+    }
+
+    if (submitButton) {
+      submitButton.disabled = true;
+    }
+    setFeedbackStatus(status, "送信中...", false);
+
+    try {
+      await sendFeedbackMessage(message);
+      textarea.value = "";
+      setFeedbackStatus(status, "送信しました。ありがとうございます。", false);
+    } catch (error) {
+      console.warn(error);
+      setFeedbackStatus(status, "送信に失敗しました。時間をおいて再度お試しください。", true);
+    } finally {
+      if (submitButton) {
+        submitButton.disabled = false;
+      }
+    }
+  });
+
+  return overlay;
+}
+
+function buildFeedbackOverlayHtml() {
+  return `
+    <button class="source-info-close" type="button" aria-label="フィードバックを閉じる">×</button>
+    <form class="source-info-overlay-content feedback-form" id="feedback-form">
+      <header class="source-info-header">
+        <p>FEEDBACK</p>
+        <h2>改善点を送信</h2>
+      </header>
+      <label class="feedback-field" for="feedback-message">
+        <span>気づいた点、改善してほしい点など</span>
+        <textarea id="feedback-message" name="message" rows="10" maxlength="4000" placeholder="例：スマホでメニューが少し開きにくい、震度表示をもう少し見やすくしてほしい など"></textarea>
+      </label>
+      <p class="feedback-status" role="status" aria-live="polite"></p>
+      <p class="feedback-sheet-note">
+        送信内容は管理者のGoogleスプレッドシートに記録されます。
+      </p>
+    </form>
+    <div class="feedback-actions">
+      <button class="feedback-submit" type="submit" form="feedback-form">送信</button>
+    </div>
+  `;
+}
+
+async function sendFeedbackMessage(message) {
+  const payload = {
+    message,
+    page: location.href,
+    userAgent: navigator.userAgent,
+    createdAt: new Date().toISOString(),
+    sheet: FEEDBACK_SHEET_URL,
+  };
+
+  await fetch(FEEDBACK_ENDPOINT_URL, {
+    method: "POST",
+    mode: "no-cors",
+    headers: {
+      "Content-Type": "text/plain;charset=utf-8",
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+function setFeedbackStatus(element, message, isError) {
+  if (!element) {
+    return;
+  }
+
+  element.textContent = message;
+  element.classList.toggle("feedback-status-error", Boolean(isError));
 }
 
 function buildSourceInfoOverlayHtml() {
@@ -1531,36 +1678,58 @@ function formatSourceUpdatedAt(value) {
 }
 
 async function showMapLayers() {
-  const [surroundingLand, municipalities, boundaries, localAreas] = await Promise.all([
-    loadSurroundingLand(),
-    loadMunicipalities(),
-    loadBoundaryLayers(),
-    loadLocalAreas(),
-  ]);
-
-  const displayMunicipalities = filterExcludedGeoJsonFeatures(municipalities);
-  const displayBoundaries = filterExcludedGeoJsonFeatures(boundaries);
-  const displayLocalAreas = filterExcludedGeoJsonFeatures(localAreas);
-  municipalityDisplayData = municipalityDisplayData ?? withoutInteriorRings(displayMunicipalities);
-
-  addGeoJsonSource("surrounding-land", surroundingLand);
-  addGeoJsonSource("municipalities", municipalityDisplayData);
-  addGeoJsonSource("jma-local-areas", buildNeutralIntensityAreaData(displayLocalAreas));
+  addGeoJsonSource("surrounding-land", emptyFeatureCollection());
+  addGeoJsonSource("municipalities", emptyFeatureCollection());
+  addGeoJsonSource("jma-local-areas", emptyFeatureCollection());
   addGeoJsonSource("sea-epicenter-areas", emptyFeatureCollection());
   addGeoJsonSource("plate-boundaries", emptyFeatureCollection());
   addGeoJsonSource("shindo-stations", emptyFeatureCollection());
   addGeoJsonSource("p-wave", emptyFeatureCollection());
   addGeoJsonSource("s-wave", emptyFeatureCollection());
-  addGeoJsonSource("boundaries", displayBoundaries);
+  addGeoJsonSource("boundaries", emptyFeatureCollection());
 
   addMapLayers();
   setupStationHoverPopup();
   keepWaveAndStationLayerOrder();
-  fitInitialMapBounds(getGeoJsonBounds(municipalityDisplayData));
+  fitInitialMapBounds(getInitialJapanBounds());
   hydrateDeferredMapData();
 }
 
 function hydrateDeferredMapData() {
+  loadSurroundingLand()
+    .then((surroundingLand) => {
+      setGeoJsonSourceData("surrounding-land", surroundingLand);
+    })
+    .catch((error) => console.warn(error));
+
+  loadMunicipalities()
+    .then((municipalities) => {
+      const displayMunicipalities = filterExcludedGeoJsonFeatures(municipalities);
+      municipalityDisplayData = municipalityDisplayData ?? withoutInteriorRings(displayMunicipalities);
+      setGeoJsonSourceData("municipalities", municipalityDisplayData);
+      fitInitialMapBounds(getGeoJsonBounds(municipalityDisplayData));
+      scheduleLocationResolve();
+      updateIntensityLayer();
+    })
+    .catch((error) => console.warn(error));
+
+  loadBoundaryLayers()
+    .then((boundaries) => {
+      setGeoJsonSourceData("boundaries", filterExcludedGeoJsonFeatures(boundaries));
+    })
+    .catch((error) => console.warn(error));
+
+  loadLocalAreas()
+    .then((localAreas) => {
+      setGeoJsonSourceData(
+        "jma-local-areas",
+        buildNeutralIntensityAreaData(filterExcludedGeoJsonFeatures(localAreas)),
+      );
+      invalidateIntensityEstimateCache();
+      updateIntensityLayer();
+    })
+    .catch((error) => console.warn(error));
+
   loadSeaEpicenterAreas()
     .then((seaAreas) => {
       setGeoJsonSourceData("sea-epicenter-areas", filterExcludedGeoJsonFeatures(seaAreas));
@@ -1812,6 +1981,10 @@ function addMapLayers() {
     id: "p-wave-line",
     type: "line",
     source: "p-wave",
+    layout: {
+      "line-cap": "round",
+      "line-join": "round",
+    },
     paint: {
       "line-color": "#7de7ff",
       "line-opacity": 0.9,
@@ -1833,6 +2006,10 @@ function addMapLayers() {
     id: "s-wave-line",
     type: "line",
     source: "s-wave",
+    layout: {
+      "line-cap": "round",
+      "line-join": "round",
+    },
     paint: {
       "line-color": "#ff6b7f",
       "line-opacity": 0.95,
@@ -1891,6 +2068,13 @@ function getInitialMapPadding() {
   return isCompactViewport()
     ? { top: 22, right: 12, bottom: 88, left: 12 }
     : { top: 18, right: 18, bottom: 18, left: 390 };
+}
+
+function getInitialJapanBounds() {
+  return [
+    [122, 23],
+    [153, 46],
+  ];
 }
 
 function scheduleLocationResolve(options = {}) {
@@ -2157,7 +2341,9 @@ function requestCurrentPosition() {
     let timeoutTimer = null;
     let bestPosition = null;
     let lastError = null;
-    const maxWaitMs = isIpadLikeDevice() ? GEOLOCATION_IPAD_MAX_WAIT_MS : GEOLOCATION_MAX_WAIT_MS;
+    const isIpad = isIpadLikeDevice();
+    const maxWaitMs = isIpad ? GEOLOCATION_IPAD_MAX_WAIT_MS : GEOLOCATION_MAX_WAIT_MS;
+    const acceptableAccuracy = isIpad ? GEOLOCATION_IPAD_ACCEPTABLE_ACCURACY_M : GEOLOCATION_ACCEPTABLE_ACCURACY_M;
 
     const clearTimers = () => {
       if (watchId != null) {
@@ -2215,7 +2401,7 @@ function requestCurrentPosition() {
         return;
       }
 
-      if (accuracy <= GEOLOCATION_ACCEPTABLE_ACCURACY_M) {
+      if (accuracy <= acceptableAccuracy) {
         scheduleBestEffortFinish();
       }
     };
@@ -2248,11 +2434,18 @@ function requestCurrentPosition() {
     };
     const cachedOptions = {
       enableHighAccuracy: false,
-      maximumAge: 15000,
-      timeout: Math.min(5000, maxWaitMs),
+      maximumAge: isIpad ? GEOLOCATION_IPAD_CACHED_MAX_AGE_MS : GEOLOCATION_CACHED_MAX_AGE_MS,
+      timeout: Math.min(isIpad ? 9000 : 5000, maxWaitMs),
     };
 
     navigator.geolocation.getCurrentPosition(onPosition, onError, cachedOptions);
+    if (isIpad) {
+      navigator.geolocation.getCurrentPosition(onPosition, onError, {
+        enableHighAccuracy: false,
+        maximumAge: GEOLOCATION_IPAD_CACHED_MAX_AGE_MS,
+        timeout: Math.min(14000, maxWaitMs),
+      });
+    }
     watchId = navigator.geolocation.watchPosition(onPosition, onError, highAccuracyOptions);
   });
 }
@@ -2433,18 +2626,28 @@ function startSimulation() {
   state.eewPreviousWarningKeys = new Set();
   resetWaveRenderCache();
   simulationRenderBucket = -1;
+  maxStationListRenderBucket = null;
   simulationTimeTextCache = "";
   state.simulationRunning = true;
   state.simulationPaused = false;
   state.epicenterEditEnabled = false;
   els.epicenterEditToggle.checked = false;
-  state.showStationLayer = true;
-  els.stationLayerToggle.checked = true;
+  state.showStationLayer = els.stationLayerToggle.checked;
+  state.showRegionLayer = els.regionLayerToggle.checked;
+  state.showEewWarningLayer = els.eewWarningToggle.checked;
+  els.simulationStationLayerToggle.checked = state.showStationLayer;
+  els.simulationRegionLayerToggle.checked = state.showRegionLayer;
+  els.simulationEewWarningToggle.checked = state.showEewWarningLayer;
   updateEpicenterEditMode();
-  updateDisplayMode();
   simulationStartedAt = performance.now();
   simulationPausedAt = null;
   updateIntensityLayer();
+  updateLayerVisibility("shindo-station-points", state.showStationLayer);
+  updateLayerVisibility("shindo-station-labels", state.showStationLayer);
+  updateLayerVisibility("jma-intensity-fill", state.showRegionLayer);
+  updateLayerVisibility("eew-warning-fill", state.showEewWarningLayer);
+  updateEewReplacementMode();
+  updateEewForecastPanel();
   updateSimulationSummary(0);
   updateCurrentLocationMarker();
   if (els.simulationPause) {
@@ -2475,6 +2678,7 @@ function stopSimulation() {
   simulationStartedAt = null;
   simulationPausedAt = null;
   simulationRenderBucket = -1;
+  maxStationListRenderBucket = null;
   simulationTimeTextCache = "";
   state.epicenterEditEnabled = simulationPreviousEpicenterEditEnabled;
   els.epicenterEditToggle.checked = state.epicenterEditEnabled;
@@ -2555,6 +2759,7 @@ function tickSimulation(now) {
     state.eewWarningFinalReport = state.eewWarningReportNumber != null;
     simulationFrame = null;
     simulationPausedAt = null;
+    maxStationListRenderBucket = null;
     clearCurrentLocationLink({ updateForecast: false });
     resetWaveRenderCache();
     setWaveRadiusData(0, 0);
@@ -2570,6 +2775,9 @@ function tickSimulation(now) {
       els.simulationPause.textContent = "一時停止";
       els.simulationPause.disabled = true;
     }
+    els.setupPanel.classList.remove("hidden");
+    els.simulationPanel.classList.add("hidden");
+    setSheetState(els.setupPanel, "open");
     updateSimulationAvailability();
     return;
   }
@@ -2583,7 +2791,7 @@ function getSimulationElapsedSec(now = performance.now()) {
 }
 
 function toSimulationBucket(elapsedSec) {
-  return Number.isFinite(elapsedSec) ? Math.max(Math.floor(elapsedSec * 5), 0) : Infinity;
+  return Number.isFinite(elapsedSec) ? Math.max(Math.floor(elapsedSec * 4), 0) : Infinity;
 }
 
 function updateSimulationSummary(elapsedSec = getSimulationStationElapsedSec()) {
@@ -2596,10 +2804,11 @@ function updateSimulationSummary(elapsedSec = getSimulationStationElapsedSec()) 
     (rank, feature) => Math.max(rank, feature.properties.intensityRank),
     0,
   );
-  const observedStations = stationFeatures
-    .sort((a, b) => b.properties.currentIntensityValue - a.properties.currentIntensityValue);
+  const maxValue = stationFeatures.reduce(
+    (value, feature) => Math.max(value, feature.properties.currentIntensityValue ?? 0),
+    0,
+  );
   const maxClass = INTENSITY_CLASSES.find((item) => item.rank === maxRank) ?? INTENSITY_CLASSES[0];
-  const maxValue = observedStations[0]?.properties.currentIntensityValue ?? 0;
 
   els.simulationMaxIntensity.textContent = maxClass.label;
   els.simulationMagnitude.textContent = state.magnitude.toFixed(1);
@@ -2608,6 +2817,21 @@ function updateSimulationSummary(elapsedSec = getSimulationStationElapsedSec()) 
   els.simulationDepth.textContent = formatDepth(state.depthKm);
   els.maxIntensityOutput.textContent = state.maxIntensityLabel;
   updateCurrentLocationForecast(elapsedSec);
+  updateMaxStationList(stationFeatures, elapsedSec);
+
+  recordMaxIntensityHistory(elapsedSec, maxValue);
+}
+
+function updateMaxStationList(stationFeatures, elapsedSec) {
+  const listBucket = Number.isFinite(elapsedSec) ? Math.floor(elapsedSec) : Infinity;
+  if (maxStationListRenderBucket === listBucket) {
+    return;
+  }
+
+  maxStationListRenderBucket = listBucket;
+  const observedStations = [...stationFeatures].sort(
+    (a, b) => b.properties.currentIntensityValue - a.properties.currentIntensityValue,
+  );
   els.maxStationList.replaceChildren(
     ...(observedStations.length > 0
       ? observedStations.map((feature) => {
@@ -2625,8 +2849,6 @@ function updateSimulationSummary(elapsedSec = getSimulationStationElapsedSec()) 
   if (observedStations.length === 0) {
     els.maxStationList.firstElementChild.textContent = "震度1以上の観測点はありません";
   }
-
-  recordMaxIntensityHistory(elapsedSec, maxValue);
 }
 
 function recordMaxIntensityHistory(elapsedSec, maxValue) {
@@ -3470,12 +3692,12 @@ function buildIntensityAreaData(geojson, elapsedSec = Infinity) {
 
 function shouldIssueSimulationEewFeature(feature, elapsedSec = Infinity) {
   const predictedValue = feature.properties.predictedIntensityValue ?? 0;
-  if (predictedValue < 3.5) {
+  if (!isFinalSimulationEewFeature(feature)) {
     return false;
   }
 
   if (!Number.isFinite(elapsedSec)) {
-    return feature.properties.predictedIntensityRank >= 4;
+    return true;
   }
 
   const currentValue = feature.properties.intensityValue ?? 0;
@@ -3498,6 +3720,12 @@ function shouldIssueSimulationEewFeature(feature, elapsedSec = Infinity) {
     (currentValue >= getSimulationEewObservedIntensityThreshold(predictedValue) ||
       isNearEpicenterHighPredictedArea(feature))
   );
+}
+
+function isFinalSimulationEewFeature(feature) {
+  const predictedValue = feature.properties.predictedIntensityValue ?? 0;
+  const predictedRank = feature.properties.predictedIntensityRank ?? 0;
+  return predictedRank >= 4 && predictedValue >= 3.5;
 }
 
 function isNearEpicenterHighPredictedArea(feature) {
@@ -3582,11 +3810,22 @@ function applyAdaptiveEewExpansion(features, shouldIssueEew, elapsedSec = Infini
       predictedRank >= 4 &&
       predictedValue >= 3.5 &&
       distanceKm <= getSimulationEewBatchExpansionRadiusKm(predictedMax, offshoreFactor, phaseConfidence);
+    const broadForecastExpansion =
+      isFinalSimulationEewFeature(feature) &&
+      phaseConfidence >= 0.18 &&
+      predictedMax >= 4.8 &&
+      distanceKm <= getSimulationEewBroadExpansionRadiusKm(predictedMax, offshoreFactor, phaseConfidence);
+    const matureFinalForecastExpansion =
+      isFinalSimulationEewFeature(feature) &&
+      phaseConfidence >= 0.55 &&
+      predictedMax >= 5.0;
 
     if (
       localObservationSupportsWarning ||
       enoughConfidenceForForecastExpansion ||
       nearEpicenterBatchExpansion ||
+      broadForecastExpansion ||
+      matureFinalForecastExpansion ||
       (phaseConfidence >= 0.45 && sameForecastAreaExpansion) ||
       (predictedMax >= 5.0 && currentRank >= 3 && sameForecastAreaAlreadyWarned)
     ) {
@@ -3600,9 +3839,17 @@ function applyAdaptiveEewExpansion(features, shouldIssueEew, elapsedSec = Infini
 
 function getSimulationEewBatchExpansionRadiusKm(predictedMax, offshoreFactor, phaseConfidence) {
   return clamp(
-    55 + Math.max(predictedMax - 4.5, 0) * 45 + offshoreFactor * 45 + phaseConfidence * 70,
-    65,
-    260,
+    75 + Math.max(predictedMax - 4.5, 0) * 58 + offshoreFactor * 65 + phaseConfidence * 110,
+    90,
+    360,
+  );
+}
+
+function getSimulationEewBroadExpansionRadiusKm(predictedMax, offshoreFactor, phaseConfidence) {
+  return clamp(
+    115 + Math.max(predictedMax - 4.5, 0) * 78 + offshoreFactor * 85 + phaseConfidence * 180,
+    130,
+    520,
   );
 }
 
@@ -3618,7 +3865,7 @@ function expandSimulationEewWithinForecastAreas(features, warningAreas) {
     if (!warningAreas.has(feature.properties.eewForecastArea)) {
       return;
     }
-    if ((feature.properties.predictedIntensityValue ?? 0) < 3.5) {
+    if (!isFinalSimulationEewFeature(feature)) {
       return;
     }
 
@@ -3744,45 +3991,16 @@ function hasPendingSimulationEewUpdate(features, elapsedSec) {
     return false;
   }
 
-  const warnedForecastAreas = new Set(
-    features
-      .filter((feature) => feature.properties.eewWarning)
-      .map((feature) => feature.properties.eewForecastArea),
-  );
-
   return features.some((feature) => {
     if (feature.properties.eewWarning) {
       return false;
     }
 
-    const predictedValue = feature.properties.predictedIntensityValue ?? 0;
-    const predictedRank = feature.properties.predictedIntensityRank ?? 0;
-    if (predictedValue < 3.5 || predictedRank < 4) {
+    if (!isFinalSimulationEewFeature(feature)) {
       return false;
     }
 
-    const earliestPArrivalSec = feature.properties.earliestPArrivalSec ?? Infinity;
-    if (!Number.isFinite(earliestPArrivalSec)) {
-      return false;
-    }
-
-    const earliestSArrivalSec = feature.properties.earliestSArrivalSec ?? Infinity;
-    const pWaveDecisionSec = earliestPArrivalSec + EARTHQUAKE_MODEL.eewProcessingDelaySec;
-    if (elapsedSec < pWaveDecisionSec) {
-      return true;
-    }
-
-    const stillBeforeMainMotion =
-      !Number.isFinite(earliestSArrivalSec) || elapsedSec < earliestSArrivalSec - 0.4;
-    if (!stillBeforeMainMotion) {
-      return false;
-    }
-
-    return (
-      predictedValue >= 4.5 ||
-      isNearEpicenterHighPredictedArea(feature) ||
-      warnedForecastAreas.has(feature.properties.eewForecastArea)
-    );
+    return true;
   });
 }
 
@@ -4359,7 +4577,7 @@ function getCurrentIntensityProperties(properties, elapsedSec = Infinity) {
   const waveState = isSimulation && properties.sArrivalSec > elapsedSec ? "p" : "s";
   const riseProfile = getGroundRiseProfile(properties);
   const riseProgress = isSimulation
-    ? groundAwareRiseProgress(elapsedSec - properties.sArrivalSec, riseProfile)
+    ? groundAwareRiseProgress(elapsedSec - properties.sArrivalSec - (properties.sWaveRiseDelaySec ?? 0), riseProfile)
     : 1;
   const pWaveProgress = isSimulation
     ? getPWaveRiseProgress(properties, elapsedSec)
@@ -4391,13 +4609,14 @@ function getCurrentIntensityProperties(properties, elapsedSec = Infinity) {
 }
 
 function getPWaveRiseProgress(properties, elapsedSec) {
-  const timeSincePArrivalSec = elapsedSec - properties.pArrivalSec;
+  const timeSincePArrivalSec = elapsedSec - properties.pArrivalSec - (properties.pWaveRiseDelaySec ?? 0);
   if (timeSincePArrivalSec <= 0) {
     return 0;
   }
 
   const spGapSec = Math.max(properties.sArrivalSec - properties.pArrivalSec, 0.5);
-  const quickOnsetSec = clamp(spGapSec * 0.28, 0.55, 1.4);
+  const siteResponse = properties.pWaveSiteResponse ?? 0.5;
+  const quickOnsetSec = clamp(spGapSec * (0.22 + (1 - siteResponse) * 0.12), 0.38, 1.55);
   const quickOnset = smoothStep(clamp(timeSincePArrivalSec / quickOnsetSec, 0, 1));
   const preSwell = smoothStep(
     clamp(
@@ -4418,29 +4637,65 @@ function getPWaveIntensityTarget(properties) {
 
   const magnitudeFactor = clamp((state.magnitude - 4.7) / 3.3, 0, 1);
   const distanceKm = Number(properties.epicentralDistanceKm ?? 0);
-  const distanceFactor = clamp(1 - distanceKm / 720, 0.32, 1);
+  const distanceFactor = clamp(1 - distanceKm / 820, 0.38, 1);
   const groundFactor = clamp(
     ((properties.groundAmplification ?? EARTHQUAKE_MODEL.defaultSiteAmplification) + 0.45) / 1.2,
     0,
     1,
   );
   const strongMotionFactor = clamp((finalIntensity - 2.5) / 3.6, 0, 1);
+  const siteResponse = properties.pWaveSiteResponse ?? 0.5;
   const share =
-    0.2 +
-    magnitudeFactor * 0.07 +
-    groundFactor * 0.08 +
-    strongMotionFactor * 0.1;
+    0.27 +
+    magnitudeFactor * 0.09 +
+    groundFactor * 0.11 +
+    strongMotionFactor * 0.13 +
+    siteResponse * 0.05;
   const pWaveFloor =
     finalIntensity >= 1.5
-      ? (0.42 + magnitudeFactor * 0.16 + groundFactor * 0.18 + strongMotionFactor * 0.18) * distanceFactor
-      : 0.28 + magnitudeFactor * 0.08;
+      ? (0.68 + magnitudeFactor * 0.22 + groundFactor * 0.28 + strongMotionFactor * 0.34 + siteResponse * 0.18) *
+        distanceFactor
+      : 0.35 + magnitudeFactor * 0.1;
   const pWaveCeiling =
-    0.95 +
-    magnitudeFactor * 0.55 +
-    groundFactor * 0.48 +
-    strongMotionFactor * 1.05;
+    1.18 +
+    magnitudeFactor * 0.68 +
+    groundFactor * 0.62 +
+    strongMotionFactor * 1.22 +
+    siteResponse * 0.32;
   const target = Math.max(finalIntensity * share, pWaveFloor);
-  return clamp(target, 0, Math.min(finalIntensity * 0.68, pWaveCeiling, 3.05));
+  return clamp(target, 0, Math.min(finalIntensity * 0.74, pWaveCeiling, 3.25));
+}
+
+function getStationWaveResponseProperties(key, finalIntensity, ground = {}) {
+  const siteNoise = stableUnitInterval(`${key}|site`);
+  const pDelayNoise = stableUnitInterval(`${key}|p-delay`);
+  const sDelayNoise = stableUnitInterval(`${key}|s-delay`);
+  const avs = Number(ground.groundAvs ?? 400);
+  const amplification = Number(ground.groundAmplification ?? EARTHQUAKE_MODEL.defaultSiteAmplification);
+  const softness = Number.isFinite(avs) ? clamp((520 - avs) / 430, 0, 1) : 0.35;
+  const amplificationFactor = clamp((amplification + 0.45) / 1.45, 0, 1);
+  const finalFactor = clamp((Number(finalIntensity) - 1.2) / 4.8, 0, 1);
+  const pWaveSiteResponse = clamp(
+    0.24 + siteNoise * 0.36 + softness * 0.18 + amplificationFactor * 0.18 + finalFactor * 0.12,
+    0,
+    1,
+  );
+  const pWaveRiseDelaySec = clamp(
+    pDelayNoise * 0.72 + (1 - pWaveSiteResponse) * 0.42 - finalFactor * 0.24,
+    0,
+    0.95,
+  );
+  const sWaveRiseDelaySec = clamp(
+    sDelayNoise * 0.68 + (1 - softness) * 0.24 - finalFactor * 0.14,
+    0,
+    1.05,
+  );
+
+  return {
+    pWaveSiteResponse: Number(pWaveSiteResponse.toFixed(3)),
+    pWaveRiseDelaySec: Number(pWaveRiseDelaySec.toFixed(2)),
+    sWaveRiseDelaySec: Number(sWaveRiseDelaySec.toFixed(2)),
+  };
 }
 
 function getGroundRiseProfile(properties) {
@@ -4557,6 +4812,14 @@ function buildStationIntensityFeatures(data) {
           groundAvs: ground?.effectiveAvs,
           groundAmplification,
       });
+      const waveResponse = getStationWaveResponseProperties(
+        `${station.id}|${station.name}|${state.longitude.toFixed(2)}|${state.latitude.toFixed(2)}`,
+        intensityValue,
+        {
+          groundAvs: ground?.effectiveAvs,
+          groundAmplification,
+        },
+      );
 
       return {
         type: "Feature",
@@ -4593,6 +4856,9 @@ function buildStationIntensityFeatures(data) {
           hypocentralDistanceKm: Number(hypocentralDistanceKm.toFixed(1)),
           pArrivalSec: Number(pArrivalSec.toFixed(2)),
           sArrivalSec: Number(sArrivalSec.toFixed(2)),
+          pWaveSiteResponse: waveResponse.pWaveSiteResponse,
+          pWaveRiseDelaySec: waveResponse.pWaveRiseDelaySec,
+          sWaveRiseDelaySec: waveResponse.sWaveRiseDelaySec,
           intensityRiseDurationSec: Number(riseProfile.durationSec.toFixed(2)),
           intensityCompleteSec: Number((sArrivalSec + riseProfile.durationSec).toFixed(2)),
         },
@@ -4707,6 +4973,14 @@ function buildOldScaleSyntheticStationFeatures(preset, existingFeatures) {
       groundAvs: ground?.effectiveAvs,
       groundAmplification,
     });
+    const waveResponse = getStationWaveResponseProperties(
+      `${preset.id}|${observation.stationName}|${coordinates[0].toFixed(3)}|${coordinates[1].toFixed(3)}`,
+      intensityValue,
+      {
+        groundAvs: ground?.effectiveAvs,
+        groundAmplification,
+      },
+    );
 
     features.push({
       type: "Feature",
@@ -4741,6 +5015,9 @@ function buildOldScaleSyntheticStationFeatures(preset, existingFeatures) {
         hypocentralDistanceKm: Number(hypocentralDistanceKm.toFixed(1)),
         pArrivalSec: Number(pArrivalSec.toFixed(2)),
         sArrivalSec: Number(sArrivalSec.toFixed(2)),
+        pWaveSiteResponse: waveResponse.pWaveSiteResponse,
+        pWaveRiseDelaySec: waveResponse.pWaveRiseDelaySec,
+        sWaveRiseDelaySec: waveResponse.sWaveRiseDelaySec,
         intensityRiseDurationSec: Number(riseProfile.durationSec.toFixed(2)),
         intensityCompleteSec: Number((sArrivalSec + riseProfile.durationSec).toFixed(2)),
       },
@@ -5461,6 +5738,16 @@ function escapeHtml(value) {
 function smoothStep(value) {
   const t = clamp(value, 0, 1);
   return t * t * (3 - 2 * t);
+}
+
+function stableUnitInterval(value) {
+  let hash = 2166136261;
+  const text = String(value ?? "");
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) / 4294967295;
 }
 
 function clamp(value, min, max) {

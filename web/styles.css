@@ -163,6 +163,8 @@ h1 {
 }
 
 .source-info-control {
+  display: grid;
+  gap: 8px;
   margin-top: 10px;
 }
 
@@ -207,6 +209,16 @@ h1 {
   transform: translate(-50%, -47%);
 }
 
+.feedback-info-button::before {
+  border: 0;
+}
+
+.feedback-info-button::after {
+  content: "🤵";
+  font-size: 1.1rem;
+  transform: translate(-50%, -50%);
+}
+
 .source-info-panel {
   display: grid;
   gap: 6px;
@@ -240,8 +252,8 @@ h1 {
   position: fixed;
   inset: 0;
   z-index: 3000;
-  overflow-y: auto;
-  padding: clamp(58px, 7vw, 84px) clamp(18px, 5vw, 72px) clamp(70px, 8vw, 96px);
+  overflow: hidden;
+  padding: clamp(58px, 7vw, 84px) clamp(18px, 5vw, 72px) clamp(72px, 8vw, 98px);
   background: rgba(0, 0, 0, 0.76);
   color: #ffffff;
   backdrop-filter: blur(4px);
@@ -297,7 +309,11 @@ h1 {
 
 .source-info-overlay-content {
   width: min(980px, 100%);
+  max-height: 100%;
   margin: 0 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .source-info-header {
@@ -376,12 +392,96 @@ h1 {
 }
 
 .source-info-updated {
-  width: min(980px, 100%);
-  margin: 14px auto 0;
+  position: fixed;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  z-index: 3001;
+  width: min(980px, calc(100% - 36px));
+  margin: 0;
   color: rgba(255, 255, 255, 0.78);
   font-size: clamp(0.76rem, 1.5vw, 0.92rem);
   font-weight: 700;
   text-align: right;
+}
+
+.feedback-overlay {
+  padding-bottom: clamp(94px, 11vw, 124px);
+}
+
+.feedback-form {
+  display: grid;
+  gap: 16px;
+}
+
+.feedback-field {
+  display: grid;
+  gap: 8px;
+}
+
+.feedback-field span {
+  color: rgba(255, 255, 255, 0.86);
+  font-size: clamp(0.9rem, 1.8vw, 1.05rem);
+  font-weight: 800;
+}
+
+.feedback-field textarea {
+  min-height: min(42vh, 360px);
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  border-radius: 8px;
+  padding: 14px 16px;
+  resize: vertical;
+  background: rgba(3, 8, 12, 0.78);
+  color: #ffffff;
+  font: inherit;
+  line-height: 1.65;
+  outline: none;
+}
+
+.feedback-field textarea:focus {
+  border-color: rgba(91, 199, 255, 0.82);
+  box-shadow: 0 0 0 3px rgba(91, 199, 255, 0.18);
+}
+
+.feedback-status,
+.feedback-sheet-note {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: clamp(0.82rem, 1.6vw, 0.95rem);
+  line-height: 1.6;
+}
+
+.feedback-status-error {
+  color: #ffb4c2;
+}
+
+.feedback-actions {
+  position: fixed;
+  left: max(18px, env(safe-area-inset-left));
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(14px, env(safe-area-inset-bottom));
+  z-index: 3001;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.feedback-submit {
+  width: min(420px, 100%);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+  padding: 13px 18px;
+  background: #e60033;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: clamp(0.96rem, 2vw, 1.08rem);
+  font-weight: 900;
+  line-height: 1.2;
+  pointer-events: auto;
+}
+
+.feedback-submit:disabled {
+  cursor: wait;
+  opacity: 0.62;
 }
 
 .maplibregl-canvas.epicenter-edit-enabled {
@@ -484,7 +584,7 @@ h1 {
 #simulation-panel {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
 }
 
 #simulation-panel.hidden {
@@ -687,6 +787,7 @@ h1 {
   cursor: pointer;
   font-size: 0.92rem;
   font-weight: 800;
+  white-space: nowrap;
 }
 
 .simulation-stop {
@@ -911,6 +1012,14 @@ h1 {
   }
 }
 
+@media (min-width: 721px) and (max-width: 1180px) {
+  .simulation-stop,
+  .simulation-pause {
+    padding-inline: 8px;
+    font-size: 0.84rem;
+  }
+}
+
 .intensity-legend {
   position: absolute;
   right: 8px;
@@ -958,8 +1067,8 @@ h1 {
 
 .eew-forecast-panel {
   position: absolute;
-  right: 56px;
-  bottom: 52px;
+  right: 52px;
+  bottom: 8px;
   z-index: 421;
   width: min(300px, calc(100vw - 340px));
   min-width: 252px;
@@ -988,6 +1097,8 @@ h1 {
   font-size: 0.84rem;
   font-weight: 800;
   line-height: 1.35;
+  overflow-wrap: normal;
+  word-break: keep-all;
 }
 
 .eew-forecast-panel ul {
@@ -1000,6 +1111,7 @@ h1 {
 }
 
 .eew-forecast-panel li {
+  flex: 0 0 auto;
   border: 1px solid rgba(255, 255, 255, 0.24);
   border-radius: 4px;
   padding: 4px 6px;
@@ -1008,6 +1120,8 @@ h1 {
   font-size: 0.78rem;
   font-weight: 900;
   line-height: 1.1;
+  white-space: nowrap;
+  word-break: keep-all;
 }
 
 .epicenter-marker-shell {
@@ -1182,6 +1296,10 @@ h1 {
     overscroll-behavior: contain;
     touch-action: auto;
     transition: transform 120ms ease-out;
+  }
+
+  #simulation-panel {
+    overflow: hidden;
   }
 
   .sim-panel-scroll {
