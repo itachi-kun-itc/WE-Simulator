@@ -7,9 +7,11 @@ const eewSourceDir = "C:\\開発\\ソース\\気象・地震シミュレーシ�
 const outputPath = path.join(root, "web", "data", "earthquake_presets.json");
 
 const presetFiles = [
+  "関東大震災（1923）.csv",
   "兵庫県南部地震（1995）.csv",
   "新潟県中越地震（2004）.csv",
   "東北地方太平洋沖地震（2011）.csv",
+  "淡路島付近の地震（2013）.csv",
   "小笠原諸島西方沖の地震（2015）.csv",
   "熊本地震 前震（2016）.csv",
   "熊本地震 本震（2016）.csv",
@@ -122,6 +124,9 @@ function parsePreset(fileName) {
   const rows = parseCsv(fs.readFileSync(filePath, "utf8"))
     .map((row) => (row.length === 1 && row[0].includes(",") ? parseCsv(row[0])[0] : row))
     .filter((row) => row.some((cell) => String(cell).trim() !== ""));
+  if (eventName === "関東大震災（1923）") {
+    return parseKantoDaishinsaiPreset(eventName, rows);
+  }
   const headers = rows[0];
   const eventRows = [];
   let index = 1;
@@ -179,6 +184,61 @@ function parsePreset(fileName) {
     observedStations: finalObservations,
     eewForecastAreas: eewForecastAreasByName[eventName] ?? [],
     eewReports: parseEewReports(eventName),
+  };
+}
+
+function parseKantoDaishinsaiPreset(eventName, rows) {
+  const getRow = (label) => rows.find((row) => String(row[0] ?? "").trim() === label) ?? [];
+  const originRow = getRow("発生場所（震源位置）");
+  const areaDepthRow = rows.find((row) => String(row[1] ?? "").includes("神奈川県西部")) ?? [];
+  const observations = [];
+  const fixedCoordinates = new Map([
+    ["広島県|広島市", [132.4553, 34.3853]],
+  ]);
+
+  rows.forEach((row) => {
+    const intensityLabel = normalizeIntensityLabel(row[0]);
+    const intensityValue = getHyogoNanbuOldScaleIntensityValue(intensityLabel);
+    if (!Number.isFinite(intensityValue)) {
+      return;
+    }
+
+    splitJapaneseList(row[1]).forEach((areaName) => {
+      const place = splitPrefectureAndPlace(areaName);
+      if (!place.name) {
+        return;
+      }
+
+      observations.push({
+        prefecture: place.prefecture,
+        stationName: place.name,
+        intensityLabel,
+        displayIntensityLabel: intensityLabel.replace(/^震度/, ""),
+        displayIntensityShortLabel: intensityLabel.replace(/^震度/, ""),
+        intensityValue,
+        measuredIntensity: null,
+        oldJmaScale: true,
+        syntheticMunicipality: true,
+        longitude: fixedCoordinates.get(`${place.prefecture}|${place.name}`)?.[0],
+        latitude: fixedCoordinates.get(`${place.prefecture}|${place.name}`)?.[1],
+      });
+    });
+  });
+
+  return {
+    id: slugify(eventName),
+    label: eventName,
+    date: "1923/09/01",
+    time: "11:58",
+    epicenterName: areaDepthRow[1] || "神奈川県西部",
+    latitude: parseJapaneseCoordinate(originRow[1]),
+    longitude: parseJapaneseCoordinate(originRow[2]),
+    depthKm: parseDepth(areaDepthRow[2]),
+    magnitude: parseMagnitude(getRow("規模（マグニチュード）")[1]),
+    maxIntensity: `震度${getRow("最大震度")[1] ?? "6"}`,
+    observedStations: dedupeObservations(observations),
+    eewForecastAreas: [],
+    eewReports: [],
   };
 }
 
@@ -368,6 +428,13 @@ function splitEewAreas(value) {
     .filter(Boolean);
 }
 
+function splitJapaneseList(value) {
+  return String(value ?? "")
+    .split(/[、,]/)
+    .map((area) => area.trim())
+    .filter(Boolean);
+}
+
 function objectFromRow(headers, row) {
   return Object.fromEntries(headers.map((header, index) => [header, row[index] ?? ""]));
 }
@@ -539,6 +606,17 @@ function parseCoordinate(value) {
   const match = String(value ?? "").match(/(\d+(?:\.\d+)?)°\s*(\d+(?:\.\d+)?)?′?/);
   if (!match) {
     return null;
+  }
+
+  const degrees = Number(match[1]);
+  const minutes = Number(match[2] ?? 0);
+  return Number((degrees + minutes / 60).toFixed(4));
+}
+
+function parseJapaneseCoordinate(value) {
+  const match = String(value ?? "").match(/(\d+(?:\.\d+)?)度\s*(\d+(?:\.\d+)?)?分?/);
+  if (!match) {
+    return parseCoordinate(value);
   }
 
   const degrees = Number(match[1]);
