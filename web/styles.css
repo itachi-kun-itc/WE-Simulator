@@ -41,6 +41,7 @@ select {
 
 .app-shell {
   height: var(--app-height, 100vh);
+  height: var(--app-height, 100dvh);
   min-height: min(520px, var(--app-height, 100vh));
   background:
     radial-gradient(circle at 24% 18%, rgba(38, 217, 255, 0.08), transparent 28%),
@@ -1122,8 +1123,14 @@ h1 {
   }
 
   .app-shell {
-    height: calc(var(--app-height, 100svh) - 70px);
-    min-height: 540px;
+    height: var(--app-height, 100svh);
+    height: var(--app-height, 100dvh);
+    min-height: min(540px, 100dvh);
+  }
+
+  .map-wrap {
+    min-height: 100svh;
+    min-height: 100dvh;
   }
 
   .field input,

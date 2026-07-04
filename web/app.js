@@ -544,6 +544,7 @@ let stationHoverEventsBound = false;
 let currentLocationMarker;
 let currentLocationRequestId = 0;
 let locationResolveTimer;
+let mapResizeObserver;
 let simulationFrame;
 let simulationStartedAt;
 let simulationPausedAt;
@@ -1149,9 +1150,7 @@ function setupViewportStability() {
 
   const handleViewportChange = () => {
     updateAppViewportHeight();
-    if (map) {
-      map.resize();
-    }
+    scheduleMapResize();
   };
 
   window.addEventListener("resize", handleViewportChange, { passive: true });
@@ -1163,11 +1162,79 @@ function setupViewportStability() {
 }
 
 function updateAppViewportHeight() {
-  const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+  const viewportHeight = Math.max(
+    window.visualViewport?.height ?? 0,
+    window.innerHeight || 0,
+    document.documentElement.clientHeight || 0,
+  );
   document.documentElement.style.setProperty("--app-height", `${Math.round(viewportHeight)}px`);
 }
 
+function scheduleMapResize() {
+  if (!map) {
+    return;
+  }
+
+  [0, 80, 240, 600].forEach((delay) => {
+    window.setTimeout(() => {
+      updateAppViewportHeight();
+      map?.resize();
+    }, delay);
+  });
+}
+
+function getMapContainerSize() {
+  const container = document.querySelector("#map");
+  if (!container) {
+    return { width: 0, height: 0 };
+  }
+
+  const rect = container.getBoundingClientRect();
+  return {
+    width: rect.width,
+    height: rect.height,
+  };
+}
+
+async function waitForMapContainerSize() {
+  for (let attempt = 0; attempt < 16; attempt += 1) {
+    updateAppViewportHeight();
+    const { width, height } = getMapContainerSize();
+    if (width >= 120 && height >= 120) {
+      return true;
+    }
+
+    await new Promise((resolve) => window.setTimeout(resolve, attempt < 4 ? 50 : 120));
+  }
+
+  return false;
+}
+
+function setupMapResizeObserver() {
+  if (mapResizeObserver || typeof ResizeObserver === "undefined") {
+    return;
+  }
+
+  const container = document.querySelector("#map");
+  if (!container) {
+    return;
+  }
+
+  mapResizeObserver = new ResizeObserver((entries) => {
+    const entry = entries[0];
+    const size = entry?.contentRect;
+    if (!size || size.width < 1 || size.height < 1) {
+      return;
+    }
+
+    scheduleMapResize();
+  });
+  mapResizeObserver.observe(container);
+}
+
 async function initEarthquakeMap() {
+  updateAppViewportHeight();
+  await waitForMapContainerSize();
   map = new maplibregl.Map({
     container: "map",
     style: {
@@ -1199,6 +1266,8 @@ async function initEarthquakeMap() {
   map.dragRotate.disable();
   map.touchZoomRotate.disableRotation();
   map.keyboard?.disableRotation?.();
+  setupMapResizeObserver();
+  scheduleMapResize();
 
   addZoomOnlyControl();
   addSourceInfoControl();
@@ -1227,6 +1296,7 @@ async function initEarthquakeMap() {
   try {
     await onceMapLoaded();
     await showMapLayers();
+    scheduleMapResize();
     els.status.textContent = "市町村区分地図を表示中";
   } catch (error) {
     els.status.textContent = "地図データの読み込みに失敗しました";
