@@ -11,9 +11,9 @@ const EPICENTER_NAMES_URL = "./data/epicenter_names.json";
 
 const INITIAL_CENTER = [139.767, 35.681];
 const INITIAL_ZOOM = 5.25;
-const MAP_PAN_BOUNDS = [
-  [-180, -85],
-  [180, 85],
+const JAPAN_AREA_PAN_BOUNDS = [
+  [92, 0],
+  [176, 64],
 ];
 const MUNICIPALITY_BOUNDARY_MIN_ZOOM = 8;
 const EARTH_RADIUS_KM = 6371;
@@ -762,7 +762,7 @@ function setupTabs() {
       document.querySelector(`#${tab.dataset.panel}`).classList.add("panel-active");
 
       if (tab.dataset.panel === "earthquake-panel" && map) {
-        requestAnimationFrame(() => map.resize());
+        requestAnimationFrame(() => safelyResizeMap());
       }
     });
   });
@@ -1288,9 +1288,29 @@ function scheduleMapResize() {
   [0, 50, 150, 350, 800, 1400].forEach((delay) => {
     window.setTimeout(() => {
       updateAppViewportHeight();
-      map?.resize();
+      safelyResizeMap();
     }, delay);
   });
+}
+
+function safelyResizeMap() {
+  if (!map) {
+    return false;
+  }
+
+  const container = document.querySelector("#map");
+  const rect = container?.getBoundingClientRect();
+  if (!rect || rect.width < 1 || rect.height < 1) {
+    return false;
+  }
+
+  try {
+    map.resize();
+    return true;
+  } catch (error) {
+    console.warn("map resize skipped", error);
+    return false;
+  }
 }
 
 async function initEarthquakeMap() {
@@ -1315,7 +1335,7 @@ async function initEarthquakeMap() {
     zoom: INITIAL_ZOOM,
     minZoom: 4,
     maxZoom: 10,
-    maxBounds: MAP_PAN_BOUNDS,
+    maxBounds: JAPAN_AREA_PAN_BOUNDS,
     renderWorldCopies: false,
     attributionControl: false,
     dragRotate: false,

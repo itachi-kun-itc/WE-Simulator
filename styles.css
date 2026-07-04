@@ -628,6 +628,7 @@ h1 {
 .result-list div {
   display: grid;
   grid-template-columns: 84px 1fr;
+  align-items: center;
   gap: 8px;
 }
 
@@ -1263,7 +1264,7 @@ h1 {
 
   .sim-panel[data-sheet-state="collapsed"] {
     overflow: hidden;
-    transform: translateY(calc(100% - 52px));
+    transform: translateY(calc(100% - 64px));
   }
 
   .sim-panel[data-sheet-state="collapsed"] > :not(.sheet-handle) {
