@@ -744,7 +744,10 @@ preventNonMapZoom();
 setupViewportStability();
 
 if (window.maplibregl) {
-  initEarthquakeMap();
+  initEarthquakeMap().catch((error) => {
+    console.error(error);
+    els.status.textContent = "地図の初期化に失敗しました";
+  });
 } else {
   els.status.textContent = "MapLibre GL JSを読み込めませんでした";
 }
@@ -2870,16 +2873,31 @@ async function fetchJson(url, label) {
 function withoutInteriorRings(geojson) {
   return {
     ...geojson,
-    features: geojson.features.map((feature) => ({
-      ...feature,
-      geometry: {
-        ...feature.geometry,
-        coordinates:
-          feature.geometry.type === "MultiPolygon"
-            ? feature.geometry.coordinates.map((polygon) => [polygon[0]])
-            : [feature.geometry.coordinates[0]],
-      },
-    })),
+    features: (geojson.features ?? []).flatMap((feature) => {
+      const geometry = feature.geometry;
+      if (!geometry?.coordinates) {
+        return [];
+      }
+
+      const coordinates =
+        geometry.type === "MultiPolygon"
+          ? geometry.coordinates
+            .map((polygon) => polygon?.[0])
+            .filter((ring) => Array.isArray(ring) && ring.length >= 4)
+            .map((ring) => [ring])
+          : [geometry.coordinates?.[0]].filter((ring) => Array.isArray(ring) && ring.length >= 4);
+      if (coordinates.length === 0) {
+        return [];
+      }
+
+      return [{
+        ...feature,
+        geometry: {
+          ...geometry,
+          coordinates,
+        },
+      }];
+    }),
   };
 }
 
@@ -5395,6 +5413,10 @@ function getGeoJsonBounds(geojson) {
 }
 
 function forEachCoordinate(coordinates, callback) {
+  if (!Array.isArray(coordinates) || coordinates.length === 0) {
+    return;
+  }
+
   if (typeof coordinates[0] === "number") {
     callback(coordinates);
     return;
