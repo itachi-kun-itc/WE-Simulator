@@ -598,7 +598,7 @@ const SOURCE_SECTIONS = [
       { label: "プレート形状 数値データ", href: "https://www.mri-jma.go.jp/Dep/sei/fhirose/plate/PlateData.html" },
       { label: "plate_data.tar.gz", href: "https://www.mri-jma.go.jp/Dep/sei/fhirose/data/plate_data.tar.gz" },
     ],
-    note: "データを使用した際の引用について\n※データを使用した場合には，使用地域に対応した出典論文を正確に明記するようにお願いします．以下に例を示します．\n北海道～東北地方の場合\nKita et al. (2010, EPSL)およびNakajima and Hasegawa (2006, GRL)\n\n東北地方南部～関東地方の場合\nNakajima and Hasegawa (2006, GRL)，弘瀬・他 (2008, 地震)，Nakajima et al. (2009, JGR)\n\n西南日本の場合\nBaba et al. (2002, PEPI)，Nakajima and Hasegawa (2007, JGR)，Hirose et al. (2008, JGR)",
+    note: "Kita et al. (2010, EPSL)およびNakajima and Hasegawa (2006, GRL)\nNakajima and Hasegawa (2006, GRL)，弘瀬・他 (2008, 地震)，Nakajima et al. (2009, JGR)\nBaba et al. (2002, PEPI)，Nakajima and Hasegawa (2007, JGR)，Hirose et al. (2008, JGR)",
   },
   {
     title: "地図・地盤・境界データ",
