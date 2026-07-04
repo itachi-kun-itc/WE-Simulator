@@ -530,18 +530,18 @@ body.app-loading #map {
   cursor: wait;
 }
 
-#map::after {
+.map-wrap::after {
   content: "";
   position: absolute;
   inset: 0;
-  z-index: 10;
+  z-index: 450;
   background: #061a3a;
   opacity: 0;
   pointer-events: none;
   transition: opacity 140ms ease;
 }
 
-body.map-core-loading #map::after {
+body.map-core-loading .map-wrap::after {
   opacity: 1;
 }
 
@@ -1350,6 +1350,10 @@ body.app-loading #setup-panel button:not(#simulation-start) {
   .field input,
   .field select {
     font-size: 16px;
+  }
+
+  .source-info-button:not(.feedback-info-button)::after {
+    top: calc(50% - 1.05px);
   }
 
   .panel {
