@@ -114,6 +114,7 @@ h1 {
 }
 
 #map {
+  position: relative;
   width: 100%;
   height: 100%;
   background: #061a3a;
@@ -134,6 +135,17 @@ h1 {
   color: #8eeaff;
 }
 
+.maplibregl-control-container {
+  z-index: 900;
+}
+
+.maplibregl-ctrl-top-right,
+.maplibregl-ctrl-bottom-right,
+.maplibregl-ctrl-top-left,
+.maplibregl-ctrl-bottom-left {
+  z-index: 920;
+}
+
 .maplibregl-ctrl-group {
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(2, 4, 5, 0.72);
@@ -143,9 +155,19 @@ h1 {
   filter: invert(1);
 }
 
+.maplibregl-ctrl-top-right {
+  right: 8px;
+}
+
+@media (min-width: 721px) {
+  .maplibregl-ctrl-top-right {
+    right: 3px;
+  }
+}
+
 .zoom-only-control button {
   display: grid;
-  width: 34px;
+  width: 38px;
   height: 34px;
   place-items: center;
   border: 0;
@@ -189,8 +211,8 @@ h1 {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 18px;
-  height: 18px;
+  width: 21px;
+  height: 21px;
   border: 2px solid #ffffff;
   border-radius: 999px;
   transform: translate(-50%, -50%);
@@ -200,9 +222,9 @@ h1 {
   content: "i";
   position: absolute;
   left: 50%;
-  top: 50%;
+  top: calc(50% - 1.2px);
   color: #ffffff;
-  font-size: 0.9rem;
+  font-size: 1rem;
   font-style: normal;
   font-weight: 900;
   line-height: 1;
@@ -210,12 +232,14 @@ h1 {
 }
 
 .feedback-info-button::before {
-  width: 27px;
-  height: 27px;
+  left: calc(50% - 0.15px);
+  top: calc(50% + 1px);
+  width: 32px;
+  height: 32px;
   border: 0;
   border-radius: 0;
-  background: center / 27px 27px no-repeat
-    url("data:image/svg+xml,%3Csvg%20width%3D%2228%22%20height%3D%2228%22%20viewBox%3D%220%200%2028%2028%22%20fill%3D%22none%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M7.5%206.75H20.5C21.8807%206.75%2023%207.86929%2023%209.25V15.8C23%2017.1807%2021.8807%2018.3%2020.5%2018.3H15.35L10.15%2022.5V18.3H7.5C6.11929%2018.3%205%2017.1807%205%2015.8V9.25C5%207.86929%206.11929%206.75%207.5%206.75Z%22%20stroke%3D%22white%22%20stroke-width%3D%222.6%22%20stroke-linejoin%3D%22round%22%20stroke-linecap%3D%22round%22/%3E%3Cpath%20d%3D%22M9.7%2012.35H18.3M9.7%2015.1H15.4%22%20stroke%3D%22white%22%20stroke-width%3D%222.35%22%20stroke-linecap%3D%22round%22/%3E%3C/svg%3E");
+  background: center / 32px 32px no-repeat
+    url("data:image/svg+xml,%3Csvg%20width%3D%2230%22%20height%3D%2230%22%20viewBox%3D%220%200%2030%2030%22%20fill%3D%22none%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M7.4%205.8H22.6C24.0912%205.8%2025.3%207.00883%2025.3%208.5V17.4C25.3%2018.8912%2024.0912%2020.1%2022.6%2020.1H16.05L10.5%2024.3V20.1H7.4C5.90883%2020.1%204.7%2018.8912%204.7%2017.4V8.5C4.7%207.00883%205.90883%205.8%207.4%205.8Z%22%20stroke%3D%22white%22%20stroke-width%3D%222.55%22%20stroke-linejoin%3D%22round%22%20stroke-linecap%3D%22round%22/%3E%3Cpath%20d%3D%22M10.6%2011.5H19.4M10.6%2014.5H19.4%22%20stroke%3D%22white%22%20stroke-width%3D%222.25%22%20stroke-linecap%3D%22round%22/%3E%3C/svg%3E");
   transform: translate(-50%, -50%);
 }
 
@@ -506,6 +530,21 @@ body.app-loading #map {
   cursor: wait;
 }
 
+#map::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: #061a3a;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease;
+}
+
+body.map-core-loading #map::after {
+  opacity: 1;
+}
+
 body.app-loading #setup-panel input,
 body.app-loading #setup-panel select,
 body.app-loading #setup-panel button:not(#simulation-start) {
@@ -603,6 +642,27 @@ body.app-loading #setup-panel button:not(#simulation-start) {
 
 .sim-panel-scroll {
   display: contents;
+}
+
+#setup-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+}
+
+#setup-panel .sim-panel-head,
+#setup-panel .simulation-start {
+  flex: 0 0 auto;
+}
+
+#setup-panel .sim-panel-scroll {
+  display: block;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 2px;
+  scrollbar-gutter: stable;
 }
 
 #simulation-panel {
@@ -1037,6 +1097,14 @@ body.app-loading #setup-panel button:not(#simulation-start) {
 }
 
 @media (min-width: 721px) and (max-width: 1180px) {
+  #setup-panel .sim-panel-scroll {
+    max-height: calc(var(--app-height, 100vh) - 154px);
+  }
+
+  #setup-panel .simulation-start {
+    margin-top: 8px;
+  }
+
   .simulation-stop,
   .simulation-pause {
     padding-inline: 8px;
@@ -1046,9 +1114,9 @@ body.app-loading #setup-panel button:not(#simulation-start) {
 
 .intensity-legend {
   position: absolute;
-  right: 8px;
+  right: 15.3px;
   bottom: 8px;
-  z-index: 420;
+  z-index: 900;
   width: 34px;
   border: 1px solid rgba(255, 255, 255, 0.28);
   background: #020405;
