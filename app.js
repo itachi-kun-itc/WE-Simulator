@@ -23,6 +23,9 @@ const EXCLUDED_JAPAN_LAND_BOUNDS = [
   { west: 131.75, south: 37.15, east: 131.95, north: 37.35 },
   { west: 123.2, south: 25.5, east: 124.8, north: 26.3 },
 ];
+const NORTHERN_ISLAND_DISPLAY_BOUNDS = [
+  { west: 145.15, south: 43.1, east: 149.7, north: 46.35 },
+];
 const MUNICIPALITY_BOUNDARY_MIN_ZOOM = 8;
 const EARTH_RADIUS_KM = 6371;
 const EARTHQUAKE_MODEL = {
@@ -754,6 +757,7 @@ renderDepthOptions();
 renderMagnitudeOptions();
 renderEarthquakePresetOptions();
 renderIntensityColorSchemeOptions();
+setStartupInteractionLocked(true);
 bindSimulationControls();
 applyIntensityColorScheme(state.intensityColorScheme, { refreshLayers: false });
 setupMobileSheets();
@@ -1363,6 +1367,7 @@ async function initEarthquakeMap() {
   map.dragRotate.disable();
   map.touchZoomRotate.disableRotation();
   map.keyboard?.disableRotation?.();
+  setStartupInteractionLocked(true);
   scheduleMapResize();
 
   addZoomOnlyControl();
@@ -1691,6 +1696,7 @@ async function showMapLayers() {
   addGeoJsonSource("municipalities", emptyFeatureCollection());
   addGeoJsonSource("municipalities-linework", emptyFeatureCollection());
   addGeoJsonSource("excluded-japan-islands", emptyFeatureCollection());
+  addGeoJsonSource("northern-islands-land", emptyFeatureCollection());
   addGeoJsonSource("jma-local-areas", emptyFeatureCollection());
   addGeoJsonSource("sea-epicenter-areas", emptyFeatureCollection());
   addGeoJsonSource("plate-boundaries", emptyFeatureCollection());
@@ -1707,7 +1713,7 @@ async function showMapLayers() {
 }
 
 function hydrateDeferredMapData() {
-  loadMunicipalities()
+  loadMunicipalitySourceData()
     .then((municipalities) => {
       const displayMunicipalities = filterExcludedGeoJsonFeatures(municipalities);
       municipalityDisplayData = municipalityDisplayData ?? withoutInteriorRings(displayMunicipalities);
@@ -1719,6 +1725,10 @@ function hydrateDeferredMapData() {
       setGeoJsonSourceData(
         "excluded-japan-islands",
         extractExcludedJapanIslandPolygons(municipalityDisplayData),
+      );
+      setGeoJsonSourceData(
+        "northern-islands-land",
+        extractNorthernIslandDisplayPolygons(withoutInteriorRings(municipalities)),
       );
       scheduleLocationResolve();
       updateIntensityLayer();
@@ -1989,6 +1999,33 @@ function addMapLayers() {
       "line-color": "#b9c2ca",
       "line-opacity": 0.72,
       "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.45, 7, 0.75, 10, 1.05],
+    },
+  });
+
+  addLayerIfMissing({
+    id: "northern-islands-land-fill",
+    type: "fill",
+    source: "northern-islands-land",
+    paint: {
+      "fill-antialias": false,
+      "fill-color": "#8c9298",
+      "fill-outline-color": "#8c9298",
+      "fill-opacity": 1,
+    },
+  });
+
+  addLayerIfMissing({
+    id: "northern-islands-land-outline",
+    type: "line",
+    source: "northern-islands-land",
+    layout: {
+      "line-cap": "round",
+      "line-join": "round",
+    },
+    paint: {
+      "line-color": "#d5dee8",
+      "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.62, 7, 0.78, 10, 0.9],
+      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 1.05, 7, 1.7, 10, 2.45],
     },
   });
 
@@ -3151,12 +3188,16 @@ async function loadMunicipalities() {
     return municipalityData;
   }
 
+  municipalityData = filterExcludedGeoJsonFeatures(await loadMunicipalitySourceData());
+  return municipalityData;
+}
+
+async function loadMunicipalitySourceData() {
   if (!municipalityLoadPromise) {
     municipalityLoadPromise = fetchJson(MUNICIPALITIES_URL, "Municipality GeoJSON");
   }
 
-  municipalityData = filterExcludedGeoJsonFeatures(await municipalityLoadPromise);
-  return municipalityData;
+  return municipalityLoadPromise;
 }
 
 async function loadBoundaryLayers() {
@@ -3370,6 +3411,56 @@ function extractExcludedJapanIslandPolygons(geojson) {
   };
 }
 
+function extractNorthernIslandDisplayPolygons(geojson) {
+  return {
+    ...geojson,
+    name: "Northern islands land display",
+    features: (geojson.features ?? []).flatMap((feature) => {
+      const geometry = feature.geometry;
+      if (!geometry?.coordinates) {
+        return [];
+      }
+
+      const coordinates =
+        geometry.type === "MultiPolygon"
+          ? geometry.coordinates.filter(isNorthernIslandDisplayPolygon)
+          : geometry.type === "Polygon" && isNorthernIslandDisplayPolygon(geometry.coordinates)
+            ? [geometry.coordinates]
+            : [];
+
+      if (coordinates.length === 0) {
+        return [];
+      }
+
+      return [{
+        ...feature,
+        properties: {
+          ...feature.properties,
+          mapTreatment: "northern-island-display-only",
+        },
+        geometry: {
+          type: "MultiPolygon",
+          coordinates,
+        },
+      }];
+    }),
+  };
+}
+
+function isNorthernIslandDisplayPolygon(polygon) {
+  const outerRing = polygon?.[0];
+  if (!Array.isArray(outerRing) || outerRing.length === 0) {
+    return false;
+  }
+
+  const center = getRingCentroidCoordinate(outerRing);
+  if (!center) {
+    return false;
+  }
+
+  return NORTHERN_ISLAND_DISPLAY_BOUNDS.some((bounds) => pointInBounds(center, bounds));
+}
+
 function removeExcludedJapanIslandLinework(geojson) {
   return {
     ...geojson,
@@ -3559,18 +3650,21 @@ function updateSimulationAvailability() {
   }
 
   if (state.simulationRunning) {
+    setStartupInteractionLocked(false);
     els.simulationStart.disabled = false;
     els.simulationStart.title = "";
     return;
   }
 
   if (isSimulationMapDataLoading()) {
+    setStartupInteractionLocked(true);
     els.simulationStart.disabled = true;
     els.simulationStart.textContent = "マップを読み込み中...";
     els.simulationStart.title = "マップと震度計算用データを読み込んでいます";
     return;
   }
 
+  setStartupInteractionLocked(false);
   const predictedMaximum = getPredictedMaximumIntensity();
   const canStart =
     Number.isFinite(predictedMaximum.value) && predictedMaximum.rank >= 1;
@@ -3584,6 +3678,23 @@ function updateSimulationAvailability() {
 
 function isSimulationMapDataLoading() {
   return !municipalityDisplayData?.features?.length || !localAreaData?.features?.length || !shindoStationData;
+}
+
+function setStartupInteractionLocked(locked) {
+  document.body.classList.toggle("app-loading", Boolean(locked));
+  if (!map) {
+    return;
+  }
+
+  const methodName = locked ? "disable" : "enable";
+  map.scrollZoom?.[methodName]?.();
+  map.boxZoom?.[methodName]?.();
+  map.dragPan?.[methodName]?.();
+  map.doubleClickZoom?.[methodName]?.();
+  map.touchZoomRotate?.[methodName]?.();
+  map.keyboard?.[methodName]?.();
+  map.touchZoomRotate?.disableRotation?.();
+  map.dragRotate?.disable?.();
 }
 
 async function updateEpicenter(options = {}) {
