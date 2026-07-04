@@ -675,10 +675,11 @@ let currentLocationRequestId = 0;
 let locationResolveTimer;
 let simulationFrame;
 let municipalityBoundaryVisibilityTimer;
-let startupMapVisualReadyTimer;
 let startupMapVisualReady = false;
 let municipalityBoundaryVisible = false;
 let startupLocationResolved = false;
+let startupIntensityPaintVersion = 0;
+let startupOverlayReleasePending = false;
 let simulationStartedAt;
 let simulationPausedAt;
 let simulationPreviousEpicenterEditEnabled = false;
@@ -687,6 +688,7 @@ let simulationRenderBucket = -1;
 let maxStationListRenderBucket = null;
 let simulationTimeTextCache = "";
 let waveRenderRadiusCache = { p: null, s: null };
+const waveCircleBearingCache = new Map();
 let resetViewAnimating = false;
 let localAreaStationMembershipCache;
 let areaEpicentralDistanceCache = {
@@ -1804,12 +1806,12 @@ async function hydrateDeferredMapData() {
 
 function showMunicipalityLinework() {
   startupMapVisualReady = false;
+  startupOverlayReleasePending = false;
+  startupIntensityPaintVersion = 0;
   municipalityBoundaryVisible = false;
   updateLayerVisibility("japan-land-gap-fill", true);
   updateLayerVisibility("municipality-boundaries", false);
   window.clearTimeout(municipalityBoundaryVisibilityTimer);
-  window.clearTimeout(startupMapVisualReadyTimer);
-  startupMapVisualReadyTimer = null;
   municipalityBoundaryVisibilityTimer = window.setTimeout(() => {
     window.requestAnimationFrame(() => {
       updateLayerVisibility("municipality-boundaries", true);
@@ -1823,7 +1825,7 @@ function showMunicipalityLinework() {
 function scheduleStartupReadyAfterIntensityPaint() {
   if (
     startupMapVisualReady ||
-    startupMapVisualReadyTimer ||
+    startupOverlayReleasePending ||
     !startupLocationResolved ||
     !municipalityBoundaryVisible ||
     !municipalityDisplayData?.features?.length ||
@@ -1833,31 +1835,51 @@ function scheduleStartupReadyAfterIntensityPaint() {
     return;
   }
 
-  window.requestAnimationFrame(() => {
-    startupMapVisualReadyTimer = window.setTimeout(() => {
-      waitForStartupMapPaint().then(releaseStartupMapOverlay);
-    }, getStartupOverlayReleaseDelayMs());
+  startupOverlayReleasePending = true;
+  const paintVersion = startupIntensityPaintVersion;
+  waitForStableStartupMap(paintVersion).then((stable) => {
+    startupOverlayReleasePending = false;
+    if (stable) {
+      releaseStartupMapOverlay();
+    } else {
+      scheduleStartupReadyAfterIntensityPaint();
+    }
   });
 }
 
 function releaseStartupMapOverlay() {
   startupMapVisualReady = true;
-  startupMapVisualReadyTimer = null;
   document.body.classList.remove("map-core-loading");
   updateSimulationAvailability();
 }
 
-function waitForStartupMapPaint() {
-  if (!isCompactViewport() && !isTabletViewport()) {
-    return Promise.resolve();
-  }
-
-  return waitForMapIdle(1200).then(
-    () =>
-      new Promise((resolve) => {
-        window.requestAnimationFrame(() => window.requestAnimationFrame(resolve));
-      }),
+async function waitForStableStartupMap(paintVersion) {
+  await waitForMapIdle(1800);
+  await waitForAnimationFrames(isCompactViewport() || isTabletViewport() ? 4 : 3);
+  await waitForMapIdle(900);
+  await waitForAnimationFrames(2);
+  return (
+    paintVersion === startupIntensityPaintVersion &&
+    startupLocationResolved &&
+    municipalityBoundaryVisible &&
+    Boolean(municipalityDisplayData?.features?.length) &&
+    Boolean(localAreaData?.features?.length) &&
+    Boolean(shindoStationData)
   );
+}
+
+function waitForAnimationFrames(count = 1) {
+  return new Promise((resolve) => {
+    const step = (remaining) => {
+      if (remaining <= 0) {
+        resolve();
+        return;
+      }
+
+      window.requestAnimationFrame(() => step(remaining - 1));
+    };
+    step(count);
+  });
 }
 
 function waitForMapIdle(timeoutMs = 1200) {
@@ -1880,18 +1902,6 @@ function waitForMapIdle(timeoutMs = 1200) {
     const timeoutId = window.setTimeout(finish, timeoutMs);
     map.once("idle", finish);
   });
-}
-
-function getStartupOverlayReleaseDelayMs() {
-  if (isCompactViewport()) {
-    return 2400;
-  }
-
-  if (isTabletViewport()) {
-    return 2200;
-  }
-
-  return 1600;
 }
 
 function schedulePostMunicipalityDataHydration() {
@@ -3319,14 +3329,48 @@ function wavePolygonFeatureCollection(radiusKm) {
 }
 
 function buildGeodesicCircle(center, radiusKm, steps = WAVE_CIRCLE_STEPS) {
-  const coordinates = [];
+  const coordinates = new Array(steps + 1);
+  const [longitude, latitude] = center;
+  const angularDistance = radiusKm / EARTH_RADIUS_KM;
+  const lat1 = toRadians(latitude);
+  const lon1 = toRadians(longitude);
+  const sinLat1 = Math.sin(lat1);
+  const cosLat1 = Math.cos(lat1);
+  const sinAngularDistance = Math.sin(angularDistance);
+  const cosAngularDistance = Math.cos(angularDistance);
+  const bearings = getWaveCircleBearings(steps);
 
   for (let index = 0; index <= steps; index += 1) {
-    const bearingDeg = (index / steps) * 360;
-    coordinates.push(destinationPoint(center, bearingDeg, radiusKm));
+    const { sin, cos } = bearings[index];
+    const lat2 = Math.asin(
+      sinLat1 * cosAngularDistance + cosLat1 * sinAngularDistance * cos,
+    );
+    const lon2 =
+      lon1 +
+      Math.atan2(
+        sin * sinAngularDistance * cosLat1,
+        cosAngularDistance - sinLat1 * Math.sin(lat2),
+      );
+    coordinates[index] = [normalizeLongitude(toDegrees(lon2)), toDegrees(lat2)];
   }
 
   return coordinates;
+}
+
+function getWaveCircleBearings(steps) {
+  if (waveCircleBearingCache.has(steps)) {
+    return waveCircleBearingCache.get(steps);
+  }
+
+  const bearings = Array.from({ length: steps + 1 }, (_, index) => {
+    const bearing = toRadians((index / steps) * 360);
+    return {
+      sin: Math.sin(bearing),
+      cos: Math.cos(bearing),
+    };
+  });
+  waveCircleBearingCache.set(steps, bearings);
+  return bearings;
 }
 
 function destinationPoint([longitude, latitude], bearingDeg, distanceKm) {
@@ -4114,6 +4158,9 @@ function updateIntensityLayer() {
 
     const nextAreaData = buildIntensityAreaData(localAreaData, getSimulationStationElapsedSec());
     setGeoJsonSourceData("jma-local-areas", nextAreaData);
+    if (document.body.classList.contains("map-core-loading")) {
+      startupIntensityPaintVersion += 1;
+    }
     updateSetupResultOutputs();
   }
 
