@@ -210,11 +210,15 @@ h1 {
 }
 
 .feedback-info-button::before {
-  width: 18px;
-  height: 14px;
+  width: 20px;
+  height: 15px;
   border: 2px solid #ffffff;
-  border-radius: 5px;
-  transform: translate(-50%, -56%);
+  border-radius: 7px;
+  background:
+    radial-gradient(circle at 5px 7px, #ffffff 0 1.3px, transparent 1.5px),
+    radial-gradient(circle at 10px 7px, #ffffff 0 1.3px, transparent 1.5px),
+    radial-gradient(circle at 15px 7px, #ffffff 0 1.3px, transparent 1.5px);
+  transform: translate(-50%, -58%);
 }
 
 .feedback-info-button::after {
@@ -224,10 +228,11 @@ h1 {
   top: 50%;
   width: 7px;
   height: 7px;
-  border-right: 2px solid #ffffff;
+  border-left: 2px solid #ffffff;
   border-bottom: 2px solid #ffffff;
-  border-bottom-right-radius: 2px;
-  transform: translate(1px, 4px) rotate(32deg);
+  border-bottom-left-radius: 2px;
+  background: rgba(82, 87, 92, 0.92);
+  transform: translate(-5px, 4px) rotate(-36deg);
 }
 
 .source-info-panel {
