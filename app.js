@@ -572,7 +572,7 @@ const state = {
   maxIntensityLabel: "未計算",
   epicenterEditEnabled: true,
   showStationLayer: false,
-  showRegionLayer: true,
+  showRegionLayer: false,
   showEewWarningLayer: false,
   selectedPresetId: "",
   intensityColorScheme: "normal",
@@ -2023,9 +2023,9 @@ function addMapLayers() {
       "line-join": "round",
     },
     paint: {
-      "line-color": "#d5dee8",
-      "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.62, 7, 0.78, 10, 0.9],
-      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 1.05, 7, 1.7, 10, 2.45],
+      "line-color": "#c9d3dc",
+      "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.56, 7, 0.72, 10, 0.86],
+      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.9, 7, 1.45, 10, 2.05],
     },
   });
 
