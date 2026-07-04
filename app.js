@@ -58,6 +58,7 @@ const GEOLOCATION_CACHED_MAX_AGE_MS = 15000;
 const GEOLOCATION_IPAD_CACHED_MAX_AGE_MS = 120000;
 const WAVE_RENDER_RADIUS_STEP_KM = 0.05;
 const WAVE_CIRCLE_STEPS = 160;
+const RESET_VIEW_ANIMATION_MS = 1200;
 const LIGHT_DEFERRED_DATA_DELAY_MS = 180;
 const STATION_DEFERRED_DATA_DELAY_MS = 450;
 const PRESET_DEFERRED_DATA_DELAY_MS = 900;
@@ -2423,16 +2424,20 @@ function resetMapViewToInitial() {
       map.off("moveend", finish);
       resolve();
     };
-    const timeoutId = window.setTimeout(finish, 1300);
+    const timeoutId = window.setTimeout(finish, RESET_VIEW_ANIMATION_MS + 500);
     map.once("moveend", finish);
     map.easeTo({
       center: initialView.center,
       zoom: initialView.zoom,
-      duration: 820,
-      easing: (time) => 1 - (1 - time) ** 3,
+      duration: RESET_VIEW_ANIMATION_MS,
+      easing: smoothResetMapEasing,
       essential: true,
     });
   });
+}
+
+function smoothResetMapEasing(time) {
+  return time * time * time * (time * (time * 6 - 15) + 10);
 }
 
 function getInitialJapanBounds() {
@@ -3864,6 +3869,7 @@ function updateSimulationAvailability() {
   }
 
   if (resetViewAnimating) {
+    setStartupInteractionLocked(true);
     els.simulationStart.disabled = true;
     els.simulationStart.textContent = "しばらくお待ち下さい";
     els.simulationStart.title = "マップを初期位置へ移動しています";
