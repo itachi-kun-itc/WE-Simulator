@@ -570,6 +570,7 @@ const state = {
   eewWarningFinalReport: false,
   eewReportAreaKeySignature: "",
   eewSyntheticReportNumber: 0,
+  eewFirstReportElapsedSec: null,
   eewIssuedWarningKeys: new Set(),
   eewWarningBlinkStartedAt: {},
   eewInitialWarningKeys: new Set(),
@@ -1698,7 +1699,7 @@ async function showMapLayers() {
 function hydrateDeferredMapData() {
   loadSurroundingLand()
     .then((surroundingLand) => {
-      setGeoJsonSourceData("surrounding-land", surroundingLand);
+      setGeoJsonSourceData("surrounding-land", filterSurroundingLandForDisplay(surroundingLand));
     })
     .catch((error) => console.warn(error));
 
@@ -1711,7 +1712,8 @@ function hydrateDeferredMapData() {
       scheduleLocationResolve();
       updateIntensityLayer();
     })
-    .catch((error) => console.warn(error));
+    .catch((error) => console.warn(error))
+    .finally(() => updateSimulationAvailability());
 
   loadBoundaryLayers()
     .then((boundaries) => {
@@ -1728,7 +1730,8 @@ function hydrateDeferredMapData() {
       invalidateIntensityEstimateCache();
       updateIntensityLayer();
     })
-    .catch((error) => console.warn(error));
+    .catch((error) => console.warn(error))
+    .finally(() => updateSimulationAvailability());
 
   loadSeaEpicenterAreas()
     .then((seaAreas) => {
@@ -1748,7 +1751,8 @@ function hydrateDeferredMapData() {
       invalidateIntensityEstimateCache();
       updateIntensityLayer();
     })
-    .catch((error) => console.warn(error));
+    .catch((error) => console.warn(error))
+    .finally(() => updateSimulationAvailability());
 
   loadGroundModel()
     .then(() => {
@@ -1758,6 +1762,16 @@ function hydrateDeferredMapData() {
     .catch((error) => console.warn(error));
 
   loadEpicenterNames().catch((error) => console.warn(error));
+}
+
+function filterSurroundingLandForDisplay(geojson) {
+  return {
+    ...geojson,
+    features: (geojson.features ?? []).filter((feature) => {
+      const properties = feature.properties ?? {};
+      return properties.isoA3 !== "JPN" && properties.nameEn !== "Japan";
+    }),
+  };
 }
 
 function buildNeutralIntensityAreaData(geojson) {
@@ -2620,6 +2634,7 @@ function startSimulation() {
   state.eewWarningFinalReport = false;
   state.eewReportAreaKeySignature = "";
   state.eewSyntheticReportNumber = 0;
+  state.eewFirstReportElapsedSec = null;
   state.eewIssuedWarningKeys = new Set();
   state.eewWarningBlinkStartedAt = {};
   state.eewInitialWarningKeys = new Set();
@@ -2669,6 +2684,7 @@ function stopSimulation() {
   state.eewWarningFinalReport = false;
   state.eewReportAreaKeySignature = "";
   state.eewSyntheticReportNumber = 0;
+  state.eewFirstReportElapsedSec = null;
   state.eewIssuedWarningKeys = new Set();
   state.eewWarningBlinkStartedAt = {};
   state.eewInitialWarningKeys = new Set();
@@ -3294,14 +3310,26 @@ function updateSimulationAvailability() {
     return;
   }
 
+  if (isSimulationMapDataLoading()) {
+    els.simulationStart.disabled = true;
+    els.simulationStart.textContent = "マップを読み込み中...";
+    els.simulationStart.title = "マップと震度計算用データを読み込んでいます";
+    return;
+  }
+
   const predictedMaximum = getPredictedMaximumIntensity();
   const canStart =
     Number.isFinite(predictedMaximum.value) && predictedMaximum.rank >= 1;
 
   els.simulationStart.disabled = !canStart;
+  els.simulationStart.textContent = "シミュレーション開始";
   els.simulationStart.title = canStart
     ? ""
     : "震度1以上が見込まれないため開始できません";
+}
+
+function isSimulationMapDataLoading() {
+  return !municipalityDisplayData?.features?.length || !localAreaData?.features?.length || !shindoStationData;
 }
 
 async function updateEpicenter(options = {}) {
@@ -3946,6 +3974,7 @@ function updateEewReportState(features, selectedPreset, activePresetEewReport, e
     state.eewWarningFinalReport = isPresetFinalEewReport(selectedPreset, activePresetEewReport);
     state.eewReportAreaKeySignature = "";
     state.eewSyntheticReportNumber = 0;
+    state.eewFirstReportElapsedSec = null;
     return;
   }
 
@@ -3958,6 +3987,7 @@ function updateEewReportState(features, selectedPreset, activePresetEewReport, e
     state.eewWarningFinalReport = false;
     state.eewReportAreaKeySignature = "";
     state.eewSyntheticReportNumber = 0;
+    state.eewFirstReportElapsedSec = null;
     return;
   }
 
@@ -3967,6 +3997,7 @@ function updateEewReportState(features, selectedPreset, activePresetEewReport, e
     state.eewWarningFinalReport = !state.simulationRunning && !Number.isFinite(elapsedSec);
     state.eewReportAreaKeySignature = nextSignature;
     state.eewSyntheticReportNumber = 1;
+    state.eewFirstReportElapsedSec = null;
     return;
   }
 
@@ -3974,6 +4005,7 @@ function updateEewReportState(features, selectedPreset, activePresetEewReport, e
     state.eewReportAreaKeySignature ? state.eewReportAreaKeySignature.split("|") : [],
   );
   const hasAddedArea = warningKeys.some((key) => !previousWarningKeys.has(key));
+  state.eewFirstReportElapsedSec ??= elapsedSec;
 
   if (!state.eewReportAreaKeySignature) {
     state.eewSyntheticReportNumber = 1;
@@ -3981,9 +4013,13 @@ function updateEewReportState(features, selectedPreset, activePresetEewReport, e
     state.eewSyntheticReportNumber += 1;
   }
 
+  const timedReportNumber = getSimulationEewTimedReportNumber(elapsedSec);
+  state.eewSyntheticReportNumber = Math.max(state.eewSyntheticReportNumber, timedReportNumber);
   state.eewReportAreaKeySignature = nextSignature;
   state.eewWarningReportNumber = state.eewSyntheticReportNumber;
-  state.eewWarningFinalReport = !hasPendingSimulationEewUpdate(features, elapsedSec);
+  state.eewWarningFinalReport =
+    !hasPendingSimulationEewUpdate(features, elapsedSec) &&
+    hasSimulationEewHadEnoughReview(elapsedSec, state.eewSyntheticReportNumber);
 }
 
 function hasPendingSimulationEewUpdate(features, elapsedSec) {
@@ -4002,6 +4038,40 @@ function hasPendingSimulationEewUpdate(features, elapsedSec) {
 
     return true;
   });
+}
+
+function getSimulationEewTimedReportNumber(elapsedSec) {
+  if (!Number.isFinite(elapsedSec) || state.eewFirstReportElapsedSec == null) {
+    return state.eewSyntheticReportNumber || 1;
+  }
+
+  const intervalSec = getSimulationEewReportIntervalSec();
+  return Math.max(1, Math.floor((elapsedSec - state.eewFirstReportElapsedSec) / intervalSec) + 1);
+}
+
+function hasSimulationEewHadEnoughReview(elapsedSec, reportNumber) {
+  if (!Number.isFinite(elapsedSec) || state.eewFirstReportElapsedSec == null) {
+    return true;
+  }
+
+  const reviewElapsedSec = elapsedSec - state.eewFirstReportElapsedSec;
+  return (
+    reviewElapsedSec >= getSimulationEewMinimumReviewSec() &&
+    reportNumber >= getSimulationEewMinimumReportCount()
+  );
+}
+
+function getSimulationEewReportIntervalSec() {
+  return clamp(4.2 - Math.max(state.magnitude - 6.0, 0) * 0.45, 2.6, 4.2);
+}
+
+function getSimulationEewMinimumReviewSec() {
+  const offshoreFactor = getOffshoreEpicenterFactor();
+  return clamp(12 + Math.max(state.magnitude - 5.5, 0) * 13 + offshoreFactor * 9, 12, 96);
+}
+
+function getSimulationEewMinimumReportCount() {
+  return Math.round(clamp(3 + Math.max(state.magnitude - 5.5, 0) * 7.1, 3, 30));
 }
 
 function isPresetFinalEewReport(preset, activePresetEewReport) {
@@ -4616,7 +4686,7 @@ function getPWaveRiseProgress(properties, elapsedSec) {
 
   const spGapSec = Math.max(properties.sArrivalSec - properties.pArrivalSec, 0.5);
   const siteResponse = properties.pWaveSiteResponse ?? 0.5;
-  const quickOnsetSec = clamp(spGapSec * (0.22 + (1 - siteResponse) * 0.12), 0.38, 1.55);
+  const quickOnsetSec = clamp(spGapSec * (0.12 + (1 - siteResponse) * 0.08), 0.18, 0.82);
   const quickOnset = smoothStep(clamp(timeSincePArrivalSec / quickOnsetSec, 0, 1));
   const preSwell = smoothStep(
     clamp(
@@ -4646,22 +4716,24 @@ function getPWaveIntensityTarget(properties) {
   const strongMotionFactor = clamp((finalIntensity - 2.5) / 3.6, 0, 1);
   const siteResponse = properties.pWaveSiteResponse ?? 0.5;
   const share =
-    0.27 +
-    magnitudeFactor * 0.09 +
-    groundFactor * 0.11 +
-    strongMotionFactor * 0.13 +
-    siteResponse * 0.05;
+    0.31 +
+    magnitudeFactor * 0.1 +
+    groundFactor * 0.13 +
+    strongMotionFactor * 0.14 +
+    siteResponse * 0.07;
   const pWaveFloor =
     finalIntensity >= 1.5
-      ? (0.68 + magnitudeFactor * 0.22 + groundFactor * 0.28 + strongMotionFactor * 0.34 + siteResponse * 0.18) *
+      ? (0.86 + magnitudeFactor * 0.24 + groundFactor * 0.34 + strongMotionFactor * 0.38 + siteResponse * 0.22) *
         distanceFactor
-      : 0.35 + magnitudeFactor * 0.1;
+      : finalIntensity >= 0.5
+        ? 0.52 + magnitudeFactor * 0.12 + groundFactor * 0.08 + siteResponse * 0.08
+        : 0.25 + magnitudeFactor * 0.08;
   const pWaveCeiling =
-    1.18 +
-    magnitudeFactor * 0.68 +
-    groundFactor * 0.62 +
-    strongMotionFactor * 1.22 +
-    siteResponse * 0.32;
+    1.35 +
+    magnitudeFactor * 0.72 +
+    groundFactor * 0.72 +
+    strongMotionFactor * 1.28 +
+    siteResponse * 0.36;
   const target = Math.max(finalIntensity * share, pWaveFloor);
   return clamp(target, 0, Math.min(finalIntensity * 0.74, pWaveCeiling, 3.25));
 }
@@ -4681,9 +4753,9 @@ function getStationWaveResponseProperties(key, finalIntensity, ground = {}) {
     1,
   );
   const pWaveRiseDelaySec = clamp(
-    pDelayNoise * 0.72 + (1 - pWaveSiteResponse) * 0.42 - finalFactor * 0.24,
+    pDelayNoise * 0.22 + (1 - pWaveSiteResponse) * 0.12 - finalFactor * 0.08,
     0,
-    0.95,
+    0.34,
   );
   const sWaveRiseDelaySec = clamp(
     sDelayNoise * 0.68 + (1 - softness) * 0.24 - finalFactor * 0.14,

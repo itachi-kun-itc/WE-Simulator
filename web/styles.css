@@ -210,13 +210,24 @@ h1 {
 }
 
 .feedback-info-button::before {
-  border: 0;
+  width: 18px;
+  height: 14px;
+  border: 2px solid #ffffff;
+  border-radius: 5px;
+  transform: translate(-50%, -56%);
 }
 
 .feedback-info-button::after {
-  content: "🤵";
-  font-size: 1.1rem;
-  transform: translate(-50%, -50%);
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid #ffffff;
+  border-bottom: 2px solid #ffffff;
+  border-bottom-right-radius: 2px;
+  transform: translate(1px, 4px) rotate(32deg);
 }
 
 .source-info-panel {
