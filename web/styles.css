@@ -1340,6 +1340,10 @@ body.app-loading #setup-panel button:not(#simulation-start) {
     overflow: hidden;
   }
 
+  .maplibregl-ctrl-top-right {
+    right: 6px;
+  }
+
   .app-shell {
     height: var(--app-height, 100svh);
     height: var(--app-height, 100dvh);
