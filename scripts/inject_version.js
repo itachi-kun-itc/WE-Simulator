@@ -21,7 +21,9 @@ if (!fs.existsSync(indexPath)) {
 }
 
 const pkg = readJSON(pkgPath);
-const version = pkg.version || String(Date.now());
+const version = process.env.GITHUB_SHA
+  ? process.env.GITHUB_SHA.slice(0, 12)
+  : pkg.version || String(Date.now());
 
 let html = fs.readFileSync(indexPath, 'utf8');
 

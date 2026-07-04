@@ -434,6 +434,110 @@ const INTENSITY_COLOR_SCHEMES = {
       7: "#ffffff",
     },
   },
+  p: {
+    colors: {
+      0: "#d7dce2",
+      1: "#ffffff",
+      2: "#8bd7ff",
+      3: "#0072b2",
+      4: "#f6e58d",
+      "5-": "#f0c84b",
+      "5+": "#d58a22",
+      "6-": "#b15f9c",
+      "6+": "#7b3f98",
+      7: "#332288",
+    },
+    textColors: {
+      0: "#1f2937",
+      1: "#111827",
+      2: "#102a35",
+      3: "#ffffff",
+      4: "#111827",
+      "5-": "#111827",
+      "5+": "#111827",
+      "6-": "#ffffff",
+      "6+": "#ffffff",
+      7: "#ffffff",
+    },
+  },
+  d: {
+    colors: {
+      0: "#d7dce2",
+      1: "#ffffff",
+      2: "#9bd9ff",
+      3: "#006fb8",
+      4: "#f4e47d",
+      "5-": "#e8c13c",
+      "5+": "#c8841f",
+      "6-": "#b65d8d",
+      "6+": "#8644a3",
+      7: "#442288",
+    },
+    textColors: {
+      0: "#1f2937",
+      1: "#111827",
+      2: "#102a35",
+      3: "#ffffff",
+      4: "#111827",
+      "5-": "#111827",
+      "5+": "#111827",
+      "6-": "#ffffff",
+      "6+": "#ffffff",
+      7: "#ffffff",
+    },
+  },
+  t: {
+    colors: {
+      0: "#d9dde3",
+      1: "#ffffff",
+      2: "#b9c8ff",
+      3: "#3f5fbf",
+      4: "#f2d572",
+      "5-": "#d9a837",
+      "5+": "#b97720",
+      "6-": "#b24747",
+      "6+": "#7f2d5f",
+      7: "#42185f",
+    },
+    textColors: {
+      0: "#1f2937",
+      1: "#111827",
+      2: "#111827",
+      3: "#ffffff",
+      4: "#111827",
+      "5-": "#111827",
+      "5+": "#ffffff",
+      "6-": "#ffffff",
+      "6+": "#ffffff",
+      7: "#ffffff",
+    },
+  },
+  a: {
+    colors: {
+      0: "#e6e8ec",
+      1: "#ffffff",
+      2: "#d2d6dc",
+      3: "#aeb6c0",
+      4: "#8f99a6",
+      "5-": "#707b88",
+      "5+": "#586370",
+      "6-": "#404a56",
+      "6+": "#2d3540",
+      7: "#171d26",
+    },
+    textColors: {
+      0: "#111827",
+      1: "#111827",
+      2: "#111827",
+      3: "#111827",
+      4: "#ffffff",
+      "5-": "#ffffff",
+      "5+": "#ffffff",
+      "6-": "#ffffff",
+      "6+": "#ffffff",
+      7: "#ffffff",
+    },
+  },
 };
 
 function observationsFromNames(stationNames, intensityValue) {
@@ -544,7 +648,6 @@ let stationHoverEventsBound = false;
 let currentLocationMarker;
 let currentLocationRequestId = 0;
 let locationResolveTimer;
-let mapResizeObserver;
 let simulationFrame;
 let simulationStartedAt;
 let simulationPausedAt;
@@ -718,9 +821,13 @@ function renderIntensityColorSchemeOptions() {
   }
 
   const options = [
-    ["high", "高コントラスト"],
     ["normal", "気象庁配色"],
+    ["high", "高コントラスト"],
     ["low", "低コントラスト"],
+    ["p", "P型色覚"],
+    ["d", "D型色覚"],
+    ["t", "T型色覚"],
+    ["a", "A型色覚"],
   ].map(([value, label]) => {
     const option = document.createElement("option");
     option.value = value;
@@ -878,8 +985,8 @@ function updateLegendColors() {
   }
 
   const labels = isOldJmaScaleSyntheticPreset(getSelectedPreset())
-    ? ["7", "6", "5", "4", "3", "2", "1", "0"]
-    : ["7", "6+", "6-", "5+", "5-", "4", "3", "2", "1", "0"];
+    ? ["7", "6", "5", "4", "3", "2", "1"]
+    : ["7", "6+", "6-", "5+", "5-", "4", "3", "2", "1"];
   legendScale.replaceChildren(
     ...labels.map((label) => {
       const item = document.createElement("span");
@@ -1175,7 +1282,7 @@ function scheduleMapResize() {
     return;
   }
 
-  [0, 80, 240, 600].forEach((delay) => {
+  [0, 50, 150, 350, 800, 1400].forEach((delay) => {
     window.setTimeout(() => {
       updateAppViewportHeight();
       map?.resize();
@@ -1183,58 +1290,8 @@ function scheduleMapResize() {
   });
 }
 
-function getMapContainerSize() {
-  const container = document.querySelector("#map");
-  if (!container) {
-    return { width: 0, height: 0 };
-  }
-
-  const rect = container.getBoundingClientRect();
-  return {
-    width: rect.width,
-    height: rect.height,
-  };
-}
-
-async function waitForMapContainerSize() {
-  for (let attempt = 0; attempt < 16; attempt += 1) {
-    updateAppViewportHeight();
-    const { width, height } = getMapContainerSize();
-    if (width >= 120 && height >= 120) {
-      return true;
-    }
-
-    await new Promise((resolve) => window.setTimeout(resolve, attempt < 4 ? 50 : 120));
-  }
-
-  return false;
-}
-
-function setupMapResizeObserver() {
-  if (mapResizeObserver || typeof ResizeObserver === "undefined") {
-    return;
-  }
-
-  const container = document.querySelector("#map");
-  if (!container) {
-    return;
-  }
-
-  mapResizeObserver = new ResizeObserver((entries) => {
-    const entry = entries[0];
-    const size = entry?.contentRect;
-    if (!size || size.width < 1 || size.height < 1) {
-      return;
-    }
-
-    scheduleMapResize();
-  });
-  mapResizeObserver.observe(container);
-}
-
 async function initEarthquakeMap() {
   updateAppViewportHeight();
-  await waitForMapContainerSize();
   map = new maplibregl.Map({
     container: "map",
     style: {
@@ -1266,7 +1323,6 @@ async function initEarthquakeMap() {
   map.dragRotate.disable();
   map.touchZoomRotate.disableRotation();
   map.keyboard?.disableRotation?.();
-  setupMapResizeObserver();
   scheduleMapResize();
 
   addZoomOnlyControl();

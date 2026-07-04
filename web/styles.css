@@ -1232,6 +1232,7 @@ h1 {
     border-radius: 6px;
     min-height: 42px;
     padding: 8px 12px;
+    margin-bottom: max(4px, env(safe-area-inset-bottom));
     box-shadow: 0 -8px 16px rgba(2, 4, 5, 0.6);
     text-align: center;
   }
