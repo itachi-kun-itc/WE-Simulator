@@ -4,6 +4,7 @@ const JMA_LOCAL_AREAS_URL = "./data/jma_local_areas.geojson";
 const SEA_EPICENTER_AREAS_URL = "./data/sea_epicenter_areas.geojson";
 const PLATE_BOUNDARIES_URL = "./data/plate_boundaries.geojson";
 const SURROUNDING_LAND_URL = "./data/surrounding_land.geojson";
+const NORTHERN_ISLANDS_LAND_URL = "./data/northern_islands_land.geojson";
 const GROUND_MODEL_URL = "./data/ground_model.json";
 const SHINDO_STATIONS_URL = "./data/jma_shindo_stations.json";
 const EARTHQUAKE_PRESETS_URL = "./data/earthquake_presets.json";
@@ -566,13 +567,13 @@ const state = {
   latitude: 35.681,
   longitude: 139.767,
   depthKm: 10,
-  magnitude: 6.0,
+  magnitude: 5.0,
   epicenterName: "未選択",
   municipalityName: "未選択",
   maxIntensityLabel: "未計算",
-  epicenterEditEnabled: true,
+  epicenterEditEnabled: false,
   showStationLayer: false,
-  showRegionLayer: false,
+  showRegionLayer: true,
   showEewWarningLayer: false,
   selectedPresetId: "",
   intensityColorScheme: "normal",
@@ -652,6 +653,8 @@ let plateBoundaryData;
 let plateBoundaryLoadPromise;
 let surroundingLandData;
 let surroundingLandLoadPromise;
+let northernIslandsLandData;
+let northernIslandsLandLoadPromise;
 let groundModelData;
 let groundModelLoadPromise;
 let shindoStationData;
@@ -668,6 +671,10 @@ let currentLocationMarker;
 let currentLocationRequestId = 0;
 let locationResolveTimer;
 let simulationFrame;
+let municipalityBoundaryVisibilityTimer;
+let startupMapVisualReadyTimer;
+let startupMapVisualReady = false;
+let municipalityBoundaryVisible = false;
 let simulationStartedAt;
 let simulationPausedAt;
 let simulationPreviousEpicenterEditEnabled = false;
@@ -962,7 +969,7 @@ function bindSimulationControls() {
     state.latitude = 35.681;
     state.longitude = 139.767;
     state.depthKm = 10;
-    state.magnitude = 6.0;
+    state.magnitude = 5.0;
     state.selectedPresetId = "";
     state.epicenterName = "未選択";
     state.municipalityName = "未選択";
@@ -1692,6 +1699,7 @@ function formatSourceUpdatedAt(value) {
 }
 
 async function showMapLayers() {
+  document.body.classList.add("map-core-loading");
   addGeoJsonSource("surrounding-land", emptyFeatureCollection());
   addGeoJsonSource("municipalities", emptyFeatureCollection());
   addGeoJsonSource("municipalities-linework", emptyFeatureCollection());
@@ -1712,12 +1720,38 @@ async function showMapLayers() {
   hydrateDeferredMapData();
 }
 
-function hydrateDeferredMapData() {
-  loadMunicipalitySourceData()
-    .then((municipalities) => {
+async function hydrateDeferredMapData() {
+  try {
+    const [
+      municipalities,
+      surroundingLand,
+      boundaries,
+      localAreas,
+      seaAreas,
+      plateBoundaries,
+      northernIslandsLand,
+    ] = await Promise.all([
+      loadMunicipalitySourceData(),
+      loadSurroundingLand(),
+      loadBoundaryLayers(),
+      loadLocalAreas(),
+      loadSeaEpicenterAreas(),
+      loadPlateBoundaries(),
+      loadNorthernIslandsLand(),
+    ]);
+
+    window.requestAnimationFrame(() => {
       const displayMunicipalities = filterExcludedGeoJsonFeatures(municipalities);
       municipalityDisplayData = municipalityDisplayData ?? withoutInteriorRings(displayMunicipalities);
-      setGeoJsonSourceData("municipalities", municipalityDisplayData);
+
+      setGeoJsonSourceData("surrounding-land", filterSurroundingLandForDisplay(surroundingLand));
+      setGeoJsonSourceData(
+        "boundaries",
+        removeExcludedJapanIslandLinework(filterExcludedGeoJsonFeatures(boundaries)),
+      );
+      setGeoJsonSourceData("sea-epicenter-areas", seaAreas);
+      setGeoJsonSourceData("plate-boundaries", plateBoundaries);
+      setNorthernIslandDisplayData(withoutInteriorRings(northernIslandsLand));
       setGeoJsonSourceData(
         "municipalities-linework",
         removeExcludedJapanIslandPolygons(municipalityDisplayData),
@@ -1726,18 +1760,60 @@ function hydrateDeferredMapData() {
         "excluded-japan-islands",
         extractExcludedJapanIslandPolygons(municipalityDisplayData),
       );
-      setGeoJsonSourceData(
-        "northern-islands-land",
-        extractNorthernIslandDisplayPolygons(withoutInteriorRings(municipalities)),
-      );
+      setGeoJsonSourceData("municipalities", municipalityDisplayData);
+      showMunicipalityLinework();
+      invalidateIntensityEstimateCache();
       scheduleLocationResolve();
       updateIntensityLayer();
-    })
-    .catch((error) => console.warn(error))
-    .finally(() => {
       updateSimulationAvailability();
-      schedulePostMunicipalityDataHydration();
     });
+  } catch (error) {
+    console.warn(error);
+    document.body.classList.remove("map-core-loading");
+  } finally {
+    updateSimulationAvailability();
+    schedulePostMunicipalityDataHydration();
+  }
+}
+
+function showMunicipalityLinework() {
+  startupMapVisualReady = false;
+  municipalityBoundaryVisible = false;
+  updateLayerVisibility("japan-land-gap-fill", true);
+  updateLayerVisibility("municipality-boundaries", false);
+  window.clearTimeout(municipalityBoundaryVisibilityTimer);
+  window.clearTimeout(startupMapVisualReadyTimer);
+  startupMapVisualReadyTimer = null;
+  municipalityBoundaryVisibilityTimer = window.setTimeout(() => {
+    window.requestAnimationFrame(() => {
+      updateLayerVisibility("municipality-boundaries", true);
+      municipalityBoundaryVisible = true;
+      updateIntensityLayer();
+      scheduleStartupReadyAfterIntensityPaint();
+    });
+  }, 360);
+}
+
+function scheduleStartupReadyAfterIntensityPaint() {
+  if (
+    startupMapVisualReady ||
+    startupMapVisualReadyTimer ||
+    !municipalityBoundaryVisible ||
+    !municipalityDisplayData?.features?.length ||
+    !localAreaData?.features?.length ||
+    !shindoStationData
+  ) {
+    return;
+  }
+
+  window.requestAnimationFrame(() => {
+    startupMapVisualReadyTimer = window.setTimeout(() => {
+      startupMapVisualReady = true;
+      startupMapVisualReadyTimer = null;
+      document.body.classList.remove("map-core-loading");
+      updateSimulationAvailability();
+    }, 1600);
+  });
 }
 
 function schedulePostMunicipalityDataHydration() {
@@ -1764,45 +1840,6 @@ function scheduleDeferredTask(callback, delayMs = 0, timeoutMs = 3000) {
 }
 
 function loadSecondaryMapData() {
-  loadSurroundingLand()
-    .then((surroundingLand) => {
-      setGeoJsonSourceData("surrounding-land", filterSurroundingLandForDisplay(surroundingLand));
-    })
-    .catch((error) => console.warn(error));
-
-  loadBoundaryLayers()
-    .then((boundaries) => {
-      setGeoJsonSourceData(
-        "boundaries",
-        removeExcludedJapanIslandLinework(filterExcludedGeoJsonFeatures(boundaries)),
-      );
-    })
-    .catch((error) => console.warn(error));
-
-  loadLocalAreas()
-    .then((localAreas) => {
-      setGeoJsonSourceData(
-        "jma-local-areas",
-        buildNeutralIntensityAreaData(filterExcludedGeoJsonFeatures(localAreas)),
-      );
-      invalidateIntensityEstimateCache();
-      updateIntensityLayer();
-    })
-    .catch((error) => console.warn(error))
-    .finally(() => updateSimulationAvailability());
-
-  loadSeaEpicenterAreas()
-    .then((seaAreas) => {
-      setGeoJsonSourceData("sea-epicenter-areas", filterExcludedGeoJsonFeatures(seaAreas));
-    })
-    .catch((error) => console.warn(error));
-
-  loadPlateBoundaries()
-    .then((plateBoundaries) => {
-      setGeoJsonSourceData("plate-boundaries", plateBoundaries);
-    })
-    .catch((error) => console.warn(error));
-
   loadEpicenterNames().catch((error) => console.warn(error));
 }
 
@@ -1832,12 +1869,38 @@ function filterSurroundingLandForDisplay(geojson) {
     features: (geojson.features ?? []).flatMap((feature) => {
       const properties = feature.properties ?? {};
       if (properties.isoA3 !== "JPN" && properties.nameEn !== "Japan") {
-        return [feature];
+        return removeNorthernIslandDisplayPolygonsFromFeature(feature);
       }
 
       return [];
     }),
   };
+}
+
+function removeNorthernIslandDisplayPolygonsFromFeature(feature) {
+  const geometry = feature.geometry;
+  if (!geometry?.coordinates) {
+    return [feature];
+  }
+
+  if (geometry.type === "MultiPolygon") {
+    const coordinates = geometry.coordinates.filter((polygon) => !isNorthernIslandDisplayPolygon(polygon));
+    return coordinates.length > 0
+      ? [{
+          ...feature,
+          geometry: {
+            ...geometry,
+            coordinates,
+          },
+        }]
+      : [];
+  }
+
+  if (geometry.type === "Polygon" && isNorthernIslandDisplayPolygon(geometry.coordinates)) {
+    return [];
+  }
+
+  return [feature];
 }
 
 function getExcludedJapanIslandLandFeature(feature) {
@@ -1882,7 +1945,7 @@ function isExcludedJapanIslandPolygon(polygon) {
     return false;
   }
 
-  return EXCLUDED_JAPAN_LAND_BOUNDS.some((bounds) => pointInBounds(center, bounds));
+  return isPointInExcludedJapanDisplayBounds(center);
 }
 
 function pointInBounds([longitude, latitude], bounds) {
@@ -1955,7 +2018,7 @@ function addMapLayers() {
     paint: {
       "fill-antialias": false,
       "fill-color": "#8c9298",
-      "fill-outline-color": "#8c9298",
+      "fill-outline-color": "rgba(140, 146, 152, 0)",
       "fill-opacity": 1,
     },
   });
@@ -1982,7 +2045,7 @@ function addMapLayers() {
     paint: {
       "fill-antialias": false,
       "fill-color": "#8c9298",
-      "fill-outline-color": "#8c9298",
+      "fill-outline-color": "rgba(140, 146, 152, 0)",
       "fill-opacity": 1,
     },
   });
@@ -2001,6 +2064,7 @@ function addMapLayers() {
       "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.45, 7, 0.75, 10, 1.05],
     },
   });
+  updateLayerVisibility("excluded-japan-islands-outline", false);
 
   addLayerIfMissing({
     id: "northern-islands-land-fill",
@@ -2028,6 +2092,7 @@ function addMapLayers() {
       "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.9, 7, 1.45, 10, 2.05],
     },
   });
+  updateLayerVisibility("northern-islands-land-outline", false);
 
   addLayerIfMissing({
     id: "plate-boundaries",
@@ -2094,6 +2159,7 @@ function addMapLayers() {
       "line-width": ["interpolate", ["linear"], ["zoom"], 8, 0.36, 10, 0.58],
     },
   });
+  updateLayerVisibility("municipality-boundaries", false);
 
   addLayerIfMissing({
     id: "prefecture-boundaries",
@@ -2228,6 +2294,8 @@ function moveLayerToTop(layerId) {
 }
 
 function keepWaveAndStationLayerOrder() {
+  moveLayerToTop("northern-islands-land-fill");
+  moveLayerToTop("northern-islands-land-outline");
   moveLayerToTop("p-wave-fill");
   moveLayerToTop("p-wave-line");
   moveLayerToTop("s-wave-fill");
@@ -2257,8 +2325,8 @@ function fitInitialMapBounds(bounds) {
 
 function getInitialMapPadding() {
   return isCompactViewport()
-    ? { top: 22, right: 12, bottom: 88, left: 12 }
-    : { top: 18, right: 18, bottom: 18, left: 390 };
+    ? { top: 22, right: 64, bottom: 88, left: 12 }
+    : { top: 18, right: 90, bottom: 18, left: 390 };
 }
 
 function getInitialJapanBounds() {
@@ -3265,6 +3333,19 @@ async function loadSurroundingLand() {
   return surroundingLandData;
 }
 
+async function loadNorthernIslandsLand() {
+  if (northernIslandsLandData) {
+    return northernIslandsLandData;
+  }
+
+  if (!northernIslandsLandLoadPromise) {
+    northernIslandsLandLoadPromise = fetchJson(NORTHERN_ISLANDS_LAND_URL, "Northern islands land GeoJSON");
+  }
+
+  northernIslandsLandData = await northernIslandsLandLoadPromise;
+  return northernIslandsLandData;
+}
+
 async function loadGroundModel() {
   if (groundModelData) {
     return groundModelData;
@@ -3447,6 +3528,14 @@ function extractNorthernIslandDisplayPolygons(geojson) {
   };
 }
 
+function setNorthernIslandDisplayData(geojson) {
+  setGeoJsonSourceData("northern-islands-land", {
+    type: "FeatureCollection",
+    name: "Northern islands land display",
+    features: geojson.features ?? [],
+  });
+}
+
 function isNorthernIslandDisplayPolygon(polygon) {
   const outerRing = polygon?.[0];
   if (!Array.isArray(outerRing) || outerRing.length === 0) {
@@ -3502,6 +3591,14 @@ function lineIntersectsExcludedJapanIslandBounds(line) {
   return EXCLUDED_JAPAN_LAND_BOUNDS.some((bounds) =>
     line.some((coordinate) => pointInBounds(coordinate, bounds)),
   );
+}
+
+function getExcludedJapanDisplayBounds() {
+  return [...EXCLUDED_JAPAN_LAND_BOUNDS, ...NORTHERN_ISLAND_DISPLAY_BOUNDS];
+}
+
+function isPointInExcludedJapanDisplayBounds(point) {
+  return getExcludedJapanDisplayBounds().some((bounds) => pointInBounds(point, bounds));
 }
 
 function updateStateFromInputs(options = {}) {
@@ -3677,7 +3774,7 @@ function updateSimulationAvailability() {
 }
 
 function isSimulationMapDataLoading() {
-  return !municipalityDisplayData?.features?.length || !localAreaData?.features?.length || !shindoStationData;
+  return !startupMapVisualReady || !municipalityDisplayData?.features?.length || !localAreaData?.features?.length || !shindoStationData;
 }
 
 function setStartupInteractionLocked(locked) {
@@ -3877,12 +3974,16 @@ function updateIntensityLayer() {
   }
 
   if (map.getSource("jma-local-areas")) {
-    const nextAreaData = shindoStationData
-      ? buildIntensityAreaData(localAreaData, getSimulationStationElapsedSec())
-      : buildNeutralIntensityAreaData(localAreaData);
+    if (!shindoStationData) {
+      updateSimulationAvailability();
+      return;
+    }
+
+    const nextAreaData = buildIntensityAreaData(localAreaData, getSimulationStationElapsedSec());
     setGeoJsonSourceData("jma-local-areas", nextAreaData);
   }
 
+  scheduleStartupReadyAfterIntensityPaint();
   updateSimulationAvailability();
 }
 
