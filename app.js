@@ -16,6 +16,8 @@ const FEEDBACK_ENDPOINT_URL =
 
 const INITIAL_CENTER = [136.1, 36.8];
 const INITIAL_ZOOM = 6;
+const MOBILE_INITIAL_CENTER = [138.9, 35.95];
+const MOBILE_INITIAL_ZOOM = 6;
 const JAPAN_AREA_PAN_BOUNDS = [
   [92, 0],
   [176, 64],
@@ -977,7 +979,8 @@ function bindSimulationControls() {
     invalidateIntensityEstimateCache();
     syncInputs();
     updateEpicenter({ resolveLocation: true, enforceManagedArea: true });
-    map.easeTo({ center: INITIAL_CENTER, zoom: INITIAL_ZOOM, duration: 450 });
+    const initialView = getInitialMapView();
+    map.easeTo({ center: initialView.center, zoom: initialView.zoom, duration: 450 });
   });
 
   syncInputs();
@@ -1364,8 +1367,8 @@ async function initEarthquakeMap() {
         },
       ],
     },
-    center: INITIAL_CENTER,
-    zoom: INITIAL_ZOOM,
+    center: getInitialMapView().center,
+    zoom: getInitialMapView().zoom,
     minZoom: 4,
     maxZoom: 10,
     maxBounds: JAPAN_AREA_PAN_BOUNDS,
@@ -1815,11 +1818,50 @@ function scheduleStartupReadyAfterIntensityPaint() {
 
   window.requestAnimationFrame(() => {
     startupMapVisualReadyTimer = window.setTimeout(() => {
-      startupMapVisualReady = true;
-      startupMapVisualReadyTimer = null;
-      document.body.classList.remove("map-core-loading");
-      updateSimulationAvailability();
+      waitForStartupMapPaint().then(releaseStartupMapOverlay);
     }, getStartupOverlayReleaseDelayMs());
+  });
+}
+
+function releaseStartupMapOverlay() {
+  startupMapVisualReady = true;
+  startupMapVisualReadyTimer = null;
+  document.body.classList.remove("map-core-loading");
+  updateSimulationAvailability();
+}
+
+function waitForStartupMapPaint() {
+  if (!isCompactViewport() && !isTabletViewport()) {
+    return Promise.resolve();
+  }
+
+  return waitForMapIdle(1200).then(
+    () =>
+      new Promise((resolve) => {
+        window.requestAnimationFrame(() => window.requestAnimationFrame(resolve));
+      }),
+  );
+}
+
+function waitForMapIdle(timeoutMs = 1200) {
+  if (!map || map.loaded()) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      window.clearTimeout(timeoutId);
+      map.off("idle", finish);
+      resolve();
+    };
+    const timeoutId = window.setTimeout(finish, timeoutMs);
+    map.once("idle", finish);
   });
 }
 
@@ -2334,10 +2376,17 @@ function fitInitialMapBounds(bounds) {
     return;
   }
 
+  const initialView = getInitialMapView();
   map.jumpTo({
-    center: INITIAL_CENTER,
-    zoom: INITIAL_ZOOM,
+    center: initialView.center,
+    zoom: initialView.zoom,
   });
+}
+
+function getInitialMapView() {
+  return isCompactViewport()
+    ? { center: MOBILE_INITIAL_CENTER, zoom: MOBILE_INITIAL_ZOOM }
+    : { center: INITIAL_CENTER, zoom: INITIAL_ZOOM };
 }
 
 function getInitialJapanBounds() {
