@@ -56,8 +56,8 @@ const GEOLOCATION_MAX_WAIT_MS = 16000;
 const GEOLOCATION_IPAD_MAX_WAIT_MS = 32000;
 const GEOLOCATION_CACHED_MAX_AGE_MS = 15000;
 const GEOLOCATION_IPAD_CACHED_MAX_AGE_MS = 120000;
-const WAVE_RENDER_RADIUS_STEP_KM = 0.25;
-const WAVE_CIRCLE_STEPS = 96;
+const WAVE_RENDER_RADIUS_STEP_KM = 0.05;
+const WAVE_CIRCLE_STEPS = 160;
 const LIGHT_DEFERRED_DATA_DELAY_MS = 180;
 const STATION_DEFERRED_DATA_DELAY_MS = 450;
 const PRESET_DEFERRED_DATA_DELAY_MS = 900;
@@ -686,6 +686,7 @@ let simulationRenderBucket = -1;
 let maxStationListRenderBucket = null;
 let simulationTimeTextCache = "";
 let waveRenderRadiusCache = { p: null, s: null };
+let resetViewAnimating = false;
 let localAreaStationMembershipCache;
 let areaEpicentralDistanceCache = {
   key: "",
@@ -768,6 +769,7 @@ renderMagnitudeOptions();
 renderEarthquakePresetOptions();
 renderIntensityColorSchemeOptions();
 setStartupInteractionLocked(true);
+setInitialSimulationStartLoadingState();
 bindSimulationControls();
 applyIntensityColorScheme(state.intensityColorScheme, { refreshLayers: false });
 setupMobileSheets();
@@ -781,6 +783,16 @@ if (window.maplibregl) {
   });
 } else {
   els.status.textContent = "MapLibre GL JSを読み込めませんでした";
+}
+
+function setInitialSimulationStartLoadingState() {
+  if (!els.simulationStart) {
+    return;
+  }
+
+  els.simulationStart.disabled = true;
+  els.simulationStart.textContent = "マップを読み込み中...";
+  els.simulationStart.title = "マップと震度計算用データを読み込んでいます";
 }
 
 function setupTabs() {
@@ -979,8 +991,12 @@ function bindSimulationControls() {
     invalidateIntensityEstimateCache();
     syncInputs();
     updateEpicenter({ resolveLocation: true, enforceManagedArea: true });
-    const initialView = getInitialMapView();
-    map.easeTo({ center: initialView.center, zoom: initialView.zoom, duration: 450 });
+    resetViewAnimating = true;
+    updateSimulationAvailability();
+    resetMapViewToInitial().finally(() => {
+      resetViewAnimating = false;
+      updateSimulationAvailability();
+    });
   });
 
   syncInputs();
@@ -2387,6 +2403,36 @@ function getInitialMapView() {
   return isCompactViewport()
     ? { center: MOBILE_INITIAL_CENTER, zoom: MOBILE_INITIAL_ZOOM }
     : { center: INITIAL_CENTER, zoom: INITIAL_ZOOM };
+}
+
+function resetMapViewToInitial() {
+  if (!map) {
+    return Promise.resolve();
+  }
+
+  const initialView = getInitialMapView();
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      window.clearTimeout(timeoutId);
+      map.off("moveend", finish);
+      resolve();
+    };
+    const timeoutId = window.setTimeout(finish, 1300);
+    map.once("moveend", finish);
+    map.easeTo({
+      center: initialView.center,
+      zoom: initialView.zoom,
+      duration: 820,
+      easing: (time) => 1 - (1 - time) ** 3,
+      essential: true,
+    });
+  });
 }
 
 function getInitialJapanBounds() {
@@ -3796,8 +3842,7 @@ function syncInputs() {
     els.intensityColorScheme.value = state.intensityColorScheme;
   }
   els.epicenterRegion.value = state.epicenterName;
-  els.municipalityOutput.textContent = state.municipalityName;
-  els.maxIntensityOutput.textContent = state.maxIntensityLabel;
+  updateSetupResultOutputs();
   els.stationLayerToggle.checked = state.showStationLayer;
   els.regionLayerToggle.checked = state.showRegionLayer;
   els.eewWarningToggle.checked = state.showEewWarningLayer;
@@ -3815,6 +3860,13 @@ function updateSimulationAvailability() {
     setStartupInteractionLocked(false);
     els.simulationStart.disabled = false;
     els.simulationStart.title = "";
+    return;
+  }
+
+  if (resetViewAnimating) {
+    els.simulationStart.disabled = true;
+    els.simulationStart.textContent = "しばらくお待ち下さい";
+    els.simulationStart.title = "マップを初期位置へ移動しています";
     return;
   }
 
@@ -3836,6 +3888,16 @@ function updateSimulationAvailability() {
   els.simulationStart.title = canStart
     ? ""
     : "震度1以上が見込まれないため開始できません";
+}
+
+function updateSetupResultOutputs() {
+  if (els.municipalityOutput) {
+    els.municipalityOutput.textContent = state.municipalityName;
+  }
+
+  if (els.maxIntensityOutput) {
+    els.maxIntensityOutput.textContent = state.maxIntensityLabel;
+  }
 }
 
 function isSimulationMapDataLoading() {
@@ -4046,6 +4108,7 @@ function updateIntensityLayer() {
 
     const nextAreaData = buildIntensityAreaData(localAreaData, getSimulationStationElapsedSec());
     setGeoJsonSourceData("jma-local-areas", nextAreaData);
+    updateSetupResultOutputs();
   }
 
   scheduleStartupReadyAfterIntensityPaint();
