@@ -1901,17 +1901,6 @@ function addMapLayers() {
   });
 
   addLayerIfMissing({
-    id: "japan-land-edge-cover",
-    type: "line",
-    source: "municipalities",
-    paint: {
-      "line-color": "#8c9298",
-      "line-opacity": 1,
-      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 5.2, 7, 3.2, 10, 1.2],
-    },
-  });
-
-  addLayerIfMissing({
     id: "plate-boundaries",
     type: "line",
     source: "plate-boundaries",
