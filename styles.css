@@ -471,7 +471,9 @@ h1 {
 }
 
 .setup-panel-title {
-  padding-top: calc(0.76rem * 1.2 + 5px);
+  display: flex;
+  min-height: calc(0.76rem * 1.2 + 5px + 1.25rem * 1.1);
+  align-items: center;
 }
 
 .sim-panel-scroll {
@@ -642,6 +644,9 @@ h1 {
 }
 
 .simulation-start {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
   margin-top: 10px;
   border: 1px solid #ff6b7f;
@@ -887,7 +892,7 @@ h1 {
   }
 
   .magnitude-card strong {
-    font-size: 1.45rem;
+    font-size: 2.4rem;
   }
 
   .simulation-stop,
@@ -1218,8 +1223,10 @@ h1 {
     margin: 6px 0 0;
     width: 100%;
     border-radius: 6px;
-    padding: 10px 12px max(10px, env(safe-area-inset-bottom));
+    min-height: 42px;
+    padding: 8px 12px;
     box-shadow: 0 -8px 16px rgba(2, 4, 5, 0.6);
+    text-align: center;
   }
 
   #simulation-panel .simulation-sheet-toggle {
@@ -1233,7 +1240,7 @@ h1 {
     flex: 0 0 auto;
     z-index: 6;
     margin: 6px 0 0;
-    padding: 0 0 max(4px, env(safe-area-inset-bottom));
+    padding: 0 0 max(2px, env(safe-area-inset-bottom));
     border-top: 1px solid rgba(255, 255, 255, 0.12);
     background: transparent;
     backdrop-filter: none;
@@ -1277,6 +1284,11 @@ h1 {
     white-space: nowrap;
   }
 
+  #setup-panel .mobile-sheet-toggle {
+    grid-column: 2;
+    justify-self: end;
+  }
+
   .sim-panel[data-sheet-state="collapsed"] > :not(.sim-panel-head):not(.simulation-sheet-toggle):not(.sheet-handle) {
     opacity: 0;
   }
@@ -1291,6 +1303,15 @@ h1 {
   .sim-panel[data-sheet-state="collapsed"] #reset-epicenter {
     opacity: 0;
     pointer-events: none;
+  }
+
+  #setup-panel[data-sheet-state="collapsed"] .sim-panel-head {
+    grid-template-columns: 1fr auto;
+  }
+
+  #setup-panel[data-sheet-state="collapsed"] .setup-panel-title,
+  #setup-panel[data-sheet-state="collapsed"] #reset-epicenter {
+    display: none;
   }
 
   .simulation-sheet-toggle {
