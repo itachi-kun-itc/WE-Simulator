@@ -6,14 +6,23 @@
 
 - 地震情報で用いる震央地名、震度観測点、緊急地震速報、震度階級の説明。
 - 参照URL:
+  - https://www.data.jma.go.jp/eqev/data/joho/region/index.html
   - https://www.jma.go.jp/jma/kishou/know/jishin/joho/shindo-name.html
   - https://www.data.jma.go.jp/eqev/data/kyoshin/jma-shindo.html
   - https://www.jma.go.jp/jma/kishou/know/jishin/eew/shikumi/shikumi.html
   - https://www.jma.go.jp/jma/kishou/know/shindo/index.html
 - 主な生成物:
   - `web/data/jma_local_areas.geojson`
-  - `web/data/sea_epicenter_areas.geojson`
   - `web/data/jma_shindo_stations.json`
+
+## JMA_Region 震央地名ポリゴン
+
+- 気象庁の「地震情報で用いる震央地名」をポリゴン化したGeoJSON。震源位置から震央地名を判定するために使用。
+- ライセンス: CC0 1.0 Universal
+- 参照URL:
+  - https://github.com/0Quake/JMA_Region
+- 主な生成物:
+  - `web/data/jma_epicenter_areas.geojson`
 
 ## 国土数値情報・気象庁GIS区域データ
 

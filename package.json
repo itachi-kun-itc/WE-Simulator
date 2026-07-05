@@ -5,6 +5,7 @@
   "homepage": "https://itachi-kun-itc.github.io/Weather-EarthQuake-Simulator/",
   "scripts": {
     "build:jma-earthquake-map": "node scripts/convert_jma_earthquake_areas.js",
+    "build:jma-epicenter-areas": "node scripts/build_epicenter_areas.js",
     "build:jma-eew-forecast-areas": "node scripts/fetch_jma_eew_forecast_areas.js",
     "build:jma-shindo-stations": "node scripts/fetch_jma_shindo_stations.js",
     "build:municipalities": "node scripts/convert_n03_municipalities.js",
