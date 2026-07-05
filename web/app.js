@@ -1624,17 +1624,22 @@ function createSpeechAnnouncementState() {
     startAnnounced: false,
     maxObservedRank: 0,
     observedIntensitySpeechSignature: "",
+    latestObservedIntensityMessage: "",
+    observedIntensityRepeatCompleted: false,
     eewAreaNames: new Set(),
     priorityMessages: [],
     pendingMessages: [],
     speaking: false,
+    paused: false,
     active: false,
     startTimer: null,
+    repeatTimer: null,
   };
 }
 
 function resetSpeechAnnouncementState() {
   window.clearTimeout(speechAnnouncementState?.startTimer);
+  window.clearTimeout(speechAnnouncementState?.repeatTimer);
   speechAnnouncementState = createSpeechAnnouncementState();
 }
 
@@ -1649,6 +1654,7 @@ function recoverSpeechSynthesis(options = {}) {
 
   window.speechSynthesis.cancel();
   speechAnnouncementState.speaking = false;
+  speechAnnouncementState.paused = false;
   if (!options.resumeSimulation || state.speechMuted || !state.simulationRunning) {
     return;
   }
@@ -1673,12 +1679,16 @@ function speakAnnouncement(message, options = {}) {
   } else {
     speechAnnouncementState.pendingMessages = [normalizedMessage];
   }
+  if (!options.repeat) {
+    speechAnnouncementState.observedIntensityRepeatCompleted = false;
+  }
+  window.clearTimeout(speechAnnouncementState.repeatTimer);
   playNextSpeechAnnouncement();
 }
 
 function normalizeSpeechAnnouncementText(message) {
   return message
-    .replace(/四国/g, "しこく")
+    .replace(/四国/g, "シコク")
     .replace(/嶺北/g, "れいほく")
     .replace(/嶺南/g, "れいなん");
 }
@@ -1690,10 +1700,20 @@ function playNextSpeechAnnouncement() {
 
   if (
     speechAnnouncementState.speaking ||
+    speechAnnouncementState.paused ||
     !speechAnnouncementState.active ||
     !canSpeakAnnouncements() ||
     (speechAnnouncementState.priorityMessages.length === 0 && speechAnnouncementState.pendingMessages.length === 0)
   ) {
+    if (
+      speechAnnouncementState.active &&
+      canSpeakAnnouncements() &&
+      !speechAnnouncementState.speaking &&
+      !speechAnnouncementState.paused &&
+      !speechAnnouncementState.observedIntensityRepeatCompleted
+    ) {
+      scheduleObservedIntensityRepeat();
+    }
     return;
   }
 
@@ -1717,12 +1737,40 @@ function playNextSpeechAnnouncement() {
   window.speechSynthesis.speak(utterance);
 }
 
+function pauseSpeechAnnouncements() {
+  if (!("speechSynthesis" in window) || state.speechMuted) {
+    return;
+  }
+
+  speechAnnouncementState.paused = true;
+  window.clearTimeout(speechAnnouncementState.repeatTimer);
+  if (window.speechSynthesis.speaking) {
+    window.speechSynthesis.pause();
+  }
+}
+
+function resumeSpeechAnnouncements() {
+  if (!("speechSynthesis" in window) || state.speechMuted || !speechAnnouncementState.active) {
+    return;
+  }
+
+  speechAnnouncementState.paused = false;
+  if (window.speechSynthesis.paused) {
+    window.speechSynthesis.resume();
+    return;
+  }
+
+  playNextSpeechAnnouncement();
+}
+
 function cancelSpeechAnnouncements() {
   speechAnnouncementState.active = false;
   speechAnnouncementState.priorityMessages = [];
   speechAnnouncementState.pendingMessages = [];
   speechAnnouncementState.speaking = false;
+  speechAnnouncementState.paused = false;
   window.clearTimeout(speechAnnouncementState.startTimer);
+  window.clearTimeout(speechAnnouncementState.repeatTimer);
   if ("speechSynthesis" in window) {
     window.speechSynthesis.cancel();
   }
@@ -1733,6 +1781,7 @@ function finishSpeechAnnouncementsGracefully() {
   speechAnnouncementState.priorityMessages = [];
   speechAnnouncementState.pendingMessages = [];
   window.clearTimeout(speechAnnouncementState.startTimer);
+  window.clearTimeout(speechAnnouncementState.repeatTimer);
 }
 
 function scheduleSimulationSpeechStart() {
@@ -1747,6 +1796,47 @@ function startSimulationSpeechAnnouncementsNow() {
   window.clearTimeout(speechAnnouncementState.startTimer);
   speechAnnouncementState.active = true;
   announceSimulationUpdates(getSimulationStationElapsedSec());
+}
+
+function scheduleObservedIntensityRepeat() {
+  window.clearTimeout(speechAnnouncementState.repeatTimer);
+  if (
+    !state.simulationRunning ||
+    state.simulationPaused ||
+    state.speechMuted ||
+    !speechAnnouncementState.active ||
+    speechAnnouncementState.speaking ||
+    speechAnnouncementState.paused ||
+    speechAnnouncementState.observedIntensityRepeatCompleted
+  ) {
+    return;
+  }
+
+  speechAnnouncementState.repeatTimer = window.setTimeout(() => {
+    speechAnnouncementState.repeatTimer = null;
+    repeatCurrentObservedIntensityAnnouncement();
+  }, 4500);
+}
+
+function repeatCurrentObservedIntensityAnnouncement() {
+  if (
+    !state.simulationRunning ||
+    state.simulationPaused ||
+    !speechAnnouncementState.active ||
+    !canSpeakAnnouncements()
+  ) {
+    return;
+  }
+
+  const elapsedSec = getSimulationStationElapsedSec();
+  const message = buildObservedIntensitySpeechMessage(elapsedSec);
+  if (message) {
+    speechAnnouncementState.observedIntensityRepeatCompleted = true;
+    speakAnnouncement(message, { repeat: true });
+    return;
+  }
+
+  scheduleObservedIntensityRepeat();
 }
 
 function announceSimulationStartIfNeeded() {
@@ -1843,46 +1933,71 @@ function refreshSpeechForecastAreas(elapsedSec) {
 }
 
 function announceMaxObservedAreaUpdate(elapsedSec) {
-  if (!localAreaData) {
+  const snapshot = buildObservedIntensitySpeechSnapshot(elapsedSec);
+  if (!snapshot || snapshot.maxRank < speechAnnouncementState.maxObservedRank) {
     return;
   }
 
+  if (snapshot.signature === speechAnnouncementState.observedIntensitySpeechSignature) {
+    return;
+  }
+
+  speechAnnouncementState.maxObservedRank = snapshot.maxRank;
+  speechAnnouncementState.observedIntensitySpeechSignature = snapshot.signature;
+  speechAnnouncementState.latestObservedIntensityMessage = snapshot.message;
+  speechAnnouncementState.observedIntensityRepeatCompleted = false;
+  speakAnnouncement(snapshot.message);
+}
+
+function buildObservedIntensitySpeechMessage(elapsedSec) {
+  const snapshot = buildObservedIntensitySpeechSnapshot(elapsedSec);
+  if (!snapshot) {
+    return speechAnnouncementState.latestObservedIntensityMessage;
+  }
+
+  speechAnnouncementState.latestObservedIntensityMessage = snapshot.message;
+  return snapshot.message;
+}
+
+function buildObservedIntensitySpeechSnapshot(elapsedSec) {
   const selectedPreset = getSelectedPreset();
   const presetSpeechLabels = getOldScalePresetSpeechLabels(selectedPreset);
   if (presetSpeechLabels.length > 0) {
-    announceOldScalePresetObservedIntensityUpdate(elapsedSec, presetSpeechLabels);
-    return;
+    return buildOldScalePresetObservedSpeechSnapshot(elapsedSec, presetSpeechLabels);
+  }
+
+  if (!localAreaData) {
+    return null;
   }
 
   const areaFeatures = buildIntensityAreaData(localAreaData, elapsedSec).features.filter(
     (feature) => feature.properties.intensityRank > 0,
   );
   if (areaFeatures.length === 0) {
-    return;
+    return null;
   }
 
   const maxRank = Math.max(...areaFeatures.map((feature) => feature.properties.intensityRank));
-  if (maxRank < speechAnnouncementState.maxObservedRank) {
-    return;
-  }
-
   const speechGroups = buildObservedIntensitySpeechGroups(areaFeatures, maxRank);
   if (speechGroups.length === 0) {
-    return;
+    return null;
   }
 
+  return buildObservedIntensitySpeechSnapshotFromGroups(speechGroups);
+}
+
+function buildObservedIntensitySpeechSnapshotFromGroups(speechGroups) {
+  const maxRank = Math.max(...speechGroups.map((group) => group.rank));
   const signature = speechGroups.map((group) => `${group.rank}:${group.label}:${group.areaNames.join(",")}`).join("|");
-  if (signature === speechAnnouncementState.observedIntensitySpeechSignature) {
-    return;
-  }
-  speechAnnouncementState.maxObservedRank = maxRank;
-  speechAnnouncementState.observedIntensitySpeechSignature = signature;
-
   const currentLocationText = getCurrentLocationSpeechText();
   const intensityText = speechGroups
     .map((group) => `震度${group.label} ${group.areaNames.join("、")}`)
     .join("。");
-  speakAnnouncement(`${intensityText}。${currentLocationText}`);
+  return {
+    maxRank,
+    signature,
+    message: `${intensityText}。${currentLocationText}`,
+  };
 }
 
 function buildObservedIntensitySpeechGroups(areaFeatures, maxRank) {
@@ -1954,40 +2069,44 @@ function getOldScalePresetSpeechLabels(preset) {
 }
 
 function announceOldScalePresetObservedIntensityUpdate(elapsedSec, intensityLabels) {
-  if (!shindoStationData) {
+  const snapshot = buildOldScalePresetObservedSpeechSnapshot(elapsedSec, intensityLabels);
+  if (!snapshot) {
     return;
+  }
+
+  if (snapshot.maxRank < speechAnnouncementState.maxObservedRank) {
+    return;
+  }
+
+  if (snapshot.signature === speechAnnouncementState.observedIntensitySpeechSignature) {
+    return;
+  }
+
+  speechAnnouncementState.maxObservedRank = snapshot.maxRank;
+  speechAnnouncementState.observedIntensitySpeechSignature = snapshot.signature;
+  speechAnnouncementState.latestObservedIntensityMessage = snapshot.message;
+  speechAnnouncementState.observedIntensityRepeatCompleted = false;
+  speakAnnouncement(snapshot.message);
+}
+
+function buildOldScalePresetObservedSpeechSnapshot(elapsedSec, intensityLabels) {
+  if (!shindoStationData) {
+    return null;
   }
 
   const stationFeatures = getStationIntensityDataForElapsed(elapsedSec).features.filter(
     (feature) => feature.properties.observed && feature.properties.oldJmaScale,
   );
   if (stationFeatures.length === 0) {
-    return;
+    return null;
   }
 
   const groups = buildOldScalePresetObservedSpeechGroups(stationFeatures, intensityLabels);
   if (groups.length === 0) {
-    return;
+    return null;
   }
 
-  const maxRank = Math.max(...groups.map((group) => group.rank));
-  if (maxRank < speechAnnouncementState.maxObservedRank) {
-    return;
-  }
-
-  const signature = groups.map((group) => `${group.rank}:${group.label}:${group.areaNames.join(",")}`).join("|");
-  if (signature === speechAnnouncementState.observedIntensitySpeechSignature) {
-    return;
-  }
-
-  speechAnnouncementState.maxObservedRank = maxRank;
-  speechAnnouncementState.observedIntensitySpeechSignature = signature;
-
-  const currentLocationText = getCurrentLocationSpeechText();
-  const intensityText = groups
-    .map((group) => `震度${group.label} ${group.areaNames.join("、")}`)
-    .join("。");
-  speakAnnouncement(`${intensityText}。${currentLocationText}`);
+  return buildObservedIntensitySpeechSnapshotFromGroups(groups);
 }
 
 function buildOldScalePresetObservedSpeechGroups(stationFeatures, intensityLabels) {
@@ -3670,6 +3789,7 @@ async function startSimulation() {
 }
 
 function stopSimulation() {
+  cancelSpeechAnnouncements();
   state.simulationRunning = false;
   state.simulationPaused = false;
   state.eewWarningReportNumber = null;
@@ -3681,8 +3801,6 @@ function stopSimulation() {
   state.eewWarningBlinkStartedAt = {};
   state.eewInitialWarningKeys = new Set();
   state.eewPreviousWarningKeys = new Set();
-  resetSpeechAnnouncementState();
-  finishSpeechAnnouncementsGracefully();
   cancelAnimationFrame(simulationFrame);
   simulationFrame = null;
   simulationStartedAt = null;
@@ -3719,6 +3837,7 @@ function toggleSimulationPause() {
     simulationPausedAt = null;
     state.simulationPaused = false;
     els.simulationPause.textContent = "一時停止";
+    resumeSpeechAnnouncements();
     simulationFrame = requestAnimationFrame(tickSimulation);
     return;
   }
@@ -3727,6 +3846,7 @@ function toggleSimulationPause() {
   simulationPausedAt = performance.now();
   cancelAnimationFrame(simulationFrame);
   simulationFrame = null;
+  pauseSpeechAnnouncements();
   els.simulationPause.textContent = "再開";
 }
 
