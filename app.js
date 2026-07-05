@@ -14,7 +14,7 @@ const FEEDBACK_SHEET_URL =
 const FEEDBACK_ENDPOINT_URL =
   "https://script.google.com/macros/s/AKfycbxJSAQowW2Drmh24eET5Qjnys3hDtls7kwM7_utE_f1_8kYhwMkyUdfdOTXdhdm1xfLRg/exec";
 
-const INITIAL_CENTER = [136.1, 36.8];
+const INITIAL_CENTER = [139.767, 35.681];
 const INITIAL_ZOOM = 6;
 const MOBILE_INITIAL_CENTER = [138.9, 35.95];
 const MOBILE_INITIAL_ZOOM = 6;
@@ -598,6 +598,7 @@ const state = {
   currentLocation: null,
   currentLocationName: "-",
   currentLocationStatus: "idle",
+  speechMuted: true,
 };
 
 const els = {
@@ -690,11 +691,13 @@ let simulationTimeTextCache = "";
 let waveRenderRadiusCache = { p: null, s: null };
 const waveCircleBearingCache = new Map();
 let resetViewAnimating = false;
+let postMapInteractionRenderTimer;
 let localAreaStationMembershipCache;
 let areaEpicentralDistanceCache = {
   key: "",
   distances: [],
 };
+let speechAnnouncementState = createSpeechAnnouncementState();
 let postMunicipalityDataScheduled = false;
 const sourceDataRefs = new Map();
 const SOURCE_LINKS = [
@@ -1102,11 +1105,16 @@ function applyEarthquakePreset(presetId) {
   updateEpicenter({ resolveLocation: true });
 
   if (map) {
-    map.easeTo({
+    resetViewAnimating = true;
+    updateSimulationAvailability();
+    animateMapViewTo({
       center: [state.longitude, state.latitude],
       zoom: Math.max(map.getZoom(), 6),
-      duration: 450,
-      essential: true,
+      padding: getInitialMapPaddingForViewport(),
+      duration: 700,
+    }).finally(() => {
+      resetViewAnimating = false;
+      updateSimulationAvailability();
     });
   }
 }
@@ -1221,20 +1229,12 @@ function setupMobileSheets() {
   });
 }
 
-function getCollapsedSheetOffset(panel) {
-  return Math.max(panel.getBoundingClientRect().height - 66, 0);
-}
-
 function isCompactViewport() {
   return window.matchMedia("(max-width: 720px)").matches;
 }
 
 function isTabletViewport() {
   return window.matchMedia("(min-width: 721px) and (max-width: 1180px)").matches;
-}
-
-function usesSeparateSimulationPanel() {
-  return isCompactViewport();
 }
 
 function setSheetState(panel, stateName) {
@@ -1388,6 +1388,7 @@ async function initEarthquakeMap() {
     },
     center: getInitialMapView().center,
     zoom: getInitialMapView().zoom,
+    padding: getInitialMapPaddingForViewport(),
     minZoom: 4,
     maxZoom: 10,
     maxBounds: JAPAN_AREA_PAN_BOUNDS,
@@ -1396,10 +1397,14 @@ async function initEarthquakeMap() {
     dragRotate: false,
     pitchWithRotate: false,
     touchPitch: false,
+    scrollZoom: true,
+    cooperativeGestures: false,
   });
 
   map.dragRotate.disable();
   map.touchZoomRotate.disableRotation();
+  map.scrollZoom.setWheelZoomRate?.(1 / 600);
+  map.scrollZoom.setZoomRate?.(1 / 90);
   map.keyboard?.disableRotation?.();
   setStartupInteractionLocked(true);
   scheduleMapResize();
@@ -1412,7 +1417,7 @@ async function initEarthquakeMap() {
   });
   map.on("moveend", () => {
     state.mapInteracting = false;
-    simulationRenderBucket = -1;
+    schedulePostMapInteractionRender();
   });
 
   map.on("click", (event) => {
@@ -1481,7 +1486,8 @@ function addZoomOnlyControl() {
 function addSourceInfoControl() {
   const sourceOverlay = createSourceInfoOverlay();
   const feedbackOverlay = createFeedbackOverlay();
-  document.body.append(sourceOverlay, feedbackOverlay);
+  const speechConfirmOverlay = createSpeechConfirmOverlay();
+  document.body.append(sourceOverlay, feedbackOverlay, speechConfirmOverlay);
 
   const sourceInfoControl = {
     onAdd() {
@@ -1521,13 +1527,269 @@ function addSourceInfoControl() {
         feedbackButton.setAttribute("aria-expanded", "false");
       });
 
-      container.append(button, feedbackButton);
+      const speechButton = document.createElement("button");
+      speechButton.type = "button";
+      speechButton.className = "source-info-button speech-info-button is-muted";
+      speechButton.setAttribute("aria-label", "音声読み上げミュート");
+      speechButton.setAttribute("aria-pressed", "true");
+
+      speechButton.addEventListener("click", () => {
+        if (speechButton.classList.contains("is-muted")) {
+          showSpeechConfirmOverlay(speechConfirmOverlay, () => {
+            setSpeechButtonMuted(speechButton, false);
+          });
+          return;
+        }
+
+        setSpeechButtonMuted(speechButton, true);
+      });
+
+      container.append(button, feedbackButton, speechButton);
       return container;
     },
     onRemove() {},
   };
 
   map.addControl(sourceInfoControl, "top-right");
+}
+
+function setSpeechButtonMuted(button, muted) {
+  state.speechMuted = muted;
+  button.classList.toggle("is-muted", muted);
+  button.setAttribute("aria-pressed", String(muted));
+  button.setAttribute("aria-label", muted ? "音声読み上げミュート" : "音声読み上げ");
+  if (muted) {
+    cancelSpeechAnnouncements();
+    return;
+  }
+
+  if (state.simulationRunning) {
+    scheduleSimulationSpeechStart();
+  }
+}
+
+function createSpeechConfirmOverlay() {
+  const overlay = document.createElement("section");
+  overlay.className = "speech-confirm-overlay hidden";
+  overlay.setAttribute("aria-modal", "true");
+  overlay.setAttribute("role", "dialog");
+  overlay.setAttribute("aria-label", "音声読み上げ確認");
+  overlay.innerHTML = `
+    <div class="speech-confirm-dialog">
+      <p>公共の場では周囲への迷惑や法令・施設ルールに反する場合があります。音声を流す前に周囲の安全を確認してください。</p>
+      <div class="speech-confirm-actions">
+        <button class="speech-confirm-yes" type="button">はい</button>
+        <button class="speech-confirm-no" type="button">いいえ</button>
+      </div>
+    </div>
+  `;
+  return overlay;
+}
+
+function showSpeechConfirmOverlay(overlay, onConfirm) {
+  const yesButton = overlay.querySelector(".speech-confirm-yes");
+  const noButton = overlay.querySelector(".speech-confirm-no");
+  const close = () => {
+    overlay.classList.add("hidden");
+    document.body.classList.remove("speech-confirm-open");
+  };
+  const confirm = () => {
+    close();
+    onConfirm();
+  };
+
+  yesButton.onclick = confirm;
+  noButton.onclick = close;
+  overlay.onclick = (event) => {
+    if (event.target === overlay) {
+      close();
+    }
+  };
+
+  overlay.classList.remove("hidden");
+  document.body.classList.add("speech-confirm-open");
+  yesButton?.focus();
+}
+
+function createSpeechAnnouncementState() {
+  return {
+    startAnnounced: false,
+    prefectureRanks: new Map(),
+    pendingMessages: [],
+    speaking: false,
+    active: false,
+    startTimer: null,
+  };
+}
+
+function resetSpeechAnnouncementState() {
+  window.clearTimeout(speechAnnouncementState?.startTimer);
+  speechAnnouncementState = createSpeechAnnouncementState();
+}
+
+function canSpeakAnnouncements() {
+  return !state.speechMuted && "speechSynthesis" in window && typeof SpeechSynthesisUtterance !== "undefined";
+}
+
+function speakAnnouncement(message) {
+  if (!canSpeakAnnouncements() || !message || !speechAnnouncementState.active) {
+    return;
+  }
+
+  const normalizedMessage = String(message).trim();
+  if (!normalizedMessage) {
+    return;
+  }
+
+  speechAnnouncementState.pendingMessages = [normalizedMessage];
+  playNextSpeechAnnouncement();
+}
+
+function playNextSpeechAnnouncement() {
+  if (
+    speechAnnouncementState.speaking ||
+    !speechAnnouncementState.active ||
+    !canSpeakAnnouncements() ||
+    speechAnnouncementState.pendingMessages.length === 0
+  ) {
+    return;
+  }
+
+  const message = speechAnnouncementState.pendingMessages.shift();
+  const utterance = new SpeechSynthesisUtterance(message);
+  utterance.lang = "ja-JP";
+  utterance.rate = 1.08;
+  utterance.pitch = 1;
+  utterance.onend = () => {
+    speechAnnouncementState.speaking = false;
+    playNextSpeechAnnouncement();
+  };
+  utterance.onerror = () => {
+    speechAnnouncementState.speaking = false;
+    playNextSpeechAnnouncement();
+  };
+  speechAnnouncementState.speaking = true;
+  window.speechSynthesis.speak(utterance);
+}
+
+function cancelSpeechAnnouncements() {
+  speechAnnouncementState.active = false;
+  speechAnnouncementState.pendingMessages = [];
+  speechAnnouncementState.speaking = false;
+  window.clearTimeout(speechAnnouncementState.startTimer);
+  if ("speechSynthesis" in window) {
+    window.speechSynthesis.cancel();
+  }
+}
+
+function finishSpeechAnnouncementsGracefully() {
+  speechAnnouncementState.active = false;
+  speechAnnouncementState.pendingMessages = [];
+  window.clearTimeout(speechAnnouncementState.startTimer);
+}
+
+function scheduleSimulationSpeechStart() {
+  window.clearTimeout(speechAnnouncementState.startTimer);
+  speechAnnouncementState.active = true;
+  speechAnnouncementState.startTimer = window.setTimeout(() => {
+    announceSimulationStartIfNeeded();
+    announceSimulationUpdates(getSimulationStationElapsedSec());
+  }, 2000);
+}
+
+function announceSimulationStartIfNeeded() {
+  if (
+    !state.simulationRunning ||
+    speechAnnouncementState.startAnnounced ||
+    !speechAnnouncementState.active ||
+    !canSpeakAnnouncements()
+  ) {
+    return;
+  }
+
+  const predictedMax = getPredictedMaximumIntensity();
+  const maxClass = INTENSITY_CLASSES.find((item) => item.rank === predictedMax.rank) ?? INTENSITY_CLASSES[0];
+  const currentLocationText = getCurrentLocationSpeechText();
+  speakAnnouncement(
+    `${state.epicenterName}で地震。最大震度は${maxClass.label}、マグニチュードは${state.magnitude.toFixed(1)}と推定されます。${currentLocationText}`,
+  );
+  speechAnnouncementState.startAnnounced = true;
+}
+
+function announceSimulationUpdates(elapsedSec) {
+  if (
+    !state.simulationRunning ||
+    !Number.isFinite(elapsedSec) ||
+    !speechAnnouncementState.active ||
+    !canSpeakAnnouncements() ||
+    !shindoStationData
+  ) {
+    return;
+  }
+
+  announceSimulationStartIfNeeded();
+  const stationFeatures = getStationIntensityDataForElapsed(elapsedSec).features.filter(
+    (feature) => feature.properties.observed && feature.properties.intensityRank > 0,
+  );
+  const prefectureMaxRanks = new Map();
+
+  stationFeatures.forEach((feature) => {
+    const prefecture = getStationPrefectureName(feature.properties);
+    const rank = feature.properties.intensityRank;
+    if (!prefecture || rank <= 0 || rank <= (prefectureMaxRanks.get(prefecture) ?? 0)) {
+      return;
+    }
+
+    prefectureMaxRanks.set(prefecture, rank);
+  });
+
+  const currentLocationText = getCurrentLocationSpeechText();
+  [...prefectureMaxRanks.entries()]
+    .filter(([prefecture, rank]) => rank > (speechAnnouncementState.prefectureRanks.get(prefecture) ?? 0))
+    .sort(([, aRank], [, bRank]) => bRank - aRank)
+    .forEach(([prefecture, rank]) => {
+      const intensityClass = INTENSITY_CLASSES.find((item) => item.rank === rank) ?? INTENSITY_CLASSES[0];
+      speechAnnouncementState.prefectureRanks.set(prefecture, rank);
+      speakAnnouncement(`${prefecture}で最大震度${intensityClass.label}を観測。${currentLocationText}`);
+    });
+}
+
+function getStationPrefectureName(properties = {}) {
+  const text = `${properties.address ?? ""}${properties.areaName ?? ""}${properties.name ?? ""}`;
+  return PREFECTURE_NAMES.find((prefecture) => text.includes(prefecture)) ?? "";
+}
+
+function getCurrentLocationSpeechText() {
+  if (!state.currentLocationEnabled || state.currentLocationStatus !== "ready" || !state.currentLocation) {
+    return "";
+  }
+
+  const forecast = getCurrentLocationForecast();
+  if (!forecast || forecast.intensityClass.rank < 1) {
+    return "";
+  }
+
+  const locationName = stripPrefectureName(state.currentLocationName);
+  if (!locationName) {
+    return "";
+  }
+
+  const observed = state.simulationRunning && Number.isFinite(getSimulationStationElapsedSec())
+    ? getSimulationStationElapsedSec() >= forecast.pArrivalSec
+    : false;
+  return observed
+    ? `${locationName}で震度${forecast.intensityClass.label}を観測。`
+    : `${locationName}の推定震度は${forecast.intensityClass.label}です。`;
+}
+
+function stripPrefectureName(name) {
+  let displayName = cleanDisplayAreaName(name);
+  PREFECTURE_NAMES.forEach((prefecture) => {
+    if (displayName.startsWith(prefecture)) {
+      displayName = displayName.slice(prefecture.length);
+    }
+  });
+  return displayName || "";
 }
 
 function createSourceInfoOverlay() {
@@ -1573,6 +1835,7 @@ function createFeedbackOverlay() {
   const status = overlay.querySelector(".feedback-status");
   const submitButton = overlay.querySelector(".feedback-submit");
   const closeButton = overlay.querySelector(".source-info-close");
+  applyFeedbackPlaceholder(textarea);
   const closeOverlay = () => {
     overlay.classList.add("hidden");
     document.body.classList.remove("source-overlay-open");
@@ -1595,7 +1858,7 @@ function createFeedbackOverlay() {
     event.preventDefault();
     const message = textarea?.value.trim() ?? "";
     if (!message) {
-      setFeedbackStatus(status, "改善点などを入力してください。", true);
+      setFeedbackStatus(status, "任意の文字を入力してください。", true);
       textarea?.focus();
       return;
     }
@@ -1631,17 +1894,33 @@ function createFeedbackOverlay() {
   return overlay;
 }
 
+function applyFeedbackPlaceholder(textarea) {
+  if (!textarea) {
+    return;
+  }
+
+  textarea.placeholder = getFeedbackPlaceholderText();
+}
+
+function getFeedbackPlaceholderText() {
+  return [
+    "例：スマホでメニューが少し開きにくい。",
+    "　　震度表示を見やすくしてほしい。",
+    "　　など",
+  ].join("\n");
+}
+
 function buildFeedbackOverlayHtml() {
   return `
     <button class="source-info-close" type="button" aria-label="フィードバックを閉じる">×</button>
     <form class="source-info-overlay-content feedback-form" id="feedback-form">
       <header class="source-info-header">
         <p>FEEDBACK</p>
-        <h2>改善点を送信</h2>
+        <h2>フィードバック</h2>
       </header>
       <label class="feedback-field" for="feedback-message">
         <span>気づいた点、改善してほしい点など</span>
-        <textarea id="feedback-message" name="message" rows="10" maxlength="4000" placeholder="例：スマホでメニューが少し開きにくい、震度表示をもう少し見やすくしてほしい など"></textarea>
+        <textarea id="feedback-message" name="message" rows="10" maxlength="4000" placeholder="${escapeHtml(getFeedbackPlaceholderText())}"></textarea>
       </label>
       <p class="feedback-status" role="status" aria-live="polite"></p>
       <p class="feedback-sheet-note">
@@ -1706,7 +1985,7 @@ function buildSourceInfoOverlayHtml() {
     <button class="source-info-close" type="button" aria-label="出典を閉じる">×</button>
     <div class="source-info-overlay-content">
       <header class="source-info-header">
-        <p>DATA SOURCES</p>
+        <p>SOURCES</p>
         <h2>出典一覧</h2>
       </header>
       <div class="source-info-sections">${sections}</div>
@@ -1991,37 +2270,6 @@ function removeNorthernIslandDisplayPolygonsFromFeature(feature) {
   return [feature];
 }
 
-function getExcludedJapanIslandLandFeature(feature) {
-  const geometry = feature.geometry;
-  if (!geometry?.coordinates) {
-    return null;
-  }
-
-  const coordinates =
-    geometry.type === "MultiPolygon"
-      ? geometry.coordinates.filter(isExcludedJapanIslandPolygon)
-      : isExcludedJapanIslandPolygon(geometry.coordinates)
-        ? [geometry.coordinates]
-        : [];
-
-  if (coordinates.length === 0) {
-    return null;
-  }
-
-  return {
-    ...feature,
-    properties: {
-      ...feature.properties,
-      name: "対象外島しょ",
-      nameEn: "Excluded islands near Japan",
-    },
-    geometry: {
-      type: "MultiPolygon",
-      coordinates,
-    },
-  };
-}
-
 function isExcludedJapanIslandPolygon(polygon) {
   const outerRing = polygon?.[0];
   if (!Array.isArray(outerRing) || outerRing.length === 0) {
@@ -2038,28 +2286,6 @@ function isExcludedJapanIslandPolygon(polygon) {
 
 function pointInBounds([longitude, latitude], bounds) {
   return longitude >= bounds.west && longitude <= bounds.east && latitude >= bounds.south && latitude <= bounds.north;
-}
-
-function buildNeutralIntensityAreaData(geojson) {
-  return {
-    ...geojson,
-    name: "JMA local areas awaiting intensity data",
-    features: (geojson.features ?? []).map((feature) => ({
-      ...feature,
-      properties: {
-        ...feature.properties,
-        intensityValue: 0,
-        intensityLabel: "0",
-        intensityRank: 0,
-        intensityColor: INTENSITY_CLASSES[0].color,
-        predictedIntensityValue: 0,
-        predictedIntensityRank: 0,
-        eewWarning: false,
-        eewBlinkOff: false,
-        eewForecastArea: getEewForecastAreaName(feature.properties?.name),
-      },
-    })),
-  };
 }
 
 function addGeoJsonSource(id, data) {
@@ -2333,7 +2559,7 @@ function addMapLayers() {
     paint: {
       "line-color": "#7de7ff",
       "line-opacity": 0.9,
-      "line-width": 2,
+      "line-width": 2.4,
     },
   });
 
@@ -2358,7 +2584,7 @@ function addMapLayers() {
     paint: {
       "line-color": "#ff6b7f",
       "line-opacity": 0.95,
-      "line-width": 3,
+      "line-width": 3.4,
     },
   });
 
@@ -2385,11 +2611,11 @@ function keepWaveAndStationLayerOrder() {
   moveLayerToTop("northern-islands-land-fill");
   moveLayerToTop("northern-islands-land-outline");
   moveLayerToTop("p-wave-fill");
-  moveLayerToTop("p-wave-line");
   moveLayerToTop("s-wave-fill");
-  moveLayerToTop("s-wave-line");
   moveLayerToTop("shindo-station-points");
   moveLayerToTop("shindo-station-labels");
+  moveLayerToTop("p-wave-line");
+  moveLayerToTop("s-wave-line");
 }
 
 function updateLayerVisibility(layerId, visible) {
@@ -2407,6 +2633,7 @@ function fitInitialMapBounds(bounds) {
   map.jumpTo({
     center: initialView.center,
     zoom: initialView.zoom,
+    padding: getInitialMapPaddingForViewport(),
   });
 }
 
@@ -2416,12 +2643,63 @@ function getInitialMapView() {
     : { center: INITIAL_CENTER, zoom: INITIAL_ZOOM };
 }
 
+function getInitialMapPaddingForViewport() {
+  if (isCompactViewport()) {
+    return { top: 0, right: 0, bottom: 0, left: 0 };
+  }
+
+  const handleRect = getActiveMenuHandleRect();
+  const legendRect = document.querySelector(".intensity-legend")?.getBoundingClientRect();
+  const leftEdge = Math.ceil(handleRect?.right ?? els.setupPanel?.getBoundingClientRect()?.right ?? 374);
+  const rightEdge = Math.floor(legendRect?.left ?? window.innerWidth);
+  return {
+    top: 0,
+    right: Math.max(window.innerWidth - rightEdge, 0),
+    bottom: 0,
+    left: Math.max(leftEdge, 0),
+  };
+}
+
 function resetMapViewToInitial() {
   if (!map) {
     return Promise.resolve();
   }
 
   const initialView = getInitialMapView();
+  return animateMapViewTo({
+    center: initialView.center,
+    zoom: initialView.zoom,
+    padding: getInitialMapPaddingForViewport(),
+    duration: RESET_VIEW_ANIMATION_MS,
+    easing: smoothResetMapEasing,
+  });
+}
+
+function alignMapToSimulationEpicenter() {
+  if (!map) {
+    return Promise.resolve();
+  }
+
+  return animateMapViewTo({
+    center: [state.longitude, state.latitude],
+    zoom: Math.max(map.getZoom(), 6),
+    padding: getInitialMapPaddingForViewport(),
+    duration: 650,
+    easing: smoothResetMapEasing,
+  });
+}
+
+function getActiveMenuHandleRect() {
+  const panels = [els.setupPanel, els.simulationPanel].filter(Boolean);
+  const activePanel = panels.find((panel) => !panel.classList.contains("hidden")) ?? els.setupPanel;
+  return activePanel?.querySelector(".sheet-handle")?.getBoundingClientRect() ?? null;
+}
+
+function animateMapViewTo(options) {
+  if (!map) {
+    return Promise.resolve();
+  }
+
   return new Promise((resolve) => {
     let settled = false;
     const finish = () => {
@@ -2434,13 +2712,12 @@ function resetMapViewToInitial() {
       map.off("moveend", finish);
       resolve();
     };
-    const timeoutId = window.setTimeout(finish, RESET_VIEW_ANIMATION_MS + 500);
+    const duration = options.duration ?? RESET_VIEW_ANIMATION_MS;
+    const timeoutId = window.setTimeout(finish, duration + 500);
     map.once("moveend", finish);
     map.easeTo({
-      center: initialView.center,
-      zoom: initialView.zoom,
-      duration: RESET_VIEW_ANIMATION_MS,
-      easing: smoothResetMapEasing,
+      ...options,
+      duration,
       essential: true,
     });
   });
@@ -2993,9 +3270,17 @@ function getCurrentLocationForecast() {
   };
 }
 
-function startSimulation() {
+async function startSimulation() {
   if (els.simulationStart.disabled) {
     return;
+  }
+
+  resetViewAnimating = true;
+  updateSimulationAvailability();
+  try {
+    await alignMapToSimulationEpicenter();
+  } finally {
+    resetViewAnimating = false;
   }
 
   simulationPreviousEpicenterEditEnabled = state.epicenterEditEnabled;
@@ -3010,6 +3295,7 @@ function startSimulation() {
   state.eewWarningBlinkStartedAt = {};
   state.eewInitialWarningKeys = new Set();
   state.eewPreviousWarningKeys = new Set();
+  resetSpeechAnnouncementState();
   resetWaveRenderCache();
   simulationRenderBucket = -1;
   maxStationListRenderBucket = null;
@@ -3035,6 +3321,9 @@ function startSimulation() {
   updateEewReplacementMode();
   updateEewForecastPanel();
   updateSimulationSummary(0);
+  if (!state.speechMuted) {
+    scheduleSimulationSpeechStart();
+  }
   updateCurrentLocationMarker();
   if (els.simulationPause) {
     els.simulationPause.textContent = "一時停止";
@@ -3060,6 +3349,8 @@ function stopSimulation() {
   state.eewWarningBlinkStartedAt = {};
   state.eewInitialWarningKeys = new Set();
   state.eewPreviousWarningKeys = new Set();
+  resetSpeechAnnouncementState();
+  finishSpeechAnnouncementsGracefully();
   cancelAnimationFrame(simulationFrame);
   simulationFrame = null;
   simulationStartedAt = null;
@@ -3144,6 +3435,8 @@ function tickSimulation(now) {
     state.simulationRunning = false;
     state.simulationPaused = false;
     state.eewWarningFinalReport = state.eewWarningReportNumber != null;
+    resetSpeechAnnouncementState();
+    finishSpeechAnnouncementsGracefully();
     simulationFrame = null;
     simulationPausedAt = null;
     maxStationListRenderBucket = null;
@@ -3207,6 +3500,7 @@ function updateSimulationSummary(elapsedSec = getSimulationStationElapsedSec()) 
   els.maxIntensityOutput.textContent = state.maxIntensityLabel;
   updateCurrentLocationForecast(elapsedSec);
   updateMaxStationList(stationFeatures, elapsedSec);
+  announceSimulationUpdates(elapsedSec);
 
   if (hasObservedIntensity) {
     recordMaxIntensityHistory(elapsedSec, maxValue);
@@ -3371,29 +3665,6 @@ function getWaveCircleBearings(steps) {
   });
   waveCircleBearingCache.set(steps, bearings);
   return bearings;
-}
-
-function destinationPoint([longitude, latitude], bearingDeg, distanceKm) {
-  const angularDistance = distanceKm / EARTH_RADIUS_KM;
-  const bearing = toRadians(bearingDeg);
-  const lat1 = toRadians(latitude);
-  const lon1 = toRadians(longitude);
-  const sinLat1 = Math.sin(lat1);
-  const cosLat1 = Math.cos(lat1);
-  const sinAngularDistance = Math.sin(angularDistance);
-  const cosAngularDistance = Math.cos(angularDistance);
-
-  const lat2 = Math.asin(
-    sinLat1 * cosAngularDistance + cosLat1 * sinAngularDistance * Math.cos(bearing),
-  );
-  const lon2 =
-    lon1 +
-    Math.atan2(
-      Math.sin(bearing) * sinAngularDistance * cosLat1,
-      cosAngularDistance - sinLat1 * Math.sin(lat2),
-    );
-
-  return [normalizeLongitude(toDegrees(lon2)), toDegrees(lat2)];
 }
 
 function normalizeLongitude(longitude) {
@@ -3652,42 +3923,6 @@ function extractExcludedJapanIslandPolygons(geojson) {
   };
 }
 
-function extractNorthernIslandDisplayPolygons(geojson) {
-  return {
-    ...geojson,
-    name: "Northern islands land display",
-    features: (geojson.features ?? []).flatMap((feature) => {
-      const geometry = feature.geometry;
-      if (!geometry?.coordinates) {
-        return [];
-      }
-
-      const coordinates =
-        geometry.type === "MultiPolygon"
-          ? geometry.coordinates.filter(isNorthernIslandDisplayPolygon)
-          : geometry.type === "Polygon" && isNorthernIslandDisplayPolygon(geometry.coordinates)
-            ? [geometry.coordinates]
-            : [];
-
-      if (coordinates.length === 0) {
-        return [];
-      }
-
-      return [{
-        ...feature,
-        properties: {
-          ...feature.properties,
-          mapTreatment: "northern-island-display-only",
-        },
-        geometry: {
-          type: "MultiPolygon",
-          coordinates,
-        },
-      }];
-    }),
-  };
-}
-
 function setNorthernIslandDisplayData(geojson) {
   setGeoJsonSourceData("northern-islands-land", {
     type: "FeatureCollection",
@@ -3809,25 +4044,6 @@ function updateStateFromInputs(options = {}) {
   if (options.resolveLocation) {
     scheduleLocationResolve();
   }
-}
-
-function sanitizeDecimalInput(value) {
-  const characters = String(value).replace(/[^\d.]/g, "").split("");
-  let hasDecimalPoint = false;
-  return characters
-    .filter((character) => {
-      if (character !== ".") {
-        return true;
-      }
-
-      if (hasDecimalPoint) {
-        return false;
-      }
-
-      hasDecimalPoint = true;
-      return true;
-    })
-    .join("");
 }
 
 function validateCoordinateInput(input, options = {}) {
@@ -3969,6 +4185,27 @@ function setStartupInteractionLocked(locked) {
   map.keyboard?.[methodName]?.();
   map.touchZoomRotate?.disableRotation?.();
   map.dragRotate?.disable?.();
+}
+
+function schedulePostMapInteractionRender() {
+  simulationRenderBucket = -1;
+  window.clearTimeout(postMapInteractionRenderTimer);
+  postMapInteractionRenderTimer = window.setTimeout(() => {
+    if (state.mapInteracting || !map) {
+      return;
+    }
+
+    if (state.simulationRunning) {
+      const elapsedSec = getSimulationElapsedSec();
+      if (map.getSource("shindo-stations") && shindoStationData) {
+        setGeoJsonSourceData("shindo-stations", getStationIntensityDataForElapsed(elapsedSec));
+      }
+      if (map.getSource("jma-local-areas") && localAreaData) {
+        setGeoJsonSourceData("jma-local-areas", buildIntensityAreaData(localAreaData, elapsedSec));
+      }
+      updateSimulationSummary(elapsedSec);
+    }
+  }, 90);
 }
 
 async function updateEpicenter(options = {}) {
@@ -5610,10 +5847,6 @@ function buildStationIntensityFeatures(data) {
   return stationIntensityFeatureCache;
 }
 
-function isHyogoNanbuPreset(preset) {
-  return Boolean(preset?.label?.includes("兵庫県南部地震"));
-}
-
 function isOldJmaScaleSyntheticPreset(preset) {
   return Boolean(
     preset?.label?.includes("兵庫県南部地震") ||
@@ -6086,37 +6319,6 @@ function estimateIntensityAtPoint(longitude, latitude, knownEpicentralDistanceKm
   });
 }
 
-function estimatePresetGapIntensity(longitude, latitude, preset) {
-  const distanceKm = haversineKilometers([preset.longitude, preset.latitude], [longitude, latitude]);
-  const baseValue =
-    preset.id === "tohoku-2011"
-      ? estimateTohoku2011GapIntensity(distanceKm, longitude, latitude)
-      : preset.id === "kumamoto-2016"
-        ? estimateKumamoto2016GapIntensity(distanceKm, longitude, latitude)
-        : preset.id === "osaka-northern-2018"
-          ? estimateOsaka2018GapIntensity(distanceKm, longitude, latitude)
-          : estimateIntensityAtPoint(longitude, latitude);
-  const ground = getGroundModelAt(longitude, latitude);
-  const siteAdjustment = clamp((ground?.intensityAmplification ?? 0) * 0.28, -0.22, 0.28);
-  return clamp(baseValue + siteAdjustment, 0, 6.45);
-}
-
-function estimateTohoku2011GapIntensity(distanceKm, longitude, latitude) {
-  const pacificSideBoost = longitude >= 140 ? 0.35 : 0;
-  const northeastBoost = latitude >= 36.5 && latitude <= 40.8 ? 0.25 : 0;
-  return 6.25 - 1.55 * Math.log10(distanceKm + 30) - 0.0024 * distanceKm + pacificSideBoost + northeastBoost;
-}
-
-function estimateKumamoto2016GapIntensity(distanceKm, longitude, latitude) {
-  const kyushuBoost = longitude >= 129 && longitude <= 132.2 && latitude >= 31.2 && latitude <= 33.8 ? 0.2 : 0;
-  return 6.35 - 1.72 * Math.log10(distanceKm + 12) - 0.0062 * distanceKm + kyushuBoost;
-}
-
-function estimateOsaka2018GapIntensity(distanceKm, longitude, latitude) {
-  const kinkiBoost = longitude >= 134.2 && longitude <= 136.8 && latitude >= 34.0 && latitude <= 35.8 ? 0.18 : 0;
-  return 5.85 - 1.68 * Math.log10(distanceKm + 8) - 0.0074 * distanceKm + kinkiBoost;
-}
-
 function getEffectiveEpicentralDistance(epicentralDistanceKm) {
   const ruptureLengthKm = estimateRuptureLengthKm();
   const finiteFaultReductionKm =
@@ -6432,33 +6634,6 @@ function pointInRing(point, ring) {
   }
 
   return inside;
-}
-
-function getGeoJsonBounds(geojson) {
-  const bounds = {
-    west: Infinity,
-    south: Infinity,
-    east: -Infinity,
-    north: -Infinity,
-  };
-
-  geojson.features.forEach((feature) => {
-    forEachCoordinate(feature.geometry.coordinates, (coordinate) => {
-      bounds.west = Math.min(bounds.west, coordinate[0]);
-      bounds.south = Math.min(bounds.south, coordinate[1]);
-      bounds.east = Math.max(bounds.east, coordinate[0]);
-      bounds.north = Math.max(bounds.north, coordinate[1]);
-    });
-  });
-
-  if (!Number.isFinite(bounds.west)) {
-    return null;
-  }
-
-  return [
-    [bounds.west, bounds.south],
-    [bounds.east, bounds.north],
-  ];
 }
 
 function forEachCoordinate(coordinates, callback) {
