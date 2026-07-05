@@ -198,12 +198,34 @@ h1 {
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 10px;
   background: rgba(82, 87, 92, 0.92);
+  box-shadow: inset 0 0 0 999px rgba(82, 87, 92, 0.92);
   color: transparent;
   cursor: pointer;
   font-size: 0;
   font-style: normal;
   font-weight: 700;
   position: relative;
+  filter: none;
+  opacity: 1;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+}
+
+.maplibregl-ctrl .source-info-button,
+.maplibregl-ctrl .source-info-button:hover,
+.maplibregl-ctrl .source-info-button:focus,
+.maplibregl-ctrl .source-info-button:focus-visible,
+.maplibregl-ctrl .source-info-button:active,
+.maplibregl-ctrl .source-info-button[aria-expanded="true"] {
+  appearance: none;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  background: rgba(82, 87, 92, 0.92) !important;
+  background-color: rgba(82, 87, 92, 0.92) !important;
+  box-shadow: inset 0 0 0 999px rgba(82, 87, 92, 0.92) !important;
+  color: transparent;
+  filter: none !important;
+  opacity: 1 !important;
 }
 
 .source-info-button::before {
@@ -215,6 +237,7 @@ h1 {
   height: 21px;
   border: 2px solid #ffffff;
   border-radius: 999px;
+  opacity: 1;
   transform: translate(calc(-50% - 0.6px), -50%);
 }
 
@@ -228,7 +251,29 @@ h1 {
   font-style: normal;
   font-weight: 900;
   line-height: 1;
+  opacity: 1;
   transform: translate(-50%, -47%);
+}
+
+.source-info-button:hover,
+.source-info-button:focus-visible,
+.source-info-button:active {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(82, 87, 92, 0.92);
+  color: transparent;
+  box-shadow: inset 0 0 0 999px rgba(82, 87, 92, 0.92);
+  filter: none;
+  opacity: 1;
+  outline: none;
+}
+
+.source-info-button:hover::before,
+.source-info-button:focus-visible::before,
+.source-info-button:active::before,
+.source-info-button:hover::after,
+.source-info-button:focus-visible::after,
+.source-info-button:active::after {
+  opacity: 1;
 }
 
 .feedback-info-button::before {
@@ -636,7 +681,11 @@ body.app-loading #reset-epicenter {
 
 body.app-loading .source-info-button {
   cursor: wait;
-  opacity: 0.58;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  background: rgba(54, 59, 64, 0.96) !important;
+  background-color: rgba(54, 59, 64, 0.96) !important;
+  box-shadow: inset 0 0 0 999px rgba(54, 59, 64, 0.96) !important;
+  opacity: 1;
 }
 
 body.app-loading #map {
@@ -651,7 +700,7 @@ body.app-loading #map {
   background: #061a3a;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 140ms ease;
+  transition: none;
 }
 
 body.map-core-loading .map-wrap::after {
@@ -1274,8 +1323,8 @@ body.app-loading #setup-panel button:not(#simulation-start) {
   background: var(--color);
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.22);
   color: var(--text-color, #ffffff);
-  font-size: 0.9rem;
-  font-weight: 900;
+  font-size: calc(0.9rem + 2px);
+  font-weight: 700;
   line-height: 1;
 }
 
@@ -1344,13 +1393,19 @@ body.app-loading #setup-panel button:not(#simulation-start) {
 
 .epicenter-marker-shell {
   display: grid;
+  position: relative;
+  z-index: 440;
   width: 38px;
   height: 38px;
   place-items: center;
 }
 
 .epicenter-marker-shell.locked {
-  pointer-events: none;
+  cursor: pointer;
+}
+
+.epicenter-marker-shell:focus-visible {
+  outline: none;
 }
 
 .epicenter-marker {
@@ -1381,6 +1436,10 @@ body.app-loading #setup-panel button:not(#simulation-start) {
   content: "📍";
 }
 
+.station-popup {
+  z-index: 930;
+}
+
 .station-popup .maplibregl-popup-content {
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 6px;
@@ -1392,11 +1451,10 @@ body.app-loading #setup-panel button:not(#simulation-start) {
   line-height: 1.35;
 }
 
-.station-popup .maplibregl-popup-tip {
+.station-popup.maplibregl-popup-anchor-bottom .maplibregl-popup-tip {
   border-top-color: rgba(2, 6, 12, 0.88);
-  border-right-color: rgba(2, 6, 12, 0.88);
-  border-bottom-color: rgba(2, 6, 12, 0.88);
-  border-left-color: rgba(2, 6, 12, 0.88);
+  margin-top: -1px;
+  filter: drop-shadow(0 4px 7px rgba(0, 0, 0, 0.24));
 }
 
 .station-popup strong,

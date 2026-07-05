@@ -17,6 +17,8 @@ const INITIAL_CENTER = [139.767, 35.681];
 const INITIAL_ZOOM = 6;
 const MOBILE_INITIAL_CENTER = INITIAL_CENTER;
 const MOBILE_INITIAL_ZOOM = 6;
+const STATION_LABEL_ALL_VISIBLE_MIN_ZOOM = 8.8;
+const STATION_CANVAS_PIXEL_RATIO_LIMIT = 2.5;
 const EXCLUDED_JAPAN_LAND_BOUNDS = [
   { west: 131.75, south: 37.15, east: 131.95, north: 37.35 },
   { west: 123.2, south: 25.5, east: 124.8, north: 26.3 },
@@ -571,7 +573,7 @@ const state = {
   maxIntensityLabel: "未計算",
   epicenterEditEnabled: false,
   showStationLayer: false,
-  showRegionLayer: true,
+  showRegionLayer: false,
   showEewWarningLayer: false,
   selectedPresetId: "",
   intensityColorScheme: "normal",
@@ -665,7 +667,16 @@ let hyogoNanbuSyntheticStationCache;
 let stationPopup;
 let stationClickPopup;
 let stationHoverEventsBound = false;
+let hoveredStationFeatureId = null;
+let hoveredStationLngLat = null;
+let clickedStationFeatureId = null;
+let stationCanvasOverlay;
+let stationCanvasRenderFrame = 0;
 let currentLocationMarker;
+let epicenterHoverPopup;
+let epicenterClickPopup;
+let epicenterHoverLngLat = null;
+let epicenterPopupPinned = false;
 let currentLocationRequestId = 0;
 let currentLocationForecastCache;
 let locationResolveTimer;
@@ -1023,6 +1034,7 @@ function applyIntensityColorScheme(schemeId, options = {}) {
   }
 
   updateLegendColors();
+  scheduleStationCanvasRender();
 
   if (options.refreshLayers === false) {
     return;
@@ -1385,6 +1397,10 @@ async function initEarthquakeMap() {
     style: {
       version: 8,
       glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
+      transition: {
+        duration: 0,
+        delay: 0,
+      },
       sources: {},
       layers: [
         {
@@ -1427,6 +1443,12 @@ async function initEarthquakeMap() {
     state.mapInteracting = false;
     schedulePostMapInteractionRender();
   });
+  map.on("render", () => {
+    renderStationCanvasOverlay();
+  });
+  map.on("resize", () => {
+    renderStationCanvasOverlay();
+  });
 
   map.on("click", (event) => {
     if (!state.epicenterEditEnabled) {
@@ -1444,14 +1466,13 @@ async function initEarthquakeMap() {
   try {
     await onceMapLoaded();
     await showMapLayers();
-    scheduleMapResize();
     els.status.textContent = "市町村区分地図を表示中";
   } catch (error) {
     els.status.textContent = "地図データの読み込みに失敗しました";
     console.warn(error);
   }
 
-  updateEpicenter({ resolveLocation: true, enforceManagedArea: true });
+  updateEpicenter({ skipIntensityUpdate: true });
 }
 
 function onceMapLoaded() {
@@ -1978,7 +1999,8 @@ function buildObservedIntensitySpeechSnapshot(elapsedSec) {
     return null;
   }
 
-  const areaFeatures = buildIntensityAreaData(localAreaData, elapsedSec).features.filter(
+  const allAreaFeatures = buildIntensityAreaData(localAreaData, elapsedSec).features;
+  const areaFeatures = allAreaFeatures.filter(
     (feature) => feature.properties.intensityRank > 0,
   );
   if (areaFeatures.length === 0) {
@@ -1986,7 +2008,7 @@ function buildObservedIntensitySpeechSnapshot(elapsedSec) {
   }
 
   const maxRank = Math.max(...areaFeatures.map((feature) => feature.properties.intensityRank));
-  const speechGroups = buildObservedIntensitySpeechGroups(areaFeatures, maxRank);
+  const speechGroups = buildObservedIntensitySpeechGroups(areaFeatures, maxRank, allAreaFeatures);
   if (speechGroups.length === 0) {
     return null;
   }
@@ -2000,15 +2022,15 @@ function buildObservedIntensitySpeechSnapshotFromGroups(speechGroups) {
   const currentLocationText = getCurrentLocationSpeechText();
   const intensityText = speechGroups
     .map((group) => `震度${group.label} ${group.areaNames.join("、")}`)
-    .join("。");
+    .join("、");
   return {
     maxRank,
     signature,
-    message: `${intensityText}。${currentLocationText}`,
+    message: `${intensityText}、${currentLocationText}`,
   };
 }
 
-function buildObservedIntensitySpeechGroups(areaFeatures, maxRank) {
+function buildObservedIntensitySpeechGroups(areaFeatures, maxRank, allAreaFeatures = areaFeatures) {
   const minSpeechRank = maxRank >= 5 ? 5 : maxRank;
   const groups = [];
 
@@ -2020,7 +2042,7 @@ function buildObservedIntensitySpeechGroups(areaFeatures, maxRank) {
 
     const intensityClass = INTENSITY_CLASSES.find((item) => item.rank === rank) ?? INTENSITY_CLASSES[0];
     const displayIntensityFeature = rankedFeatures.find((feature) => feature.properties.intensityLabel);
-    const areaNames = formatObservedIntensitySpeechAreaNames(rankedFeatures);
+    const areaNames = formatObservedIntensitySpeechAreaNames(rankedFeatures, allAreaFeatures);
     if (areaNames.length === 0) {
       continue;
     }
@@ -2035,7 +2057,8 @@ function buildObservedIntensitySpeechGroups(areaFeatures, maxRank) {
   return groups;
 }
 
-function formatObservedIntensitySpeechAreaNames(areaFeatures) {
+function formatObservedIntensitySpeechAreaNames(areaFeatures, allObservedAreaFeatures = areaFeatures) {
+  const totalAreaCountsByPrefecture = getObservedAreaCountsByPrefecture(allObservedAreaFeatures);
   const names = areaFeatures
     .map((feature) => cleanDisplayAreaName(feature.properties.name))
     .filter(Boolean);
@@ -2056,14 +2079,29 @@ function formatObservedIntensitySpeechAreaNames(areaFeatures) {
   });
 
   namesByPrefecture.forEach((prefectureAreaNames, prefecture) => {
-    if (prefectureAreaNames.length >= 2) {
+    const totalAreaCount = totalAreaCountsByPrefecture.get(prefecture) ?? 0;
+    if (totalAreaCount > 0 && prefectureAreaNames.length === totalAreaCount) {
       areaNames.push(prefecture);
     } else {
-      areaNames.push(prefectureAreaNames[0]);
+      areaNames.push(...prefectureAreaNames);
     }
   });
 
   return [...new Set(areaNames)];
+}
+
+function getObservedAreaCountsByPrefecture(areaFeatures) {
+  const counts = new Map();
+  areaFeatures.forEach((feature) => {
+    const name = cleanDisplayAreaName(feature.properties.name);
+    const prefecture = PREFECTURE_NAMES.find((prefectureName) => name.startsWith(prefectureName));
+    if (!prefecture) {
+      return;
+    }
+
+    counts.set(prefecture, (counts.get(prefecture) ?? 0) + 1);
+  });
+  return counts;
 }
 
 function getOldScalePresetSpeechLabels(preset) {
@@ -2438,9 +2476,6 @@ async function showMapLayers() {
   addGeoJsonSource("s-wave", emptyFeatureCollection());
   addGeoJsonSource("boundaries", emptyFeatureCollection());
 
-  addMapLayers();
-  setupStationHoverPopup();
-  keepWaveAndStationLayerOrder();
   fitInitialMapBounds(getInitialJapanBounds());
   hydrateDeferredMapData();
 }
@@ -2452,31 +2487,26 @@ async function hydrateDeferredMapData() {
       surroundingLand,
       boundaries,
       localAreas,
-      epicenterAreas,
-      plateBoundaries,
-      northernIslandsLand,
+      shindoStations,
     ] = await Promise.all([
       loadMunicipalitySourceData(),
       loadSurroundingLand(),
       loadBoundaryLayers(),
       loadLocalAreas(),
-      loadEpicenterAreas(),
-      loadPlateBoundaries(),
-      loadNorthernIslandsLand(),
+      loadShindoStations(),
     ]);
 
     window.requestAnimationFrame(() => {
       const displayMunicipalities = filterExcludedGeoJsonFeatures(municipalities);
       municipalityDisplayData = municipalityDisplayData ?? withoutInteriorRings(displayMunicipalities);
+      shindoStationData = shindoStations;
+      invalidateIntensityEstimateCache();
 
       setGeoJsonSourceData("surrounding-land", filterSurroundingLandForDisplay(surroundingLand));
       setGeoJsonSourceData(
         "boundaries",
         removeExcludedJapanIslandLinework(filterExcludedGeoJsonFeatures(boundaries)),
       );
-      epicenterAreaData = epicenterAreas;
-      setGeoJsonSourceData("plate-boundaries", plateBoundaries);
-      setNorthernIslandDisplayData(withoutInteriorRings(northernIslandsLand));
       setGeoJsonSourceData(
         "municipalities-linework",
         removeExcludedJapanIslandPolygons(municipalityDisplayData),
@@ -2486,18 +2516,27 @@ async function hydrateDeferredMapData() {
         extractExcludedJapanIslandPolygons(municipalityDisplayData),
       );
       setGeoJsonSourceData("municipalities", municipalityDisplayData);
+      const initialAreaData = buildIntensityAreaData(localAreaData, Infinity);
+      setGeoJsonSourceData("jma-local-areas", initialAreaData);
+      setGeoJsonSourceData("shindo-stations", buildStationIntensityData(shindoStationData, Infinity));
+      updateSetupResultOutputs();
+      addMapLayers();
+      setupStationHoverPopup();
+      keepWaveAndStationLayerOrder();
+      safelyResizeMap();
+      if (document.body.classList.contains("map-core-loading")) {
+        startupLocationResolved = true;
+      }
       showMunicipalityLinework();
-      invalidateIntensityEstimateCache();
       scheduleLocationResolve();
-      updateIntensityLayer();
       updateSimulationAvailability();
+      schedulePostMunicipalityDataHydration();
     });
   } catch (error) {
     console.warn(error);
     document.body.classList.remove("map-core-loading");
   } finally {
     updateSimulationAvailability();
-    schedulePostMunicipalityDataHydration();
   }
 }
 
@@ -2513,7 +2552,6 @@ function showMunicipalityLinework() {
     window.requestAnimationFrame(() => {
       updateLayerVisibility("municipality-boundaries", true);
       municipalityBoundaryVisible = true;
-      updateIntensityLayer();
       scheduleStartupReadyAfterIntensityPaint();
     });
   }, 360);
@@ -2546,14 +2584,16 @@ function scheduleStartupReadyAfterIntensityPaint() {
 
 function releaseStartupMapOverlay() {
   startupMapVisualReady = true;
+  map?.resize();
+  renderStationCanvasOverlay();
   document.body.classList.remove("map-core-loading");
   updateSimulationAvailability();
 }
 
 async function waitForStableStartupMap(paintVersion) {
-  await waitForMapIdle(1800);
-  await waitForAnimationFrames(isCompactViewport() || isTabletViewport() ? 4 : 3);
-  await waitForMapIdle(900);
+  await waitForMapIdle(1200, { force: true });
+  await waitForAnimationFrames(isCompactViewport() || isTabletViewport() ? 6 : 4);
+  await waitForMapIdle(700, { force: true });
   await waitForAnimationFrames(2);
   return (
     paintVersion === startupIntensityPaintVersion &&
@@ -2562,6 +2602,16 @@ async function waitForStableStartupMap(paintVersion) {
     Boolean(municipalityDisplayData?.features?.length) &&
     Boolean(localAreaData?.features?.length) &&
     Boolean(shindoStationData)
+  );
+}
+
+function isStartupIntensityLayerReady() {
+  const areaData = sourceDataRefs.get("jma-local-areas");
+  return Boolean(
+    map?.getLayer("jma-intensity-fill") &&
+      map?.getSource("jma-local-areas") &&
+      areaData?.features?.length &&
+      areaData.features.every((feature) => typeof feature.properties?.intensityColor === "string"),
   );
 }
 
@@ -2579,8 +2629,8 @@ function waitForAnimationFrames(count = 1) {
   });
 }
 
-function waitForMapIdle(timeoutMs = 1200) {
-  if (!map || map.loaded()) {
+function waitForMapIdle(timeoutMs = 1200, options = {}) {
+  if (!map || (!options.force && map.loaded())) {
     return Promise.resolve();
   }
 
@@ -2626,14 +2676,32 @@ function scheduleDeferredTask(callback, delayMs = 0, timeoutMs = 3000) {
 
 function loadSecondaryMapData() {
   loadEpicenterAreas().catch((error) => console.warn(error));
+  loadPlateBoundaries()
+    .then((plateBoundaries) => {
+      setGeoJsonSourceData("plate-boundaries", plateBoundaries);
+      keepWaveAndStationLayerOrder();
+    })
+    .catch((error) => console.warn(error));
+  loadNorthernIslandsLand()
+    .then((northernIslandsLand) => {
+      setNorthernIslandDisplayData(withoutInteriorRings(northernIslandsLand));
+      keepWaveAndStationLayerOrder();
+    })
+    .catch((error) => console.warn(error));
 }
 
 function loadStationMapData() {
+  const stationDataAlreadyAvailable = Boolean(shindoStationData);
   loadShindoStations()
     .then((shindoStations) => {
+      if (stationDataAlreadyAvailable && sourceDataRefs.get("shindo-stations")) {
+        return;
+      }
       setGeoJsonSourceData("shindo-stations", buildStationIntensityData(shindoStations));
-      invalidateIntensityEstimateCache();
-      updateIntensityLayer();
+      if (!stationDataAlreadyAvailable) {
+        invalidateIntensityEstimateCache();
+        updateIntensityLayer();
+      }
     })
     .catch((error) => console.warn(error))
     .finally(() => updateSimulationAvailability());
@@ -2721,16 +2789,26 @@ function addGeoJsonSource(id, data) {
 
 function setGeoJsonSourceData(id, data) {
   const source = map?.getSource(id);
-  if (!source || sourceDataRefs.get(id) === data) {
+  if (!source) {
+    return false;
+  }
+
+  if (sourceDataRefs.get(id) === data) {
     return false;
   }
 
   source.setData(data);
   sourceDataRefs.set(id, data);
+  if (id === "shindo-stations") {
+    scheduleStationCanvasRender();
+    updateActiveStationPopups(data);
+  }
   return true;
 }
 
 function addMapLayers() {
+  ensureStationCanvasOverlay();
+
   addLayerIfMissing({
     id: "surrounding-land-fill",
     type: "fill",
@@ -2858,12 +2936,20 @@ function addMapLayers() {
     source: "jma-local-areas",
     paint: {
       "fill-color": ["get", "intensityColor"],
+      "fill-color-transition": {
+        duration: 0,
+        delay: 0,
+      },
       "fill-opacity": [
         "case",
         ["<=", ["get", "intensityRank"], 0],
         0,
         ["interpolate", ["linear"], ["get", "intensityRank"], 1, 0.54, 2, 0.72, 9, 0.94],
       ],
+      "fill-opacity-transition": {
+        duration: 0,
+        delay: 0,
+      },
     },
   });
   updateLayerVisibility("jma-intensity-fill", state.showRegionLayer);
@@ -2921,40 +3007,14 @@ function addMapLayers() {
     id: "shindo-station-points",
     type: "circle",
     source: "shindo-stations",
-    layout: {
-      "circle-sort-key": ["get", "intensityRank"],
-    },
     paint: {
-      "circle-color": ["get", "intensityColor"],
-      "circle-opacity": 1,
+      "circle-color": "#000000",
+      "circle-opacity": 0.001,
       "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 7.5, 7, 9, 10, 10.5],
-      "circle-stroke-color": "#111827",
-      "circle-stroke-opacity": 1,
-      "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 4, 0.85, 8, 1, 11, 1.15],
+      "circle-stroke-opacity": 0,
     },
   });
   updateLayerVisibility("shindo-station-points", state.showStationLayer);
-
-  addLayerIfMissing({
-    id: "shindo-station-labels",
-    type: "symbol",
-    source: "shindo-stations",
-    minzoom: 7.2,
-    layout: {
-      "text-field": ["get", "intensityShortLabel"],
-      "text-font": ["Noto Sans Regular"],
-      "text-size": ["interpolate", ["linear"], ["zoom"], 4, 8, 8, 9.5, 11, 10.5],
-      "symbol-sort-key": ["get", "intensityRank"],
-      "text-allow-overlap": false,
-      "text-ignore-placement": false,
-    },
-    paint: {
-      "text-color": ["get", "intensityTextColor"],
-      "text-halo-color": ["case", ["<=", ["get", "intensityRank"], 2], "rgba(255,255,255,0.7)", "rgba(0,0,0,0.32)"],
-      "text-halo-width": 0.45,
-    },
-  });
-  updateLayerVisibility("shindo-station-labels", state.showStationLayer);
 
   addLayerIfMissing({
     id: "p-wave-fill",
@@ -2976,7 +3036,7 @@ function addMapLayers() {
     },
     paint: {
       "line-color": "#7de7ff",
-      "line-opacity": 0.9,
+      "line-opacity": 0,
       "line-width": 2.4,
     },
   });
@@ -3001,7 +3061,7 @@ function addMapLayers() {
     },
     paint: {
       "line-color": "#ff6b7f",
-      "line-opacity": 0.95,
+      "line-opacity": 0,
       "line-width": 3.4,
     },
   });
@@ -3031,7 +3091,6 @@ function keepWaveAndStationLayerOrder() {
   moveLayerToTop("p-wave-fill");
   moveLayerToTop("s-wave-fill");
   moveLayerToTop("shindo-station-points");
-  moveLayerToTop("shindo-station-labels");
   moveLayerToTop("p-wave-line");
   moveLayerToTop("s-wave-line");
 }
@@ -3040,6 +3099,193 @@ function updateLayerVisibility(layerId, visible) {
   if (map?.getLayer(layerId)) {
     map.setLayoutProperty(layerId, "visibility", visible ? "visible" : "none");
   }
+  if (layerId === "shindo-station-points") {
+    scheduleStationCanvasRender();
+  }
+}
+
+function ensureStationCanvasOverlay() {
+  if (!map || stationCanvasOverlay) {
+    return;
+  }
+
+  const container = map.getContainer();
+  const canvas = document.createElement("canvas");
+  canvas.className = "station-canvas-overlay";
+  Object.assign(canvas.style, {
+    position: "absolute",
+    inset: "0",
+    width: "100%",
+    height: "100%",
+    pointerEvents: "none",
+    zIndex: "420",
+  });
+  container.appendChild(canvas);
+  stationCanvasOverlay = canvas;
+  scheduleStationCanvasRender();
+}
+
+function scheduleStationCanvasRender() {
+  if (!map || !stationCanvasOverlay || stationCanvasRenderFrame) {
+    return;
+  }
+
+  stationCanvasRenderFrame = window.requestAnimationFrame(() => {
+    stationCanvasRenderFrame = 0;
+    renderStationCanvasOverlay();
+  });
+}
+
+function resizeStationCanvasOverlay() {
+  if (!map || !stationCanvasOverlay) {
+    return null;
+  }
+
+  const container = map.getContainer();
+  const width = Math.max(Math.floor(container.clientWidth), 1);
+  const height = Math.max(Math.floor(container.clientHeight), 1);
+  const pixelRatio = Math.min(window.devicePixelRatio || 1, STATION_CANVAS_PIXEL_RATIO_LIMIT);
+  const canvasWidth = Math.ceil(width * pixelRatio);
+  const canvasHeight = Math.ceil(height * pixelRatio);
+  if (stationCanvasOverlay.width !== canvasWidth || stationCanvasOverlay.height !== canvasHeight) {
+    stationCanvasOverlay.width = canvasWidth;
+    stationCanvasOverlay.height = canvasHeight;
+  }
+  stationCanvasOverlay.style.width = `${width}px`;
+  stationCanvasOverlay.style.height = `${height}px`;
+  const context = stationCanvasOverlay.getContext("2d");
+  context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+  return { context, width, height };
+}
+
+function renderStationCanvasOverlay() {
+  const canvasState = resizeStationCanvasOverlay();
+  if (!canvasState) {
+    return;
+  }
+
+  const { context, width, height } = canvasState;
+  context.clearRect(0, 0, width, height);
+
+  const features = sourceDataRefs.get("shindo-stations")?.features ?? [];
+  const zoom = map.getZoom();
+  if (state.showStationLayer && features.length) {
+    const radius = interpolateByZoom(zoom, [
+      [4, 7.5],
+      [7, 9],
+      [10, 10.5],
+    ]);
+  const fontSize = interpolateByZoom(zoom, [
+    [4, 9.2],
+    [8.8, 10.8],
+    [11, 11.6],
+  ]);
+    const labelFadeStartZoom = STATION_LABEL_ALL_VISIBLE_MIN_ZOOM - 0.18;
+    const labelAlpha = smoothStep(clamp((zoom - labelFadeStartZoom) / 0.18, 0, 1));
+    const padding = radius + 6;
+
+    [...features]
+      .sort((a, b) => Number(a.properties?.stationDisplaySortKey ?? 0) - Number(b.properties?.stationDisplaySortKey ?? 0))
+      .forEach((feature) => {
+        const coordinates = feature.geometry?.coordinates;
+        if (!Array.isArray(coordinates)) {
+          return;
+        }
+
+        const point = map.project({ lng: coordinates[0], lat: coordinates[1] });
+        if (point.x < -padding || point.x > width + padding || point.y < -padding || point.y > height + padding) {
+          return;
+        }
+
+        const properties = feature.properties ?? {};
+        drawStationCanvasMarker(context, point.x, point.y, radius, fontSize, labelAlpha, properties);
+      });
+  }
+
+  drawWaveCanvasLine(context, "p-wave", "#7de7ff", 2.4, 0.9);
+  drawWaveCanvasLine(context, "s-wave", "#ff6b7f", 3.4, 0.95);
+}
+
+function interpolateByZoom(zoom, stops) {
+  if (zoom <= stops[0][0]) {
+    return stops[0][1];
+  }
+
+  for (let index = 1; index < stops.length; index += 1) {
+    const [nextZoom, nextValue] = stops[index];
+    const [previousZoom, previousValue] = stops[index - 1];
+    if (zoom <= nextZoom) {
+      const progress = (zoom - previousZoom) / (nextZoom - previousZoom);
+      return previousValue + (nextValue - previousValue) * progress;
+    }
+  }
+
+  return stops[stops.length - 1][1];
+}
+
+function drawStationCanvasMarker(context, x, y, radius, fontSize, labelAlpha, properties) {
+  const fillColor = properties.intensityColor || "#ffffff";
+  const textColor = properties.intensityTextColor || "#111827";
+
+  context.beginPath();
+  context.arc(x, y, radius, 0, Math.PI * 2);
+  context.fillStyle = fillColor;
+  context.fill();
+  context.lineWidth = 1.05;
+  context.strokeStyle = "#111827";
+  context.stroke();
+
+  if (labelAlpha <= 0) {
+    return;
+  }
+
+  context.save();
+  context.globalAlpha = labelAlpha;
+  context.font = `700 ${fontSize}px "Noto Sans", "Arial", sans-serif`;
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.lineWidth = 0.9;
+  context.strokeStyle = Number(properties.intensityRank ?? 0) <= 2 ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.32)";
+  context.fillStyle = textColor;
+  context.strokeText(String(properties.intensityShortLabel ?? ""), x, y + 0.35);
+  context.fillText(String(properties.intensityShortLabel ?? ""), x, y + 0.35);
+  context.restore();
+}
+
+function drawWaveCanvasLine(context, sourceId, color, lineWidth, alpha) {
+  const features = sourceDataRefs.get(sourceId)?.features ?? [];
+  if (!features.length) {
+    return;
+  }
+
+  context.save();
+  context.globalAlpha = alpha;
+  context.strokeStyle = color;
+  context.lineWidth = lineWidth;
+  context.lineCap = "round";
+  context.lineJoin = "round";
+
+  features.forEach((feature) => {
+    const rings = feature.geometry?.coordinates ?? [];
+    rings.forEach((ring) => {
+      if (!Array.isArray(ring) || ring.length < 2) {
+        return;
+      }
+
+      context.beginPath();
+      ring.forEach((coordinate, index) => {
+        const point = map.project({ lng: coordinate[0], lat: coordinate[1] });
+        if (index === 0) {
+          context.moveTo(point.x, point.y);
+          return;
+        }
+        context.lineTo(point.x, point.y);
+      });
+      context.stroke();
+    });
+  });
+
+  context.restore();
 }
 
 function fitInitialMapBounds(bounds) {
@@ -3197,10 +3443,16 @@ function getInitialJapanBounds() {
 function scheduleLocationResolve(options = {}) {
   window.clearTimeout(locationResolveTimer);
   locationResolveTimer = window.setTimeout(async () => {
-    await updateEpicenter({ resolveLocation: true, enforceManagedArea: true, ...options });
+    const skipStartupIntensityUpdate = document.body.classList.contains("map-core-loading");
+    await updateEpicenter({
+      resolveLocation: true,
+      enforceManagedArea: true,
+      skipIntensityUpdate: skipStartupIntensityUpdate,
+      ...options,
+    });
     if (document.body.classList.contains("map-core-loading")) {
       startupLocationResolved = true;
-      updateIntensityLayer();
+      scheduleStartupReadyAfterIntensityPaint();
     }
   }, 180);
 }
@@ -3219,6 +3471,10 @@ function updateEpicenterEditMode() {
     epicenterMarker.setDraggable(state.epicenterEditEnabled);
     epicenterMarker.getElement().classList.toggle("locked", !state.epicenterEditEnabled);
   }
+
+  if (state.epicenterEditEnabled) {
+    closeEpicenterInfoPopups();
+  }
 }
 
 function updateDisplayMode() {
@@ -3229,7 +3485,6 @@ function updateDisplayMode() {
   els.simulationRegionLayerToggle.checked = state.showRegionLayer;
   els.simulationEewWarningToggle.checked = state.showEewWarningLayer;
   updateLayerVisibility("shindo-station-points", state.showStationLayer);
-  updateLayerVisibility("shindo-station-labels", state.showStationLayer);
   updateLayerVisibility("jma-intensity-fill", state.showRegionLayer);
   updateLayerVisibility("eew-warning-fill", state.showEewWarningLayer);
   if (state.showStationLayer && map?.getSource("shindo-stations")) {
@@ -3269,16 +3524,21 @@ function setupStationHoverPopup() {
 
   stationHoverEventsBound = true;
   stationPopup = new maplibregl.Popup({
+    anchor: "bottom",
     closeButton: false,
     closeOnClick: false,
     className: "station-popup",
     offset: 10,
   });
   stationClickPopup = new maplibregl.Popup({
+    anchor: "bottom",
     closeButton: true,
-    closeOnClick: true,
+    closeOnClick: false,
     className: "station-popup",
     offset: 14,
+  });
+  stationClickPopup.on("close", () => {
+    clickedStationFeatureId = null;
   });
 
   map.on("mouseenter", "shindo-station-points", () => {
@@ -3291,6 +3551,12 @@ function setupStationHoverPopup() {
       return;
     }
 
+    hoveredStationFeatureId = String(feature.properties?.id ?? "");
+    if (clickedStationFeatureId && clickedStationFeatureId === hoveredStationFeatureId) {
+      stationPopup.remove();
+      return;
+    }
+    hoveredStationLngLat = event.lngLat;
     stationPopup
       .setLngLat(event.lngLat)
       .setHTML(stationPopupHtml(feature.properties))
@@ -3304,16 +3570,59 @@ function setupStationHoverPopup() {
     }
 
     event.preventDefault();
+    event.originalEvent?.stopPropagation?.();
+    const nextClickedStationFeatureId = String(feature.properties?.id ?? "");
+    if (nextClickedStationFeatureId === hoveredStationFeatureId) {
+      stationPopup.remove();
+    }
     stationClickPopup
       .setLngLat(event.lngLat)
       .setHTML(stationPopupHtml(feature.properties))
       .addTo(map);
+    clickedStationFeatureId = nextClickedStationFeatureId;
   });
 
   map.on("mouseleave", "shindo-station-points", () => {
     map.getCanvas().style.cursor = "";
+    hoveredStationFeatureId = null;
+    hoveredStationLngLat = null;
     stationPopup.remove();
   });
+}
+
+function updateActiveStationPopups(data = sourceDataRefs.get("shindo-stations")) {
+  if (!data?.features?.length) {
+    return;
+  }
+
+  if (hoveredStationFeatureId && stationPopup?.isOpen?.()) {
+    const properties = findStationFeaturePropertiesById(hoveredStationFeatureId, data);
+    if (properties) {
+      if (clickedStationFeatureId && clickedStationFeatureId === hoveredStationFeatureId) {
+        stationPopup.remove();
+        return;
+      }
+      if (hoveredStationLngLat) {
+        stationPopup.setLngLat(hoveredStationLngLat);
+      }
+      stationPopup.setHTML(stationPopupHtml(properties));
+    }
+  }
+
+  if (clickedStationFeatureId && stationClickPopup?.isOpen?.()) {
+    const properties = findStationFeaturePropertiesById(clickedStationFeatureId, data);
+    if (properties) {
+      stationClickPopup.setHTML(stationPopupHtml(properties));
+    }
+  }
+}
+
+function findStationFeaturePropertiesById(featureId, data = sourceDataRefs.get("shindo-stations")) {
+  if (!featureId || !data?.features?.length) {
+    return null;
+  }
+
+  return data.features.find((feature) => String(feature.properties?.id ?? "") === String(featureId))?.properties ?? null;
 }
 
 function stationPopupHtml(properties) {
@@ -3791,7 +4100,6 @@ async function startSimulation() {
   simulationPausedAt = null;
   updateIntensityLayer();
   updateLayerVisibility("shindo-station-points", state.showStationLayer);
-  updateLayerVisibility("shindo-station-labels", state.showStationLayer);
   updateLayerVisibility("jma-intensity-fill", state.showRegionLayer);
   updateLayerVisibility("eew-warning-fill", state.showEewWarningLayer);
   updateEewReplacementMode();
@@ -4625,8 +4933,16 @@ function updateSimulationAvailability() {
     return;
   }
 
-  if (isSimulationMapDataLoading()) {
+  if (!startupMapVisualReady) {
     setStartupInteractionLocked(true);
+    els.simulationStart.disabled = true;
+    els.simulationStart.textContent = "マップを読み込み中...";
+    els.simulationStart.title = "マップを読み込んでいます";
+    return;
+  }
+
+  if (isSimulationMapDataLoading()) {
+    setStartupInteractionLocked(false);
     els.simulationStart.disabled = true;
     els.simulationStart.textContent = "マップを読み込み中...";
     els.simulationStart.title = "マップと震度計算用データを読み込んでいます";
@@ -4656,7 +4972,11 @@ function updateSetupResultOutputs() {
 }
 
 function isSimulationMapDataLoading() {
-  return !startupMapVisualReady || !municipalityDisplayData?.features?.length || !localAreaData?.features?.length || !shindoStationData;
+  return (
+    !municipalityDisplayData?.features?.length ||
+    !localAreaData?.features?.length ||
+    !shindoStationData
+  );
 }
 
 function setStartupInteractionLocked(locked) {
@@ -4712,7 +5032,9 @@ async function updateEpicenter(options = {}) {
       if (epicenterMarker) {
         epicenterMarker.setLngLat([state.longitude, state.latitude]);
       }
-      updateIntensityLayer();
+      if (!options.skipIntensityUpdate) {
+        updateIntensityLayer();
+      }
       return;
     }
 
@@ -4724,13 +5046,18 @@ async function updateEpicenter(options = {}) {
     }
   }
 
-  updateIntensityLayer();
+  if (!options.skipIntensityUpdate) {
+    updateIntensityLayer();
+  }
   syncInputs();
   const lngLat = [state.longitude, state.latitude];
 
   if (!epicenterMarker) {
     const markerElement = document.createElement("span");
     markerElement.className = "epicenter-marker-shell";
+    markerElement.tabIndex = 0;
+    markerElement.setAttribute("role", "button");
+    markerElement.setAttribute("aria-label", "震源情報を表示");
     markerElement.innerHTML = `
       <svg class="epicenter-marker" viewBox="0 0 48 48" aria-hidden="true">
         <path d="M10 15 L15 10 L24 19 L33 10 L38 15 L29 24 L38 33 L33 38 L24 29 L15 38 L10 33 L19 24 Z" />
@@ -4744,9 +5071,88 @@ async function updateEpicenter(options = {}) {
       .setLngLat(lngLat)
       .addTo(map);
 
+    epicenterHoverPopup = new maplibregl.Popup({
+      anchor: "bottom",
+      closeButton: false,
+      closeOnClick: false,
+      className: "station-popup epicenter-popup",
+      offset: 10,
+    });
+    epicenterClickPopup = new maplibregl.Popup({
+      anchor: "bottom",
+      closeButton: true,
+      closeOnClick: true,
+      className: "station-popup epicenter-popup",
+      offset: 14,
+    });
+    epicenterClickPopup.on("close", () => {
+      epicenterPopupPinned = false;
+    });
+
+    const getEpicenterEventLngLat = (event) => {
+      const rect = map.getContainer().getBoundingClientRect();
+      return map.unproject([event.clientX - rect.left, event.clientY - rect.top]);
+    };
+
+    const openEpicenterHoverPopup = (event) => {
+      if (state.epicenterEditEnabled || epicenterPopupPinned) {
+        epicenterHoverPopup.remove();
+        return;
+      }
+      const popupLngLat = event ? getEpicenterEventLngLat(event) : [state.longitude, state.latitude];
+      epicenterHoverLngLat = popupLngLat;
+      epicenterHoverPopup
+        .setLngLat(popupLngLat)
+        .setHTML(buildEpicenterPopupHtml())
+        .addTo(map);
+    };
+
+    markerElement.addEventListener("mouseenter", (event) => {
+      if (state.epicenterEditEnabled) {
+        return;
+      }
+      map.getCanvas().style.cursor = "pointer";
+      openEpicenterHoverPopup(event);
+    });
+
+    markerElement.addEventListener("mousemove", (event) => {
+      if (state.epicenterEditEnabled) {
+        return;
+      }
+      openEpicenterHoverPopup(event);
+    });
+
+    markerElement.addEventListener("mouseleave", () => {
+      map.getCanvas().style.cursor = "";
+      epicenterHoverLngLat = null;
+      epicenterHoverPopup.remove();
+    });
+
+    markerElement.addEventListener("focus", () => {
+      if (state.epicenterEditEnabled) {
+        return;
+      }
+      openEpicenterHoverPopup();
+    });
+
+    markerElement.addEventListener("blur", () => {
+      epicenterHoverLngLat = null;
+      epicenterHoverPopup.remove();
+    });
+
     markerElement.addEventListener("click", (event) => {
+      if (state.epicenterEditEnabled) {
+        closeEpicenterInfoPopups();
+        return;
+      }
       event.stopPropagation();
-      epicenterMarker.getPopup()?.addTo(map);
+      epicenterPopupPinned = true;
+      epicenterHoverLngLat = null;
+      epicenterHoverPopup.remove();
+      epicenterClickPopup
+        .setLngLat(getEpicenterEventLngLat(event))
+        .setHTML(buildEpicenterPopupHtml())
+        .addTo(map);
     });
 
     epicenterMarker.on("dragend", () => {
@@ -4766,19 +5172,45 @@ async function updateEpicenter(options = {}) {
     updateEpicenterEditMode();
   }
 
-  epicenterMarker
-    .setLngLat(lngLat)
-    .setPopup(
-      new maplibregl.Popup({ offset: 24 }).setHTML(
-        [
-          `${escapeHtml(state.epicenterName)}`,
-          `M ${state.magnitude.toFixed(1)}`,
-          `深さ ${formatDepth(state.depthKm)}`,
-          `最大震度 ${escapeHtml(state.maxIntensityLabel)}`,
-          `${state.latitude.toFixed(3)}, ${state.longitude.toFixed(3)}`,
-        ].join("<br>"),
-      ),
-    );
+  epicenterMarker.setLngLat(lngLat);
+  updateActiveEpicenterPopups(lngLat);
+}
+
+function buildEpicenterPopupHtml() {
+  return [
+    `<span>震源：${escapeHtml(state.epicenterName)}</span>`,
+    `<span>マグニチュード：${state.magnitude.toFixed(1)}</span>`,
+    `<span>深さ：${escapeHtml(formatDepth(state.depthKm))}</span>`,
+  ].join("");
+}
+
+function updateActiveEpicenterPopups(lngLat = [state.longitude, state.latitude]) {
+  if (state.epicenterEditEnabled) {
+    closeEpicenterInfoPopups();
+    return;
+  }
+
+  if (epicenterHoverPopup?.isOpen?.()) {
+    epicenterHoverPopup
+      .setLngLat(epicenterHoverLngLat ?? lngLat)
+      .setHTML(buildEpicenterPopupHtml());
+  }
+
+  if (epicenterClickPopup?.isOpen?.()) {
+    epicenterClickPopup
+      .setLngLat(lngLat)
+      .setHTML(buildEpicenterPopupHtml());
+  }
+}
+
+function closeEpicenterInfoPopups() {
+  epicenterPopupPinned = false;
+  epicenterHoverLngLat = null;
+  epicenterHoverPopup?.remove();
+  epicenterClickPopup?.remove();
+  if (map) {
+    map.getCanvas().style.cursor = "";
+  }
 }
 
 async function updateLocationNames() {
@@ -6058,6 +6490,7 @@ function getCurrentIntensityProperties(properties, elapsedSec = Infinity) {
     intensityRank: currentClass.rank,
     intensityColor: currentClass.color,
     intensityTextColor: currentClass.textColor,
+    stationDisplaySortKey: getStationDisplaySortKey(currentClass.rank, properties.displaySortStableKey ?? properties.id),
   };
 }
 
@@ -6256,6 +6689,11 @@ function getOffshoreEpicenterFactor() {
   return 0;
 }
 
+function getStationDisplaySortKey(intensityRank, stableKey) {
+  const rank = Number(intensityRank) || 0;
+  return Number((rank * 100000 + stableUnitInterval(`station-sort|${stableKey}`)).toFixed(6));
+}
+
 function buildStationIntensityFeatures(data) {
   if (stationIntensityFeatureCache) {
     return stationIntensityFeatureCache;
@@ -6305,6 +6743,7 @@ function buildStationIntensityFeatures(data) {
         type: "Feature",
         properties: {
           id: station.id,
+          displaySortStableKey: `${station.id}|${station.longitude.toFixed(4)}|${station.latitude.toFixed(4)}`,
           name: station.name,
           areaName: station.areaName,
           address: station.address,
@@ -6326,6 +6765,10 @@ function buildStationIntensityFeatures(data) {
           intensityRank: intensityClass.rank,
           intensityColor: intensityClass.color,
           intensityTextColor: intensityClass.textColor,
+          stationDisplaySortKey: getStationDisplaySortKey(
+            intensityClass.rank,
+            `${station.id}|${station.longitude.toFixed(4)}|${station.latitude.toFixed(4)}`,
+          ),
           groundCode: ground?.code ?? "",
           groundArv: ground?.arv ?? null,
           groundAvs: ground?.avs ?? null,
@@ -6479,6 +6922,7 @@ function buildOldScaleSyntheticStationFeatures(preset, existingFeatures) {
       type: "Feature",
       properties: {
         id: `${preset.id}-synthetic-${index}`,
+        displaySortStableKey: `${preset.id}|${observation.stationName}|${coordinates[0].toFixed(4)}|${coordinates[1].toFixed(4)}`,
         name: observation.stationName,
         areaName: municipalityName,
         address: `${observation.prefecture ?? ""}${municipalityName}`,
@@ -6498,6 +6942,10 @@ function buildOldScaleSyntheticStationFeatures(preset, existingFeatures) {
         intensityRank: intensityClass.rank,
         intensityColor: intensityClass.color,
         intensityTextColor: intensityClass.textColor,
+        stationDisplaySortKey: getStationDisplaySortKey(
+          intensityClass.rank,
+          `${preset.id}|${observation.stationName}|${coordinates[0].toFixed(4)}|${coordinates[1].toFixed(4)}`,
+        ),
         groundCode: ground?.code ?? "",
         groundArv: ground?.arv ?? null,
         groundAvs: ground?.avs ?? null,
