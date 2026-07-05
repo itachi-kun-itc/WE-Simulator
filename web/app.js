@@ -687,6 +687,7 @@ let municipalityBoundaryVisible = false;
 let startupLocationResolved = false;
 let startupIntensityPaintVersion = 0;
 let startupOverlayReleasePending = false;
+let startupOverlayReleaseTimer;
 let simulationStartedAt;
 let simulationPausedAt;
 let simulationPreviousEpicenterEditEnabled = false;
@@ -1717,6 +1718,7 @@ function normalizeSpeechAnnouncementText(message) {
     .replace(/中越/g, "ちゅうえつ")
     .replace(/三八上北/g, "さんぱちかみきた")
     .replace(/山梨県東部・富士五湖/g, "やまなしけんとうぶ・ふじごこ")
+    .replace(/天草芦北/g, "あまくさあしきた")
     .replace(/大東島/g, "だいとうじま")
     .replace(/八重山/g, "やえやま")
     .replace(/大分/g, "おおいた");
@@ -2573,13 +2575,21 @@ function scheduleStartupReadyAfterIntensityPaint() {
   startupOverlayReleasePending = true;
   const paintVersion = startupIntensityPaintVersion;
   waitForStableStartupMap(paintVersion).then((stable) => {
-    startupOverlayReleasePending = false;
     if (stable) {
-      releaseStartupMapOverlay();
+      scheduleStartupMapOverlayRelease();
     } else {
+      startupOverlayReleasePending = false;
       scheduleStartupReadyAfterIntensityPaint();
     }
   });
+}
+
+function scheduleStartupMapOverlayRelease() {
+  window.clearTimeout(startupOverlayReleaseTimer);
+  startupOverlayReleaseTimer = window.setTimeout(() => {
+    startupOverlayReleasePending = false;
+    releaseStartupMapOverlay();
+  }, 1000);
 }
 
 function releaseStartupMapOverlay() {
