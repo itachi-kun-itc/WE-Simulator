@@ -781,6 +781,7 @@ applyIntensityColorScheme(state.intensityColorScheme, { refreshLayers: false });
 setupMobileSheets();
 preventNonMapZoom();
 setupViewportStability();
+setupSpeechSynthesisRecovery();
 
 if (window.maplibregl) {
   initEarthquakeMap().catch((error) => {
@@ -1326,6 +1327,19 @@ function setupViewportStability() {
   }
 }
 
+function setupSpeechSynthesisRecovery() {
+  if (!("speechSynthesis" in window)) {
+    return;
+  }
+
+  const recover = () => {
+    recoverSpeechSynthesis({ resumeSimulation: document.visibilityState === "visible" });
+  };
+  document.addEventListener("visibilitychange", recover);
+  window.addEventListener("pageshow", recover);
+  window.addEventListener("focus", recover);
+}
+
 function updateAppViewportHeight() {
   const viewportHeight = Math.max(
     window.visualViewport?.height ?? 0,
@@ -1563,6 +1577,7 @@ function setSpeechButtonMuted(button, muted) {
     return;
   }
 
+  recoverSpeechSynthesis();
   if (state.simulationRunning) {
     scheduleSimulationSpeechStart();
   }
@@ -1614,7 +1629,8 @@ function showSpeechConfirmOverlay(overlay, onConfirm) {
 function createSpeechAnnouncementState() {
   return {
     startAnnounced: false,
-    prefectureRanks: new Map(),
+    maxObservedRank: 0,
+    maxObservedAreaNames: new Set(),
     eewAreaNames: new Set(),
     pendingMessages: [],
     speaking: false,
@@ -1632,6 +1648,21 @@ function canSpeakAnnouncements() {
   return !state.speechMuted && "speechSynthesis" in window && typeof SpeechSynthesisUtterance !== "undefined";
 }
 
+function recoverSpeechSynthesis(options = {}) {
+  if (!("speechSynthesis" in window)) {
+    return;
+  }
+
+  window.speechSynthesis.cancel();
+  speechAnnouncementState.speaking = false;
+  if (!options.resumeSimulation || state.speechMuted || !state.simulationRunning) {
+    return;
+  }
+
+  speechAnnouncementState.pendingMessages = [];
+  playNextSpeechAnnouncement();
+}
+
 function speakAnnouncement(message) {
   if (!canSpeakAnnouncements() || !message || !speechAnnouncementState.active) {
     return;
@@ -1647,6 +1678,10 @@ function speakAnnouncement(message) {
 }
 
 function playNextSpeechAnnouncement() {
+  if ("speechSynthesis" in window && !window.speechSynthesis.speaking && speechAnnouncementState.speaking) {
+    speechAnnouncementState.speaking = false;
+  }
+
   if (
     speechAnnouncementState.speaking ||
     !speechAnnouncementState.active ||
@@ -1695,7 +1730,7 @@ function scheduleSimulationSpeechStart() {
   speechAnnouncementState.startTimer = window.setTimeout(() => {
     announceSimulationStartIfNeeded();
     announceSimulationUpdates(getSimulationStationElapsedSec());
-  }, 2000);
+  }, 1500);
 }
 
 function announceSimulationStartIfNeeded() {
@@ -1768,35 +1803,47 @@ function announceSimulationUpdates(elapsedSec) {
 
   announceSimulationStartIfNeeded();
   announceEewAreaUpdates();
-  const stationFeatures = getStationIntensityDataForElapsed(elapsedSec).features.filter(
-    (feature) => feature.properties.observed && feature.properties.intensityRank > 0,
-  );
-  const prefectureMaxRanks = new Map();
-
-  stationFeatures.forEach((feature) => {
-    const prefecture = getStationPrefectureName(feature.properties);
-    const rank = feature.properties.intensityRank;
-    if (!prefecture || rank <= 0 || rank <= (prefectureMaxRanks.get(prefecture) ?? 0)) {
-      return;
-    }
-
-    prefectureMaxRanks.set(prefecture, rank);
-  });
-
-  const currentLocationText = getCurrentLocationSpeechText();
-  [...prefectureMaxRanks.entries()]
-    .filter(([prefecture, rank]) => rank > (speechAnnouncementState.prefectureRanks.get(prefecture) ?? 0))
-    .sort(([, aRank], [, bRank]) => bRank - aRank)
-    .forEach(([prefecture, rank]) => {
-      const intensityClass = INTENSITY_CLASSES.find((item) => item.rank === rank) ?? INTENSITY_CLASSES[0];
-      speechAnnouncementState.prefectureRanks.set(prefecture, rank);
-      speakAnnouncement(`${prefecture}で最大震度${intensityClass.label}を観測。${currentLocationText}`);
-    });
+  announceMaxObservedAreaUpdate(elapsedSec);
 }
 
-function getStationPrefectureName(properties = {}) {
-  const text = `${properties.address ?? ""}${properties.areaName ?? ""}${properties.name ?? ""}`;
-  return PREFECTURE_NAMES.find((prefecture) => text.includes(prefecture)) ?? "";
+function announceMaxObservedAreaUpdate(elapsedSec) {
+  if (!localAreaData) {
+    return;
+  }
+
+  const areaFeatures = buildIntensityAreaData(localAreaData, elapsedSec).features.filter(
+    (feature) => feature.properties.intensityRank > 0,
+  );
+  if (areaFeatures.length === 0) {
+    return;
+  }
+
+  const maxRank = Math.max(...areaFeatures.map((feature) => feature.properties.intensityRank));
+  if (maxRank < speechAnnouncementState.maxObservedRank) {
+    return;
+  }
+
+  const maxAreaNames = areaFeatures
+    .filter((feature) => feature.properties.intensityRank === maxRank)
+    .map((feature) => cleanDisplayAreaName(feature.properties.name))
+    .filter(Boolean);
+  const newAreaNames =
+    maxRank > speechAnnouncementState.maxObservedRank
+      ? maxAreaNames
+      : maxAreaNames.filter((areaName) => !speechAnnouncementState.maxObservedAreaNames.has(areaName));
+  if (newAreaNames.length === 0) {
+    return;
+  }
+
+  if (maxRank > speechAnnouncementState.maxObservedRank) {
+    speechAnnouncementState.maxObservedAreaNames.clear();
+  }
+  speechAnnouncementState.maxObservedRank = maxRank;
+  newAreaNames.forEach((areaName) => speechAnnouncementState.maxObservedAreaNames.add(areaName));
+
+  const intensityClass = INTENSITY_CLASSES.find((item) => item.rank === maxRank) ?? INTENSITY_CLASSES[0];
+  const currentLocationText = getCurrentLocationSpeechText();
+  speakAnnouncement(`${newAreaNames.join("、")}で最大震度${intensityClass.label}を観測。${currentLocationText}`);
 }
 
 function getCurrentLocationSpeechText() {
