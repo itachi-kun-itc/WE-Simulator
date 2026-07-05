@@ -215,7 +215,7 @@ h1 {
   height: 21px;
   border: 2px solid #ffffff;
   border-radius: 999px;
-  transform: translate(-50%, -50%);
+  transform: translate(calc(-50% - 0.6px), -50%);
 }
 
 .source-info-button::after {
@@ -248,6 +248,38 @@ h1 {
   display: none;
 }
 
+.speech-info-button::before {
+  width: 33.5px;
+  height: 33.5px;
+  border: 0;
+  border-radius: 0;
+  background: center / 33.5px 33.5px no-repeat
+    url("data:image/svg+xml,%3Csvg%20width%3D%2226%22%20height%3D%2226%22%20viewBox%3D%220%200%2026%2026%22%20fill%3D%22none%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M4.5%2010.2H8.5L14.1%205.9V20.1L8.5%2015.8H4.5V10.2Z%22%20fill%3D%22white%22/%3E%3Cpath%20d%3D%22M17.1%209.2C18.05%2010.1%2018.6%2011.45%2018.6%2013C18.6%2014.55%2018.05%2015.9%2017.1%2016.8%22%20stroke%3D%22white%22%20stroke-width%3D%222.1%22%20stroke-linecap%3D%22round%22/%3E%3Cpath%20d%3D%22M19.5%206.7C21.25%208.35%2022.3%2010.6%2022.3%2013C22.3%2015.4%2021.25%2017.65%2019.5%2019.3%22%20stroke%3D%22white%22%20stroke-width%3D%222.1%22%20stroke-linecap%3D%22round%22/%3E%3C/svg%3E");
+  transform: translate(calc(-50% - 0.6px), -50%);
+}
+
+.speech-info-button.is-muted::before {
+  background-image: url("data:image/svg+xml,%3Csvg%20width%3D%2226%22%20height%3D%2226%22%20viewBox%3D%220%200%2026%2026%22%20fill%3D%22none%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M4.5%2010.2H8.5L14.1%205.9V20.1L8.5%2015.8H4.5V10.2Z%22%20fill%3D%22white%22/%3E%3Cpath%20d%3D%22M18.2%209.8L22.4%2014M22.4%209.8L18.2%2014%22%20stroke%3D%22white%22%20stroke-width%3D%222.3%22%20stroke-linecap%3D%22round%22/%3E%3C/svg%3E");
+}
+
+.speech-info-button::after {
+  content: "";
+  display: none;
+}
+
+.speech-info-button.is-muted::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: block;
+  width: 25.5px;
+  height: 2.2px;
+  border-radius: 999px;
+  background: #ffffff;
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
 .source-info-panel {
   display: grid;
   gap: 6px;
@@ -275,6 +307,79 @@ h1 {
 
 .source-overlay-open {
   overflow: hidden;
+}
+
+.speech-confirm-open {
+  overflow: hidden;
+}
+
+.speech-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 3100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.58);
+  color: #ffffff;
+  backdrop-filter: blur(3px);
+}
+
+.speech-confirm-overlay.hidden {
+  display: none;
+}
+
+.speech-confirm-dialog {
+  display: grid;
+  gap: 16px;
+  width: min(460px, calc(100vw - 48px));
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 8px;
+  padding: 22px 20px 16px;
+  background: rgba(2, 4, 5, 0.94);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.34);
+}
+
+.speech-confirm-dialog p {
+  margin: 0;
+  color: #ffffff;
+  font-size: clamp(0.88rem, 2.2vw, 1.05rem);
+  font-weight: 800;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.speech-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-self: end;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.speech-confirm-actions button {
+  min-width: 68px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 6px;
+  padding: 7px 12px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.speech-confirm-actions .speech-confirm-yes {
+  border-color: rgba(255, 255, 255, 0.32);
+  background: #e51b45;
+  color: #ffffff;
+}
+
+.speech-confirm-actions button:hover,
+.speech-confirm-actions button:focus-visible {
+  border-color: rgba(142, 234, 255, 0.72);
+  background: rgba(38, 217, 255, 0.16);
+  outline: none;
 }
 
 .source-info-overlay {
@@ -519,11 +624,18 @@ h1 {
 
 body.app-loading #map,
 body.app-loading .maplibregl-control-container,
+body.app-loading .source-info-control,
+body.app-loading .source-info-button,
 body.app-loading #setup-panel .sim-panel-scroll,
 body.app-loading #setup-panel .sheet-handle,
 body.app-loading #setup-sheet-toggle,
 body.app-loading #reset-epicenter {
   pointer-events: none;
+}
+
+body.app-loading .source-info-button {
+  cursor: wait;
+  opacity: 0.58;
 }
 
 body.app-loading #map {
@@ -1122,6 +1234,7 @@ body.app-loading #setup-panel button:not(#simulation-start) {
   bottom: 8px;
   z-index: 900;
   width: 34px;
+  overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.28);
   background: #020405;
   color: #9aa8b0;
@@ -1146,11 +1259,12 @@ body.app-loading #setup-panel button:not(#simulation-start) {
 
 .intensity-scale span {
   display: grid;
-  width: 34px;
+  width: 100%;
   height: 34px;
   place-items: center;
   border-bottom: 1px solid rgba(17, 24, 39, 0.32);
   background: var(--color);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.22);
   color: var(--text-color, #ffffff);
   font-size: 0.9rem;
   font-weight: 900;
