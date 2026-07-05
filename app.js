@@ -1692,7 +1692,13 @@ function normalizeSpeechAnnouncementText(message) {
   return message
     .replace(/四国/g, "シコク")
     .replace(/嶺北/g, "れいほく")
-    .replace(/嶺南/g, "れいなん");
+    .replace(/嶺南/g, "れいなん")
+    .replace(/中越/g, "ちゅうえつ")
+    .replace(/三八上北/g, "さんぱちかみきた")
+    .replace(/山梨県東部・富士五湖/g, "やまなしけんとうぶ・ふじごこ")
+    .replace(/大東島/g, "だいとうじま")
+    .replace(/八重山/g, "やえやま")
+    .replace(/大分/g, "おおいた");
 }
 
 function playNextSpeechAnnouncement() {
