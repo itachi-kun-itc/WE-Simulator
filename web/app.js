@@ -6141,9 +6141,9 @@ function getStationWaveResponseProperties(key, finalIntensity, ground = {}) {
     0.34,
   );
   const sWaveRiseDelaySec = clamp(
-    sDelayNoise * 0.68 + (1 - softness) * 0.24 - finalFactor * 0.14,
+    sDelayNoise * 0.34 + (1 - softness) * 0.12 - finalFactor * 0.18,
     0,
-    1.05,
+    0.48,
   );
 
   return {
@@ -6158,23 +6158,48 @@ function getGroundRiseProfile(properties) {
   const amplification = properties.groundAmplification ?? EARTHQUAKE_MODEL.defaultSiteAmplification;
   const softness = clamp((520 - avs) / 420, 0, 1);
   const amplificationFactor = clamp((amplification + 0.6) / 1.8, 0, 1);
+  const finalIntensityFactor = clamp((Number(properties.predictedIntensityValue ?? 0) - 3.5) / 3.0, 0, 1);
+  const epicentralDistanceKm = Number(properties.epicentralDistanceKm ?? Infinity);
+  const nearSourceFactor = clamp((120 - epicentralDistanceKm) / 120, 0, 1);
+  const nearSourceStrongMotionFactor =
+    nearSourceFactor * finalIntensityFactor;
   const waveformProfile = getEarthquakeWaveformProfile();
   const durationSec =
-    3.8 +
-    softness * 5.8 +
-    amplificationFactor * 2.2 +
-    waveformProfile.durationExtensionSec;
+    1.65 +
+    softness * 2.35 +
+    amplificationFactor * 0.95 +
+    waveformProfile.durationExtensionSec * 0.28 -
+    finalIntensityFactor * 0.85 +
+    nearSourceStrongMotionFactor * 0.24 -
+    nearSourceFactor * 0.38;
   const curvature =
-    1.15 +
-    softness * 1.25 +
-    amplificationFactor * 0.65 -
-    waveformProfile.slowRise;
+    2.25 +
+    softness * 0.85 +
+    amplificationFactor * 0.7 +
+    finalIntensityFactor * 1.15 -
+    waveformProfile.slowRise * 0.35 -
+    nearSourceStrongMotionFactor * 0.08;
 
   return {
-    durationSec,
-    curvature: Math.max(curvature, 0.55),
+    durationSec: Math.max(durationSec, 1.15),
+    curvature: Math.max(curvature, 1.35),
     lateEnergy: waveformProfile.lateEnergy,
     multiPeak: waveformProfile.multiPeak,
+    mainSurgeRatio: clamp(
+      0.9 + finalIntensityFactor * 0.07 - waveformProfile.lateEnergy * 0.12 - nearSourceStrongMotionFactor * 0.03,
+      0.84,
+      0.97,
+    ),
+    mainMotionOnsetSec: clamp(
+      0.62 +
+        softness * 0.5 +
+        amplificationFactor * 0.18 -
+        finalIntensityFactor * 0.26 +
+        nearSourceStrongMotionFactor * 0.26 -
+        nearSourceFactor * 0.22,
+      0.42,
+      1.35,
+    ),
   };
 }
 
@@ -6188,14 +6213,14 @@ function groundAwareRiseProgress(timeSinceSArrivalSec, profile) {
     return 1;
   }
 
-  const mainMotionOnsetSec = clamp(profile.durationSec * 0.22, 0.9, 3.2);
+  const mainMotionOnsetSec = profile.mainMotionOnsetSec ?? clamp(profile.durationSec * 0.18, 0.65, 1.8);
   const mainMotionSurge =
     smoothStep(clamp(timeSinceSArrivalSec / mainMotionOnsetSec, 0, 1)) *
-    clamp(0.78 - profile.lateEnergy * 0.35, 0.62, 0.82);
+    (profile.mainSurgeRatio ?? clamp(0.9 - profile.lateEnergy * 0.25, 0.82, 0.94));
   const exponentialEnvelope = 1 - Math.exp(-profile.curvature * normalizedTime);
-  const lateEnergy = profile.lateEnergy * smoothStep(clamp((normalizedTime - 0.46) / 0.54, 0, 1));
+  const lateEnergy = profile.lateEnergy * 0.58 * smoothStep(clamp((normalizedTime - 0.42) / 0.58, 0, 1));
   const multiPeakEnergy =
-    profile.multiPeak *
+    profile.multiPeak * 0.72 *
     (0.45 * smoothStep(clamp((normalizedTime - 0.16) / 0.18, 0, 1)) +
       0.35 * smoothStep(clamp((normalizedTime - 0.38) / 0.2, 0, 1)) +
       0.2 * smoothStep(clamp((normalizedTime - 0.66) / 0.24, 0, 1)));
@@ -6209,10 +6234,10 @@ function getEarthquakeWaveformProfile() {
 
   return {
     durationExtensionSec:
-      magnitudeExcess * 4.8 +
-      offshoreFactor * (2.5 + magnitudeExcess * 5.8) +
-      giantMagnitude * 18,
-    slowRise: clamp(offshoreFactor * 0.28 + giantMagnitude * 0.18, 0, 0.58),
+      magnitudeExcess * 2.6 +
+      offshoreFactor * (1.7 + magnitudeExcess * 2.9) +
+      giantMagnitude * 7.5,
+    slowRise: clamp(offshoreFactor * 0.14 + giantMagnitude * 0.08, 0, 0.26),
     lateEnergy: clamp(0.07 + offshoreFactor * 0.08 + giantMagnitude * 0.08, 0.07, 0.24),
     multiPeak: clamp(offshoreFactor * 0.12 + giantMagnitude * 0.12, 0, 0.28),
   };
