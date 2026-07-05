@@ -1615,6 +1615,7 @@ function createSpeechAnnouncementState() {
   return {
     startAnnounced: false,
     prefectureRanks: new Map(),
+    eewAreaNames: new Set(),
     pendingMessages: [],
     speaking: false,
     active: false,
@@ -1710,10 +1711,48 @@ function announceSimulationStartIfNeeded() {
   const predictedMax = getPredictedMaximumIntensity();
   const maxClass = INTENSITY_CLASSES.find((item) => item.rank === predictedMax.rank) ?? INTENSITY_CLASSES[0];
   const currentLocationText = getCurrentLocationSpeechText();
+  const eewText = getEewSpeechText();
+  const summaryText = `最大震度は${maxClass.label}、マグニチュードは${state.magnitude.toFixed(1)}と推定されます。${currentLocationText}`;
   speakAnnouncement(
-    `${state.epicenterName}で地震。最大震度は${maxClass.label}、マグニチュードは${state.magnitude.toFixed(1)}と推定されます。${currentLocationText}`,
+    eewText ? `${eewText}${summaryText}` : `${state.epicenterName}で地震。${summaryText}`,
   );
+  markCurrentEewAreasAnnounced();
   speechAnnouncementState.startAnnounced = true;
+}
+
+function getEewSpeechText() {
+  const areaNames = state.eewWarningForecastAreas;
+  if (!Array.isArray(areaNames) || areaNames.length === 0) {
+    return "";
+  }
+
+  return `緊急地震速報、${state.epicenterName}で地震、強い揺れに警戒してください。対象地域は ${areaNames.join("、")}。`;
+}
+
+function markCurrentEewAreasAnnounced() {
+  state.eewWarningForecastAreas.forEach((areaName) => {
+    speechAnnouncementState.eewAreaNames.add(areaName);
+  });
+}
+
+function announceEewAreaUpdates() {
+  if (!Array.isArray(state.eewWarningForecastAreas) || state.eewWarningForecastAreas.length === 0) {
+    return;
+  }
+
+  const addedAreaNames = state.eewWarningForecastAreas.filter(
+    (areaName) => !speechAnnouncementState.eewAreaNames.has(areaName),
+  );
+  if (addedAreaNames.length === 0) {
+    return;
+  }
+
+  addedAreaNames.forEach((areaName) => {
+    speechAnnouncementState.eewAreaNames.add(areaName);
+  });
+  speakAnnouncement(
+    `緊急地震速報、対象地域に ${addedAreaNames.join("、")} を追加。強い揺れに警戒してください。`,
+  );
 }
 
 function announceSimulationUpdates(elapsedSec) {
@@ -1728,6 +1767,7 @@ function announceSimulationUpdates(elapsedSec) {
   }
 
   announceSimulationStartIfNeeded();
+  announceEewAreaUpdates();
   const stationFeatures = getStationIntensityDataForElapsed(elapsedSec).features.filter(
     (feature) => feature.properties.observed && feature.properties.intensityRank > 0,
   );

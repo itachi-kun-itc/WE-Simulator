@@ -221,7 +221,7 @@ h1 {
 .source-info-button::after {
   content: "i";
   position: absolute;
-  left: 50%;
+  left: calc(50% - 0.5px);
   top: calc(50% - 1.2px);
   color: #ffffff;
   font-size: 1rem;
@@ -249,17 +249,18 @@ h1 {
 }
 
 .speech-info-button::before {
-  width: 33.5px;
-  height: 33.5px;
+  width: 34.5px;
+  height: 34.5px;
   border: 0;
   border-radius: 0;
-  background: center / 33.5px 33.5px no-repeat
+  background: center / 34.5px 34.5px no-repeat
     url("data:image/svg+xml,%3Csvg%20width%3D%2226%22%20height%3D%2226%22%20viewBox%3D%220%200%2026%2026%22%20fill%3D%22none%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M4.5%2010.2H8.5L14.1%205.9V20.1L8.5%2015.8H4.5V10.2Z%22%20fill%3D%22white%22/%3E%3Cpath%20d%3D%22M17.1%209.2C18.05%2010.1%2018.6%2011.45%2018.6%2013C18.6%2014.55%2018.05%2015.9%2017.1%2016.8%22%20stroke%3D%22white%22%20stroke-width%3D%222.1%22%20stroke-linecap%3D%22round%22/%3E%3Cpath%20d%3D%22M19.5%206.7C21.25%208.35%2022.3%2010.6%2022.3%2013C22.3%2015.4%2021.25%2017.65%2019.5%2019.3%22%20stroke%3D%22white%22%20stroke-width%3D%222.1%22%20stroke-linecap%3D%22round%22/%3E%3C/svg%3E");
   transform: translate(calc(-50% - 0.6px), -50%);
 }
 
 .speech-info-button.is-muted::before {
-  background-image: url("data:image/svg+xml,%3Csvg%20width%3D%2226%22%20height%3D%2226%22%20viewBox%3D%220%200%2026%2026%22%20fill%3D%22none%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M4.5%2010.2H8.5L14.1%205.9V20.1L8.5%2015.8H4.5V10.2Z%22%20fill%3D%22white%22/%3E%3Cpath%20d%3D%22M18.2%209.8L22.4%2014M22.4%209.8L18.2%2014%22%20stroke%3D%22white%22%20stroke-width%3D%222.3%22%20stroke-linecap%3D%22round%22/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg%20width%3D%2226%22%20height%3D%2226%22%20viewBox%3D%220%200%2026%2026%22%20fill%3D%22none%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M4.5%2010.2H8.5L14.1%205.9V20.1L8.5%2015.8H4.5V10.2Z%22%20fill%3D%22white%22/%3E%3C/svg%3E");
+  transform: translate(calc(-50% - 0.6px), -50%);
 }
 
 .speech-info-button::after {
@@ -270,14 +271,14 @@ h1 {
 .speech-info-button.is-muted::after {
   content: "";
   position: absolute;
-  left: 50%;
+  left: calc(50% + 8.1px);
   top: 50%;
   display: block;
-  width: 25.5px;
-  height: 2.2px;
-  border-radius: 999px;
-  background: #ffffff;
-  transform: translate(-50%, -50%) rotate(45deg);
+  width: 11px;
+  height: 11px;
+  background: center / 11px 11px no-repeat
+    url("data:image/svg+xml,%3Csvg%20width%3D%2211%22%20height%3D%2211%22%20viewBox%3D%220%200%2011%2011%22%20fill%3D%22none%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M2%202L9%209M9%202L2%209%22%20stroke%3D%22white%22%20stroke-width%3D%222.3%22%20stroke-linecap%3D%22round%22/%3E%3C/svg%3E");
+  transform: translate(-50%, -50%);
 }
 
 .source-info-panel {
@@ -1474,7 +1475,7 @@ body.app-loading #setup-panel button:not(#simulation-start) {
     font-size: 16px;
   }
 
-  .source-info-button:not(.feedback-info-button)::after {
+  .source-info-button:not(.feedback-info-button):not(.speech-info-button)::after {
     top: calc(50% - 1.05px);
   }
 
