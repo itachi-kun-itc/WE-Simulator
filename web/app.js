@@ -1632,6 +1632,7 @@ function createSpeechAnnouncementState() {
     maxObservedRank: 0,
     maxObservedAreaNames: new Set(),
     eewAreaNames: new Set(),
+    priorityMessages: [],
     pendingMessages: [],
     speaking: false,
     active: false,
@@ -1659,11 +1660,12 @@ function recoverSpeechSynthesis(options = {}) {
     return;
   }
 
+  speechAnnouncementState.priorityMessages = [];
   speechAnnouncementState.pendingMessages = [];
   playNextSpeechAnnouncement();
 }
 
-function speakAnnouncement(message) {
+function speakAnnouncement(message, options = {}) {
   if (!canSpeakAnnouncements() || !message || !speechAnnouncementState.active) {
     return;
   }
@@ -1673,7 +1675,11 @@ function speakAnnouncement(message) {
     return;
   }
 
-  speechAnnouncementState.pendingMessages = [normalizedMessage];
+  if (options.priority) {
+    speechAnnouncementState.priorityMessages.push(normalizedMessage);
+  } else {
+    speechAnnouncementState.pendingMessages = [normalizedMessage];
+  }
   playNextSpeechAnnouncement();
 }
 
@@ -1686,12 +1692,15 @@ function playNextSpeechAnnouncement() {
     speechAnnouncementState.speaking ||
     !speechAnnouncementState.active ||
     !canSpeakAnnouncements() ||
-    speechAnnouncementState.pendingMessages.length === 0
+    (speechAnnouncementState.priorityMessages.length === 0 && speechAnnouncementState.pendingMessages.length === 0)
   ) {
     return;
   }
 
-  const message = speechAnnouncementState.pendingMessages.shift();
+  const message =
+    speechAnnouncementState.priorityMessages.length > 0
+      ? speechAnnouncementState.priorityMessages.shift()
+      : speechAnnouncementState.pendingMessages.shift();
   const utterance = new SpeechSynthesisUtterance(message);
   utterance.lang = "ja-JP";
   utterance.rate = 1.08;
@@ -1710,6 +1719,7 @@ function playNextSpeechAnnouncement() {
 
 function cancelSpeechAnnouncements() {
   speechAnnouncementState.active = false;
+  speechAnnouncementState.priorityMessages = [];
   speechAnnouncementState.pendingMessages = [];
   speechAnnouncementState.speaking = false;
   window.clearTimeout(speechAnnouncementState.startTimer);
@@ -1720,6 +1730,7 @@ function cancelSpeechAnnouncements() {
 
 function finishSpeechAnnouncementsGracefully() {
   speechAnnouncementState.active = false;
+  speechAnnouncementState.priorityMessages = [];
   speechAnnouncementState.pendingMessages = [];
   window.clearTimeout(speechAnnouncementState.startTimer);
 }
@@ -1750,6 +1761,7 @@ function announceSimulationStartIfNeeded() {
   const summaryText = `最大震度は${maxClass.label}、マグニチュードは${state.magnitude.toFixed(1)}と推定されます。${currentLocationText}`;
   speakAnnouncement(
     eewText ? `${eewText}${summaryText}` : `${state.epicenterName}で地震。${summaryText}`,
+    { priority: Boolean(eewText) },
   );
   markCurrentEewAreasAnnounced();
   speechAnnouncementState.startAnnounced = true;
@@ -1787,6 +1799,7 @@ function announceEewAreaUpdates() {
   });
   speakAnnouncement(
     `緊急地震速報、対象地域に ${addedAreaNames.join("、")} を追加。強い揺れに警戒してください。`,
+    { priority: true },
   );
 }
 
@@ -1801,9 +1814,18 @@ function announceSimulationUpdates(elapsedSec) {
     return;
   }
 
+  refreshSpeechForecastAreas(elapsedSec);
   announceSimulationStartIfNeeded();
   announceEewAreaUpdates();
   announceMaxObservedAreaUpdate(elapsedSec);
+}
+
+function refreshSpeechForecastAreas(elapsedSec) {
+  if (!localAreaData) {
+    return;
+  }
+
+  buildIntensityAreaData(localAreaData, elapsedSec);
 }
 
 function announceMaxObservedAreaUpdate(elapsedSec) {
@@ -3606,8 +3628,9 @@ function updateMaxStationList(stationFeatures, elapsedSec) {
   );
   els.maxStationList.replaceChildren(
     ...(observedStations.length > 0
-      ? observedStations.map((feature) => {
+      ? observedStations.map((feature, index) => {
           const item = document.createElement("li");
+          item.dataset.rank = String(index + 1);
           const measuredIntensityText = getMeasuredIntensityListSuffix(
             feature.properties,
             feature.properties.currentIntensityValue,
