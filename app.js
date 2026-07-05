@@ -2945,8 +2945,8 @@ function addMapLayers() {
       "text-font": ["Noto Sans Regular"],
       "text-size": ["interpolate", ["linear"], ["zoom"], 4, 8, 8, 9.5, 11, 10.5],
       "symbol-sort-key": ["get", "intensityRank"],
-      "text-allow-overlap": true,
-      "text-ignore-placement": true,
+      "text-allow-overlap": false,
+      "text-ignore-placement": false,
     },
     paint: {
       "text-color": ["get", "intensityTextColor"],
