@@ -15,7 +15,7 @@ const FEEDBACK_ENDPOINT_URL =
 
 const INITIAL_CENTER = [139.767, 35.681];
 const INITIAL_ZOOM = 6;
-const MOBILE_INITIAL_CENTER = [138.9, 35.95];
+const MOBILE_INITIAL_CENTER = INITIAL_CENTER;
 const MOBILE_INITIAL_ZOOM = 6;
 const EXCLUDED_JAPAN_LAND_BOUNDS = [
   { west: 131.75, south: 37.15, east: 131.95, north: 37.35 },
@@ -659,6 +659,7 @@ let groundModelLoadPromise;
 let shindoStationData;
 let shindoStationLoadPromise;
 let stationIntensityFeatureCache;
+let predictedMaximumCache;
 let presetObservationLookupCache;
 let hyogoNanbuSyntheticStationCache;
 let stationPopup;
@@ -666,6 +667,7 @@ let stationClickPopup;
 let stationHoverEventsBound = false;
 let currentLocationMarker;
 let currentLocationRequestId = 0;
+let currentLocationForecastCache;
 let locationResolveTimer;
 let simulationFrame;
 let municipalityBoundaryVisibilityTimer;
@@ -3655,51 +3657,66 @@ function updateCurrentLocationForecast(elapsedSec = 0) {
   }
 
   if (state.currentLocationStatus === "loading") {
-    els.currentLocationName.textContent = state.currentLocationName || "位置情報を取得中...";
-    els.currentLocationIntensity.textContent = "計算中";
-    els.currentLocationArrival.textContent = "計算中";
+    setTextContentIfChanged(els.currentLocationName, state.currentLocationName || "位置情報を取得中...");
+    setTextContentIfChanged(els.currentLocationIntensity, "計算中");
+    setTextContentIfChanged(els.currentLocationArrival, "計算中");
     return;
   }
 
   if (state.currentLocationStatus === "error") {
-    els.currentLocationName.textContent =
-      state.currentLocationName || "位置情報の取得に失敗しました。再度お試しください。";
-    els.currentLocationIntensity.textContent = "-";
-    els.currentLocationArrival.textContent = "-";
+    setTextContentIfChanged(
+      els.currentLocationName,
+      state.currentLocationName || "位置情報の取得に失敗しました。再度お試しください。",
+    );
+    setTextContentIfChanged(els.currentLocationIntensity, "-");
+    setTextContentIfChanged(els.currentLocationArrival, "-");
     return;
   }
 
   if (!state.currentLocationEnabled || !state.currentLocation) {
-    els.currentLocationName.textContent = "-";
-    els.currentLocationIntensity.textContent = "-";
-    els.currentLocationArrival.textContent = "-";
+    setTextContentIfChanged(els.currentLocationName, "-");
+    setTextContentIfChanged(els.currentLocationIntensity, "-");
+    setTextContentIfChanged(els.currentLocationArrival, "-");
     return;
   }
 
-  els.currentLocationName.textContent = state.currentLocationName || "-";
+  setTextContentIfChanged(els.currentLocationName, state.currentLocationName || "-");
 
   const forecast = getCurrentLocationForecast();
   if (!forecast) {
-    els.currentLocationIntensity.textContent = "計算中";
-    els.currentLocationArrival.textContent = "計算中";
+    setTextContentIfChanged(els.currentLocationIntensity, "計算中");
+    setTextContentIfChanged(els.currentLocationArrival, "計算中");
     return;
   }
 
   if (forecast.intensityClass.rank < 1) {
-    els.currentLocationIntensity.textContent = "該当無し";
-    els.currentLocationArrival.textContent = "該当無し";
+    setTextContentIfChanged(els.currentLocationIntensity, "該当無し");
+    setTextContentIfChanged(els.currentLocationArrival, "該当無し");
     return;
   }
 
   const elapsed = Number.isFinite(elapsedSec) ? elapsedSec : 0;
   const remainingSec = Math.max(forecast.pArrivalSec - elapsed, 0);
-  els.currentLocationIntensity.textContent = forecast.intensityClass.label;
-  els.currentLocationArrival.textContent = `${remainingSec.toFixed(3)}秒`;
+  setTextContentIfChanged(els.currentLocationIntensity, forecast.intensityClass.label);
+  setTextContentIfChanged(els.currentLocationArrival, `${remainingSec.toFixed(3)}秒`);
 }
 
 function getCurrentLocationForecast() {
   if (!state.currentLocation) {
     return null;
+  }
+
+  const cacheKey = [
+    state.longitude.toFixed(4),
+    state.latitude.toFixed(4),
+    state.depthKm.toFixed(1),
+    state.magnitude.toFixed(1),
+    state.currentLocation.longitude.toFixed(5),
+    state.currentLocation.latitude.toFixed(5),
+    state.selectedPresetId,
+  ].join("|");
+  if (currentLocationForecastCache?.key === cacheKey) {
+    return currentLocationForecastCache.forecast;
   }
 
   const epicentralDistanceKm = haversineKilometers(
@@ -3714,11 +3731,13 @@ function getCurrentLocationForecast() {
   const intensityClass = toJmaIntensityClass(intensityValue);
   const pWaveArrivalSec = epicentralDistanceKm / EARTHQUAKE_MODEL.pWaveVelocityKmPerSec;
 
-  return {
+  const forecast = {
     intensityValue,
     intensityClass,
     pArrivalSec: pWaveArrivalSec,
   };
+  currentLocationForecastCache = { key: cacheKey, forecast };
+  return forecast;
 }
 
 async function startSimulation() {
@@ -3939,35 +3958,49 @@ function toSimulationBucket(elapsedSec) {
 }
 
 function updateSimulationSummary(elapsedSec = getSimulationStationElapsedSec()) {
-  const stationFeatures = shindoStationData
-    ? getStationIntensityDataForElapsed(elapsedSec).features.filter(
-        (feature) => feature.properties.observed && feature.properties.intensityRank > 0,
-      )
-    : [];
-  const maxRank = stationFeatures.reduce(
-    (rank, feature) => Math.max(rank, feature.properties.intensityRank),
-    0,
-  );
-  const maxValue = stationFeatures.reduce(
-    (value, feature) => Math.max(value, feature.properties.currentIntensityValue ?? 0),
-    0,
-  );
+  const stationFeatures = [];
+  let maxRank = 0;
+  let maxValue = 0;
+  if (shindoStationData) {
+    getStationIntensityDataForElapsed(elapsedSec).features.forEach((feature) => {
+      if (!feature.properties.observed || feature.properties.intensityRank <= 0) {
+        return;
+      }
+
+      stationFeatures.push(feature);
+      maxRank = Math.max(maxRank, feature.properties.intensityRank);
+      maxValue = Math.max(maxValue, feature.properties.currentIntensityValue ?? 0);
+    });
+  }
   const maxClass = INTENSITY_CLASSES.find((item) => item.rank === maxRank) ?? INTENSITY_CLASSES[0];
   const hasObservedIntensity = stationFeatures.length > 0;
 
-  els.simulationMaxIntensity.textContent =
-    state.simulationRunning && Number.isFinite(elapsedSec) && !hasObservedIntensity ? "-" : maxClass.label;
-  els.simulationMagnitude.textContent = state.magnitude.toFixed(1);
-  els.simulationEpicenter.textContent = `${state.latitude.toFixed(3)}, ${state.longitude.toFixed(3)}`;
-  els.simulationRegionName.textContent = state.epicenterName;
-  els.simulationDepth.textContent = formatDepth(state.depthKm);
-  els.maxIntensityOutput.textContent = state.maxIntensityLabel;
+  setTextContentIfChanged(
+    els.simulationMaxIntensity,
+    state.simulationRunning && Number.isFinite(elapsedSec) && !hasObservedIntensity ? "-" : maxClass.label,
+  );
+  setTextContentIfChanged(els.simulationMagnitude, state.magnitude.toFixed(1));
+  setTextContentIfChanged(els.simulationEpicenter, `${state.latitude.toFixed(3)}, ${state.longitude.toFixed(3)}`);
+  setTextContentIfChanged(els.simulationRegionName, state.epicenterName);
+  setTextContentIfChanged(els.simulationDepth, formatDepth(state.depthKm));
+  setTextContentIfChanged(els.maxIntensityOutput, state.maxIntensityLabel);
   updateCurrentLocationForecast(elapsedSec);
   updateMaxStationList(stationFeatures, elapsedSec);
   announceSimulationUpdates(elapsedSec);
 
   if (hasObservedIntensity) {
     recordMaxIntensityHistory(elapsedSec, maxValue);
+  }
+}
+
+function setTextContentIfChanged(element, value) {
+  if (!element) {
+    return;
+  }
+
+  const text = String(value ?? "");
+  if (element.textContent !== text) {
+    element.textContent = text;
   }
 }
 
@@ -4522,8 +4555,10 @@ function parseClampedInput(value, fallback, min, max) {
 
 function invalidateIntensityEstimateCache() {
   stationIntensityFeatureCache = null;
+  predictedMaximumCache = null;
   presetObservationLookupCache = null;
   hyogoNanbuSyntheticStationCache = null;
+  currentLocationForecastCache = null;
   if (!state.simulationRunning) {
     state.eewWarningFinalReport = false;
   }
@@ -4606,11 +4641,11 @@ function updateSimulationAvailability() {
 
 function updateSetupResultOutputs() {
   if (els.municipalityOutput) {
-    els.municipalityOutput.textContent = state.municipalityName;
+    setTextContentIfChanged(els.municipalityOutput, state.municipalityName);
   }
 
   if (els.maxIntensityOutput) {
-    els.maxIntensityOutput.textContent = state.maxIntensityLabel;
+    setTextContentIfChanged(els.maxIntensityOutput, state.maxIntensityLabel);
   }
 }
 
@@ -4751,12 +4786,6 @@ async function updateLocationNames() {
     const municipality = findFeatureAtPoint(municipalities, state.longitude, state.latitude);
     const epicenterArea = findEpicenterAreaAtPoint(epicenterAreas, state.longitude, state.latitude);
     inManagedArea = Boolean(municipality || epicenterArea);
-    if (
-      isExcludedTerritoryName(municipality?.properties?.name) ||
-      isExcludedTerritoryName(epicenterArea?.properties?.name)
-    ) {
-      inManagedArea = false;
-    }
 
     state.municipalityName = municipality ? formatMunicipalityDisplayName(municipality.properties) : "該当なし";
     state.epicenterName = epicenterArea
@@ -4770,7 +4799,7 @@ async function updateLocationNames() {
   }
 
   els.epicenterRegion.value = state.epicenterName;
-  els.municipalityOutput.textContent = state.municipalityName;
+  setTextContentIfChanged(els.municipalityOutput, state.municipalityName);
   return inManagedArea;
 }
 
@@ -4870,7 +4899,11 @@ function getPredictedMaximumIntensity() {
     return { rank: 0, value: 0 };
   }
 
-  return buildStationIntensityFeatures(shindoStationData).reduce(
+  if (predictedMaximumCache) {
+    return predictedMaximumCache;
+  }
+
+  predictedMaximumCache = buildStationIntensityFeatures(shindoStationData).reduce(
     (maximum, feature) => {
       const rank = feature.properties.predictedIntensityRank;
       const value = feature.properties.predictedIntensityValue;
@@ -4882,6 +4915,7 @@ function getPredictedMaximumIntensity() {
     },
     { rank: 0, value: 0 },
   );
+  return predictedMaximumCache;
 }
 
 function getAreaEpicentralDistances(geojson) {
