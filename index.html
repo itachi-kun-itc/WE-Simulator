@@ -60,9 +60,9 @@
 
             <label class="field">
               <span>地震プリセット</span>
-              <select id="historical-earthquake-select">
-                <option value="">プリセットを選択</option>
-              </select>
+              <button class="preset-picker-button" id="historical-earthquake-button" type="button">
+                地震を選ぶ
+              </button>
             </label>
 
             <label class="field">
@@ -121,6 +121,29 @@
             <button class="simulation-start" id="simulation-start" type="button" disabled>
               マップを読み込み中...
             </button>
+          </section>
+
+          <section class="preset-picker-overlay hidden" id="preset-picker-overlay" aria-modal="true" role="dialog" aria-labelledby="preset-picker-title">
+            <div class="preset-picker-dialog">
+              <div class="preset-picker-head">
+                <h2 id="preset-picker-title">プリセット地震</h2>
+                <button class="preset-picker-close" id="preset-picker-close" type="button" aria-label="閉じる"></button>
+              </div>
+              <div class="preset-picker-table-wrap">
+                <table class="preset-picker-table">
+                  <thead>
+                    <tr>
+                      <th>地震の発生日時</th>
+                      <th>震央地名</th>
+                      <th>深さ</th>
+                      <th>マグニチュード</th>
+                      <th>最大震度</th>
+                    </tr>
+                  </thead>
+                  <tbody id="preset-picker-list"></tbody>
+                </table>
+              </div>
+            </div>
           </section>
 
           <section class="sim-panel simulation-panel hidden" id="simulation-panel" aria-label="シミュレーション結果">
