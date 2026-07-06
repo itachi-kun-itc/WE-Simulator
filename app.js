@@ -2510,8 +2510,9 @@ function createMaintenanceModeOverlay() {
   overlay.setAttribute("aria-live", "polite");
   overlay.innerHTML = `
     <div class="maintenance-mode-dialog">
-      <h2>只今メンテナンス中です</h2>
-      <p>しばらく時間をおいてから再度アクセスしてください。</p>
+      <h2>只今メンテナンス中です。</h2>
+      <p>しばらくお待ち下さい。</p>
+      <p>詳しくは管理者にお問い合わせください。</p>
     </div>
   `;
   return overlay;
@@ -2582,16 +2583,11 @@ function createAdminModeOverlay() {
         toggleButton.disabled = true;
       }
       const current = await fetchMaintenanceStatus();
-      if (current.maintenance) {
-        const result = await postMaintenanceAction("setMaintenance", {
-          token,
-          maintenance: false,
-        });
-        if (!result.ok) {
-          updateAdminModeControls(overlay, current);
-          setAdminModeStatus(status, result.message || "親端末の解除に失敗しました。", true);
-          return;
-        }
+      const result = await postMaintenanceAction("releaseParent", { token });
+      if (!result.ok) {
+        updateAdminModeControls(overlay, current);
+        setAdminModeStatus(status, result.message || "親端末の解除に失敗しました。", true);
+        return;
       }
 
       localStorage.removeItem(ADMIN_PARENT_TOKEN_KEY);

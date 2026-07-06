@@ -706,10 +706,10 @@ h1 {
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(0, 0, 0, 0.86);
+  background: rgba(0, 0, 0, 0.28);
   color: #ffffff;
   text-align: center;
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(2px);
 }
 
 .maintenance-mode-overlay.hidden {
@@ -746,12 +746,18 @@ h1 {
 .maintenance-mode-dialog {
   display: grid;
   gap: 10px;
-  max-width: 560px;
+  width: min(420px, calc(100vw - 48px));
+  max-width: 420px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  padding: 22px 24px;
+  background: rgba(2, 4, 5, 0.88);
+  box-shadow: 0 22px 58px rgba(0, 0, 0, 0.36);
 }
 
 .maintenance-mode-dialog h2 {
   margin: 0;
-  font-size: clamp(1.6rem, 5vw, 2.4rem);
+  font-size: clamp(1.24rem, 4vw, 1.7rem);
   line-height: 1.2;
 }
 
@@ -1246,9 +1252,11 @@ body.app-loading #setup-panel button:not(#simulation-start) {
 }
 
 .preset-picker-table-wrap {
+  position: relative;
   min-height: 0;
   overflow-x: auto;
   overflow-y: auto;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
 }
 
 .preset-picker-table {
@@ -1256,16 +1264,22 @@ body.app-loading #setup-panel button:not(#simulation-start) {
   min-width: 760px;
   table-layout: auto;
   border-collapse: collapse;
-  background: transparent;
+  background: rgba(255, 255, 255, 0.015);
   font-size: 0.98rem;
 }
 
 .preset-picker-table th,
 .preset-picker-table td {
   border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
   padding: 12px 14px;
   text-align: left;
   white-space: nowrap;
+}
+
+.preset-picker-table th:last-child,
+.preset-picker-table td:last-child {
+  border-right: 0;
 }
 
 .preset-picker-table th:nth-child(1),
@@ -1275,12 +1289,12 @@ body.app-loading #setup-panel button:not(#simulation-start) {
 
 .preset-picker-table th:nth-child(2),
 .preset-picker-table td:nth-child(2) {
-  min-width: 230px;
+  min-width: 190px;
 }
 
 .preset-picker-table th:nth-child(3),
 .preset-picker-table td:nth-child(3) {
-  min-width: 90px;
+  min-width: 82px;
 }
 
 .preset-picker-table th:nth-child(4),
@@ -1297,7 +1311,7 @@ body.app-loading #setup-panel button:not(#simulation-start) {
   position: sticky;
   top: 0;
   z-index: 1;
-  background: rgba(2, 4, 5, 0.94);
+  background: rgba(18, 22, 28, 0.98);
   color: #ffffff;
   font-weight: 900;
   line-height: 1.2;
@@ -1305,6 +1319,10 @@ body.app-loading #setup-panel button:not(#simulation-start) {
 
 .preset-picker-table tbody tr {
   cursor: pointer;
+}
+
+.preset-picker-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.025);
 }
 
 .preset-picker-table tbody tr:hover,
@@ -1958,11 +1976,17 @@ body.app-loading #setup-panel button:not(#simulation-start) {
   }
 
   .preset-picker-button {
-    min-height: 54px;
-    border-radius: 8px;
-    padding: 12px 14px;
+    min-height: 0;
+    border-radius: 6px;
+    padding: 8px 9px;
     font-size: 16px;
-    line-height: 1.2;
+  }
+
+  .admin-mode-actions button {
+    padding: 10px 8px;
+    font-size: 0.78rem;
+    line-height: 1.25;
+    white-space: nowrap;
   }
 
   .preset-picker-overlay {
@@ -1984,6 +2008,34 @@ body.app-loading #setup-panel button:not(#simulation-start) {
   .preset-picker-table th,
   .preset-picker-table td {
     padding: 8px 5px;
+  }
+
+  .preset-picker-table th:nth-child(1),
+  .preset-picker-table td:nth-child(1) {
+    min-width: 152px;
+  }
+
+  .preset-picker-table th:nth-child(2),
+  .preset-picker-table td:nth-child(2) {
+    min-width: 128px;
+  }
+
+  .preset-picker-table th:nth-child(3),
+  .preset-picker-table td:nth-child(3) {
+    min-width: 70px;
+  }
+
+  .preset-picker-table-wrap::after {
+    content: "";
+    position: sticky;
+    right: 0;
+    bottom: 0;
+    float: right;
+    width: 28px;
+    height: 100%;
+    min-height: 100%;
+    pointer-events: none;
+    background: linear-gradient(90deg, rgba(2, 4, 5, 0), rgba(2, 4, 5, 0.86));
   }
 
   .preset-intensity-pill {
