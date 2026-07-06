@@ -2,7 +2,7 @@
   "name": "weather-earthquake-simulator",
   "version": "0.1.0",
   "private": true,
-  "homepage": "https://itachi-kun-itc.github.io/Weather-EarthQuake-Simulator/",
+  "homepage": "https://itachi-kun-itc.github.io/WE-Simulator/",
   "scripts": {
     "build:jma-earthquake-map": "node scripts/convert_jma_earthquake_areas.js",
     "build:jma-epicenter-areas": "node scripts/build_epicenter_areas.js",
