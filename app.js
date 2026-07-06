@@ -11,7 +11,10 @@ const EARTHQUAKE_PRESETS_URL = "./data/earthquake_presets.json";
 const FEEDBACK_SHEET_URL =
   "https://docs.google.com/spreadsheets/d/1cmR_OGml5ngLuq0zAi_gAs_qgrBNqTSlWZ5-H7tLWV0/edit?usp=sharing";
 const FEEDBACK_ENDPOINT_URL =
-  "https://script.google.com/macros/s/AKfycbxJSAQowW2Drmh24eET5Qjnys3hDtls7kwM7_utE_f1_8kYhwMkyUdfdOTXdhdm1xfLRg/exec";
+  "https://script.google.com/macros/s/AKfycbztrmCH_ukdLtY6xUKNSZQWShY0ziCT_8HMm7QI-qtSFRviETHw_APJJhyV50hSRvMy3A/exec";
+const MAINTENANCE_ENDPOINT_URL = FEEDBACK_ENDPOINT_URL;
+const ADMIN_PARENT_TOKEN_KEY = "weather-earthquake-admin-parent-token";
+const MAINTENANCE_STATUS_POLL_MS = 60000;
 
 const INITIAL_CENTER = [139.767, 35.681];
 const INITIAL_ZOOM = 6;
@@ -1726,10 +1729,14 @@ function addZoomOnlyControl() {
 }
 
 function addSourceInfoControl() {
-  const sourceOverlay = createSourceInfoOverlay();
+  const adminOverlay = createAdminModeOverlay();
+  const maintenanceOverlay = createMaintenanceModeOverlay();
+  const maintenanceBadge = createMaintenanceModeBadge();
+  const sourceOverlay = createSourceInfoOverlay(adminOverlay);
   const feedbackOverlay = createFeedbackOverlay();
   const speechConfirmOverlay = createSpeechConfirmOverlay();
-  document.body.append(sourceOverlay, feedbackOverlay, speechConfirmOverlay);
+  document.body.append(sourceOverlay, feedbackOverlay, speechConfirmOverlay, adminOverlay, maintenanceOverlay, maintenanceBadge);
+  setupMaintenanceMode(maintenanceOverlay, maintenanceBadge);
 
   const sourceInfoControl = {
     onAdd() {
@@ -2463,7 +2470,7 @@ function stripPrefectureName(name) {
   return displayName || "";
 }
 
-function createSourceInfoOverlay() {
+function createSourceInfoOverlay(adminOverlay) {
   const overlay = document.createElement("section");
   overlay.className = "source-info-overlay hidden";
   overlay.setAttribute("aria-modal", "true");
@@ -2472,10 +2479,83 @@ function createSourceInfoOverlay() {
   overlay.innerHTML = buildSourceInfoOverlayHtml();
 
   const closeButton = overlay.querySelector(".source-info-close");
+  const adminButton = overlay.querySelector(".source-admin-mode-button");
   const closeOverlay = () => {
     overlay.classList.add("hidden");
     document.body.classList.remove("source-overlay-open");
     overlay.dispatchEvent(new CustomEvent("source-overlay-close"));
+  };
+
+  closeButton?.addEventListener("click", closeOverlay);
+  adminButton?.addEventListener("click", () => {
+    openAdminModeOverlay(adminOverlay);
+  });
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) {
+      closeOverlay();
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !overlay.classList.contains("hidden")) {
+      closeOverlay();
+    }
+  });
+
+  return overlay;
+}
+
+function createMaintenanceModeOverlay() {
+  const overlay = document.createElement("section");
+  overlay.className = "maintenance-mode-overlay hidden";
+  overlay.setAttribute("aria-live", "polite");
+  overlay.innerHTML = `
+    <div class="maintenance-mode-dialog">
+      <h2>只今メンテナンス中です</h2>
+      <p>しばらく時間をおいてから再度アクセスしてください。</p>
+    </div>
+  `;
+  return overlay;
+}
+
+function createMaintenanceModeBadge() {
+  const badge = document.createElement("div");
+  badge.className = "maintenance-mode-badge hidden";
+  badge.textContent = "メンテナンスモード中";
+  return badge;
+}
+
+function createAdminModeOverlay() {
+  const overlay = document.createElement("section");
+  overlay.className = "source-info-overlay admin-mode-overlay hidden";
+  overlay.setAttribute("aria-modal", "true");
+  overlay.setAttribute("role", "dialog");
+  overlay.setAttribute("aria-label", "管理者モード");
+  overlay.innerHTML = `
+    <button class="source-info-close" type="button" aria-label="管理者モードを閉じる">×</button>
+    <form class="admin-mode-dialog" id="admin-mode-form">
+      <h2>管理者モード</h2>
+      <label class="admin-mode-field">
+        <span>パスワード</span>
+        <input id="admin-mode-password" type="password" autocomplete="current-password" />
+      </label>
+      <div class="admin-mode-actions">
+        <button class="admin-mode-login" type="submit">親端末にする</button>
+        <button class="admin-mode-maintenance" id="admin-maintenance-toggle" type="button" disabled>メンテナンスモード</button>
+      </div>
+      <p class="admin-mode-status" id="admin-mode-status" role="status" aria-live="polite"></p>
+    </form>
+  `;
+
+  const closeButton = overlay.querySelector(".source-info-close");
+  const form = overlay.querySelector("#admin-mode-form");
+  const passwordInput = overlay.querySelector("#admin-mode-password");
+  const status = overlay.querySelector("#admin-mode-status");
+  const loginButton = overlay.querySelector(".admin-mode-login");
+  const toggleButton = overlay.querySelector("#admin-maintenance-toggle");
+
+  const closeOverlay = () => {
+    overlay.classList.add("hidden");
+    document.body.classList.remove("source-overlay-open");
   };
 
   closeButton?.addEventListener("click", closeOverlay);
@@ -2490,7 +2570,196 @@ function createSourceInfoOverlay() {
     }
   });
 
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const token = localStorage.getItem(ADMIN_PARENT_TOKEN_KEY);
+    if (token) {
+      setAdminModeStatus(status, "解除中...");
+      if (loginButton) {
+        loginButton.disabled = true;
+      }
+      if (toggleButton) {
+        toggleButton.disabled = true;
+      }
+      const current = await fetchMaintenanceStatus();
+      if (current.maintenance) {
+        const result = await postMaintenanceAction("setMaintenance", {
+          token,
+          maintenance: false,
+        });
+        if (!result.ok) {
+          updateAdminModeControls(overlay, current);
+          setAdminModeStatus(status, result.message || "親端末の解除に失敗しました。", true);
+          return;
+        }
+      }
+
+      localStorage.removeItem(ADMIN_PARENT_TOKEN_KEY);
+      passwordInput.value = "";
+      updateAdminModeControls(overlay, { maintenance: false });
+      notifyMaintenanceStatusChange({ maintenance: false });
+      setAdminModeStatus(status, current.maintenance ? "親端末を解除し、メンテナンスモードも解除しました。" : "親端末を解除しました。");
+      return;
+    }
+    setAdminModeStatus(status, "確認中...");
+    const result = await postMaintenanceAction("adminLogin", {
+      password: passwordInput?.value ?? "",
+    });
+    if (!result.ok || !result.token) {
+      localStorage.removeItem(ADMIN_PARENT_TOKEN_KEY);
+      updateAdminModeControls(overlay);
+      const message = result.ok && !result.token
+        ? "Apps Scriptの管理者処理が未反映です。デプロイを更新してください。"
+        : result.message || "認証できませんでした。";
+      setAdminModeStatus(status, message, true);
+      return;
+    }
+
+    localStorage.setItem(ADMIN_PARENT_TOKEN_KEY, result.token);
+    passwordInput.value = "";
+    updateAdminModeControls(overlay);
+    setAdminModeStatus(status, "この端末を親端末にしました。");
+  });
+
+  toggleButton?.addEventListener("click", async () => {
+    const token = localStorage.getItem(ADMIN_PARENT_TOKEN_KEY);
+    if (!token) {
+      setAdminModeStatus(status, "先に親端末認証をしてください。", true);
+      return;
+    }
+
+    setAdminModeStatus(status, "切替中...");
+    const current = await fetchMaintenanceStatus();
+    const nextMaintenance = !Boolean(current.maintenance);
+    const result = await postMaintenanceAction("setMaintenance", {
+      token,
+      maintenance: nextMaintenance,
+    });
+    if (!result.ok) {
+      setAdminModeStatus(status, result.message || "切替に失敗しました。", true);
+      return;
+    }
+
+    updateAdminModeControls(overlay, { maintenance: nextMaintenance });
+    notifyMaintenanceStatusChange({ maintenance: nextMaintenance });
+    setAdminModeStatus(status, nextMaintenance ? "メンテナンスモードに切り替えました。" : "メンテナンスモードを解除しました。");
+  });
+
   return overlay;
+}
+
+function openAdminModeOverlay(overlay) {
+  if (!overlay) {
+    return;
+  }
+
+  overlay.classList.remove("hidden");
+  document.body.classList.add("source-overlay-open");
+  updateAdminModeControls(overlay);
+  overlay.querySelector("#admin-mode-password")?.focus();
+}
+
+function updateAdminModeControls(overlay, maintenanceStatus = null) {
+  if (!overlay) {
+    return;
+  }
+
+  const isParentTerminal = Boolean(localStorage.getItem(ADMIN_PARENT_TOKEN_KEY));
+  const loginButton = overlay.querySelector(".admin-mode-login");
+  const toggleButton = overlay.querySelector("#admin-maintenance-toggle");
+  if (loginButton) {
+    loginButton.disabled = false;
+    loginButton.textContent = isParentTerminal ? "親端末を解除" : "親端末にする";
+  }
+  if (toggleButton) {
+    toggleButton.disabled = !isParentTerminal;
+    if (!isParentTerminal) {
+      toggleButton.textContent = "メンテナンスモード";
+    } else if (maintenanceStatus && typeof maintenanceStatus.maintenance === "boolean") {
+      toggleButton.textContent = maintenanceStatus.maintenance ? "メンテナンスモード解除" : "メンテナンスモード";
+    } else {
+      toggleButton.textContent = "確認中...";
+      fetchMaintenanceStatus().then((status) => {
+        const isStillParentTerminal = Boolean(localStorage.getItem(ADMIN_PARENT_TOKEN_KEY));
+        if (!isStillParentTerminal) {
+          toggleButton.textContent = "メンテナンスモード";
+          toggleButton.disabled = true;
+          return;
+        }
+        toggleButton.textContent = status.maintenance ? "メンテナンスモード解除" : "メンテナンスモード";
+        toggleButton.disabled = false;
+        notifyMaintenanceStatusChange(status);
+      });
+    }
+  }
+}
+
+function setAdminModeStatus(element, message, isError = false) {
+  if (!element) {
+    return;
+  }
+
+  element.textContent = message;
+  element.classList.toggle("admin-mode-status-error", Boolean(isError));
+}
+
+function setupMaintenanceMode(maintenanceOverlay, maintenanceBadge) {
+  const refresh = async () => {
+    const status = await fetchMaintenanceStatus();
+    updateMaintenanceStateIndicators(maintenanceOverlay, maintenanceBadge, status);
+  };
+
+  window.addEventListener("maintenance-status-change", (event) => {
+    updateMaintenanceStateIndicators(maintenanceOverlay, maintenanceBadge, event.detail);
+  });
+  refresh();
+  window.setInterval(refresh, MAINTENANCE_STATUS_POLL_MS);
+}
+
+function updateMaintenanceStateIndicators(overlay, badge, status) {
+  const isParentTerminal = Boolean(localStorage.getItem(ADMIN_PARENT_TOKEN_KEY));
+  if (overlay) {
+    overlay.classList.toggle("hidden", !status.maintenance || isParentTerminal);
+  }
+  if (badge) {
+    badge.classList.toggle("hidden", !status.maintenance || !isParentTerminal);
+  }
+}
+
+function notifyMaintenanceStatusChange(status) {
+  window.dispatchEvent(new CustomEvent("maintenance-status-change", { detail: status }));
+}
+
+async function fetchMaintenanceStatus() {
+  try {
+    const url = `${MAINTENANCE_ENDPOINT_URL}?action=maintenanceStatus&ts=${Date.now()}`;
+    const response = await fetch(url, { cache: "no-store" });
+    if (!response.ok) {
+      return { maintenance: false };
+    }
+    const data = await response.json();
+    return { maintenance: Boolean(data.maintenance) };
+  } catch (error) {
+    console.warn(error);
+    return { maintenance: false };
+  }
+}
+
+async function postMaintenanceAction(action, payload = {}) {
+  try {
+    const response = await fetch(MAINTENANCE_ENDPOINT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action, ...payload }),
+    });
+    if (!response.ok) {
+      return { ok: false };
+    }
+    return await response.json();
+  } catch (error) {
+    console.warn(error);
+    return { ok: false };
+  }
 }
 
 function createFeedbackOverlay() {
@@ -2661,7 +2930,10 @@ function buildSourceInfoOverlayHtml() {
       </header>
       <div class="source-info-sections">${sections}</div>
     </div>
-    <p class="source-info-updated">最終更新：${formatSourceUpdatedAt(SOURCE_UPDATED_AT)}</p>
+    <div class="source-info-footer">
+      <button class="source-admin-mode-button" type="button">管理者モード</button>
+      <p class="source-info-updated">最終更新：${formatSourceUpdatedAt(SOURCE_UPDATED_AT)}</p>
+    </div>
   `;
 }
 
