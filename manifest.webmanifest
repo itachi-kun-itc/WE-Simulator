@@ -1,0 +1,22 @@
+{
+  "name": "WE-Simulator",
+  "short_name": "WE-Simulator",
+  "description": "地震の揺れや広がりをシミュレーションできるアプリです。過去の顕著な地震の再現や、緊急地震速報（警報）のシミュレーションにも対応しています。",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#020405",
+  "theme_color": "#05203d",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
