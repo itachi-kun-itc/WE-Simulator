@@ -2727,6 +2727,10 @@ function notifyMaintenanceStatusChange(status) {
 }
 
 async function fetchMaintenanceStatus() {
+  if (isLocalDevelopmentHost()) {
+    return { maintenance: false };
+  }
+
   try {
     const url = `${MAINTENANCE_ENDPOINT_URL}?action=maintenanceStatus&ts=${Date.now()}`;
     const response = await fetch(url, { cache: "no-store" });
@@ -2739,6 +2743,16 @@ async function fetchMaintenanceStatus() {
     console.warn(error);
     return { maintenance: false };
   }
+}
+
+function isLocalDevelopmentHost() {
+  const hostname = window.location.hostname;
+  return hostname === "localhost"
+    || hostname === "127.0.0.1"
+    || hostname === "::1"
+    || hostname.startsWith("192.168.")
+    || hostname.startsWith("10.")
+    || /^172\.(1[6-9]|2\d|3[01])\./.test(hostname);
 }
 
 async function postMaintenanceAction(action, payload = {}) {

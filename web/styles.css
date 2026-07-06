@@ -1270,7 +1270,7 @@ body.app-loading #setup-panel button:not(#simulation-start) {
 
 .preset-picker-table th,
 .preset-picker-table td {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.16);
   border-right: 1px solid rgba(255, 255, 255, 0.1);
   padding: 12px 14px;
   text-align: left;
