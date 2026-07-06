@@ -787,6 +787,8 @@ setInitialSimulationStartLoadingState();
 bindSimulationControls();
 applyIntensityColorScheme(state.intensityColorScheme, { refreshLayers: false });
 setupMobileSheets();
+setupTransientPanelScrollbars();
+setupPanelScrollbarOffsets();
 preventNonMapZoom();
 setupViewportStability();
 setupSpeechSynthesisRecovery();
@@ -1237,6 +1239,103 @@ function setupMobileSheets() {
       handle.addEventListener("click", toggleSheet);
     }
   });
+}
+
+function setupTransientPanelScrollbars() {
+  const scrollTimers = new WeakMap();
+  const scrollContainers = document.querySelectorAll(
+    "#setup-panel .sim-panel-scroll, #simulation-panel .sim-panel-scroll",
+  );
+
+  scrollContainers.forEach((element) => {
+    element.addEventListener(
+      "scroll",
+      () => {
+        element.classList.add("is-scrolling");
+        const timer = scrollTimers.get(element);
+        if (timer) {
+          window.clearTimeout(timer);
+        }
+        scrollTimers.set(
+          element,
+          window.setTimeout(() => {
+            element.classList.remove("is-scrolling");
+            scrollTimers.delete(element);
+          }, 850),
+        );
+      },
+      { passive: true },
+    );
+  });
+}
+
+function setupPanelScrollbarOffsets() {
+  const panels = [els.setupPanel, els.simulationPanel].filter(Boolean);
+  let updateFrame = 0;
+
+  const updatePanel = (panel) => {
+    const scroller = panel.querySelector(".sim-panel-scroll");
+    if (!scroller) {
+      panel.classList.remove("has-scrollbar-offset");
+      return;
+    }
+
+    const hasScrollbar = scroller.scrollHeight > scroller.clientHeight + 1;
+    panel.classList.toggle(
+      "has-scrollbar-offset",
+      hasScrollbar && shouldOffsetForPanelScrollbar(),
+    );
+  };
+
+  const updateAll = () => {
+    updateFrame = 0;
+    panels.forEach(updatePanel);
+  };
+
+  const scheduleUpdate = () => {
+    if (updateFrame) {
+      return;
+    }
+    updateFrame = window.requestAnimationFrame(updateAll);
+  };
+
+  if (window.ResizeObserver) {
+    const observer = new ResizeObserver(scheduleUpdate);
+    panels.forEach((panel) => {
+      observer.observe(panel);
+      const scroller = panel.querySelector(".sim-panel-scroll");
+      if (scroller) {
+        observer.observe(scroller);
+      }
+    });
+  }
+
+  if (window.MutationObserver) {
+    const observer = new MutationObserver(scheduleUpdate);
+    panels.forEach((panel) => {
+      const scroller = panel.querySelector(".sim-panel-scroll");
+      if (scroller) {
+        observer.observe(scroller, {
+          attributes: true,
+          childList: true,
+          characterData: true,
+          subtree: true,
+        });
+      }
+    });
+  }
+
+  window.addEventListener("resize", scheduleUpdate, { passive: true });
+  window.visualViewport?.addEventListener("resize", scheduleUpdate, { passive: true });
+  scheduleUpdate();
+}
+
+function shouldOffsetForPanelScrollbar() {
+  const compactPhone = window.matchMedia("(max-width: 720px)").matches;
+  const phoneLandscape = window.matchMedia(
+    "(pointer: coarse) and (orientation: landscape) and (max-height: 720px)",
+  ).matches;
+  return !compactPhone && !phoneLandscape;
 }
 
 function isCompactViewport() {
@@ -2589,7 +2688,7 @@ function scheduleStartupMapOverlayRelease() {
   startupOverlayReleaseTimer = window.setTimeout(() => {
     startupOverlayReleasePending = false;
     releaseStartupMapOverlay();
-  }, 1000);
+  }, 700);
 }
 
 function releaseStartupMapOverlay() {
