@@ -2766,8 +2766,12 @@ function setupMaintenanceMode(maintenanceOverlay, maintenanceBadge) {
 
 function updateMaintenanceStateIndicators(overlay, badge, status) {
   const isParentTerminal = Boolean(localStorage.getItem(ADMIN_PARENT_TOKEN_KEY));
+  const isMaintenanceExemptTerminal = isParentTerminal || isLocalDevelopmentHost();
+  if (status.maintenance && !isMaintenanceExemptTerminal && state.simulationRunning) {
+    stopSimulation();
+  }
   if (overlay) {
-    overlay.classList.toggle("hidden", !status.maintenance || isParentTerminal);
+    overlay.classList.toggle("hidden", !status.maintenance || isMaintenanceExemptTerminal);
   }
   if (badge) {
     badge.classList.toggle("hidden", !status.maintenance || !isParentTerminal);
