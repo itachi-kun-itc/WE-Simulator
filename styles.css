@@ -1256,6 +1256,8 @@ body.app-loading #setup-panel button:not(#simulation-start) {
   min-height: 0;
   overflow-x: auto;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   border-top: 1px solid rgba(255, 255, 255, 0.14);
 }
 
@@ -1325,9 +1327,14 @@ body.app-loading #setup-panel button:not(#simulation-start) {
   background: rgba(255, 255, 255, 0.025);
 }
 
-.preset-picker-table tbody tr:hover,
 .preset-picker-table tbody tr:focus-within {
   background: rgba(142, 234, 255, 0.12);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .preset-picker-table tbody tr:hover {
+    background: rgba(142, 234, 255, 0.12);
+  }
 }
 
 .preset-picker-table tbody tr.selected {
@@ -2002,43 +2009,59 @@ body.app-loading #setup-panel button:not(#simulation-start) {
   }
 
   .preset-picker-table {
-    font-size: 0.72rem;
+    width: 600px;
+    min-width: 600px;
+    table-layout: fixed;
+    font-size: 0.76rem;
   }
 
   .preset-picker-table th,
   .preset-picker-table td {
-    padding: 8px 5px;
+    padding: 8px 6px;
   }
 
   .preset-picker-table th:nth-child(1),
   .preset-picker-table td:nth-child(1) {
-    min-width: 152px;
+    width: 150px;
+    min-width: 150px;
   }
 
   .preset-picker-table th:nth-child(2),
   .preset-picker-table td:nth-child(2) {
-    min-width: 128px;
+    width: 150px;
+    min-width: 150px;
   }
 
   .preset-picker-table th:nth-child(3),
   .preset-picker-table td:nth-child(3) {
-    min-width: 70px;
+    width: 58px;
+    min-width: 58px;
+  }
+
+  .preset-picker-table th:nth-child(4),
+  .preset-picker-table td:nth-child(4) {
+    width: 92px;
+    min-width: 92px;
+  }
+
+  .preset-picker-table th:nth-child(5),
+  .preset-picker-table td:nth-child(5) {
+    width: 82px;
+    min-width: 82px;
+  }
+
+  .preset-picker-table td:nth-child(3),
+  .preset-picker-table td:nth-child(4),
+  .preset-picker-table td:nth-child(5) {
+    font-variant-numeric: tabular-nums;
   }
 
   .preset-picker-table-wrap::after {
-    content: "";
-    position: sticky;
-    right: 0;
-    bottom: 0;
-    float: right;
-    width: 28px;
-    height: 100%;
-    min-height: 100%;
-    pointer-events: none;
-    background: linear-gradient(90deg, rgba(2, 4, 5, 0), rgba(2, 4, 5, 0.86));
+    display: none;
   }
 
   .preset-intensity-pill {
+    min-width: 52px;
     padding: 5px 6px;
     font-size: 0.7rem;
   }
@@ -2291,6 +2314,26 @@ body.app-loading #setup-panel button:not(#simulation-start) {
 
   .bottom-tabs {
     height: 70px;
+  }
+}
+
+@media (max-width: 720px) and (max-height: 820px) {
+  .sim-panel {
+    max-height: clamp(260px, calc(var(--app-height, 100svh) - 330px), 440px);
+  }
+}
+
+@media (max-width: 720px) and (max-height: 700px) {
+  .sim-panel {
+    max-height: clamp(220px, calc(var(--app-height, 100svh) - 340px), 330px);
+  }
+}
+
+@media (min-width: 721px) and (max-width: 1180px) and (max-height: 820px) {
+  .sim-panel {
+    top: auto;
+    bottom: 0;
+    max-height: clamp(300px, calc(var(--app-height, 100vh) - 260px), 520px);
   }
 }
 
