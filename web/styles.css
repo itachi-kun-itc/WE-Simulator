@@ -966,6 +966,201 @@ body.app-loading #setup-panel button:not(#simulation-start) {
   font-weight: 500;
 }
 
+.preset-picker-button {
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  padding: 9px 10px;
+  background: rgba(0, 0, 0, 0.42);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.92rem;
+  font-weight: 800;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preset-picker-button:hover,
+.preset-picker-button:focus-visible {
+  border-color: rgba(142, 234, 255, 0.72);
+  outline: none;
+}
+
+.preset-picker-button.has-preset {
+  font-weight: 650;
+}
+
+.preset-picker-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2600;
+  display: grid;
+  place-items: center;
+  padding: max(14px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+  background: rgba(2, 4, 5, 0.72);
+  backdrop-filter: blur(10px);
+}
+
+.preset-picker-dialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(980px, 100%);
+  max-height: min(720px, calc(var(--app-height, 100vh) - 28px));
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: rgba(2, 4, 5, 0.86);
+  color: #f8fafc;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.36);
+}
+
+.preset-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 12px 16px;
+  background: rgba(2, 4, 5, 0.88);
+}
+
+.preset-picker-head h2 {
+  margin: 0;
+  color: #ffffff;
+  font-size: 1.05rem;
+  line-height: 1.2;
+}
+
+.preset-picker-close {
+  position: relative;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+}
+
+.preset-picker-close::before,
+.preset-picker-close::after {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 2px;
+  border-radius: 999px;
+  background: #ffffff;
+}
+
+.preset-picker-close::before {
+  transform: rotate(45deg);
+}
+
+.preset-picker-close::after {
+  transform: rotate(-45deg);
+}
+
+.preset-picker-close:hover,
+.preset-picker-close:focus-visible {
+  border-color: rgba(142, 234, 255, 0.72);
+  outline: none;
+}
+
+.preset-picker-table-wrap {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.preset-picker-table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+  border-collapse: collapse;
+  background: transparent;
+  font-size: 0.98rem;
+}
+
+.preset-picker-table th,
+.preset-picker-table td {
+  overflow: hidden;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 12px 14px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preset-picker-table th:nth-child(1),
+.preset-picker-table td:nth-child(1) {
+  width: 25%;
+}
+
+.preset-picker-table th:nth-child(2),
+.preset-picker-table td:nth-child(2) {
+  width: 31%;
+}
+
+.preset-picker-table th:nth-child(3),
+.preset-picker-table td:nth-child(3) {
+  width: 12%;
+}
+
+.preset-picker-table th:nth-child(4),
+.preset-picker-table td:nth-child(4) {
+  width: 15%;
+}
+
+.preset-picker-table th:nth-child(5),
+.preset-picker-table td:nth-child(5) {
+  width: 17%;
+}
+
+.preset-picker-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: rgba(2, 4, 5, 0.94);
+  color: #ffffff;
+  font-weight: 900;
+  line-height: 1.2;
+  white-space: normal;
+}
+
+.preset-picker-table tbody tr {
+  cursor: pointer;
+}
+
+.preset-picker-table tbody tr:hover,
+.preset-picker-table tbody tr:focus-within {
+  background: rgba(142, 234, 255, 0.12);
+}
+
+.preset-picker-table tbody tr.selected {
+  background: rgba(142, 234, 255, 0.18);
+}
+
+.preset-intensity-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  min-width: 0;
+  border-radius: 999px;
+  padding: 7px 12px;
+  overflow: hidden;
+  background: var(--preset-intensity-color, #d7d5e3);
+  color: var(--preset-intensity-text, #22242b);
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .field-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1592,6 +1787,57 @@ body.app-loading #setup-panel button:not(#simulation-start) {
     font-size: 16px;
   }
 
+  .preset-picker-overlay {
+    padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+  }
+
+  .preset-picker-dialog {
+    max-height: calc(var(--app-height, 100vh) - 16px);
+  }
+
+  .preset-picker-head {
+    padding: 9px 10px;
+  }
+
+  .preset-picker-table {
+    font-size: 0.72rem;
+  }
+
+  .preset-picker-table th,
+  .preset-picker-table td {
+    padding: 8px 5px;
+  }
+
+  .preset-picker-table th:nth-child(1),
+  .preset-picker-table td:nth-child(1) {
+    width: 26%;
+  }
+
+  .preset-picker-table th:nth-child(2),
+  .preset-picker-table td:nth-child(2) {
+    width: 29%;
+  }
+
+  .preset-picker-table th:nth-child(3),
+  .preset-picker-table td:nth-child(3) {
+    width: 12%;
+  }
+
+  .preset-picker-table th:nth-child(4),
+  .preset-picker-table td:nth-child(4) {
+    width: 17%;
+  }
+
+  .preset-picker-table th:nth-child(5),
+  .preset-picker-table td:nth-child(5) {
+    width: 16%;
+  }
+
+  .preset-intensity-pill {
+    padding: 5px 6px;
+    font-size: 0.7rem;
+  }
+
   .source-info-button:not(.feedback-info-button):not(.speech-info-button)::after {
     top: calc(50% - 1.05px);
   }
@@ -1844,6 +2090,27 @@ body.app-loading #setup-panel button:not(#simulation-start) {
 }
 
 @media (pointer: coarse) and (orientation: landscape) and (max-height: 720px) {
+  .preset-picker-overlay {
+    padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+  }
+
+  .preset-picker-dialog {
+    max-height: calc(var(--app-height, 100vh) - 16px);
+  }
+
+  .preset-picker-table {
+    font-size: 0.82rem;
+  }
+
+  .preset-picker-table th,
+  .preset-picker-table td {
+    padding: 8px 8px;
+  }
+
+  .preset-intensity-pill {
+    padding: 5px 8px;
+  }
+
   .intensity-legend {
     left: auto;
     right: calc(env(safe-area-inset-right) + 82px);

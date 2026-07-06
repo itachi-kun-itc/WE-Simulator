@@ -605,7 +605,10 @@ const els = {
   longitude: document.querySelector("#longitude-input"),
   depth: document.querySelector("#depth-input"),
   magnitude: document.querySelector("#magnitude-input"),
-  historicalEarthquake: document.querySelector("#historical-earthquake-select"),
+  historicalEarthquakeButton: document.querySelector("#historical-earthquake-button"),
+  presetPickerOverlay: document.querySelector("#preset-picker-overlay"),
+  presetPickerClose: document.querySelector("#preset-picker-close"),
+  presetPickerList: document.querySelector("#preset-picker-list"),
   intensityColorScheme: document.querySelector("#intensity-color-scheme"),
   municipalityOutput: document.querySelector("#municipality-output"),
   maxIntensityOutput: document.querySelector("#max-intensity-output"),
@@ -780,7 +783,7 @@ let lastManagedEpicenter = {
 setupTabs();
 renderDepthOptions();
 renderMagnitudeOptions();
-renderEarthquakePresetOptions();
+renderEarthquakePresetPicker();
 renderIntensityColorSchemeOptions();
 setStartupInteractionLocked(true);
 setInitialSimulationStartLoadingState();
@@ -902,26 +905,113 @@ function renderIntensityColorSchemeOptions() {
   els.intensityColorScheme.replaceChildren(...options);
 }
 
-function renderEarthquakePresetOptions() {
-  if (!els.historicalEarthquake) {
+function renderEarthquakePresetPicker() {
+  if (!els.presetPickerList) {
     return;
   }
 
-  const noneOption = document.createElement("option");
-  noneOption.value = "";
-  noneOption.textContent = "指定なし";
-
-  const presetOptions = [...EARTHQUAKE_PRESETS]
+  const presets = [...EARTHQUAKE_PRESETS]
     .sort((a, b) => getPresetSortTime(b) - getPresetSortTime(a))
     .map((preset) => {
-      const option = document.createElement("option");
-      option.value = preset.id;
-      option.textContent = preset.label;
-      return option;
+      const row = document.createElement("tr");
+      const intensityClass = getPresetMaxIntensityClass(preset);
+      row.className = preset.id === state.selectedPresetId ? "selected" : "";
+      row.innerHTML = `
+        <td>${escapeHtml(formatPresetDateTime(preset))}</td>
+        <td>${escapeHtml(preset.epicenterName ?? preset.label ?? "-")}</td>
+        <td>${escapeHtml(formatPresetDepth(preset))}</td>
+        <td>${escapeHtml(formatPresetMagnitude(preset))}</td>
+        <td><span class="preset-intensity-pill" style="--preset-intensity-color: ${escapeHtml(intensityClass?.color ?? "#d7d5e3")}; --preset-intensity-text: ${escapeHtml(intensityClass?.textColor ?? "#22242b")};">${escapeHtml(formatPresetMaxIntensity(preset))}</span></td>
+      `;
+      row.addEventListener("click", () => {
+        applyEarthquakePreset(preset.id);
+        closeEarthquakePresetPicker();
+      });
+      return row;
     });
 
-  els.historicalEarthquake.replaceChildren(noneOption, ...presetOptions);
-  els.historicalEarthquake.value = state.selectedPresetId;
+  els.presetPickerList.replaceChildren(...presets);
+  updateEarthquakePresetButtonLabel();
+}
+
+function updateEarthquakePresetButtonLabel() {
+  if (!els.historicalEarthquakeButton) {
+    return;
+  }
+
+  const preset = getSelectedPreset();
+  els.historicalEarthquakeButton.textContent = preset
+    ? formatEarthquakePresetButtonLabel(preset)
+    : "地震を選ぶ";
+  els.historicalEarthquakeButton.classList.toggle("has-preset", Boolean(preset));
+}
+
+function formatEarthquakePresetButtonLabel(preset) {
+  const label = String(preset?.label ?? "").trim();
+  if (label) {
+    return label;
+  }
+
+  const year = String(preset?.date ?? "").match(/(?:19|20)\d{2}/)?.[0];
+  const name = String(preset?.epicenterName ?? "地震").trim();
+  return year ? `${name}地震（${year}）` : name;
+}
+
+function formatPresetDateTime(preset) {
+  const date = String(preset?.date ?? "").trim();
+  const time = String(preset?.time ?? "").trim();
+  return [date, formatPresetTimeToMinute(time)].filter(Boolean).join(" ") || "-";
+}
+
+function formatPresetTimeToMinute(time) {
+  const match = String(time ?? "").trim().match(/^(\d{1,2}):(\d{2})/);
+  return match ? `${match[1].padStart(2, "0")}:${match[2]}` : String(time ?? "").trim();
+}
+
+function formatPresetDepth(preset) {
+  const depth = Number(preset?.depthKm);
+  return Number.isFinite(depth) ? `${depth} km` : "-";
+}
+
+function formatPresetMagnitude(preset) {
+  const magnitude = Number(preset?.magnitude);
+  return Number.isFinite(magnitude) ? magnitude.toFixed(1) : "-";
+}
+
+function formatPresetMaxIntensity(preset) {
+  const intensityClass = getPresetMaxIntensityClass(preset);
+  const label = String(preset?.maxIntensity ?? "").trim();
+  if (label) {
+    return label;
+  }
+
+  return intensityClass?.label ?? intensityClass?.shortLabel ?? "-";
+}
+
+function getPresetMaxIntensityClass(preset) {
+  const label = String(preset?.maxIntensity ?? "").trim();
+  if (label) {
+    const normalizedLabel = label.replace(/^震度/, "");
+    const matchedClass = INTENSITY_CLASSES.find(
+      (item) =>
+        item.label === label ||
+        item.shortLabel === label ||
+        item.label === normalizedLabel ||
+        item.shortLabel === normalizedLabel,
+    );
+    if (matchedClass) {
+      return matchedClass;
+    }
+  }
+
+  const values = (preset?.observedStations ?? [])
+    .map((station) => Number(station.intensityValue))
+    .filter(Number.isFinite);
+  if (values.length === 0) {
+    return null;
+  }
+
+  return toJmaIntensityClass(Math.max(...values));
 }
 
 function getPresetSortTime(preset) {
@@ -934,6 +1024,17 @@ function getPresetSortTime(preset) {
 
   const yearMatch = String(preset?.label ?? "").match(/(?:19|20)\d{2}/);
   return yearMatch ? Date.UTC(Number(yearMatch[0]), 0, 1) : 0;
+}
+
+function openEarthquakePresetPicker() {
+  renderEarthquakePresetPicker();
+  els.presetPickerOverlay?.classList.remove("hidden");
+  els.presetPickerClose?.focus();
+}
+
+function closeEarthquakePresetPicker() {
+  els.presetPickerOverlay?.classList.add("hidden");
+  els.historicalEarthquakeButton?.focus();
 }
 
 async function loadEarthquakePresets() {
@@ -949,7 +1050,7 @@ async function loadEarthquakePresets() {
     }
 
     EARTHQUAKE_PRESETS.splice(0, EARTHQUAKE_PRESETS.length, ...data.presets);
-    renderEarthquakePresetOptions();
+    renderEarthquakePresetPicker();
     invalidateIntensityEstimateCache();
     updateIntensityLayer();
   } catch (error) {
@@ -974,7 +1075,18 @@ function bindSimulationControls() {
   });
   els.depth.addEventListener("change", () => updateStateFromInputs());
   els.magnitude.addEventListener("change", () => updateStateFromInputs());
-  els.historicalEarthquake?.addEventListener("change", () => applyEarthquakePreset(els.historicalEarthquake.value));
+  els.historicalEarthquakeButton?.addEventListener("click", () => openEarthquakePresetPicker());
+  els.presetPickerClose?.addEventListener("click", () => closeEarthquakePresetPicker());
+  els.presetPickerOverlay?.addEventListener("click", (event) => {
+    if (event.target === els.presetPickerOverlay) {
+      closeEarthquakePresetPicker();
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !els.presetPickerOverlay?.classList.contains("hidden")) {
+      closeEarthquakePresetPicker();
+    }
+  });
   els.intensityColorScheme?.addEventListener("change", () => {
     applyIntensityColorScheme(els.intensityColorScheme.value);
   });
@@ -1093,6 +1205,8 @@ function getLegendIntensityClass(label) {
 function applyEarthquakePreset(presetId) {
   state.selectedPresetId = presetId;
   const preset = EARTHQUAKE_PRESETS.find((item) => item.id === presetId);
+  updateEarthquakePresetButtonLabel();
+  renderEarthquakePresetPicker();
 
   if (!preset) {
     updateLegendColors();
@@ -1141,10 +1255,9 @@ function clearSelectedPreset() {
   }
 
   state.selectedPresetId = "";
+  updateEarthquakePresetButtonLabel();
   updateLegendColors();
-  if (els.historicalEarthquake) {
-    els.historicalEarthquake.value = "";
-  }
+  renderEarthquakePresetPicker();
 }
 
 function getPresetStationObservation(station) {
@@ -5006,9 +5119,6 @@ function syncInputs() {
   ensureDepthOption(state.depthKm);
   els.depth.value = String(state.depthKm);
   els.magnitude.value = state.magnitude.toFixed(1);
-  if (els.historicalEarthquake) {
-    els.historicalEarthquake.value = state.selectedPresetId;
-  }
   if (els.intensityColorScheme) {
     els.intensityColorScheme.value = state.intensityColorScheme;
   }
@@ -5020,6 +5130,7 @@ function syncInputs() {
   els.simulationStationLayerToggle.checked = state.showStationLayer;
   els.simulationRegionLayerToggle.checked = state.showRegionLayer;
   els.simulationEewWarningToggle.checked = state.showEewWarningLayer;
+  updateEarthquakePresetButtonLabel();
 }
 
 function updateSimulationAvailability() {
