@@ -611,6 +611,7 @@ const els = {
   historicalEarthquakeButton: document.querySelector("#historical-earthquake-button"),
   presetPickerOverlay: document.querySelector("#preset-picker-overlay"),
   presetPickerClose: document.querySelector("#preset-picker-close"),
+  presetPickerTableWrap: document.querySelector(".preset-picker-table-wrap"),
   presetPickerList: document.querySelector("#preset-picker-list"),
   intensityColorScheme: document.querySelector("#intensity-color-scheme"),
   municipalityOutput: document.querySelector("#municipality-output"),
@@ -669,6 +670,7 @@ let shindoStationLoadPromise;
 let stationIntensityFeatureCache;
 let predictedMaximumCache;
 let presetObservationLookupCache;
+let presetPickerScrollClampFrame = 0;
 let hyogoNanbuSyntheticStationCache;
 let stationPopup;
 let stationClickPopup;
@@ -1032,12 +1034,54 @@ function getPresetSortTime(preset) {
 function openEarthquakePresetPicker() {
   renderEarthquakePresetPicker();
   els.presetPickerOverlay?.classList.remove("hidden");
+  resetPresetPickerScroll();
   els.presetPickerClose?.focus();
 }
 
 function closeEarthquakePresetPicker() {
   els.presetPickerOverlay?.classList.add("hidden");
   els.historicalEarthquakeButton?.focus();
+}
+
+function resetPresetPickerScroll() {
+  const scrollElement = els.presetPickerTableWrap;
+  if (!scrollElement) {
+    return;
+  }
+
+  scrollElement.scrollLeft = 0;
+  scrollElement.scrollTop = 0;
+  schedulePresetPickerScrollClamp();
+}
+
+function schedulePresetPickerScrollClamp() {
+  if (presetPickerScrollClampFrame) {
+    return;
+  }
+
+  presetPickerScrollClampFrame = requestAnimationFrame(clampPresetPickerScrollBounds);
+}
+
+function clampPresetPickerScrollBounds() {
+  presetPickerScrollClampFrame = 0;
+
+  const scrollElement = els.presetPickerTableWrap;
+  if (!scrollElement) {
+    return;
+  }
+
+  const maxLeft = Math.max(0, scrollElement.scrollWidth - scrollElement.clientWidth);
+  const maxTop = Math.max(0, scrollElement.scrollHeight - scrollElement.clientHeight);
+  const nextLeft = Math.min(Math.max(scrollElement.scrollLeft, 0), maxLeft);
+  const nextTop = Math.min(Math.max(scrollElement.scrollTop, 0), maxTop);
+
+  if (Math.abs(nextLeft - scrollElement.scrollLeft) > 0.5) {
+    scrollElement.scrollLeft = nextLeft;
+  }
+
+  if (Math.abs(nextTop - scrollElement.scrollTop) > 0.5) {
+    scrollElement.scrollTop = nextTop;
+  }
 }
 
 async function loadEarthquakePresets() {
@@ -1085,6 +1129,9 @@ function bindSimulationControls() {
       closeEarthquakePresetPicker();
     }
   });
+  els.presetPickerTableWrap?.addEventListener("scroll", () => schedulePresetPickerScrollClamp(), { passive: true });
+  els.presetPickerTableWrap?.addEventListener("touchend", () => schedulePresetPickerScrollClamp(), { passive: true });
+  window.addEventListener("resize", () => schedulePresetPickerScrollClamp());
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !els.presetPickerOverlay?.classList.contains("hidden")) {
       closeEarthquakePresetPicker();
@@ -1231,7 +1278,7 @@ function applyEarthquakePreset(presetId) {
   invalidateIntensityEstimateCache();
   updateLegendColors();
   syncInputs();
-  updateEpicenter({ resolveLocation: true });
+  updateEpicenter({ resolveLocation: true, preservePresetEpicenterName: isHyogoNanbuPreset(preset) });
 
   if (map) {
     resetViewAnimating = true;
@@ -2104,13 +2151,18 @@ function announceSimulationStartIfNeeded() {
   const displayMaxClass = getPresetDisplayIntensityClass(maxClass, predictedMax.value, getSelectedPreset());
   const currentLocationText = getCurrentLocationSpeechText();
   const eewText = getEewSpeechText();
+  const epicenterName = getSpeechEpicenterName();
   const summaryText = `最大震度は${displayMaxClass.label}、マグニチュードは${state.magnitude.toFixed(1)}と推定されます。${currentLocationText}`;
   speakAnnouncement(
-    eewText ? `${eewText}${summaryText}` : `${state.epicenterName}で地震。${summaryText}`,
+    eewText ? `${eewText}${summaryText}` : `${epicenterName}で地震。${summaryText}`,
     { priority: Boolean(eewText) },
   );
   markCurrentEewAreasAnnounced();
   speechAnnouncementState.startAnnounced = true;
+}
+
+function getSpeechEpicenterName() {
+  return isHyogoNanbuPreset(getSelectedPreset()) ? "大阪湾" : state.epicenterName;
 }
 
 function getEewSpeechText() {
@@ -2119,7 +2171,7 @@ function getEewSpeechText() {
     return "";
   }
 
-  return `${getEewSpeechHeading()} ${state.epicenterName}で地震。強い揺れに警戒してください。対象地域は ${areaNames.join("、")}。`;
+  return `${getEewSpeechHeading()} ${getSpeechEpicenterName()}で地震。強い揺れに警戒してください。対象地域は ${areaNames.join("、")}。`;
 }
 
 function getEewSpeechHeading() {
@@ -2152,7 +2204,7 @@ function announceEewAreaUpdates() {
   });
   const areaText = addedAreaNames.join("、");
   const message = isFirstEewAnnouncement
-    ? `${getEewSpeechHeading()} ${state.epicenterName}で地震。強い揺れに警戒してください。対象地域は ${areaText}。`
+    ? `${getEewSpeechHeading()} ${getSpeechEpicenterName()}で地震。強い揺れに警戒してください。対象地域は ${areaText}。`
     : `${getEewSpeechHeading()} 対象地域に ${areaText} が追加されました。強い揺れに警戒してください。`;
   speakAnnouncement(message, { priority: true });
 }
@@ -5548,6 +5600,10 @@ async function updateEpicenter(options = {}) {
     }
   }
 
+  if (options.preservePresetEpicenterName) {
+    applyPresetEpicenterNameOverride();
+  }
+
   if (!options.skipIntensityUpdate) {
     updateIntensityLayer();
   }
@@ -7302,9 +7358,25 @@ function buildStationIntensityFeatures(data) {
 
 function isOldJmaScaleSyntheticPreset(preset) {
   return Boolean(
-    preset?.label?.includes("兵庫県南部地震") ||
+    isHyogoNanbuPreset(preset) ||
       preset?.label?.includes("関東大震災"),
   );
+}
+
+function isHyogoNanbuPreset(preset) {
+  return Boolean(preset?.label?.includes("兵庫県南部地震"));
+}
+
+function applyPresetEpicenterNameOverride() {
+  const preset = getSelectedPreset();
+  if (!isHyogoNanbuPreset(preset)) {
+    return;
+  }
+
+  state.epicenterName = "大阪湾";
+  if (els.epicenterRegion) {
+    els.epicenterRegion.value = state.epicenterName;
+  }
 }
 
 function getPresetDisplayIntensityClass(intensityClass, intensityValue, preset) {
