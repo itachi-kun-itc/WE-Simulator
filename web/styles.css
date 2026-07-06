@@ -827,8 +827,8 @@ body.app-loading #setup-panel button:not(#simulation-start) {
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  padding-right: 2px;
-  scrollbar-gutter: stable;
+  padding-right: 0;
+  scrollbar-gutter: auto;
 }
 
 #simulation-panel {
@@ -847,8 +847,54 @@ body.app-loading #setup-panel button:not(#simulation-start) {
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  padding-right: 2px;
-  scrollbar-gutter: stable;
+  padding-right: 0;
+  scrollbar-gutter: auto;
+}
+
+#setup-panel .sim-panel-scroll,
+#simulation-panel .sim-panel-scroll {
+  scrollbar-color: transparent transparent;
+  scrollbar-width: thin;
+}
+
+#setup-panel .sim-panel-scroll.is-scrolling,
+#simulation-panel .sim-panel-scroll.is-scrolling {
+  scrollbar-color: rgba(255, 255, 255, 0.55) transparent;
+}
+
+#setup-panel .sim-panel-scroll::-webkit-scrollbar,
+#simulation-panel .sim-panel-scroll::-webkit-scrollbar {
+  width: 7px;
+}
+
+#setup-panel .sim-panel-scroll::-webkit-scrollbar-track,
+#simulation-panel .sim-panel-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#setup-panel .sim-panel-scroll::-webkit-scrollbar-thumb,
+#simulation-panel .sim-panel-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-color: transparent;
+  background-clip: content-box;
+}
+
+#setup-panel .sim-panel-scroll.is-scrolling::-webkit-scrollbar-thumb,
+#simulation-panel .sim-panel-scroll.is-scrolling::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.55);
+}
+
+.sim-panel.has-scrollbar-offset .sim-panel-scroll {
+  margin-right: -3px;
+  padding-right: 10px;
+}
+
+#setup-panel.has-scrollbar-offset .sim-panel-head,
+#simulation-panel.has-scrollbar-offset .simulation-sheet-toggle,
+#setup-panel.has-scrollbar-offset .simulation-start,
+#simulation-panel.has-scrollbar-offset .simulation-actions {
+  width: calc(100% - 7px);
 }
 
 #simulation-panel .simulation-actions {
@@ -1332,6 +1378,12 @@ body.app-loading #setup-panel button:not(#simulation-start) {
   border-bottom: 0;
 }
 
+@media (min-width: 721px) and (max-width: 1180px) and (pointer: coarse) {
+  .intensity-scale span {
+    font-weight: 600;
+  }
+}
+
 .eew-forecast-panel {
   position: absolute;
   right: 52px;
@@ -1594,7 +1646,7 @@ body.app-loading #setup-panel button:not(#simulation-start) {
     overflow-y: auto;
     overscroll-behavior: contain;
     padding: 0 0 8px;
-    scrollbar-gutter: stable;
+    scrollbar-gutter: auto;
   }
 
   .sim-panel-head {
@@ -1788,5 +1840,39 @@ body.app-loading #setup-panel button:not(#simulation-start) {
 
   .bottom-tabs {
     height: 70px;
+  }
+}
+
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 720px) {
+  .intensity-legend {
+    left: auto;
+    right: calc(env(safe-area-inset-right) + 82px);
+    top: calc(env(safe-area-inset-top) + 8px);
+    bottom: auto;
+    display: flex;
+    width: auto;
+    max-width: calc(100vw - 112px - env(safe-area-inset-right));
+  }
+
+  .intensity-legend h2 {
+    display: grid;
+    min-width: 34px;
+    place-items: center;
+    border-right: 1px solid rgba(255, 255, 255, 0.22);
+    border-bottom: 0;
+    padding: 0 5px;
+    font-size: 0.68rem;
+  }
+
+  .intensity-scale {
+    display: flex;
+  }
+
+  .intensity-scale span {
+    width: 30px;
+    height: 30px;
+    border-right: 1px solid rgba(17, 24, 39, 0.32);
+    border-bottom: 0;
+    font-size: 0.8rem;
   }
 }
