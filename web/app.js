@@ -2625,6 +2625,12 @@ function createAdminModeOverlay() {
 
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (isLocalDevelopmentHost()) {
+      setAdminModeStatus(status, "Localサーバーでは親端末に設定できません。", true);
+      updateAdminModeControls(overlay);
+      return;
+    }
+
     const token = localStorage.getItem(ADMIN_PARENT_TOKEN_KEY);
     if (token) {
       setAdminModeStatus(status, "解除中...");
@@ -2715,6 +2721,18 @@ function updateAdminModeControls(overlay, maintenanceStatus = null) {
   const isParentTerminal = Boolean(localStorage.getItem(ADMIN_PARENT_TOKEN_KEY));
   const loginButton = overlay.querySelector(".admin-mode-login");
   const toggleButton = overlay.querySelector("#admin-maintenance-toggle");
+  if (isLocalDevelopmentHost()) {
+    if (loginButton) {
+      loginButton.disabled = true;
+      loginButton.textContent = "Localサーバーでは親端末に設定できません。";
+    }
+    if (toggleButton) {
+      toggleButton.disabled = true;
+      toggleButton.textContent = "メンテナンスモード";
+    }
+    return;
+  }
+
   if (loginButton) {
     loginButton.disabled = false;
     loginButton.textContent = isParentTerminal ? "親端末を解除" : "親端末にする";
