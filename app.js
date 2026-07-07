@@ -64,6 +64,10 @@ const LIGHT_DEFERRED_DATA_DELAY_MS = 180;
 const STATION_DEFERRED_DATA_DELAY_MS = 450;
 const PRESET_DEFERRED_DATA_DELAY_MS = 900;
 const HEAVY_DEFERRED_DATA_DELAY_MS = 6000;
+const STARTUP_PRIMARY_IDLE_TIMEOUT_MS = 650;
+const STARTUP_SECONDARY_IDLE_TIMEOUT_MS = 260;
+const STARTUP_OVERLAY_RELEASE_DELAY_MS = 140;
+const STARTUP_BOUNDARY_REVEAL_DELAY_MS = 120;
 const EARTHQUAKE_PRESETS = [
   {
     id: "tohoku-2011",
@@ -2692,6 +2696,10 @@ function createAdminModeOverlay() {
 
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (isAdminParentActionPending(overlay) || isAdminMaintenanceActionPending(overlay)) {
+      return;
+    }
+
     if (isLocalDevelopmentHost()) {
       setAdminModeStatus(status, "Localサーバーでは親端末に設定できません", true);
       updateAdminModeControls(overlay);
@@ -2700,6 +2708,7 @@ function createAdminModeOverlay() {
 
     const token = localStorage.getItem(ADMIN_PARENT_TOKEN_KEY);
     if (token) {
+      setAdminParentActionPending(overlay, true);
       setAdminModeStatus(status, "解除中...");
       if (loginButton) {
         loginButton.disabled = true;
@@ -2711,6 +2720,7 @@ function createAdminModeOverlay() {
       const current = await fetchMaintenanceStatus();
       const result = await postMaintenanceAction("releaseParent", { token });
       if (!result.ok) {
+        setAdminParentActionPending(overlay, false);
         updateAdminModeControls(overlay, current);
         setAdminModeStatus(status, result.message || "親端末の解除に失敗しました。", true);
         return;
@@ -2718,11 +2728,13 @@ function createAdminModeOverlay() {
 
       localStorage.removeItem(ADMIN_PARENT_TOKEN_KEY);
       passwordInput.value = "";
+      setAdminParentActionPending(overlay, false);
       updateAdminModeControls(overlay, { maintenance: false });
       notifyMaintenanceStatusChange({ maintenance: false });
       setAdminModeStatus(status, current.maintenance ? "親端末を解除し、メンテナンスモードも解除しました。" : "親端末を解除しました。");
       return;
     }
+    setAdminParentActionPending(overlay, true);
     setAdminModeStatus(status, "認証中...");
     if (loginButton) {
       loginButton.disabled = true;
@@ -2735,6 +2747,7 @@ function createAdminModeOverlay() {
       password: passwordInput?.value ?? "",
     });
     if (!result.ok || !result.token) {
+      setAdminParentActionPending(overlay, false);
       localStorage.removeItem(ADMIN_PARENT_TOKEN_KEY);
       updateAdminModeControls(overlay);
       const message = result.ok && !result.token
@@ -2746,17 +2759,31 @@ function createAdminModeOverlay() {
 
     localStorage.setItem(ADMIN_PARENT_TOKEN_KEY, result.token);
     passwordInput.value = "";
+    setAdminParentActionPending(overlay, false);
     updateAdminModeControls(overlay);
     setAdminModeStatus(status, "この端末を親端末にしました。");
   });
 
   toggleButton?.addEventListener("click", async () => {
+    if (isAdminParentActionPending(overlay) || isAdminMaintenanceActionPending(overlay)) {
+      return;
+    }
+
     const token = localStorage.getItem(ADMIN_PARENT_TOKEN_KEY);
     if (!token) {
       setAdminModeStatus(status, "先に親端末認証をしてください。", true);
       return;
     }
 
+    setAdminMaintenanceActionPending(overlay, true);
+    setAdminModeStatus(status, "確認中...");
+    if (toggleButton) {
+      toggleButton.disabled = true;
+      toggleButton.textContent = "確認中...";
+    }
+    if (loginButton) {
+      loginButton.disabled = true;
+    }
     const current = await fetchMaintenanceStatus();
     const nextMaintenance = !Boolean(current.maintenance);
     setAdminModeStatus(status, nextMaintenance ? "設定中..." : "解除中...");
@@ -2772,11 +2799,13 @@ function createAdminModeOverlay() {
       maintenance: nextMaintenance,
     });
     if (!result.ok) {
+      setAdminMaintenanceActionPending(overlay, false);
       updateAdminModeControls(overlay, current);
       setAdminModeStatus(status, result.message || "切替に失敗しました。", true);
       return;
     }
 
+    setAdminMaintenanceActionPending(overlay, false);
     updateAdminModeControls(overlay, { maintenance: nextMaintenance });
     notifyMaintenanceStatusChange({ maintenance: nextMaintenance });
     setAdminModeStatus(status, nextMaintenance ? "メンテナンスモードに切り替えました。" : "メンテナンスモードを解除しました。");
@@ -2820,6 +2849,13 @@ function updateAdminModeControls(overlay, maintenanceStatus = null) {
     return;
   }
 
+  if (isAdminParentActionPending(overlay) || isAdminMaintenanceActionPending(overlay)) {
+    if (toggleButton) {
+      toggleButton.disabled = true;
+    }
+    return;
+  }
+
   if (passwordInput) {
     passwordInput.disabled = isParentTerminal;
   }
@@ -2842,12 +2878,40 @@ function updateAdminModeControls(overlay, maintenanceStatus = null) {
           toggleButton.disabled = true;
           return;
         }
+        if (isAdminParentActionPending(overlay) || isAdminMaintenanceActionPending(overlay)) {
+          toggleButton.disabled = true;
+          return;
+        }
         toggleButton.textContent = status.maintenance ? "メンテナンスモード解除" : "メンテナンスモード";
         toggleButton.disabled = false;
         notifyMaintenanceStatusChange(status);
       });
     }
   }
+}
+
+function setAdminParentActionPending(overlay, isPending) {
+  if (!overlay) {
+    return;
+  }
+
+  overlay.dataset.parentActionPending = isPending ? "true" : "false";
+}
+
+function isAdminParentActionPending(overlay) {
+  return overlay?.dataset.parentActionPending === "true";
+}
+
+function setAdminMaintenanceActionPending(overlay, isPending) {
+  if (!overlay) {
+    return;
+  }
+
+  overlay.dataset.maintenanceActionPending = isPending ? "true" : "false";
+}
+
+function isAdminMaintenanceActionPending(overlay) {
+  return overlay?.dataset.maintenanceActionPending === "true";
 }
 
 function setAdminModeStatus(element, message, isError = false) {
@@ -3221,7 +3285,7 @@ function showMunicipalityLinework() {
       municipalityBoundaryVisible = true;
       scheduleStartupReadyAfterIntensityPaint();
     });
-  }, 360);
+  }, STARTUP_BOUNDARY_REVEAL_DELAY_MS);
 }
 
 function scheduleStartupReadyAfterIntensityPaint() {
@@ -3254,22 +3318,22 @@ function scheduleStartupMapOverlayRelease() {
   startupOverlayReleaseTimer = window.setTimeout(() => {
     startupOverlayReleasePending = false;
     releaseStartupMapOverlay();
-  }, 700);
+  }, STARTUP_OVERLAY_RELEASE_DELAY_MS);
 }
 
 function releaseStartupMapOverlay() {
   startupMapVisualReady = true;
   map?.resize();
-  renderStationCanvasOverlay();
+  window.requestAnimationFrame(() => renderStationCanvasOverlay());
   document.body.classList.remove("map-core-loading");
   updateSimulationAvailability();
 }
 
 async function waitForStableStartupMap(paintVersion) {
-  await waitForMapIdle(1200, { force: true });
-  await waitForAnimationFrames(isCompactViewport() || isTabletViewport() ? 6 : 4);
-  await waitForMapIdle(700, { force: true });
-  await waitForAnimationFrames(2);
+  await waitForMapIdle(STARTUP_PRIMARY_IDLE_TIMEOUT_MS, { force: true });
+  await waitForAnimationFrames(isCompactViewport() || isTabletViewport() ? 3 : 2);
+  await waitForMapIdle(STARTUP_SECONDARY_IDLE_TIMEOUT_MS, { force: true });
+  await waitForAnimationFrames(1);
   return (
     paintVersion === startupIntensityPaintVersion &&
     startupLocationResolved &&
