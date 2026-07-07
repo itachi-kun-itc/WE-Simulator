@@ -2811,6 +2811,10 @@ function createAdminModeOverlay() {
       const current = await fetchMaintenanceStatus();
       const result = await postMaintenanceAction("releaseParent", { token });
       if (!result.ok) {
+        if (isInvalidParentTokenResponse(result)) {
+          await forceReleaseInvalidParentTerminal(overlay, passwordInput, status, token);
+          return;
+        }
         setAdminParentActionPending(overlay, false);
         updateAdminModeControls(overlay, current);
         setAdminModeStatus(status, result.message || "親端末の解除に失敗しました。", true);
@@ -2900,6 +2904,8 @@ function createAdminModeOverlay() {
       maintenance: nextMaintenance,
       reason: nextMaintenance ? maintenanceReason : "",
       maintenanceReason: nextMaintenance ? maintenanceReason : "",
+      maintenanceDetail: nextMaintenance ? maintenanceReason : "",
+      details: nextMaintenance ? maintenanceReason : "",
     });
     if (!result.ok) {
       setAdminMaintenanceActionPending(overlay, false);
@@ -2909,12 +2915,33 @@ function createAdminModeOverlay() {
     }
 
     setAdminMaintenanceActionPending(overlay, false);
-    updateAdminModeControls(overlay, { maintenance: nextMaintenance, reason: nextMaintenance ? maintenanceReason : "" });
-    notifyMaintenanceStatusChange({ maintenance: nextMaintenance, reason: nextMaintenance ? maintenanceReason : "" });
+    const confirmedReason = nextMaintenance
+      ? extractMaintenanceReason(result) || maintenanceReason
+      : "";
+    updateAdminModeControls(overlay, { maintenance: nextMaintenance, reason: confirmedReason });
+    notifyMaintenanceStatusChange({ maintenance: nextMaintenance, reason: confirmedReason });
     setAdminModeStatus(status, nextMaintenance ? "メンテナンスモードに切り替えました。" : "メンテナンスモードを解除しました。");
   });
 
   return overlay;
+}
+
+function isInvalidParentTokenResponse(result) {
+  const message = String(result?.message ?? "");
+  return message.includes("親端末の認証が無効");
+}
+
+async function forceReleaseInvalidParentTerminal(overlay, passwordInput, status, token) {
+  await postMaintenanceAction("forceReleaseInvalidParent", { token });
+  localStorage.removeItem(ADMIN_PARENT_TOKEN_KEY);
+  if (passwordInput) {
+    passwordInput.value = "";
+  }
+  setAdminParentActionPending(overlay, false);
+  setAdminMaintenanceActionPending(overlay, false);
+  updateAdminModeControls(overlay, { maintenance: false, reason: "" });
+  notifyMaintenanceStatusChange({ maintenance: false, reason: "" });
+  setAdminModeStatus(status, "親端末の認証が無効のため、親端末を解除しました。");
 }
 
 function openAdminModeOverlay(overlay) {
@@ -3075,7 +3102,7 @@ function setupMaintenanceMode(maintenanceOverlay, maintenanceBadge) {
 function updateMaintenanceStateIndicators(overlay, badge, status) {
   const isParentTerminal = Boolean(localStorage.getItem(ADMIN_PARENT_TOKEN_KEY));
   const isMaintenanceExemptTerminal = isParentTerminal || isLocalDevelopmentHost();
-  const reason = normalizeMaintenanceReason(status?.reason ?? "");
+  const reason = extractMaintenanceReason(status);
   if (status.maintenance && !isMaintenanceExemptTerminal && state.simulationRunning) {
     stopSimulation();
   }
@@ -3106,13 +3133,39 @@ function notifyMaintenanceStatusChange(status) {
   window.dispatchEvent(new CustomEvent("maintenance-status-change", { detail: status }));
 }
 
+function extractMaintenanceReason(payload) {
+  const candidates = [
+    payload?.reason,
+    payload?.maintenanceReason,
+    payload?.maintenanceDetail,
+    payload?.maintenanceDetails,
+    payload?.detail,
+    payload?.details,
+    payload?.maintenance?.reason,
+    payload?.maintenance?.maintenanceReason,
+    payload?.status?.reason,
+    payload?.status?.maintenanceReason,
+    payload?.data?.reason,
+    payload?.data?.maintenanceReason,
+  ];
+
+  for (const candidate of candidates) {
+    const reason = normalizeMaintenanceReason(candidate);
+    if (reason) {
+      return reason;
+    }
+  }
+
+  return "";
+}
+
 async function fetchMaintenanceStatus() {
   if (isLocalDevelopmentHost()) {
     return { maintenance: false };
   }
 
   try {
-    const url = `${MAINTENANCE_ENDPOINT_URL}?action=maintenanceStatus&ts=${Date.now()}`;
+    const url = `${MAINTENANCE_ENDPOINT_URL}?action=maintenanceStatus&includeReason=1&ts=${Date.now()}`;
     const response = await fetch(url, { cache: "no-store" });
     if (!response.ok) {
       return { maintenance: false };
@@ -3120,7 +3173,7 @@ async function fetchMaintenanceStatus() {
     const data = await response.json();
     return {
       maintenance: Boolean(data.maintenance),
-      reason: normalizeMaintenanceReason(data.reason ?? data.maintenanceReason ?? ""),
+      reason: extractMaintenanceReason(data),
     };
   } catch (error) {
     console.warn(error);
