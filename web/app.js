@@ -688,6 +688,7 @@ let clickedStationFeatureId = null;
 let stationCanvasOverlay;
 let stationCanvasRenderFrame = 0;
 let stationCanvasFeatureCache = { data: null, features: [] };
+let maintenanceReasonOverlay;
 let currentLocationMarker;
 let epicenterHoverPopup;
 let epicenterClickPopup;
@@ -1761,13 +1762,22 @@ async function initEarthquakeMap() {
   });
   map.on("moveend", () => {
     state.mapInteracting = false;
+    scheduleStationCanvasRender({ force: true });
+    schedulePostMapInteractionRender();
+  });
+  map.on("zoomstart", () => {
+    state.mapInteracting = true;
+  });
+  map.on("zoomend", () => {
+    state.mapInteracting = false;
+    scheduleStationCanvasRender({ force: true });
     schedulePostMapInteractionRender();
   });
   map.on("render", () => {
-    scheduleStationCanvasRender();
+    renderStationCanvasOverlay();
   });
   map.on("resize", () => {
-    scheduleStationCanvasRender();
+    scheduleStationCanvasRender({ force: true });
   });
 
   map.on("click", (event) => {
@@ -2636,6 +2646,83 @@ function createMaintenanceModeOverlay() {
   return overlay;
 }
 
+function createMaintenanceReasonOverlay() {
+  const overlay = document.createElement("section");
+  overlay.className = "source-info-overlay maintenance-reason-overlay hidden";
+  overlay.setAttribute("aria-modal", "true");
+  overlay.setAttribute("role", "dialog");
+  overlay.setAttribute("aria-label", "メンテナンス理由");
+  overlay.innerHTML = `
+    <button class="source-info-close maintenance-reason-cancel" type="button" aria-label="メンテナンス理由入力を閉じる">×</button>
+    <form class="maintenance-reason-dialog" id="maintenance-reason-form">
+      <h2>メンテナンス理由</h2>
+      <label class="maintenance-reason-field">
+        <span>理由（任意）</span>
+        <textarea id="maintenance-reason-input" rows="5" maxlength="500" placeholder="例：データ更新のため"></textarea>
+      </label>
+      <div class="maintenance-reason-actions">
+        <button class="maintenance-reason-cancel" type="button">キャンセル</button>
+        <button class="maintenance-reason-submit" type="submit">送信</button>
+      </div>
+    </form>
+  `;
+  return overlay;
+}
+
+function openMaintenanceReasonOverlay() {
+  if (!maintenanceReasonOverlay) {
+    maintenanceReasonOverlay = createMaintenanceReasonOverlay();
+    document.body.appendChild(maintenanceReasonOverlay);
+  }
+
+  const overlay = maintenanceReasonOverlay;
+  const form = overlay.querySelector("#maintenance-reason-form");
+  const input = overlay.querySelector("#maintenance-reason-input");
+  const cancelButtons = overlay.querySelectorAll(".maintenance-reason-cancel");
+  input.value = "";
+  overlay.classList.remove("hidden");
+  document.body.classList.add("source-overlay-open");
+  window.requestAnimationFrame(() => input?.focus());
+
+  return new Promise((resolve) => {
+    const close = (value) => {
+      overlay.classList.add("hidden");
+      if (!document.querySelector(".source-info-overlay:not(.hidden)")) {
+        document.body.classList.remove("source-overlay-open");
+      }
+      form?.removeEventListener("submit", handleSubmit);
+      cancelButtons.forEach((button) => button.removeEventListener("click", handleCancel));
+      overlay.removeEventListener("click", handleOverlayClick);
+      document.removeEventListener("keydown", handleKeydown);
+      resolve(value);
+    };
+    const handleSubmit = (event) => {
+      event.preventDefault();
+      close(normalizeMaintenanceReason(input?.value ?? ""));
+    };
+    const handleCancel = () => close(null);
+    const handleOverlayClick = (event) => {
+      if (event.target === overlay) {
+        close(null);
+      }
+    };
+    const handleKeydown = (event) => {
+      if (event.key === "Escape" && !overlay.classList.contains("hidden")) {
+        close(null);
+      }
+    };
+
+    form?.addEventListener("submit", handleSubmit);
+    cancelButtons.forEach((button) => button.addEventListener("click", handleCancel));
+    overlay.addEventListener("click", handleOverlayClick);
+    document.addEventListener("keydown", handleKeydown);
+  });
+}
+
+function normalizeMaintenanceReason(reason) {
+  return String(reason ?? "").trim().replace(/\s+/g, " ").slice(0, 500);
+}
+
 function createMaintenanceModeBadge() {
   const badge = document.createElement("div");
   badge.className = "maintenance-mode-badge hidden";
@@ -2793,6 +2880,13 @@ function createAdminModeOverlay() {
     }
     const current = await fetchMaintenanceStatus();
     const nextMaintenance = !Boolean(current.maintenance);
+    const maintenanceReason = nextMaintenance ? await openMaintenanceReasonOverlay() : "";
+    if (maintenanceReason === null) {
+      setAdminMaintenanceActionPending(overlay, false);
+      updateAdminModeControls(overlay, current);
+      setAdminModeStatus(status, "メンテナンスモード設定をキャンセルしました。");
+      return;
+    }
     setAdminModeStatus(status, nextMaintenance ? "設定中..." : "解除中...");
     if (toggleButton) {
       toggleButton.disabled = true;
@@ -2804,6 +2898,8 @@ function createAdminModeOverlay() {
     const result = await postMaintenanceAction("setMaintenance", {
       token,
       maintenance: nextMaintenance,
+      reason: nextMaintenance ? maintenanceReason : "",
+      maintenanceReason: nextMaintenance ? maintenanceReason : "",
     });
     if (!result.ok) {
       setAdminMaintenanceActionPending(overlay, false);
@@ -2813,8 +2909,8 @@ function createAdminModeOverlay() {
     }
 
     setAdminMaintenanceActionPending(overlay, false);
-    updateAdminModeControls(overlay, { maintenance: nextMaintenance });
-    notifyMaintenanceStatusChange({ maintenance: nextMaintenance });
+    updateAdminModeControls(overlay, { maintenance: nextMaintenance, reason: nextMaintenance ? maintenanceReason : "" });
+    notifyMaintenanceStatusChange({ maintenance: nextMaintenance, reason: nextMaintenance ? maintenanceReason : "" });
     setAdminModeStatus(status, nextMaintenance ? "メンテナンスモードに切り替えました。" : "メンテナンスモードを解除しました。");
   });
 
@@ -2979,15 +3075,31 @@ function setupMaintenanceMode(maintenanceOverlay, maintenanceBadge) {
 function updateMaintenanceStateIndicators(overlay, badge, status) {
   const isParentTerminal = Boolean(localStorage.getItem(ADMIN_PARENT_TOKEN_KEY));
   const isMaintenanceExemptTerminal = isParentTerminal || isLocalDevelopmentHost();
+  const reason = normalizeMaintenanceReason(status?.reason ?? "");
   if (status.maintenance && !isMaintenanceExemptTerminal && state.simulationRunning) {
     stopSimulation();
   }
   if (overlay) {
+    updateMaintenanceOverlayMessage(overlay, reason);
     overlay.classList.toggle("hidden", !status.maintenance || isMaintenanceExemptTerminal);
   }
   if (badge) {
     badge.classList.toggle("hidden", !status.maintenance || !isParentTerminal);
   }
+}
+
+function updateMaintenanceOverlayMessage(overlay, reason = "") {
+  const dialog = overlay.querySelector(".maintenance-mode-dialog");
+  if (!dialog) {
+    return;
+  }
+
+  dialog.innerHTML = `
+    <h2>只今メンテナンス中です</h2>
+    <p class="maintenance-mode-reason ${reason ? "" : "hidden"}">${reason ? `詳細：${escapeHtml(reason)}` : ""}</p>
+    <p>しばらくお待ち下さい。</p>
+    <p>詳しくは管理者にお問い合わせください。</p>
+  `;
 }
 
 function notifyMaintenanceStatusChange(status) {
@@ -3006,7 +3118,10 @@ async function fetchMaintenanceStatus() {
       return { maintenance: false };
     }
     const data = await response.json();
-    return { maintenance: Boolean(data.maintenance) };
+    return {
+      maintenance: Boolean(data.maintenance),
+      reason: normalizeMaintenanceReason(data.reason ?? data.maintenanceReason ?? ""),
+    };
   } catch (error) {
     console.warn(error);
     return { maintenance: false };
@@ -3902,10 +4017,10 @@ function ensureStationCanvasOverlay() {
   });
   container.appendChild(canvas);
   stationCanvasOverlay = canvas;
-  scheduleStationCanvasRender();
+  scheduleStationCanvasRender({ force: true });
 }
 
-function scheduleStationCanvasRender() {
+function scheduleStationCanvasRender(options = {}) {
   if (!map || !stationCanvasOverlay || stationCanvasRenderFrame) {
     return;
   }
