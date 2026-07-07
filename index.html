@@ -27,11 +27,11 @@
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta name="twitter:image" content="https://itachi-kun-itc.github.io/WE-Simulator/og-image.png" />
-    <link rel="manifest" href="./manifest.webmanifest?v=c063a0178a2d" />
-    <link rel="icon" type="image/png" sizes="32x32" href="./favicon.png?v=c063a0178a2d" />
-    <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=c063a0178a2d" />
+    <link rel="manifest" href="./manifest.webmanifest?v=0.1.0" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./favicon.png?v=0.1.0" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=0.1.0" />
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.css" />
-    <link rel="stylesheet" href="./styles.css?v=c063a0178a2d" />
+    <link rel="stylesheet" href="./styles.css?v=0.1.0" />
   </head>
   <body>
     <main class="app-shell">
@@ -60,10 +60,16 @@
             </div>
 
             <div class="sim-panel-scroll">
-            <label class="toggle-row">
-              <input id="epicenter-edit-toggle" type="checkbox" />
-              <span>震源地を設定</span>
-            </label>
+            <div class="toggle-grid setup-primary-toggles">
+              <label class="toggle-row">
+                <input id="epicenter-edit-toggle" type="checkbox" />
+                <span>震源地を設定</span>
+              </label>
+              <label class="toggle-row">
+                <input id="fault-layer-toggle" type="checkbox" />
+                <span>断層を表示</span>
+              </label>
+            </div>
             <div class="control-separator" aria-hidden="true"></div>
 
             <div class="toggle-grid" aria-label="震度表示切り替え">
@@ -234,6 +240,10 @@
                 <input id="simulation-eew-warning-toggle" type="checkbox" />
                 <span>緊急地震速報（警報）</span>
               </label>
+              <label class="toggle-row">
+                <input id="simulation-fault-layer-toggle" type="checkbox" />
+                <span>断層を表示</span>
+              </label>
             </div>
 
             <section class="max-stations-block">
@@ -316,6 +326,6 @@
       })();
     </script>
     <script src="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.js"></script>
-    <script src="./app.js?v=c063a0178a2d"></script>
+    <script src="./app.js?v=0.1.0"></script>
   </body>
 </html>
