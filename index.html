@@ -27,11 +27,11 @@
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta name="twitter:image" content="https://itachi-kun-itc.github.io/WE-Simulator/og-image.png" />
-    <link rel="manifest" href="./manifest.webmanifest?v=c0ddcce0c378" />
-    <link rel="icon" type="image/png" sizes="32x32" href="./favicon.png?v=c0ddcce0c378" />
-    <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=c0ddcce0c378" />
+    <link rel="manifest" href="./manifest.webmanifest?v=5382b50621b5" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./favicon.png?v=5382b50621b5" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=5382b50621b5" />
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.css" />
-    <link rel="stylesheet" href="./styles.css?v=c0ddcce0c378" />
+    <link rel="stylesheet" href="./styles.css?v=5382b50621b5" />
   </head>
   <body>
     <main class="app-shell">
@@ -78,10 +78,14 @@
                 <span>観測点</span>
               </label>
               <label class="toggle-row">
-                <input id="region-layer-toggle" type="checkbox" />
-                <span>震央区分</span>
+                <input id="submarine-station-layer-toggle" type="checkbox" />
+                <span>観測点（海底）</span>
               </label>
-              <label class="toggle-row">
+              <label class="toggle-row layer-toggle-full">
+                <input id="region-layer-toggle" type="checkbox" />
+                <span>地震区分</span>
+              </label>
+              <label class="toggle-row layer-toggle-full">
                 <input id="eew-warning-toggle" type="checkbox" />
                 <span>緊急地震速報（警報）</span>
               </label>
@@ -162,11 +166,11 @@
                 <table class="preset-picker-table">
                   <thead>
                     <tr>
-                      <th>地震の発生日時</th>
-                      <th>震央地名</th>
-                      <th>深さ</th>
-                      <th>マグニチュード</th>
-                      <th>最大震度</th>
+                      <th><span class="preset-sort-head"><span>地震の発生日時</span><button class="preset-sort-button" type="button" data-preset-sort-key="date" aria-label="地震の発生日時の並び順を切り替え">↕</button></span></th>
+                      <th><span class="preset-sort-head"><span>震央地名</span><button class="preset-sort-button" type="button" data-preset-sort-key="epicenter" aria-label="震央地名の並び順を切り替え">↕</button></span></th>
+                      <th><span class="preset-sort-head"><span>深さ</span><button class="preset-sort-button" type="button" data-preset-sort-key="depth" aria-label="深さの並び順を切り替え">↕</button></span></th>
+                      <th><span class="preset-sort-head"><span>マグニチュード</span><button class="preset-sort-button" type="button" data-preset-sort-key="magnitude" aria-label="マグニチュードの並び順を切り替え">↕</button></span></th>
+                      <th><span class="preset-sort-head"><span>最大震度</span><button class="preset-sort-button" type="button" data-preset-sort-key="intensity" aria-label="最大震度の並び順を切り替え">↕</button></span></th>
                     </tr>
                   </thead>
                   <tbody id="preset-picker-list"></tbody>
@@ -229,14 +233,18 @@
 
             <div class="simulation-layer-toggles" aria-label="シミュレーション表示切り替え">
               <label class="toggle-row">
-                <input id="simulation-region-layer-toggle" type="checkbox" />
-                <span>震央区分</span>
-              </label>
-              <label class="toggle-row">
                 <input id="simulation-station-layer-toggle" type="checkbox" />
                 <span>観測点</span>
               </label>
               <label class="toggle-row">
+                <input id="simulation-submarine-station-layer-toggle" type="checkbox" />
+                <span>観測点（海底）</span>
+              </label>
+              <label class="toggle-row layer-toggle-full">
+                <input id="simulation-region-layer-toggle" type="checkbox" />
+                <span>地震区分</span>
+              </label>
+              <label class="toggle-row layer-toggle-full">
                 <input id="simulation-eew-warning-toggle" type="checkbox" />
                 <span>緊急地震速報（警報）</span>
               </label>
@@ -326,6 +334,6 @@
       })();
     </script>
     <script src="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.js"></script>
-    <script src="./app.js?v=c0ddcce0c378"></script>
+    <script src="./app.js?v=5382b50621b5"></script>
   </body>
 </html>

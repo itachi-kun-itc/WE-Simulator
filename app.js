@@ -4,6 +4,7 @@ const JMA_LOCAL_AREAS_URL = "./data/jma_local_areas.geojson";
 const JMA_EPICENTER_AREAS_URL = "./data/jma_epicenter_areas.geojson";
 const PLATE_BOUNDARIES_URL = "./data/plate_boundaries.geojson";
 const ACTIVE_FAULT_SEGMENTS_URL = "./data/activefault_japan_segments.geojson";
+const SUBMARINE_OBSERVATION_POINTS_URL = "./data/submarine_observation_points.geojson";
 const SURROUNDING_LAND_URL = "./data/surrounding_land.geojson";
 const NORTHERN_ISLANDS_LAND_URL = "./data/northern_islands_land.geojson";
 const GROUND_MODEL_URL = "./data/ground_model.json";
@@ -583,10 +584,13 @@ const state = {
   maxIntensityLabel: "未計算",
   epicenterEditEnabled: false,
   showStationLayer: false,
+  showSubmarineStationLayer: false,
   showRegionLayer: false,
   showEewWarningLayer: false,
   showFaultLayer: false,
   selectedPresetId: "",
+  presetSortKey: null,
+  presetSortDirection: "desc",
   intensityColorScheme: "normal",
   eewWarningForecastAreas: [],
   eewWarningReportNumber: null,
@@ -626,10 +630,12 @@ const els = {
   maxIntensityOutput: document.querySelector("#max-intensity-output"),
   epicenterEditToggle: document.querySelector("#epicenter-edit-toggle"),
   stationLayerToggle: document.querySelector("#station-layer-toggle"),
+  submarineStationLayerToggle: document.querySelector("#submarine-station-layer-toggle"),
   regionLayerToggle: document.querySelector("#region-layer-toggle"),
   eewWarningToggle: document.querySelector("#eew-warning-toggle"),
   faultLayerToggle: document.querySelector("#fault-layer-toggle"),
   simulationStationLayerToggle: document.querySelector("#simulation-station-layer-toggle"),
+  simulationSubmarineStationLayerToggle: document.querySelector("#simulation-submarine-station-layer-toggle"),
   simulationRegionLayerToggle: document.querySelector("#simulation-region-layer-toggle"),
   simulationEewWarningToggle: document.querySelector("#simulation-eew-warning-toggle"),
   simulationFaultLayerToggle: document.querySelector("#simulation-fault-layer-toggle"),
@@ -671,6 +677,8 @@ let plateBoundaryData;
 let plateBoundaryLoadPromise;
 let activeFaultData;
 let activeFaultLoadPromise;
+let submarineObservationPointData;
+let submarineObservationPointLoadPromise;
 let surroundingLandData;
 let surroundingLandLoadPromise;
 let northernIslandsLandData;
@@ -680,10 +688,13 @@ let groundModelLoadPromise;
 let shindoStationData;
 let shindoStationLoadPromise;
 let stationIntensityFeatureCache;
+let submarineObservationIntensityCache = { key: "", features: [] };
 let predictedMaximumCache;
 let presetObservationLookupCache;
 let presetPickerScrollClampFrame = 0;
 let presetPickerTouchStart = null;
+let sourceInfoScrollClampFrame = 0;
+let sourceInfoTouchStart = null;
 let hyogoNanbuSyntheticStationCache;
 let stationPopup;
 let stationClickPopup;
@@ -694,6 +705,7 @@ let clickedStationFeatureId = null;
 let stationCanvasOverlay;
 let stationCanvasRenderFrame = 0;
 let stationCanvasFeatureCache = { data: null, features: [] };
+let submarineStationCanvasFeatureCache = { data: null, features: [] };
 let maintenanceReasonOverlay;
 let currentLocationMarker;
 let epicenterHoverPopup;
@@ -716,6 +728,7 @@ let simulationPausedAt;
 let simulationPreviousEpicenterEditEnabled = false;
 let simulationEpicenter = [state.longitude, state.latitude];
 let simulationRenderBucket = -1;
+let simulationStationRenderBucket = -1;
 let maxStationListRenderBucket = null;
 let simulationTimeTextCache = "";
 let waveRenderRadiusCache = { p: null, s: null };
@@ -933,7 +946,9 @@ function renderEarthquakePresetPicker() {
   }
 
   const presets = [...EARTHQUAKE_PRESETS]
-    .sort((a, b) => getPresetSortTime(b) - getPresetSortTime(a))
+    .map((preset, index) => ({ preset, index }))
+    .sort(comparePresetSortItems)
+    .map(({ preset }) => preset)
     .map((preset) => {
       const row = document.createElement("tr");
       const intensityClass = getPresetMaxIntensityClass(preset);
@@ -953,7 +968,86 @@ function renderEarthquakePresetPicker() {
     });
 
   els.presetPickerList.replaceChildren(...presets);
+  updatePresetSortButtons();
   updateEarthquakePresetButtonLabel();
+}
+
+function comparePresetSortItems(a, b) {
+  const sortKey = state.presetSortKey ?? "date";
+  const direction = state.presetSortKey && state.presetSortDirection === "asc" ? 1 : -1;
+  const compared = comparePresetSortValues(
+    getPresetSortValue(a.preset, sortKey),
+    getPresetSortValue(b.preset, sortKey),
+  );
+
+  if (compared !== 0) {
+    return compared * direction;
+  }
+
+  const fallback = getPresetSortTime(b.preset) - getPresetSortTime(a.preset);
+  return fallback || a.index - b.index;
+}
+
+function comparePresetSortValues(a, b) {
+  const aEmpty = a == null || a === "";
+  const bEmpty = b == null || b === "";
+  if (aEmpty && bEmpty) {
+    return 0;
+  }
+  if (aEmpty) {
+    return 1;
+  }
+  if (bEmpty) {
+    return -1;
+  }
+  if (typeof a === "number" && typeof b === "number") {
+    return a - b;
+  }
+  return String(a).localeCompare(String(b), "ja", { numeric: true, sensitivity: "base" });
+}
+
+function getPresetSortValue(preset, key) {
+  switch (key) {
+    case "date":
+      return getPresetSortTime(preset);
+    case "epicenter":
+      return String(preset?.epicenterName ?? preset?.label ?? "").trim();
+    case "depth":
+      return Number.isFinite(Number(preset?.depthKm)) ? Number(preset.depthKm) : null;
+    case "magnitude":
+      return Number.isFinite(Number(preset?.magnitude)) ? Number(preset.magnitude) : null;
+    case "intensity":
+      return getPresetMaxIntensityClass(preset)?.rank ?? null;
+    default:
+      return getPresetSortTime(preset);
+  }
+}
+
+function togglePresetSort(key) {
+  if (state.presetSortKey === key) {
+    state.presetSortDirection = state.presetSortDirection === "asc" ? "desc" : "asc";
+  } else {
+    state.presetSortKey = key;
+    state.presetSortDirection = "asc";
+  }
+  renderEarthquakePresetPicker();
+  clampPresetPickerScrollBoundsNow();
+}
+
+function updatePresetSortButtons() {
+  document.querySelectorAll(".preset-sort-button").forEach((button) => {
+    const key = button.dataset.presetSortKey;
+    const active = key === state.presetSortKey;
+    button.classList.toggle("is-active", active);
+    button.textContent = "↕";
+    button.setAttribute("aria-pressed", String(active));
+    button.setAttribute(
+      "aria-label",
+      `${button.closest("th")?.textContent?.replace("↕", "").trim() || "項目"}の並び順を${
+        active && state.presetSortDirection === "asc" ? "降順" : "昇順"
+      }に切り替え`,
+    );
+  });
 }
 
 function updateEarthquakePresetButtonLabel() {
@@ -966,6 +1060,7 @@ function updateEarthquakePresetButtonLabel() {
     ? formatEarthquakePresetButtonLabel(preset)
     : "地震を選ぶ";
   els.historicalEarthquakeButton.classList.toggle("has-preset", Boolean(preset));
+  updateSubmarineObservationToggleAvailability();
 }
 
 function formatEarthquakePresetButtonLabel(preset) {
@@ -1039,7 +1134,8 @@ function getPresetMaxIntensityClass(preset) {
 function getPresetSortTime(preset) {
   const dateText = String(preset?.date ?? "").trim();
   const normalizedDate = dateText.replace(/[./]/g, "-");
-  const time = Date.parse(normalizedDate);
+  const timeText = String(preset?.time ?? "").trim();
+  const time = Date.parse([normalizedDate, timeText].filter(Boolean).join("T"));
   if (Number.isFinite(time)) {
     return time;
   }
@@ -1181,6 +1277,9 @@ function bindSimulationControls() {
   els.magnitude.addEventListener("change", () => updateStateFromInputs());
   els.historicalEarthquakeButton?.addEventListener("click", () => openEarthquakePresetPicker());
   els.presetPickerClose?.addEventListener("click", () => closeEarthquakePresetPicker());
+  document.querySelectorAll(".preset-sort-button").forEach((button) => {
+    button.addEventListener("click", () => togglePresetSort(button.dataset.presetSortKey));
+  });
   els.presetPickerOverlay?.addEventListener("click", (event) => {
     if (event.target === els.presetPickerOverlay) {
       closeEarthquakePresetPicker();
@@ -1206,10 +1305,12 @@ function bindSimulationControls() {
   });
   els.epicenterEditToggle.addEventListener("change", () => updateEpicenterEditMode());
   els.stationLayerToggle.addEventListener("change", () => updateDisplayMode());
+  els.submarineStationLayerToggle?.addEventListener("change", () => updateDisplayMode());
   els.regionLayerToggle.addEventListener("change", () => updateDisplayMode());
   els.eewWarningToggle.addEventListener("change", () => updateDisplayMode());
   els.faultLayerToggle?.addEventListener("change", () => updateDisplayMode());
   els.simulationStationLayerToggle.addEventListener("change", () => syncSimulationLayerToggles());
+  els.simulationSubmarineStationLayerToggle?.addEventListener("change", () => syncSimulationLayerToggles());
   els.simulationRegionLayerToggle.addEventListener("change", () => syncSimulationLayerToggles());
   els.simulationEewWarningToggle.addEventListener("change", () => syncSimulationLayerToggles());
   els.simulationFaultLayerToggle?.addEventListener("change", () => syncSimulationLayerToggles());
@@ -1231,18 +1332,14 @@ function bindSimulationControls() {
     state.depthKm = 10;
     state.magnitude = 3.5;
     state.selectedPresetId = "";
-    state.showFaultLayer = false;
-    if (els.faultLayerToggle) {
-      els.faultLayerToggle.checked = false;
-    }
-    if (els.simulationFaultLayerToggle) {
-      els.simulationFaultLayerToggle.checked = false;
-    }
+    resetCheckboxesToDefaults();
     state.epicenterName = "未選択";
     state.municipalityName = "未選択";
     invalidateIntensityEstimateCache();
     syncInputs();
-    updateFaultLayerVisibility();
+    updateEpicenterEditMode();
+    updateDisplayMode();
+    clearCurrentLocationLink();
     updateEpicenter({ resolveLocation: true, enforceManagedArea: true });
     resetViewAnimating = true;
     updateSimulationAvailability();
@@ -1255,6 +1352,51 @@ function bindSimulationControls() {
   syncInputs();
   updateDisplayMode();
   updateSimulationAvailability();
+}
+
+function resetCheckboxesToDefaults() {
+  state.epicenterEditEnabled = false;
+  state.showStationLayer = false;
+  state.showSubmarineStationLayer = false;
+  state.showRegionLayer = false;
+  state.showEewWarningLayer = false;
+  state.showFaultLayer = false;
+  if (els.epicenterEditToggle) {
+    els.epicenterEditToggle.checked = false;
+  }
+  if (els.stationLayerToggle) {
+    els.stationLayerToggle.checked = false;
+  }
+  if (els.submarineStationLayerToggle) {
+    els.submarineStationLayerToggle.checked = false;
+  }
+  if (els.regionLayerToggle) {
+    els.regionLayerToggle.checked = false;
+  }
+  if (els.eewWarningToggle) {
+    els.eewWarningToggle.checked = false;
+  }
+  if (els.faultLayerToggle) {
+    els.faultLayerToggle.checked = false;
+  }
+  if (els.simulationStationLayerToggle) {
+    els.simulationStationLayerToggle.checked = false;
+  }
+  if (els.simulationSubmarineStationLayerToggle) {
+    els.simulationSubmarineStationLayerToggle.checked = false;
+  }
+  if (els.simulationRegionLayerToggle) {
+    els.simulationRegionLayerToggle.checked = false;
+  }
+  if (els.simulationEewWarningToggle) {
+    els.simulationEewWarningToggle.checked = false;
+  }
+  if (els.simulationFaultLayerToggle) {
+    els.simulationFaultLayerToggle.checked = false;
+  }
+  if (els.currentLocationToggle) {
+    els.currentLocationToggle.checked = false;
+  }
 }
 
 function applyIntensityColorScheme(schemeId, options = {}) {
@@ -1892,6 +2034,7 @@ function addSourceInfoControl() {
       button.addEventListener("click", () => {
         sourceOverlay.classList.remove("hidden");
         document.body.classList.add("source-overlay-open");
+        resetSourceInfoScroll(sourceOverlay);
         button.setAttribute("aria-expanded", "true");
       });
 
@@ -2625,6 +2768,7 @@ function createSourceInfoOverlay(adminOverlay) {
   const closeButton = overlay.querySelector(".source-info-close");
   const adminButton = overlay.querySelector(".source-admin-mode-button");
   setupSourceInfoTabs(overlay);
+  setupSourceInfoScrollBounds(overlay);
   const closeOverlay = () => {
     overlay.classList.add("hidden");
     document.body.classList.remove("source-overlay-open");
@@ -2663,8 +2807,107 @@ function setupSourceInfoTabs(overlay) {
       panels.forEach((panel) => {
         panel.classList.toggle("hidden", panel.id !== targetPanelId);
       });
+      resetSourceInfoScroll(overlay);
     });
   });
+}
+
+function setupSourceInfoScrollBounds(overlay) {
+  const scrollElement = overlay.querySelector(".source-info-overlay-content");
+  if (!scrollElement) {
+    return;
+  }
+
+  scrollElement.addEventListener("scroll", () => clampSourceInfoScrollBoundsNow(overlay), { passive: true });
+  scrollElement.addEventListener("touchstart", trackSourceInfoTouchStart, { passive: true });
+  scrollElement.addEventListener("touchmove", (event) => limitSourceInfoOverscroll(event, overlay), { passive: false });
+  scrollElement.addEventListener("touchend", () => clampSourceInfoScrollBoundsNow(overlay), { passive: true });
+  scrollElement.addEventListener("touchcancel", () => {
+    sourceInfoTouchStart = null;
+    clampSourceInfoScrollBoundsNow(overlay);
+  }, { passive: true });
+  scrollElement.addEventListener("pointerup", () => clampSourceInfoScrollBoundsNow(overlay), { passive: true });
+  window.addEventListener("resize", () => scheduleSourceInfoScrollClamp(overlay));
+}
+
+function resetSourceInfoScroll(overlay) {
+  const scrollElement = overlay.querySelector(".source-info-overlay-content");
+  if (!scrollElement) {
+    return;
+  }
+
+  scrollElement.scrollLeft = 0;
+  scrollElement.scrollTop = 0;
+  scheduleSourceInfoScrollClamp(overlay);
+}
+
+function scheduleSourceInfoScrollClamp(overlay) {
+  if (sourceInfoScrollClampFrame) {
+    return;
+  }
+
+  sourceInfoScrollClampFrame = requestAnimationFrame(() => clampSourceInfoScrollBounds(overlay));
+}
+
+function clampSourceInfoScrollBoundsNow(overlay) {
+  if (sourceInfoScrollClampFrame) {
+    cancelAnimationFrame(sourceInfoScrollClampFrame);
+    sourceInfoScrollClampFrame = 0;
+  }
+
+  clampSourceInfoScrollBounds(overlay);
+}
+
+function clampSourceInfoScrollBounds(overlay) {
+  sourceInfoScrollClampFrame = 0;
+
+  const scrollElement = overlay.querySelector(".source-info-overlay-content");
+  if (!scrollElement) {
+    return;
+  }
+
+  const maxLeft = Math.max(0, scrollElement.scrollWidth - scrollElement.clientWidth);
+  const maxTop = Math.max(0, scrollElement.scrollHeight - scrollElement.clientHeight);
+  const nextLeft = Math.min(Math.max(scrollElement.scrollLeft, 0), maxLeft);
+  const nextTop = Math.min(Math.max(scrollElement.scrollTop, 0), maxTop);
+
+  if (Math.abs(nextLeft - scrollElement.scrollLeft) > 0.5) {
+    scrollElement.scrollLeft = nextLeft;
+  }
+
+  if (Math.abs(nextTop - scrollElement.scrollTop) > 0.5) {
+    scrollElement.scrollTop = nextTop;
+  }
+}
+
+function trackSourceInfoTouchStart(event) {
+  const touch = event.touches?.[0];
+  sourceInfoTouchStart = touch ? { x: touch.clientX, y: touch.clientY } : null;
+}
+
+function limitSourceInfoOverscroll(event, overlay) {
+  const scrollElement = overlay.querySelector(".source-info-overlay-content");
+  const touch = event.touches?.[0];
+  if (!scrollElement || !touch || !sourceInfoTouchStart) {
+    return;
+  }
+
+  const deltaX = touch.clientX - sourceInfoTouchStart.x;
+  const deltaY = touch.clientY - sourceInfoTouchStart.y;
+  const horizontalSwipe = Math.abs(deltaX) > Math.abs(deltaY);
+  const maxLeft = Math.max(0, scrollElement.scrollWidth - scrollElement.clientWidth);
+  const maxTop = Math.max(0, scrollElement.scrollHeight - scrollElement.clientHeight);
+  const pullingPastLeft = scrollElement.scrollLeft <= 0.5 && deltaX > 0;
+  const pullingPastRight = scrollElement.scrollLeft >= maxLeft - 0.5 && deltaX < 0;
+  const pullingPastTop = scrollElement.scrollTop <= 0.5 && deltaY > 0;
+  const pullingPastBottom = scrollElement.scrollTop >= maxTop - 0.5 && deltaY < 0;
+  const pullingPastHorizontalEdge = horizontalSwipe && (pullingPastLeft || pullingPastRight);
+  const pullingPastVerticalEdge = !horizontalSwipe && (pullingPastTop || pullingPastBottom);
+
+  if (pullingPastHorizontalEdge || pullingPastVerticalEdge) {
+    event.preventDefault();
+    clampSourceInfoScrollBoundsNow(overlay);
+  }
 }
 
 function createMaintenanceModeOverlay() {
@@ -3489,6 +3732,7 @@ async function showMapLayers() {
   addGeoJsonSource("jma-local-areas", emptyFeatureCollection());
   addGeoJsonSource("plate-boundaries", emptyFeatureCollection());
   addGeoJsonSource("active-faults", emptyFeatureCollection());
+  addGeoJsonSource("submarine-observation-points", emptyFeatureCollection());
   addGeoJsonSource("shindo-stations", emptyFeatureCollection());
   addGeoJsonSource("p-wave", emptyFeatureCollection());
   addGeoJsonSource("s-wave", emptyFeatureCollection());
@@ -3830,6 +4074,11 @@ function setGeoJsonSourceData(id, data) {
     scheduleStationCanvasRender();
     updateActiveStationPopups(data);
   }
+  if (id === "submarine-observation-points") {
+    submarineStationCanvasFeatureCache = { data: null, features: [] };
+    scheduleStationCanvasRender();
+    updateActiveStationPopups(data);
+  }
   return true;
 }
 
@@ -4047,6 +4296,19 @@ function addMapLayers() {
   });
 
   addLayerIfMissing({
+    id: "submarine-observation-fill",
+    type: "circle",
+    source: "submarine-observation-points",
+    paint: {
+      "circle-color": "#000000",
+      "circle-opacity": 0.001,
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 7.5, 7, 9, 10, 10.5],
+      "circle-stroke-opacity": 0,
+    },
+  });
+  updateLayerVisibility("submarine-observation-fill", state.showSubmarineStationLayer);
+
+  addLayerIfMissing({
     id: "shindo-station-points",
     type: "circle",
     source: "shindo-stations",
@@ -4134,6 +4396,7 @@ function keepWaveAndStationLayerOrder() {
   moveLayerToTop("active-fault-lines");
   moveLayerToTop("p-wave-fill");
   moveLayerToTop("s-wave-fill");
+  moveLayerToTop("submarine-observation-fill");
   moveLayerToTop("shindo-station-points");
   moveLayerToTop("p-wave-line");
   moveLayerToTop("s-wave-line");
@@ -4212,24 +4475,42 @@ function renderStationCanvasOverlay() {
   context.clearRect(0, 0, width, height);
 
   const features = getStationCanvasFeatures();
+  const submarineFeatures = getSubmarineStationCanvasFeatures();
   const zoom = map.getZoom();
-  if (state.showStationLayer && features.length) {
+  if ((state.showStationLayer && features.length) || (state.showSubmarineStationLayer && submarineFeatures.length)) {
     const radius = interpolateByZoom(zoom, [
       [4, 7.5],
       [7, 9],
       [10, 10.5],
     ]);
-  const fontSize = interpolateByZoom(zoom, [
-    [4, 9.2],
-    [8.8, 10.8],
-    [11, 11.6],
-  ]);
+    const fontSize = interpolateByZoom(zoom, [
+      [4, 9.2],
+      [8.8, 10.8],
+      [11, 11.6],
+    ]);
     const labelFadeStartZoom = STATION_LABEL_ALL_VISIBLE_MIN_ZOOM - 0.18;
     const labelAlpha = smoothStep(clamp((zoom - labelFadeStartZoom) / 0.18, 0, 1));
     const padding = radius + 6;
 
-    features
-      .forEach((feature) => {
+    if (state.showSubmarineStationLayer) {
+      submarineFeatures.forEach((feature) => {
+        const coordinates = feature.geometry?.coordinates;
+        if (!Array.isArray(coordinates)) {
+          return;
+        }
+
+        const point = map.project({ lng: coordinates[0], lat: coordinates[1] });
+        if (point.x < -padding || point.x > width + padding || point.y < -padding || point.y > height + padding) {
+          return;
+        }
+
+        const properties = feature.properties ?? {};
+        drawSubmarineStationCanvasMarker(context, point.x, point.y, radius, fontSize, labelAlpha, properties);
+      });
+    }
+
+    if (state.showStationLayer) {
+      features.forEach((feature) => {
         const coordinates = feature.geometry?.coordinates;
         if (!Array.isArray(coordinates)) {
           return;
@@ -4243,6 +4524,7 @@ function renderStationCanvasOverlay() {
         const properties = feature.properties ?? {};
         drawStationCanvasMarker(context, point.x, point.y, radius, fontSize, labelAlpha, properties);
       });
+    }
   }
 
   drawWaveCanvasRadiusLine(context, waveCanvasRadiusState.p, "#7de7ff", 2.4, 0.9);
@@ -4263,6 +4545,27 @@ function getStationCanvasFeatures() {
     (a, b) => Number(a.properties?.stationDisplaySortKey ?? 0) - Number(b.properties?.stationDisplaySortKey ?? 0),
   );
   stationCanvasFeatureCache = { data, features };
+  return features;
+}
+
+function getSubmarineStationCanvasFeatures() {
+  const data = sourceDataRefs.get("submarine-observation-points");
+  if (!data?.features?.length) {
+    return [];
+  }
+
+  if (submarineStationCanvasFeatureCache.data === data) {
+    return submarineStationCanvasFeatureCache.features;
+  }
+
+  const features = [...data.features].sort((a, b) =>
+    String(a.properties?.displaySortStableKey ?? "").localeCompare(
+      String(b.properties?.displaySortStableKey ?? ""),
+      "ja",
+      { numeric: true },
+    ),
+  );
+  submarineStationCanvasFeatureCache = { data, features };
   return features;
 }
 
@@ -4306,6 +4609,41 @@ function drawStationCanvasMarker(context, x, y, radius, fontSize, labelAlpha, pr
   context.textBaseline = "middle";
   context.lineWidth = 0.9;
   context.strokeStyle = Number(properties.intensityRank ?? 0) <= 2 ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.32)";
+  context.fillStyle = textColor;
+  context.strokeText(String(properties.intensityShortLabel ?? ""), x, y + 0.35);
+  context.fillText(String(properties.intensityShortLabel ?? ""), x, y + 0.35);
+  context.restore();
+}
+
+function drawSubmarineStationCanvasMarker(context, x, y, radius, fontSize, labelAlpha, properties) {
+  const intensityRank = Number(properties.intensityRank ?? 0);
+  const observed = properties.observed === true;
+  const hasRecordedIntensity = observed && intensityRank >= 1;
+  const fillColor = hasRecordedIntensity ? properties.intensityColor || "#ffffff" : "rgba(255, 255, 255, 0)";
+  const textColor = properties.intensityTextColor || "#111827";
+
+  context.save();
+  context.beginPath();
+  context.arc(x, y, radius, 0, Math.PI * 2);
+  context.fillStyle = fillColor;
+  context.fill();
+  context.lineWidth = 1.9;
+  context.setLineDash([4, 3]);
+  context.strokeStyle = "#050607";
+  context.stroke();
+  context.restore();
+
+  if (!hasRecordedIntensity || labelAlpha <= 0) {
+    return;
+  }
+
+  context.save();
+  context.globalAlpha = labelAlpha;
+  context.font = `700 ${fontSize}px "Noto Sans", "Arial", sans-serif`;
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.lineWidth = 0.9;
+  context.strokeStyle = intensityRank <= 2 ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.32)";
   context.fillStyle = textColor;
   context.strokeText(String(properties.intensityShortLabel ?? ""), x, y + 0.35);
   context.fillText(String(properties.intensityShortLabel ?? ""), x, y + 0.35);
@@ -4554,16 +4892,27 @@ function updateEpicenterEditMode() {
 
 function updateDisplayMode() {
   state.showStationLayer = els.stationLayerToggle.checked;
+  state.showSubmarineStationLayer = Boolean(els.submarineStationLayerToggle?.checked);
+  if (getSelectedPreset()) {
+    state.showSubmarineStationLayer = false;
+    if (els.submarineStationLayerToggle) {
+      els.submarineStationLayerToggle.checked = false;
+    }
+  }
   state.showRegionLayer = els.regionLayerToggle.checked;
   state.showEewWarningLayer = els.eewWarningToggle.checked;
   state.showFaultLayer = Boolean(els.faultLayerToggle?.checked);
   els.simulationStationLayerToggle.checked = state.showStationLayer;
+  if (els.simulationSubmarineStationLayerToggle) {
+    els.simulationSubmarineStationLayerToggle.checked = state.showSubmarineStationLayer;
+  }
   els.simulationRegionLayerToggle.checked = state.showRegionLayer;
   els.simulationEewWarningToggle.checked = state.showEewWarningLayer;
   if (els.simulationFaultLayerToggle) {
     els.simulationFaultLayerToggle.checked = state.showFaultLayer;
   }
   updateLayerVisibility("shindo-station-points", state.showStationLayer);
+  updateSubmarineObservationLayerVisibility();
   updateLayerVisibility("jma-intensity-fill", state.showRegionLayer);
   updateLayerVisibility("eew-warning-fill", state.showEewWarningLayer);
   updateFaultLayerVisibility();
@@ -4573,6 +4922,60 @@ function updateDisplayMode() {
   }
   updateEewReplacementMode();
   updateEewForecastPanel();
+}
+
+function updateSubmarineObservationToggleAvailability() {
+  const disabled = Boolean(getSelectedPreset());
+  if (disabled) {
+    state.showSubmarineStationLayer = false;
+  }
+
+  [els.submarineStationLayerToggle, els.simulationSubmarineStationLayerToggle].forEach((toggle) => {
+    if (!toggle) {
+      return;
+    }
+    toggle.disabled = disabled;
+    toggle.closest(".toggle-row")?.classList.toggle("is-disabled", disabled);
+    if (disabled) {
+      toggle.checked = false;
+    }
+  });
+
+  if (disabled) {
+    updateLayerVisibility("submarine-observation-fill", false);
+  }
+}
+
+function updateSubmarineObservationLayerVisibility() {
+  updateSubmarineObservationToggleAvailability();
+  updateLayerVisibility("submarine-observation-fill", state.showSubmarineStationLayer);
+  if (!state.showSubmarineStationLayer || !map?.getSource("submarine-observation-points")) {
+    return;
+  }
+
+  loadSubmarineObservationPoints()
+    .then((points) => {
+      if (!state.showSubmarineStationLayer || !map?.getSource("submarine-observation-points")) {
+        return;
+      }
+      setGeoJsonSourceData(
+        "submarine-observation-points",
+        getSubmarineObservationDataForElapsed(getSubmarineObservationElapsedSec(), points),
+      );
+      updateLayerVisibility("submarine-observation-fill", true);
+      keepWaveAndStationLayerOrder();
+    })
+    .catch((error) => {
+      console.warn(error);
+      state.showSubmarineStationLayer = false;
+      if (els.submarineStationLayerToggle) {
+        els.submarineStationLayerToggle.checked = false;
+      }
+      if (els.simulationSubmarineStationLayerToggle) {
+        els.simulationSubmarineStationLayerToggle.checked = false;
+      }
+      updateLayerVisibility("submarine-observation-fill", false);
+    });
 }
 
 function updateFaultLayerVisibility() {
@@ -4605,10 +5008,14 @@ function updateFaultLayerVisibility() {
 
 function syncSimulationLayerToggles() {
   state.showStationLayer = els.simulationStationLayerToggle.checked;
+  state.showSubmarineStationLayer = Boolean(els.simulationSubmarineStationLayerToggle?.checked);
   state.showRegionLayer = els.simulationRegionLayerToggle.checked;
   state.showEewWarningLayer = els.simulationEewWarningToggle.checked;
   state.showFaultLayer = Boolean(els.simulationFaultLayerToggle?.checked);
   els.stationLayerToggle.checked = state.showStationLayer;
+  if (els.submarineStationLayerToggle) {
+    els.submarineStationLayerToggle.checked = state.showSubmarineStationLayer;
+  }
   els.regionLayerToggle.checked = state.showRegionLayer;
   els.eewWarningToggle.checked = state.showEewWarningLayer;
   if (els.faultLayerToggle) {
@@ -4653,11 +5060,17 @@ function setupStationHoverPopup() {
     clickedStationFeatureId = null;
   });
 
-  map.on("mouseenter", "shindo-station-points", () => {
+  ["shindo-station-points", "submarine-observation-fill"].forEach((layerId) => {
+    bindStationPopupLayer(layerId);
+  });
+}
+
+function bindStationPopupLayer(layerId) {
+  map.on("mouseenter", layerId, () => {
     map.getCanvas().style.cursor = "pointer";
   });
 
-  map.on("mousemove", "shindo-station-points", (event) => {
+  map.on("mousemove", layerId, (event) => {
     const feature = event.features?.[0];
     if (!feature) {
       return;
@@ -4675,7 +5088,7 @@ function setupStationHoverPopup() {
       .addTo(map);
   });
 
-  map.on("click", "shindo-station-points", (event) => {
+  map.on("click", layerId, (event) => {
     const feature = event.features?.[0];
     if (!feature) {
       return;
@@ -4694,7 +5107,7 @@ function setupStationHoverPopup() {
     clickedStationFeatureId = nextClickedStationFeatureId;
   });
 
-  map.on("mouseleave", "shindo-station-points", () => {
+  map.on("mouseleave", layerId, () => {
     map.getCanvas().style.cursor = "";
     hoveredStationFeatureId = null;
     hoveredStationLngLat = null;
@@ -4731,29 +5144,43 @@ function updateActiveStationPopups(data = sourceDataRefs.get("shindo-stations"))
 
 function findStationFeaturePropertiesById(featureId, data = sourceDataRefs.get("shindo-stations")) {
   if (!featureId || !data?.features?.length) {
-    return null;
+    const submarineData = sourceDataRefs.get("submarine-observation-points");
+    return submarineData?.features?.find((feature) => String(feature.properties?.id ?? "") === String(featureId))
+      ?.properties ?? null;
   }
 
-  return data.features.find((feature) => String(feature.properties?.id ?? "") === String(featureId))?.properties ?? null;
+  return (
+    data.features.find((feature) => String(feature.properties?.id ?? "") === String(featureId))?.properties ??
+    findStationFeaturePropertiesById(featureId, null)
+  );
 }
 
 function stationPopupHtml(properties) {
+  const unobservedSubmarine = properties.submarineObservation && !properties.observed;
   const waveLabel =
-    properties.waveState === "p"
-      ? `P波到達 / S波 ${Number(properties.sArrivalSec).toFixed(1)}秒`
-      : `震度${properties.intensityLabel}`;
+    unobservedSubmarine
+      ? "未観測"
+      : properties.waveState === "p"
+        ? `P波到達 / S波 ${Number(properties.sArrivalSec).toFixed(1)}秒`
+        : `震度${properties.intensityLabel}`;
   const currentValue = Number(properties.currentIntensityValue ?? properties.intensityValue ?? 0);
   const predictedValue = Number(properties.predictedIntensityValue ?? 0);
-  const currentMeasured = formatMeasuredIntensity(properties, currentValue);
-  const predictedMeasured = formatMeasuredIntensity(properties, predictedValue);
+  const currentMeasured = unobservedSubmarine ? "-" : formatMeasuredIntensity(properties, currentValue);
+  const predictedMeasured = unobservedSubmarine ? "-" : formatMeasuredIntensity(properties, predictedValue);
+  const currentIntensityLabel = unobservedSubmarine ? "-" : (properties.intensityLabel ?? "0");
+  const predictedIntensityLabel = unobservedSubmarine ? "-" : (properties.predictedIntensityLabel ?? "0");
+  const submarineDepth = properties.submarineObservation
+    ? `<span>水深 ${Number.isFinite(Number(properties.depthM)) ? `${Number(properties.depthM).toFixed(0)} m` : "-"}</span>`
+    : "";
 
   return [
     `<strong>${escapeHtml(properties.name)}</strong>`,
     `<span>${escapeHtml(properties.areaName ?? "")}</span>`,
     `<span>${escapeHtml(properties.observationStatus ?? "")}</span>`,
+    submarineDepth,
     `<span>${escapeHtml(waveLabel)}</span>`,
-    `<span>現在震度 ${escapeHtml(properties.intensityLabel ?? "0")}（計測震度 ${currentMeasured}）</span>`,
-    `<span>最大震度 ${escapeHtml(properties.predictedIntensityLabel ?? "0")}（計測震度 ${predictedMeasured}）</span>`,
+    `<span>現在震度 ${escapeHtml(currentIntensityLabel)}（計測震度 ${currentMeasured}）</span>`,
+    `<span>最大震度 ${escapeHtml(predictedIntensityLabel)}（計測震度 ${predictedMeasured}）</span>`,
     `<span>震央距離 ${Number(properties.epicentralDistanceKm ?? 0).toFixed(0)} km</span>`,
     `<span>P波 ${Number(properties.pArrivalSec ?? 0).toFixed(1)}秒 / S波 ${Number(properties.sArrivalSec ?? 0).toFixed(1)}秒</span>`,
   ].join("");
@@ -5195,6 +5622,7 @@ async function startSimulation() {
   resetSpeechAnnouncementState();
   resetWaveRenderCache();
   simulationRenderBucket = -1;
+  simulationStationRenderBucket = -1;
   maxStationListRenderBucket = null;
   simulationTimeTextCache = "";
   state.simulationRunning = true;
@@ -5202,10 +5630,14 @@ async function startSimulation() {
   state.epicenterEditEnabled = false;
   els.epicenterEditToggle.checked = false;
   state.showStationLayer = els.stationLayerToggle.checked;
+  state.showSubmarineStationLayer = Boolean(els.submarineStationLayerToggle?.checked);
   state.showRegionLayer = els.regionLayerToggle.checked;
   state.showEewWarningLayer = els.eewWarningToggle.checked;
   state.showFaultLayer = Boolean(els.faultLayerToggle?.checked);
   els.simulationStationLayerToggle.checked = state.showStationLayer;
+  if (els.simulationSubmarineStationLayerToggle) {
+    els.simulationSubmarineStationLayerToggle.checked = state.showSubmarineStationLayer;
+  }
   els.simulationRegionLayerToggle.checked = state.showRegionLayer;
   els.simulationEewWarningToggle.checked = state.showEewWarningLayer;
   if (els.simulationFaultLayerToggle) {
@@ -5216,6 +5648,7 @@ async function startSimulation() {
   simulationPausedAt = null;
   updateIntensityLayer();
   updateLayerVisibility("shindo-station-points", state.showStationLayer);
+  updateSubmarineObservationLayerVisibility();
   updateLayerVisibility("jma-intensity-fill", state.showRegionLayer);
   updateLayerVisibility("eew-warning-fill", state.showEewWarningLayer);
   updateFaultLayerVisibility();
@@ -5256,6 +5689,7 @@ function stopSimulation() {
   simulationStartedAt = null;
   simulationPausedAt = null;
   simulationRenderBucket = -1;
+  simulationStationRenderBucket = -1;
   maxStationListRenderBucket = null;
   simulationTimeTextCache = "";
   state.epicenterEditEnabled = simulationPreviousEpicenterEditEnabled;
@@ -5317,12 +5751,24 @@ function tickSimulation(now) {
   }
   updateCurrentLocationForecast(elapsedSec);
 
-  if (currentBucket !== simulationRenderBucket && !state.mapInteracting) {
-    simulationRenderBucket = currentBucket;
-
+  if (currentBucket !== simulationStationRenderBucket) {
+    simulationStationRenderBucket = currentBucket;
     if (map?.getSource("shindo-stations") && shindoStationData) {
       setGeoJsonSourceData("shindo-stations", getStationIntensityDataForElapsed(elapsedSec));
     }
+    if (
+      state.showSubmarineStationLayer &&
+      !getSelectedPreset() &&
+      map?.getSource("submarine-observation-points") &&
+      submarineObservationPointData
+    ) {
+      setGeoJsonSourceData("submarine-observation-points", getSubmarineObservationDataForElapsed(elapsedSec));
+    }
+  }
+
+  if (currentBucket !== simulationRenderBucket) {
+    simulationRenderBucket = currentBucket;
+
     if (map?.getSource("jma-local-areas") && localAreaData) {
       setGeoJsonSourceData("jma-local-areas", buildIntensityAreaData(localAreaData, elapsedSec));
     }
@@ -5700,6 +6146,22 @@ async function loadActiveFaultSegments() {
   return activeFaultData;
 }
 
+async function loadSubmarineObservationPoints() {
+  if (submarineObservationPointData) {
+    return submarineObservationPointData;
+  }
+
+  if (!submarineObservationPointLoadPromise) {
+    submarineObservationPointLoadPromise = fetchJson(
+      SUBMARINE_OBSERVATION_POINTS_URL,
+      "Submarine observation point GeoJSON",
+    );
+  }
+
+  submarineObservationPointData = await submarineObservationPointLoadPromise;
+  return submarineObservationPointData;
+}
+
 async function loadSurroundingLand() {
   if (surroundingLandData) {
     return surroundingLandData;
@@ -6011,6 +6473,7 @@ function parseClampedInput(value, fallback, min, max) {
 
 function invalidateIntensityEstimateCache() {
   stationIntensityFeatureCache = null;
+  submarineObservationIntensityCache = { key: "", features: [] };
   predictedMaximumCache = null;
   presetObservationLookupCache = null;
   hyogoNanbuSyntheticStationCache = null;
@@ -6024,7 +6487,9 @@ function invalidateIntensityEstimateCache() {
   localAreaStationMembershipCache = null;
   localAreaStationSnapshotCache = null;
   stationCanvasFeatureCache = { data: null, features: [] };
+  submarineStationCanvasFeatureCache = { data: null, features: [] };
   simulationRenderBucket = -1;
+  simulationStationRenderBucket = -1;
 }
 
 function syncInputs() {
@@ -6047,12 +6512,18 @@ function syncInputs() {
   els.epicenterRegion.value = state.epicenterName;
   updateSetupResultOutputs();
   els.stationLayerToggle.checked = state.showStationLayer;
+  if (els.submarineStationLayerToggle) {
+    els.submarineStationLayerToggle.checked = state.showSubmarineStationLayer;
+  }
   els.regionLayerToggle.checked = state.showRegionLayer;
   els.eewWarningToggle.checked = state.showEewWarningLayer;
   if (els.faultLayerToggle) {
     els.faultLayerToggle.checked = state.showFaultLayer;
   }
   els.simulationStationLayerToggle.checked = state.showStationLayer;
+  if (els.simulationSubmarineStationLayerToggle) {
+    els.simulationSubmarineStationLayerToggle.checked = state.showSubmarineStationLayer;
+  }
   els.simulationRegionLayerToggle.checked = state.showRegionLayer;
   els.simulationEewWarningToggle.checked = state.showEewWarningLayer;
   if (els.simulationFaultLayerToggle) {
@@ -6146,6 +6617,7 @@ function setStartupInteractionLocked(locked) {
 
 function schedulePostMapInteractionRender() {
   simulationRenderBucket = -1;
+  simulationStationRenderBucket = -1;
   window.clearTimeout(postMapInteractionRenderTimer);
   postMapInteractionRenderTimer = window.setTimeout(() => {
     if (state.mapInteracting || !map) {
@@ -6444,6 +6916,18 @@ function updateIntensityLayer() {
     setGeoJsonSourceData("shindo-stations", getStationIntensityDataForElapsed(getSimulationStationElapsedSec()));
   }
 
+  if (
+    state.showSubmarineStationLayer &&
+    !getSelectedPreset() &&
+    map.getSource("submarine-observation-points") &&
+    submarineObservationPointData
+  ) {
+    setGeoJsonSourceData(
+      "submarine-observation-points",
+      getSubmarineObservationDataForElapsed(getSubmarineObservationElapsedSec()),
+    );
+  }
+
   if (map.getSource("jma-local-areas")) {
     if (!shindoStationData) {
       updateSimulationAvailability();
@@ -6463,6 +6947,10 @@ function updateIntensityLayer() {
 }
 
 function getSimulationStationElapsedSec() {
+  return state.simulationRunning ? getSimulationElapsedSec() : Infinity;
+}
+
+function getSubmarineObservationElapsedSec() {
   return state.simulationRunning ? getSimulationElapsedSec() : Infinity;
 }
 
@@ -6528,6 +7016,44 @@ function getAreaEpicentralDistances(geojson) {
     distances,
   };
   return distances;
+}
+
+function getSubmarineObservationDataForElapsed(elapsedSec = Infinity, data = submarineObservationPointData) {
+  if (!data?.features?.length || getSelectedPreset()) {
+    return emptyFeatureCollection();
+  }
+
+  const cacheKey = [
+    data.features.length,
+    Number.isFinite(elapsedSec) ? toSimulationBucket(elapsedSec) : "final",
+    state.longitude.toFixed(4),
+    state.latitude.toFixed(4),
+    state.depthKm.toFixed(1),
+    state.magnitude.toFixed(1),
+  ].join("|");
+  if (submarineObservationIntensityCache.key === cacheKey) {
+    return {
+      type: "FeatureCollection",
+      features: submarineObservationIntensityCache.features,
+    };
+  }
+
+  const features = buildSubmarineObservationIntensityFeatures(data).map((feature) => {
+    const currentProperties = getCurrentIntensityProperties(feature.properties, elapsedSec);
+    return {
+      ...feature,
+      properties: {
+        ...feature.properties,
+        ...currentProperties,
+      },
+    };
+  });
+
+  submarineObservationIntensityCache = { key: cacheKey, features };
+  return {
+    type: "FeatureCollection",
+    features,
+  };
 }
 
 function getLocalAreaStationSnapshot(geojson, predictedStationFeatures) {
@@ -8013,6 +8539,65 @@ function buildStationIntensityFeatures(data) {
   stationIntensityFeatureCache = baseFeatures;
 
   return stationIntensityFeatureCache;
+}
+
+function buildSubmarineObservationIntensityFeatures(data) {
+  return (data.features ?? [])
+    .map((feature) => {
+      const [longitude, latitude] = feature.geometry?.coordinates ?? [];
+      if (!Number.isFinite(Number(longitude)) || !Number.isFinite(Number(latitude))) {
+        return null;
+      }
+
+      const lon = Number(longitude);
+      const lat = Number(latitude);
+      const id = feature.properties?.code || `${lon.toFixed(4)},${lat.toFixed(4)}`;
+      const intensityValue = estimateIntensityAtPoint(lon, lat);
+      const intensityClass = toJmaIntensityClass(intensityValue);
+      const epicentralDistanceKm = haversineKilometers([state.longitude, state.latitude], [lon, lat]);
+      const pArrivalSec = epicentralDistanceKm / EARTHQUAKE_MODEL.pWaveVelocityKmPerSec;
+      const sArrivalSec = epicentralDistanceKm / EARTHQUAKE_MODEL.sWaveVelocityKmPerSec;
+      const waveResponse = getStationWaveResponseProperties(
+        `submarine|${id}|${state.longitude.toFixed(2)}|${state.latitude.toFixed(2)}`,
+        intensityValue,
+        {},
+      );
+
+      return {
+        type: "Feature",
+        properties: {
+          ...feature.properties,
+          id: `submarine-${id}`,
+          displaySortStableKey: `submarine|${id}|${lon.toFixed(4)}|${lat.toFixed(4)}`,
+          name: feature.properties?.name || feature.properties?.code || "海底観測点",
+          predictedIntensityValue: Number(intensityValue.toFixed(2)),
+          predictedIntensityLabel: intensityClass.label,
+          predictedIntensityShortLabel: intensityClass.shortLabel,
+          predictedIntensityRank: intensityClass.rank,
+          predictedIntensityColor: intensityClass.color,
+          intensityValue: Number(intensityValue.toFixed(2)),
+          intensityLabel: intensityClass.label,
+          intensityShortLabel: intensityClass.shortLabel,
+          intensityRank: intensityClass.rank,
+          intensityColor: intensityClass.color,
+          intensityTextColor: intensityClass.textColor,
+          groundAmplification: EARTHQUAKE_MODEL.defaultSiteAmplification,
+          epicentralDistanceKm: Number(epicentralDistanceKm.toFixed(1)),
+          hypocentralDistanceKm: Number(Math.hypot(epicentralDistanceKm, state.depthKm).toFixed(1)),
+          pArrivalSec: Number(pArrivalSec.toFixed(2)),
+          sArrivalSec: Number(sArrivalSec.toFixed(2)),
+          pWaveSiteResponse: waveResponse.pWaveSiteResponse,
+          pWaveRiseDelaySec: waveResponse.pWaveRiseDelaySec,
+          sWaveRiseDelaySec: waveResponse.sWaveRiseDelaySec,
+          submarineObservation: true,
+        },
+        geometry: {
+          type: "Point",
+          coordinates: [lon, lat],
+        },
+      };
+    })
+    .filter(Boolean);
 }
 
 function isOldJmaScaleSyntheticPreset(preset) {
