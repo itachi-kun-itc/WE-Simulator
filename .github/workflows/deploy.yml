@@ -38,4 +38,6 @@ jobs:
           rm -f dist/dev-server.js
 
       - name: Deploy to gh-pages branch
-        run: npx gh-pages -d dist -b gh-pages -u "github-actions-bot <github-actions-bot@users.noreply.github.com>"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx gh-pages -d dist -b gh-pages -u "github-actions-bot <github-actions-bot@users.noreply.github.com>" -r "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"

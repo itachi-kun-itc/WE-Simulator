@@ -658,6 +658,11 @@ h1 {
   box-shadow: 0 0 0 3px rgba(91, 199, 255, 0.18);
 }
 
+.admin-mode-field input:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
 .admin-mode-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -672,6 +677,8 @@ h1 {
   color: #ffffff;
   cursor: pointer;
   font-weight: 800;
+  line-height: 1.25;
+  white-space: pre-line;
 }
 
 .admin-mode-actions button:disabled {
@@ -716,7 +723,8 @@ h1 {
   display: none;
 }
 
-.maintenance-mode-badge {
+.maintenance-mode-badge,
+.local-server-badge {
   position: fixed;
   bottom: max(14px, env(safe-area-inset-bottom));
   left: max(14px, env(safe-area-inset-left));
@@ -739,7 +747,12 @@ h1 {
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.28);
 }
 
-.maintenance-mode-badge.hidden {
+.local-server-badge {
+  z-index: 7000;
+}
+
+.maintenance-mode-badge.hidden,
+.local-server-badge.hidden {
   display: none;
 }
 
@@ -1257,7 +1270,10 @@ body.app-loading #setup-panel button:not(#simulation-start) {
   overflow-x: auto;
   overflow-y: auto;
   overscroll-behavior: contain;
+  overscroll-behavior-x: none;
+  overscroll-behavior-y: none;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
   border-top: 1px solid rgba(255, 255, 255, 0.14);
 }
 
@@ -1291,7 +1307,7 @@ body.app-loading #setup-panel button:not(#simulation-start) {
 
 .preset-picker-table th:nth-child(2),
 .preset-picker-table td:nth-child(2) {
-  min-width: 190px;
+  min-width: 176px;
 }
 
 .preset-picker-table th:nth-child(3),
@@ -2009,8 +2025,8 @@ body.app-loading #setup-panel button:not(#simulation-start) {
   }
 
   .preset-picker-table {
-    width: 600px;
-    min-width: 600px;
+    width: 570px;
+    min-width: 570px;
     table-layout: fixed;
     font-size: 0.76rem;
   }
@@ -2028,8 +2044,8 @@ body.app-loading #setup-panel button:not(#simulation-start) {
 
   .preset-picker-table th:nth-child(2),
   .preset-picker-table td:nth-child(2) {
-    width: 150px;
-    min-width: 150px;
+    width: 132px;
+    min-width: 132px;
   }
 
   .preset-picker-table th:nth-child(3),
