@@ -688,6 +688,7 @@ let groundModelLoadPromise;
 let shindoStationData;
 let shindoStationLoadPromise;
 let stationIntensityFeatureCache;
+let submarineObservationFeatureCache = { key: "", data: null, features: [] };
 let submarineObservationIntensityCache = { key: "", features: [] };
 let predictedMaximumCache;
 let presetObservationLookupCache;
@@ -757,6 +758,7 @@ const SOURCE_LINKS = [
   { label: "若松・松岡(2020) 地形・地盤分類データ", href: "https://www.j-shis.bosai.go.jp/map/JSHIS2/download.html?lang=jp" },
   { label: "Kunijiban（国土地盤情報）", href: "http://www.kunijiban.pwri.go.jp/jp/" },
   { label: "Natural Earth", href: "https://www.naturalearthdata.com/" },
+  { label: "NIED | 海底地震津波観測網 | 日本海溝海底地震津波観測網：S-net", href: "https://www.seafloor.bosai.go.jp/outline/" },
   { label: "気象研究所 プレート形状データ / Hirose Fuyuki", href: "https://www.mri-jma.go.jp/Dep/sei/fhirose/plate/PlateData.html" },
 ];
 const SOURCE_UPDATED_AT = "2026 07 05";
@@ -797,6 +799,7 @@ const SOURCE_SECTIONS = [
       { label: "Kunijiban（国土地盤情報）", href: "http://www.kunijiban.pwri.go.jp/jp/" },
       { label: "地震本部", href: "https://www.jishin.go.jp/" },
       { label: "Natural Earth", href: "https://www.naturalearthdata.com/" },
+      { label: "NIED | 海底地震津波観測網 | 日本海溝海底地震津波観測網：S-net", href: "https://www.seafloor.bosai.go.jp/outline/" },
       { label: "MapLibre GL JS", href: "https://maplibre.org/maplibre-gl-js/docs/" },
     ],
   },
@@ -974,6 +977,12 @@ function renderEarthquakePresetPicker() {
 function comparePresetSortItems(a, b) {
   const sortKey = state.presetSortKey ?? "date";
   const direction = state.presetSortKey && state.presetSortDirection === "asc" ? 1 : -1;
+  if (sortKey === "epicenter") {
+    const comparedByEpicenter = comparePresetEpicenterNorthToSouth(a.preset, b.preset);
+    if (comparedByEpicenter !== 0) {
+      return comparedByEpicenter * direction;
+    }
+  }
   const compared = comparePresetSortValues(
     getPresetSortValue(a.preset, sortKey),
     getPresetSortValue(b.preset, sortKey),
@@ -985,6 +994,36 @@ function comparePresetSortItems(a, b) {
 
   const fallback = getPresetSortTime(b.preset) - getPresetSortTime(a.preset);
   return fallback || a.index - b.index;
+}
+
+function comparePresetEpicenterNorthToSouth(a, b) {
+  const aLatitude = Number(a?.latitude);
+  const bLatitude = Number(b?.latitude);
+  const aHasLatitude = Number.isFinite(aLatitude);
+  const bHasLatitude = Number.isFinite(bLatitude);
+  if (aHasLatitude && bHasLatitude && aLatitude !== bLatitude) {
+    return bLatitude - aLatitude;
+  }
+  if (aHasLatitude !== bHasLatitude) {
+    return aHasLatitude ? -1 : 1;
+  }
+
+  const aLongitude = Number(a?.longitude);
+  const bLongitude = Number(b?.longitude);
+  const aHasLongitude = Number.isFinite(aLongitude);
+  const bHasLongitude = Number.isFinite(bLongitude);
+  if (aHasLongitude && bHasLongitude && aLongitude !== bLongitude) {
+    return aLongitude - bLongitude;
+  }
+  if (aHasLongitude !== bHasLongitude) {
+    return aHasLongitude ? -1 : 1;
+  }
+
+  return String(a?.epicenterName ?? a?.label ?? "").localeCompare(
+    String(b?.epicenterName ?? b?.label ?? ""),
+    "ja",
+    { numeric: true, sensitivity: "base" },
+  );
 }
 
 function comparePresetSortValues(a, b) {
@@ -1038,11 +1077,13 @@ function updatePresetSortButtons() {
     const key = button.dataset.presetSortKey;
     const active = key === state.presetSortKey;
     button.classList.toggle("is-active", active);
-    button.textContent = "↕";
+    button.dataset.sortState = active ? state.presetSortDirection : "none";
+    button.textContent = active ? (state.presetSortDirection === "asc" ? "▲" : "▼") : "▲\n▼";
     button.setAttribute("aria-pressed", String(active));
+    const label = button.closest(".preset-sort-head")?.querySelector("span")?.textContent?.trim() || "項目";
     button.setAttribute(
       "aria-label",
-      `${button.closest("th")?.textContent?.replace("↕", "").trim() || "項目"}の並び順を${
+      `${label}の並び順を${
         active && state.presetSortDirection === "asc" ? "降順" : "昇順"
       }に切り替え`,
     );
@@ -1144,6 +1185,8 @@ function getPresetSortTime(preset) {
 }
 
 function openEarthquakePresetPicker() {
+  state.presetSortKey = null;
+  state.presetSortDirection = "desc";
   renderEarthquakePresetPicker();
   els.presetPickerOverlay?.classList.remove("hidden");
   resetPresetPickerScroll();
@@ -3002,7 +3045,7 @@ function normalizeMaintenanceReason(reason) {
 function createMaintenanceModeBadge() {
   const badge = document.createElement("div");
   badge.className = "maintenance-mode-badge hidden";
-  badge.textContent = "メンテナンスモード中";
+  badge.textContent = "メンテナンスモード";
   return badge;
 }
 
@@ -3991,12 +4034,63 @@ function filterSurroundingLandForDisplay(geojson) {
     features: (geojson.features ?? []).flatMap((feature) => {
       const properties = feature.properties ?? {};
       if (properties.isoA3 !== "JPN" && properties.nameEn !== "Japan") {
-        return removeNorthernIslandDisplayPolygonsFromFeature(feature);
+        return removeNorthernIslandDisplayPolygonsFromFeature(feature).map(removeInteriorRingsFromFeature);
       }
 
       return [];
     }),
   };
+}
+
+function removeInteriorRingsFromFeature(feature) {
+  const geometry = feature.geometry;
+  if (!geometry) {
+    return feature;
+  }
+
+  if (geometry.type === "GeometryCollection") {
+    return {
+      ...feature,
+      geometry: {
+        ...geometry,
+        geometries: (geometry.geometries ?? []).map(
+          (part) => removeInteriorRingsFromFeature({ geometry: part }).geometry,
+        ),
+      },
+    };
+  }
+
+  if (!geometry.coordinates) {
+    return feature;
+  }
+
+  if (geometry.type === "MultiPolygon") {
+    return {
+      ...feature,
+      geometry: {
+        ...geometry,
+        coordinates: geometry.coordinates
+          .map((polygon) => polygon?.[0])
+          .filter((ring) => Array.isArray(ring) && ring.length >= 4)
+          .map((ring) => [ring]),
+      },
+    };
+  }
+
+  if (geometry.type === "Polygon") {
+    const outerRing = geometry.coordinates?.[0];
+    return Array.isArray(outerRing) && outerRing.length >= 4
+      ? {
+          ...feature,
+          geometry: {
+            ...geometry,
+            coordinates: [outerRing],
+          },
+        }
+      : feature;
+  }
+
+  return feature;
 }
 
 function removeNorthernIslandDisplayPolygonsFromFeature(feature) {
@@ -4090,9 +4184,24 @@ function addMapLayers() {
     source: "surrounding-land",
     paint: {
       "fill-antialias": false,
-      "fill-color": "#6f777f",
-      "fill-outline-color": "#6f777f",
+      "fill-color": "#69727a",
+      "fill-outline-color": "#69727a",
       "fill-opacity": 1,
+    },
+  });
+
+  addLayerIfMissing({
+    id: "surrounding-land-gap-fill",
+    type: "line",
+    source: "surrounding-land",
+    layout: {
+      "line-cap": "round",
+      "line-join": "round",
+    },
+    paint: {
+      "line-color": "#69727a",
+      "line-opacity": 1,
+      "line-width": ["interpolate", ["linear"], ["zoom"], 1, 1.8, 4, 2.5, 7, 1.7, 10, 0.9],
     },
   });
 
@@ -5194,10 +5303,17 @@ function stationPopupHtml(properties) {
         : `震度${properties.intensityLabel}`;
   const currentValue = Number(properties.currentIntensityValue ?? properties.intensityValue ?? 0);
   const predictedValue = Number(properties.predictedIntensityValue ?? 0);
-  const currentMeasured = unobservedSubmarine ? "-" : formatMeasuredIntensity(properties, currentValue);
-  const predictedMeasured = unobservedSubmarine ? "-" : formatMeasuredIntensity(properties, predictedValue);
-  const currentIntensityLabel = unobservedSubmarine ? "-" : (properties.intensityLabel ?? "0");
-  const predictedIntensityLabel = unobservedSubmarine ? "-" : (properties.predictedIntensityLabel ?? "0");
+  const hideSubmarineCurrentIntensity =
+    properties.submarineObservation && (!properties.observed || currentValue <= 0);
+  const hideSubmarinePredictedIntensity = properties.submarineObservation && predictedValue <= 0;
+  const currentMeasured =
+    unobservedSubmarine || hideSubmarineCurrentIntensity ? "-" : formatMeasuredIntensity(properties, currentValue);
+  const predictedMeasured =
+    hideSubmarinePredictedIntensity ? "-" : formatMeasuredIntensity(properties, predictedValue);
+  const currentIntensityLabel =
+    unobservedSubmarine || hideSubmarineCurrentIntensity ? "-" : (properties.intensityLabel ?? "0");
+  const predictedIntensityLabel =
+    hideSubmarinePredictedIntensity ? "-" : (properties.predictedIntensityLabel ?? "0");
   const submarineDepth = properties.submarineObservation
     ? `<span>水深 ${Number.isFinite(Number(properties.depthM)) ? `${Number(properties.depthM).toFixed(0)} m` : "-"}</span>`
     : "";
@@ -6502,6 +6618,7 @@ function parseClampedInput(value, fallback, min, max) {
 
 function invalidateIntensityEstimateCache() {
   stationIntensityFeatureCache = null;
+  submarineObservationFeatureCache = { key: "", data: null, features: [] };
   submarineObservationIntensityCache = { key: "", features: [] };
   predictedMaximumCache = null;
   presetObservationLookupCache = null;
@@ -8571,7 +8688,21 @@ function buildStationIntensityFeatures(data) {
 }
 
 function buildSubmarineObservationIntensityFeatures(data) {
-  return (data.features ?? [])
+  const cacheKey = [
+    data?.features?.length ?? 0,
+    state.longitude.toFixed(4),
+    state.latitude.toFixed(4),
+    state.depthKm.toFixed(1),
+    state.magnitude.toFixed(1),
+  ].join("|");
+  if (
+    submarineObservationFeatureCache.data === data &&
+    submarineObservationFeatureCache.key === cacheKey
+  ) {
+    return submarineObservationFeatureCache.features;
+  }
+
+  const features = (data.features ?? [])
     .map((feature) => {
       const [longitude, latitude] = feature.geometry?.coordinates ?? [];
       if (!Number.isFinite(Number(longitude)) || !Number.isFinite(Number(latitude))) {
@@ -8627,6 +8758,9 @@ function buildSubmarineObservationIntensityFeatures(data) {
       };
     })
     .filter(Boolean);
+
+  submarineObservationFeatureCache = { key: cacheKey, data, features };
+  return features;
 }
 
 function isOldJmaScaleSyntheticPreset(preset) {
