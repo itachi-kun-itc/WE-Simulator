@@ -49,6 +49,7 @@ const EARTHQUAKE_MODEL = {
 const EEW_BLINK_INTERVAL_SEC = 0.7;
 const EEW_BLINK_PHASES = 6;
 const SIMULATION_END_GRACE_SEC = 15;
+const SIMULATION_DATA_UPDATE_HZ = 5;
 const GEOLOCATION_TARGET_ACCURACY_M = 35;
 const GEOLOCATION_ACCEPTABLE_ACCURACY_M = 120;
 const GEOLOCATION_IPAD_ACCEPTABLE_ACCURACY_M = 350;
@@ -57,7 +58,7 @@ const GEOLOCATION_MAX_WAIT_MS = 16000;
 const GEOLOCATION_IPAD_MAX_WAIT_MS = 32000;
 const GEOLOCATION_CACHED_MAX_AGE_MS = 15000;
 const GEOLOCATION_IPAD_CACHED_MAX_AGE_MS = 120000;
-const WAVE_RENDER_RADIUS_STEP_KM = 0.05;
+const WAVE_RENDER_RADIUS_STEP_KM = 1.5;
 const WAVE_CIRCLE_STEPS = 160;
 const RESET_VIEW_ANIMATION_MS = 1200;
 const LIGHT_DEFERRED_DATA_DELAY_MS = 180;
@@ -66,7 +67,7 @@ const PRESET_DEFERRED_DATA_DELAY_MS = 900;
 const HEAVY_DEFERRED_DATA_DELAY_MS = 6000;
 const STARTUP_PRIMARY_IDLE_TIMEOUT_MS = 650;
 const STARTUP_SECONDARY_IDLE_TIMEOUT_MS = 260;
-const STARTUP_OVERLAY_RELEASE_DELAY_MS = 140;
+const STARTUP_OVERLAY_RELEASE_DELAY_MS = 1000;
 const STARTUP_BOUNDARY_REVEAL_DELAY_MS = 120;
 const EARTHQUAKE_PRESETS = [
   {
@@ -686,6 +687,7 @@ let hoveredStationLngLat = null;
 let clickedStationFeatureId = null;
 let stationCanvasOverlay;
 let stationCanvasRenderFrame = 0;
+let stationCanvasFeatureCache = { data: null, features: [] };
 let currentLocationMarker;
 let epicenterHoverPopup;
 let epicenterClickPopup;
@@ -710,10 +712,12 @@ let simulationRenderBucket = -1;
 let maxStationListRenderBucket = null;
 let simulationTimeTextCache = "";
 let waveRenderRadiusCache = { p: null, s: null };
+let waveCanvasRadiusState = { p: 0, s: 0 };
 const waveCircleBearingCache = new Map();
 let resetViewAnimating = false;
 let postMapInteractionRenderTimer;
 let localAreaStationMembershipCache;
+let localAreaStationSnapshotCache;
 let areaEpicentralDistanceCache = {
   key: "",
   distances: [],
@@ -786,7 +790,6 @@ let areaDataCache = {
   bucket: null,
   data: null,
 };
-let localAreaNearbyStationCache = new Map();
 let lastManagedEpicenter = {
   latitude: state.latitude,
   longitude: state.longitude,
@@ -1761,10 +1764,10 @@ async function initEarthquakeMap() {
     schedulePostMapInteractionRender();
   });
   map.on("render", () => {
-    renderStationCanvasOverlay();
+    scheduleStationCanvasRender();
   });
   map.on("resize", () => {
-    renderStationCanvasOverlay();
+    scheduleStationCanvasRender();
   });
 
   map.on("click", (event) => {
@@ -2710,6 +2713,7 @@ function createAdminModeOverlay() {
     if (token) {
       setAdminParentActionPending(overlay, true);
       setAdminModeStatus(status, "解除中...");
+      setAdminPasswordInputUnavailable(passwordInput);
       if (loginButton) {
         loginButton.disabled = true;
         loginButton.textContent = "解除中...";
@@ -2734,8 +2738,10 @@ function createAdminModeOverlay() {
       setAdminModeStatus(status, current.maintenance ? "親端末を解除し、メンテナンスモードも解除しました。" : "親端末を解除しました。");
       return;
     }
+    const adminPassword = passwordInput?.value ?? "";
     setAdminParentActionPending(overlay, true);
     setAdminModeStatus(status, "認証中...");
+    setAdminPasswordInputUnavailable(passwordInput);
     if (loginButton) {
       loginButton.disabled = true;
       loginButton.textContent = "認証中...";
@@ -2744,7 +2750,7 @@ function createAdminModeOverlay() {
       toggleButton.disabled = true;
     }
     const result = await postMaintenanceAction("adminLogin", {
-      password: passwordInput?.value ?? "",
+      password: adminPassword,
     });
     if (!result.ok || !result.token) {
       setAdminParentActionPending(overlay, false);
@@ -2777,6 +2783,7 @@ function createAdminModeOverlay() {
 
     setAdminMaintenanceActionPending(overlay, true);
     setAdminModeStatus(status, "確認中...");
+    setAdminPasswordInputUnavailable(passwordInput);
     if (toggleButton) {
       toggleButton.disabled = true;
       toggleButton.textContent = "確認中...";
@@ -2850,6 +2857,7 @@ function updateAdminModeControls(overlay, maintenanceStatus = null) {
   }
 
   if (isAdminParentActionPending(overlay) || isAdminMaintenanceActionPending(overlay)) {
+    setAdminPasswordInputUnavailable(passwordInput);
     if (toggleButton) {
       toggleButton.disabled = true;
     }
@@ -2857,7 +2865,11 @@ function updateAdminModeControls(overlay, maintenanceStatus = null) {
   }
 
   if (passwordInput) {
-    passwordInput.disabled = isParentTerminal;
+    if (isParentTerminal) {
+      setAdminPasswordInputUnavailable(passwordInput);
+    } else {
+      setAdminPasswordInputAvailable(passwordInput);
+    }
   }
   if (loginButton) {
     loginButton.disabled = false;
@@ -2871,23 +2883,51 @@ function updateAdminModeControls(overlay, maintenanceStatus = null) {
       toggleButton.textContent = maintenanceStatus.maintenance ? "メンテナンスモード解除" : "メンテナンスモード";
     } else {
       toggleButton.textContent = "確認中...";
+      toggleButton.disabled = true;
+      setAdminPasswordInputUnavailable(passwordInput);
       fetchMaintenanceStatus().then((status) => {
         const isStillParentTerminal = Boolean(localStorage.getItem(ADMIN_PARENT_TOKEN_KEY));
         if (!isStillParentTerminal) {
           toggleButton.textContent = "メンテナンスモード";
           toggleButton.disabled = true;
+          if (!isAdminParentActionPending(overlay) && !isAdminMaintenanceActionPending(overlay)) {
+            setAdminPasswordInputAvailable(passwordInput);
+          }
           return;
         }
         if (isAdminParentActionPending(overlay) || isAdminMaintenanceActionPending(overlay)) {
           toggleButton.disabled = true;
+          setAdminPasswordInputUnavailable(passwordInput);
           return;
         }
         toggleButton.textContent = status.maintenance ? "メンテナンスモード解除" : "メンテナンスモード";
         toggleButton.disabled = false;
+        setAdminPasswordInputUnavailable(passwordInput);
         notifyMaintenanceStatusChange(status);
       });
     }
   }
+}
+
+function setAdminPasswordInputUnavailable(input) {
+  if (!input) {
+    return;
+  }
+
+  input.dataset.previousType = input.dataset.previousType || input.type || "password";
+  input.type = "text";
+  input.value = "入力不可";
+  input.disabled = true;
+}
+
+function setAdminPasswordInputAvailable(input) {
+  if (!input) {
+    return;
+  }
+
+  input.type = input.dataset.previousType || "password";
+  input.value = "";
+  input.disabled = false;
 }
 
 function setAdminParentActionPending(overlay, isPending) {
@@ -3539,6 +3579,7 @@ function setGeoJsonSourceData(id, data) {
   source.setData(data);
   sourceDataRefs.set(id, data);
   if (id === "shindo-stations") {
+    stationCanvasFeatureCache = { data: null, features: [] };
     scheduleStationCanvasRender();
     updateActiveStationPopups(data);
   }
@@ -3906,7 +3947,7 @@ function renderStationCanvasOverlay() {
   const { context, width, height } = canvasState;
   context.clearRect(0, 0, width, height);
 
-  const features = sourceDataRefs.get("shindo-stations")?.features ?? [];
+  const features = getStationCanvasFeatures();
   const zoom = map.getZoom();
   if (state.showStationLayer && features.length) {
     const radius = interpolateByZoom(zoom, [
@@ -3923,8 +3964,7 @@ function renderStationCanvasOverlay() {
     const labelAlpha = smoothStep(clamp((zoom - labelFadeStartZoom) / 0.18, 0, 1));
     const padding = radius + 6;
 
-    [...features]
-      .sort((a, b) => Number(a.properties?.stationDisplaySortKey ?? 0) - Number(b.properties?.stationDisplaySortKey ?? 0))
+    features
       .forEach((feature) => {
         const coordinates = feature.geometry?.coordinates;
         if (!Array.isArray(coordinates)) {
@@ -3941,8 +3981,25 @@ function renderStationCanvasOverlay() {
       });
   }
 
-  drawWaveCanvasLine(context, "p-wave", "#7de7ff", 2.4, 0.9);
-  drawWaveCanvasLine(context, "s-wave", "#ff6b7f", 3.4, 0.95);
+  drawWaveCanvasRadiusLine(context, waveCanvasRadiusState.p, "#7de7ff", 2.4, 0.9);
+  drawWaveCanvasRadiusLine(context, waveCanvasRadiusState.s, "#ff6b7f", 3.4, 0.95);
+}
+
+function getStationCanvasFeatures() {
+  const data = sourceDataRefs.get("shindo-stations");
+  if (!data?.features?.length) {
+    return [];
+  }
+
+  if (stationCanvasFeatureCache.data === data) {
+    return stationCanvasFeatureCache.features;
+  }
+
+  const features = [...data.features].sort(
+    (a, b) => Number(a.properties?.stationDisplaySortKey ?? 0) - Number(b.properties?.stationDisplaySortKey ?? 0),
+  );
+  stationCanvasFeatureCache = { data, features };
+  return features;
 }
 
 function interpolateByZoom(zoom, stops) {
@@ -3991,42 +4048,6 @@ function drawStationCanvasMarker(context, x, y, radius, fontSize, labelAlpha, pr
   context.restore();
 }
 
-function drawWaveCanvasLine(context, sourceId, color, lineWidth, alpha) {
-  const features = sourceDataRefs.get(sourceId)?.features ?? [];
-  if (!features.length) {
-    return;
-  }
-
-  context.save();
-  context.globalAlpha = alpha;
-  context.strokeStyle = color;
-  context.lineWidth = lineWidth;
-  context.lineCap = "round";
-  context.lineJoin = "round";
-
-  features.forEach((feature) => {
-    const rings = feature.geometry?.coordinates ?? [];
-    rings.forEach((ring) => {
-      if (!Array.isArray(ring) || ring.length < 2) {
-        return;
-      }
-
-      context.beginPath();
-      ring.forEach((coordinate, index) => {
-        const point = map.project({ lng: coordinate[0], lat: coordinate[1] });
-        if (index === 0) {
-          context.moveTo(point.x, point.y);
-          return;
-        }
-        context.lineTo(point.x, point.y);
-      });
-      context.stroke();
-    });
-  });
-
-  context.restore();
-}
-
 function fitInitialMapBounds(bounds) {
   if (!bounds) {
     return;
@@ -4061,6 +4082,35 @@ function getInitialMapPaddingForViewport() {
     bottom: 0,
     left: Math.max(leftEdge, 0),
   });
+}
+
+function drawWaveCanvasRadiusLine(context, radiusKm, color, lineWidth, alpha) {
+  if (!Number.isFinite(radiusKm) || radiusKm <= 0) {
+    return;
+  }
+
+  const ring = buildGeodesicCircle(simulationEpicenter, radiusKm);
+  if (ring.length < 2) {
+    return;
+  }
+
+  context.save();
+  context.globalAlpha = alpha;
+  context.strokeStyle = color;
+  context.lineWidth = lineWidth;
+  context.lineCap = "round";
+  context.lineJoin = "round";
+  context.beginPath();
+  ring.forEach((coordinate, index) => {
+    const point = map.project({ lng: coordinate[0], lat: coordinate[1] });
+    if (index === 0) {
+      context.moveTo(point.x, point.y);
+      return;
+    }
+    context.lineTo(point.x, point.y);
+  });
+  context.stroke();
+  context.restore();
 }
 
 function getCompactMapPaddingForViewport() {
@@ -5029,7 +5079,7 @@ function getWaveSurfaceRadiusKm(elapsedSec, velocityKmPerSec) {
 }
 
 function toSimulationBucket(elapsedSec) {
-  return Number.isFinite(elapsedSec) ? Math.max(Math.floor(elapsedSec * 8), 0) : Infinity;
+  return Number.isFinite(elapsedSec) ? Math.max(Math.floor(elapsedSec * SIMULATION_DATA_UPDATE_HZ), 0) : Infinity;
 }
 
 function updateSimulationSummary(elapsedSec = getSimulationStationElapsedSec()) {
@@ -5150,6 +5200,12 @@ function setWaveRadiusData(pRadiusKm, sRadiusKm) {
   const nextP = getRenderableWaveRadius(pRadiusKm);
   const nextS = getRenderableWaveRadius(sRadiusKm);
 
+  waveCanvasRadiusState = {
+    p: Number.isFinite(pRadiusKm) ? Math.max(pRadiusKm, 0) : 0,
+    s: Number.isFinite(sRadiusKm) ? Math.max(sRadiusKm, 0) : 0,
+  };
+  scheduleStationCanvasRender();
+
   if (pSource && nextP !== waveRenderRadiusCache.p) {
     setGeoJsonSourceData("p-wave", wavePolygonFeatureCollection(nextP));
     waveRenderRadiusCache.p = nextP;
@@ -5171,6 +5227,7 @@ function getRenderableWaveRadius(radiusKm) {
 
 function resetWaveRenderCache() {
   waveRenderRadiusCache = { p: null, s: null };
+  waveCanvasRadiusState = { p: 0, s: 0 };
 }
 
 function wavePolygonFeatureCollection(radiusKm) {
@@ -5577,6 +5634,11 @@ function updateStateFromInputs(options = {}) {
     Math.abs(nextDepthKm - state.depthKm) > 0.0001 ||
     Math.abs(nextMagnitude - state.magnitude) > 0.0001;
 
+  if (!sourceParametersChanged && !options.resolveLocation) {
+    syncInputs();
+    return;
+  }
+
   state.latitude = nextLatitude;
   state.longitude = nextLongitude;
   state.depthKm = nextDepthKm;
@@ -5641,7 +5703,8 @@ function invalidateIntensityEstimateCache() {
   areaDataCache = { bucket: null, data: null };
   areaEpicentralDistanceCache = { key: "", distances: [] };
   localAreaStationMembershipCache = null;
-  localAreaNearbyStationCache = new Map();
+  localAreaStationSnapshotCache = null;
+  stationCanvasFeatureCache = { data: null, features: [] };
   simulationRenderBucket = -1;
 }
 
@@ -6142,6 +6205,55 @@ function getAreaEpicentralDistances(geojson) {
   return distances;
 }
 
+function getLocalAreaStationSnapshot(geojson, predictedStationFeatures) {
+  if (
+    localAreaStationSnapshotCache?.geojson === geojson &&
+    localAreaStationSnapshotCache?.stationFeatures === predictedStationFeatures
+  ) {
+    return localAreaStationSnapshotCache;
+  }
+
+  const areaStationIds = getLocalAreaStationMembership(geojson, predictedStationFeatures);
+  const predictedStationById = new Map(
+    predictedStationFeatures.map((feature) => [feature.properties.id, feature]),
+  );
+  const predictedMaxValues = [];
+  const earliestPArrivals = [];
+  const earliestSArrivals = [];
+
+  areaStationIds.forEach((stationIds, index) => {
+    let predictedMaxValue = 0;
+    let earliestPArrivalSec = Infinity;
+    let earliestSArrivalSec = Infinity;
+
+    stationIds.forEach((stationId) => {
+      const stationFeature = predictedStationById.get(stationId);
+      if (!stationFeature) {
+        return;
+      }
+
+      const properties = stationFeature.properties ?? {};
+      predictedMaxValue = Math.max(predictedMaxValue, Number(properties.predictedIntensityValue ?? 0));
+      earliestPArrivalSec = Math.min(earliestPArrivalSec, Number(properties.pArrivalSec ?? Infinity));
+      earliestSArrivalSec = Math.min(earliestSArrivalSec, Number(properties.sArrivalSec ?? Infinity));
+    });
+
+    predictedMaxValues[index] = predictedMaxValue;
+    earliestPArrivals[index] = earliestPArrivalSec;
+    earliestSArrivals[index] = earliestSArrivalSec;
+  });
+
+  localAreaStationSnapshotCache = {
+    geojson,
+    stationFeatures: predictedStationFeatures,
+    areaStationIds,
+    predictedMaxValues,
+    earliestPArrivals,
+    earliestSArrivals,
+  };
+  return localAreaStationSnapshotCache;
+}
+
 function buildIntensityAreaData(geojson, elapsedSec = Infinity) {
   const bucket = toSimulationBucket(elapsedSec);
   if (areaDataCache.bucket === bucket && areaDataCache.data) {
@@ -6158,11 +6270,9 @@ function buildIntensityAreaData(geojson, elapsedSec = Infinity) {
         )
       : predictedStationFeatures
     : [];
-  const areaStationIds = getLocalAreaStationMembership(geojson, predictedStationFeatures);
+  const areaStationSnapshot = getLocalAreaStationSnapshot(geojson, predictedStationFeatures);
+  const { areaStationIds, predictedMaxValues, earliestPArrivals, earliestSArrivals } = areaStationSnapshot;
   const activeStationById = new Map(stationFeatures.map((feature) => [feature.properties.id, feature]));
-  const predictedStationById = new Map(
-    predictedStationFeatures.map((feature) => [feature.properties.id, feature]),
-  );
   const epicentralDistances = getAreaEpicentralDistances(geojson);
   let maxClass = INTENSITY_CLASSES[0];
   let maxValue = 0;
@@ -6171,25 +6281,8 @@ function buildIntensityAreaData(geojson, elapsedSec = Infinity) {
   const areaFeatures = geojson.features.map((feature, index) => {
     const stationIds = areaStationIds[index] ?? [];
     const areaStations = stationIds.map((stationId) => activeStationById.get(stationId)).filter(Boolean);
-    const predictedAreaStations = stationIds
-      .map((stationId) => predictedStationById.get(stationId))
-      .filter(Boolean);
-    const smoothedAreaStations = getSmoothedAreaStations(feature, index, areaStations, stationFeatures, activeStationById);
-    const smoothedPredictedAreaStations = getSmoothedAreaStations(
-      feature,
-      index,
-      predictedAreaStations,
-      predictedStationFeatures,
-      predictedStationById,
-    );
-    const earliestPArrivalSec =
-      smoothedPredictedAreaStations.length > 0
-        ? Math.min(...smoothedPredictedAreaStations.map((stationFeature) => stationFeature.properties.pArrivalSec))
-        : Infinity;
-    const earliestSArrivalSec =
-      smoothedPredictedAreaStations.length > 0
-        ? Math.min(...smoothedPredictedAreaStations.map((stationFeature) => stationFeature.properties.sArrivalSec))
-        : Infinity;
+    const earliestPArrivalSec = earliestPArrivals[index] ?? Infinity;
+    const earliestSArrivalSec = earliestSArrivals[index] ?? Infinity;
     const eewPWaveObserved =
       isSimulation &&
       Number.isFinite(earliestPArrivalSec) &&
@@ -6199,16 +6292,16 @@ function buildIntensityAreaData(geojson, elapsedSec = Infinity) {
       !Number.isFinite(earliestSArrivalSec) ||
       elapsedSec < earliestSArrivalSec;
     const intensityValue =
-      smoothedAreaStations.length > 0
-        ? getSmoothedAreaIntensityValue(feature, smoothedAreaStations, "intensityValue")
+      areaStations.length > 0
+        ? Math.max(...areaStations.map((stationFeature) => stationFeature.properties.intensityValue))
         : isSimulation
           ? 0
           : selectedPreset
             ? 0
             : estimateMaxIntensityForFeature(feature);
     const predictedIntensityValue =
-      smoothedPredictedAreaStations.length > 0
-        ? getSmoothedAreaIntensityValue(feature, smoothedPredictedAreaStations, "predictedIntensityValue")
+      (predictedMaxValues[index] ?? 0) > 0
+        ? predictedMaxValues[index]
         : selectedPreset
           ? 0
           : estimateMaxIntensityForFeature(feature);
@@ -6301,97 +6394,6 @@ function buildIntensityAreaData(geojson, elapsedSec = Infinity) {
   };
 
   return data;
-}
-
-function getSmoothedAreaStations(areaFeature, areaIndex, areaStations, candidateStations, candidateStationById) {
-  if (!Array.isArray(candidateStations) || candidateStations.length === 0) {
-    return areaStations;
-  }
-
-  const stationById = new Map((areaStations ?? []).map((stationFeature) => [stationFeature.properties.id, stationFeature]));
-  const nearbyStationIds = getNearbyStationIdsForArea(areaFeature, areaIndex, candidateStations);
-
-  nearbyStationIds.forEach((stationId) => {
-    const stationFeature = candidateStationById.get(stationId);
-    if (stationFeature) {
-      stationById.set(stationFeature.properties.id, stationFeature);
-    }
-  });
-
-  return [...stationById.values()];
-}
-
-function getNearbyStationIdsForArea(areaFeature, areaIndex, candidateStations) {
-  const lastCandidate = candidateStations[candidateStations.length - 1];
-  const key = `${candidateStations.length}|${candidateStations[0]?.properties?.id ?? ""}|${lastCandidate?.properties?.id ?? ""}`;
-  const areaKey = `${key}|${areaIndex}`;
-
-  if (localAreaNearbyStationCache.has(areaKey)) {
-    return localAreaNearbyStationCache.get(areaKey);
-  }
-
-  const centroid = getFeatureCentroid(areaFeature);
-  if (!centroid) {
-    localAreaNearbyStationCache.set(areaKey, []);
-    return [];
-  }
-
-  const nearbyStationIds = candidateStations
-    .map((stationFeature) => {
-      const coordinates = stationFeature.geometry?.coordinates;
-      if (!Array.isArray(coordinates)) {
-        return null;
-      }
-
-      const distanceKm = haversineKilometers(centroid, coordinates);
-      if (distanceKm > 90) {
-        return null;
-      }
-
-      return { stationId: stationFeature.properties.id, distanceKm };
-    })
-    .filter(Boolean)
-    .sort((a, b) => a.distanceKm - b.distanceKm)
-    .slice(0, 10)
-    .map((item) => item.stationId);
-
-  localAreaNearbyStationCache.set(areaKey, nearbyStationIds);
-  return nearbyStationIds;
-}
-
-function getSmoothedAreaIntensityValue(areaFeature, stationFeatures, valueKey) {
-  const centroid = getFeatureCentroid(areaFeature);
-  if (!centroid || !Array.isArray(stationFeatures) || stationFeatures.length === 0) {
-    return 0;
-  }
-
-  const weightedStations = stationFeatures
-    .map((stationFeature) => {
-      const value = Number(stationFeature.properties?.[valueKey] ?? 0);
-      const coordinates = stationFeature.geometry?.coordinates;
-      if (!Number.isFinite(value) || value <= 0 || !Array.isArray(coordinates)) {
-        return null;
-      }
-
-      const distanceKm = haversineKilometers(centroid, coordinates);
-      const weight = 1 / Math.pow(distanceKm + 18, 1.45);
-      return { value, weight };
-    })
-    .filter(Boolean);
-
-  if (weightedStations.length === 0) {
-    return 0;
-  }
-
-  const totalWeight = weightedStations.reduce((sum, station) => sum + station.weight, 0);
-  const weightedAverage =
-    weightedStations.reduce((sum, station) => sum + station.value * station.weight, 0) / Math.max(totalWeight, 0.000001);
-  const localPeak = Math.max(...weightedStations.map((station) => station.value));
-  const peakInfluence = clamp((localPeak - weightedAverage) / 3.2, 0.18, 0.48);
-  const variability = stableUnitInterval(`${areaFeature.properties?.name ?? ""}|${valueKey}`) - 0.5;
-  const blendedValue = weightedAverage * (1 - peakInfluence) + localPeak * peakInfluence + variability * 0.18;
-
-  return clamp(blendedValue, 0, localPeak);
 }
 
 function shouldIssueSimulationEewFeature(feature, elapsedSec = Infinity) {
@@ -7938,10 +7940,6 @@ function findOldScaleSyntheticMunicipalityFeature(observation) {
   });
 
   return findMatchingFeature(municipalityFeatures) ?? findMatchingFeature(allMunicipalityFeatures);
-}
-
-function getFeatureCentroid(feature) {
-  return getMunicipalityRepresentativeCoordinate(feature);
 }
 
 function getMunicipalityRepresentativeCoordinate(feature) {
