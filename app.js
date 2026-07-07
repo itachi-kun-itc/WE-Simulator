@@ -783,7 +783,6 @@ const SOURCE_SECTIONS = [
     description: "日本周辺の海域プレート境界・海溝・トラフ線の描画に使用。",
     links: [
       { label: "プレート形状 数値データ", href: "https://www.mri-jma.go.jp/Dep/sei/fhirose/plate/PlateData.html" },
-      { label: "plate_data.tar.gz", href: "https://www.mri-jma.go.jp/Dep/sei/fhirose/data/plate_data.tar.gz" },
     ],
     note: "Kita et al. (2010, EPSL)およびNakajima and Hasegawa (2006, GRL)\nNakajima and Hasegawa (2006, GRL)，弘瀬・他 (2008, 地震)，Nakajima et al. (2009, JGR)\nBaba et al. (2002, PEPI)，Nakajima and Hasegawa (2007, JGR)，Hirose et al. (2008, JGR)",
   },
@@ -4327,7 +4326,7 @@ function addMapLayers() {
     source: "p-wave",
     paint: {
       "fill-color": "rgba(45, 212, 255, 0.08)",
-      "fill-opacity": 1,
+      "fill-opacity": 0,
     },
   });
 
@@ -4352,7 +4351,7 @@ function addMapLayers() {
     source: "s-wave",
     paint: {
       "fill-color": "rgba(255, 55, 95, 0.1)",
-      "fill-opacity": 1,
+      "fill-opacity": 0,
     },
   });
 
@@ -4477,6 +4476,10 @@ function renderStationCanvasOverlay() {
   const features = getStationCanvasFeatures();
   const submarineFeatures = getSubmarineStationCanvasFeatures();
   const zoom = map.getZoom();
+
+  drawWaveCanvasRadiusFill(context, waveCanvasRadiusState.p, "rgba(45, 212, 255, 0.08)");
+  drawWaveCanvasRadiusFill(context, waveCanvasRadiusState.s, "rgba(255, 55, 95, 0.1)");
+
   if ((state.showStationLayer && features.length) || (state.showSubmarineStationLayer && submarineFeatures.length)) {
     const radius = interpolateByZoom(zoom, [
       [4, 7.5],
@@ -4647,6 +4650,32 @@ function drawSubmarineStationCanvasMarker(context, x, y, radius, fontSize, label
   context.fillStyle = textColor;
   context.strokeText(String(properties.intensityShortLabel ?? ""), x, y + 0.35);
   context.fillText(String(properties.intensityShortLabel ?? ""), x, y + 0.35);
+  context.restore();
+}
+
+function drawWaveCanvasRadiusFill(context, radiusKm, color) {
+  if (!Number.isFinite(radiusKm) || radiusKm <= 0) {
+    return;
+  }
+
+  const ring = buildGeodesicCircle(simulationEpicenter, radiusKm);
+  if (ring.length < 3) {
+    return;
+  }
+
+  context.save();
+  context.fillStyle = color;
+  context.beginPath();
+  ring.forEach((coordinate, index) => {
+    const point = map.project({ lng: coordinate[0], lat: coordinate[1] });
+    if (index === 0) {
+      context.moveTo(point.x, point.y);
+      return;
+    }
+    context.lineTo(point.x, point.y);
+  });
+  context.closePath();
+  context.fill();
   context.restore();
 }
 
