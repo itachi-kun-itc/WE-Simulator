@@ -3,6 +3,7 @@ const BOUNDARY_LAYERS_URL = "./data/boundary_layers.geojson";
 const JMA_LOCAL_AREAS_URL = "./data/jma_local_areas.geojson";
 const JMA_EPICENTER_AREAS_URL = "./data/jma_epicenter_areas.geojson";
 const PLATE_BOUNDARIES_URL = "./data/plate_boundaries.geojson";
+const ACTIVE_FAULT_SEGMENTS_URL = "./data/activefault_japan_segments.geojson";
 const SURROUNDING_LAND_URL = "./data/surrounding_land.geojson";
 const NORTHERN_ISLANDS_LAND_URL = "./data/northern_islands_land.geojson";
 const GROUND_MODEL_URL = "./data/ground_model.json";
@@ -584,6 +585,7 @@ const state = {
   showStationLayer: false,
   showRegionLayer: false,
   showEewWarningLayer: false,
+  showFaultLayer: false,
   selectedPresetId: "",
   intensityColorScheme: "normal",
   eewWarningForecastAreas: [],
@@ -626,9 +628,11 @@ const els = {
   stationLayerToggle: document.querySelector("#station-layer-toggle"),
   regionLayerToggle: document.querySelector("#region-layer-toggle"),
   eewWarningToggle: document.querySelector("#eew-warning-toggle"),
+  faultLayerToggle: document.querySelector("#fault-layer-toggle"),
   simulationStationLayerToggle: document.querySelector("#simulation-station-layer-toggle"),
   simulationRegionLayerToggle: document.querySelector("#simulation-region-layer-toggle"),
   simulationEewWarningToggle: document.querySelector("#simulation-eew-warning-toggle"),
+  simulationFaultLayerToggle: document.querySelector("#simulation-fault-layer-toggle"),
   resetEpicenter: document.querySelector("#reset-epicenter"),
   setupSheetToggle: document.querySelector("#setup-sheet-toggle"),
   simulationSheetToggle: document.querySelector("#simulation-sheet-toggle"),
@@ -665,6 +669,8 @@ let epicenterAreaData;
 let epicenterAreaLoadPromise;
 let plateBoundaryData;
 let plateBoundaryLoadPromise;
+let activeFaultData;
+let activeFaultLoadPromise;
 let surroundingLandData;
 let surroundingLandLoadPromise;
 let northernIslandsLandData;
@@ -1202,9 +1208,11 @@ function bindSimulationControls() {
   els.stationLayerToggle.addEventListener("change", () => updateDisplayMode());
   els.regionLayerToggle.addEventListener("change", () => updateDisplayMode());
   els.eewWarningToggle.addEventListener("change", () => updateDisplayMode());
+  els.faultLayerToggle?.addEventListener("change", () => updateDisplayMode());
   els.simulationStationLayerToggle.addEventListener("change", () => syncSimulationLayerToggles());
   els.simulationRegionLayerToggle.addEventListener("change", () => syncSimulationLayerToggles());
   els.simulationEewWarningToggle.addEventListener("change", () => syncSimulationLayerToggles());
+  els.simulationFaultLayerToggle?.addEventListener("change", () => syncSimulationLayerToggles());
   els.currentLocationToggle?.addEventListener("change", () => toggleCurrentLocationLink());
   els.simulationStart.addEventListener("click", () => {
     if (state.simulationRunning) {
@@ -1223,10 +1231,18 @@ function bindSimulationControls() {
     state.depthKm = 10;
     state.magnitude = 3.5;
     state.selectedPresetId = "";
+    state.showFaultLayer = false;
+    if (els.faultLayerToggle) {
+      els.faultLayerToggle.checked = false;
+    }
+    if (els.simulationFaultLayerToggle) {
+      els.simulationFaultLayerToggle.checked = false;
+    }
     state.epicenterName = "未選択";
     state.municipalityName = "未選択";
     invalidateIntensityEstimateCache();
     syncInputs();
+    updateFaultLayerVisibility();
     updateEpicenter({ resolveLocation: true, enforceManagedArea: true });
     resetViewAnimating = true;
     updateSimulationAvailability();
@@ -2608,6 +2624,7 @@ function createSourceInfoOverlay(adminOverlay) {
 
   const closeButton = overlay.querySelector(".source-info-close");
   const adminButton = overlay.querySelector(".source-admin-mode-button");
+  setupSourceInfoTabs(overlay);
   const closeOverlay = () => {
     overlay.classList.add("hidden");
     document.body.classList.remove("source-overlay-open");
@@ -2632,6 +2649,24 @@ function createSourceInfoOverlay(adminOverlay) {
   return overlay;
 }
 
+function setupSourceInfoTabs(overlay) {
+  const tabs = [...overlay.querySelectorAll(".source-info-tab")];
+  const panels = [...overlay.querySelectorAll(".source-info-tab-panel")];
+  tabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      const targetPanelId = tab.getAttribute("aria-controls");
+      tabs.forEach((item) => {
+        const selected = item === tab;
+        item.classList.toggle("is-active", selected);
+        item.setAttribute("aria-selected", String(selected));
+      });
+      panels.forEach((panel) => {
+        panel.classList.toggle("hidden", panel.id !== targetPanelId);
+      });
+    });
+  });
+}
+
 function createMaintenanceModeOverlay() {
   const overlay = document.createElement("section");
   overlay.className = "maintenance-mode-overlay hidden";
@@ -2640,7 +2675,6 @@ function createMaintenanceModeOverlay() {
     <div class="maintenance-mode-dialog">
       <h2>只今メンテナンス中です。</h2>
       <p>しばらくお待ち下さい。</p>
-      <p>詳しくは管理者にお問い合わせください。</p>
     </div>
   `;
   return overlay;
@@ -3125,7 +3159,6 @@ function updateMaintenanceOverlayMessage(overlay, reason = "") {
     <h2>只今メンテナンス中です</h2>
     <p class="maintenance-mode-reason ${reason ? "" : "hidden"}">${reason ? `詳細：${escapeHtml(reason)}` : ""}</p>
     <p>しばらくお待ち下さい。</p>
-    <p>詳しくは管理者にお問い合わせください。</p>
   `;
 }
 
@@ -3308,7 +3341,7 @@ function buildFeedbackOverlayHtml() {
     <button class="source-info-close" type="button" aria-label="フィードバックを閉じる">×</button>
     <form class="source-info-overlay-content feedback-form" id="feedback-form">
       <header class="source-info-header">
-        <p>FEEDBACK</p>
+        <p>Feedback</p>
         <h2>フィードバック</h2>
       </header>
       <label class="feedback-field" for="feedback-message">
@@ -3378,14 +3411,59 @@ function buildSourceInfoOverlayHtml() {
     <button class="source-info-close" type="button" aria-label="出典を閉じる">×</button>
     <div class="source-info-overlay-content">
       <header class="source-info-header">
-        <p>SOURCES</p>
-        <h2>出典一覧</h2>
+        <p>Sources and Privacy-policy</p>
+        <h2>出典・プライバシーポリシー</h2>
       </header>
-      <div class="source-info-sections">${sections}</div>
+      <div class="source-info-tabs" role="tablist" aria-label="出典とプライバシーポリシー">
+        <button class="source-info-tab is-active" id="source-tab-sources" type="button" role="tab" aria-selected="true" aria-controls="source-panel-sources">出典</button>
+        <button class="source-info-tab" id="source-tab-privacy" type="button" role="tab" aria-selected="false" aria-controls="source-panel-privacy">プライバシーポリシー</button>
+      </div>
+      <div class="source-info-tab-panel" id="source-panel-sources" role="tabpanel" aria-labelledby="source-tab-sources">
+        <div class="source-info-sections">${sections}</div>
+      </div>
+      <div class="source-info-tab-panel hidden" id="source-panel-privacy" role="tabpanel" aria-labelledby="source-tab-privacy">
+        ${buildPrivacyPolicyHtml()}
+      </div>
     </div>
     <div class="source-info-footer">
       <button class="source-admin-mode-button" type="button">管理者モード</button>
       <p class="source-info-updated">最終更新：${formatSourceUpdatedAt(SOURCE_UPDATED_AT)}</p>
+    </div>
+  `;
+}
+
+function buildPrivacyPolicyHtml() {
+  return `
+    <div class="source-info-sections privacy-policy-sections">
+      <section class="source-info-section">
+        <h3>取得する情報</h3>
+        <p>本サイトは、震源設定や地図表示、フィードバック送信のために必要な範囲で情報を扱います。</p>
+        <ul>
+          <li>現在地機能を利用した場合の緯度・経度、現在地名、推定震度などの表示用情報</li>
+          <li>フィードバックとして入力された内容</li>
+          <li>フィードバック送信時の送信日時、送信元のユーザーエージェント</li>
+        </ul>
+      </section>
+      <section class="source-info-section">
+        <h3>利用目的</h3>
+        <p>取得した情報は、シミュレーション表示、問い合わせ対応、動作改善のために利用します。</p>
+      </section>
+      <section class="source-info-section">
+        <h3>外部送信</h3>
+        <p>フィードバック内容は、管理者のGoogle Apps ScriptおよびGoogleスプレッドシートへ送信されます。現在地は、利用者が現在地機能を許可した場合にブラウザから取得され、画面表示や計算に利用されます。</p>
+      </section>
+      <section class="source-info-section">
+        <h3>保存期間と管理</h3>
+        <p>送信された内容は管理者が必要な範囲で保管し、不要になった情報は適宜削除します。</p>
+      </section>
+      <section class="source-info-section">
+        <h3>第三者提供</h3>
+        <p>法令に基づく場合を除き、取得した情報を第三者へ提供しません。</p>
+      </section>
+      <section class="source-info-section">
+        <h3>問い合わせ</h3>
+        <p>本サイトに関する問い合わせは、<a href="mailto:akurah3000@icloud.com">akurah3000@icloud.com</a> までご連絡ください。</p>
+      </section>
     </div>
   `;
 }
@@ -3410,6 +3488,7 @@ async function showMapLayers() {
   addGeoJsonSource("northern-islands-land", emptyFeatureCollection());
   addGeoJsonSource("jma-local-areas", emptyFeatureCollection());
   addGeoJsonSource("plate-boundaries", emptyFeatureCollection());
+  addGeoJsonSource("active-faults", emptyFeatureCollection());
   addGeoJsonSource("shindo-stations", emptyFeatureCollection());
   addGeoJsonSource("p-wave", emptyFeatureCollection());
   addGeoJsonSource("s-wave", emptyFeatureCollection());
@@ -3879,6 +3958,22 @@ function addMapLayers() {
   });
 
   addLayerIfMissing({
+    id: "active-fault-lines",
+    type: "line",
+    source: "active-faults",
+    layout: {
+      "line-cap": "round",
+      "line-join": "round",
+    },
+    paint: {
+      "line-color": "#ff4d6d",
+      "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.62, 7, 0.78, 10, 0.92],
+      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 1.15, 7, 1.75, 10, 2.55],
+    },
+  });
+  updateLayerVisibility("active-fault-lines", state.showFaultLayer);
+
+  addLayerIfMissing({
     id: "jma-intensity-fill",
     type: "fill",
     source: "jma-local-areas",
@@ -4036,6 +4131,7 @@ function moveLayerToTop(layerId) {
 function keepWaveAndStationLayerOrder() {
   moveLayerToTop("northern-islands-land-fill");
   moveLayerToTop("northern-islands-land-outline");
+  moveLayerToTop("active-fault-lines");
   moveLayerToTop("p-wave-fill");
   moveLayerToTop("s-wave-fill");
   moveLayerToTop("shindo-station-points");
@@ -4460,12 +4556,17 @@ function updateDisplayMode() {
   state.showStationLayer = els.stationLayerToggle.checked;
   state.showRegionLayer = els.regionLayerToggle.checked;
   state.showEewWarningLayer = els.eewWarningToggle.checked;
+  state.showFaultLayer = Boolean(els.faultLayerToggle?.checked);
   els.simulationStationLayerToggle.checked = state.showStationLayer;
   els.simulationRegionLayerToggle.checked = state.showRegionLayer;
   els.simulationEewWarningToggle.checked = state.showEewWarningLayer;
+  if (els.simulationFaultLayerToggle) {
+    els.simulationFaultLayerToggle.checked = state.showFaultLayer;
+  }
   updateLayerVisibility("shindo-station-points", state.showStationLayer);
   updateLayerVisibility("jma-intensity-fill", state.showRegionLayer);
   updateLayerVisibility("eew-warning-fill", state.showEewWarningLayer);
+  updateFaultLayerVisibility();
   if (state.showStationLayer && map?.getSource("shindo-stations")) {
     setGeoJsonSourceData("shindo-stations", getStationIntensityDataForElapsed(getSimulationStationElapsedSec()));
     keepWaveAndStationLayerOrder();
@@ -4474,13 +4575,45 @@ function updateDisplayMode() {
   updateEewForecastPanel();
 }
 
+function updateFaultLayerVisibility() {
+  updateLayerVisibility("active-fault-lines", state.showFaultLayer);
+  if (!state.showFaultLayer || !map?.getSource("active-faults")) {
+    return;
+  }
+
+  loadActiveFaultSegments()
+    .then((faults) => {
+      if (!state.showFaultLayer || !map?.getSource("active-faults")) {
+        return;
+      }
+      setGeoJsonSourceData("active-faults", faults);
+      updateLayerVisibility("active-fault-lines", true);
+      keepWaveAndStationLayerOrder();
+    })
+    .catch((error) => {
+      console.warn(error);
+      state.showFaultLayer = false;
+      if (els.faultLayerToggle) {
+        els.faultLayerToggle.checked = false;
+      }
+      if (els.simulationFaultLayerToggle) {
+        els.simulationFaultLayerToggle.checked = false;
+      }
+      updateLayerVisibility("active-fault-lines", false);
+    });
+}
+
 function syncSimulationLayerToggles() {
   state.showStationLayer = els.simulationStationLayerToggle.checked;
   state.showRegionLayer = els.simulationRegionLayerToggle.checked;
   state.showEewWarningLayer = els.simulationEewWarningToggle.checked;
+  state.showFaultLayer = Boolean(els.simulationFaultLayerToggle?.checked);
   els.stationLayerToggle.checked = state.showStationLayer;
   els.regionLayerToggle.checked = state.showRegionLayer;
   els.eewWarningToggle.checked = state.showEewWarningLayer;
+  if (els.faultLayerToggle) {
+    els.faultLayerToggle.checked = state.showFaultLayer;
+  }
   updateDisplayMode();
 }
 
@@ -5071,9 +5204,13 @@ async function startSimulation() {
   state.showStationLayer = els.stationLayerToggle.checked;
   state.showRegionLayer = els.regionLayerToggle.checked;
   state.showEewWarningLayer = els.eewWarningToggle.checked;
+  state.showFaultLayer = Boolean(els.faultLayerToggle?.checked);
   els.simulationStationLayerToggle.checked = state.showStationLayer;
   els.simulationRegionLayerToggle.checked = state.showRegionLayer;
   els.simulationEewWarningToggle.checked = state.showEewWarningLayer;
+  if (els.simulationFaultLayerToggle) {
+    els.simulationFaultLayerToggle.checked = state.showFaultLayer;
+  }
   updateEpicenterEditMode();
   simulationStartedAt = performance.now();
   simulationPausedAt = null;
@@ -5081,6 +5218,7 @@ async function startSimulation() {
   updateLayerVisibility("shindo-station-points", state.showStationLayer);
   updateLayerVisibility("jma-intensity-fill", state.showRegionLayer);
   updateLayerVisibility("eew-warning-fill", state.showEewWarningLayer);
+  updateFaultLayerVisibility();
   updateEewReplacementMode();
   updateEewForecastPanel();
   updateSimulationSummary(0);
@@ -5549,6 +5687,19 @@ async function loadPlateBoundaries() {
   return plateBoundaryData;
 }
 
+async function loadActiveFaultSegments() {
+  if (activeFaultData) {
+    return activeFaultData;
+  }
+
+  if (!activeFaultLoadPromise) {
+    activeFaultLoadPromise = fetchJson(ACTIVE_FAULT_SEGMENTS_URL, "Active fault segment GeoJSON");
+  }
+
+  activeFaultData = await activeFaultLoadPromise;
+  return activeFaultData;
+}
+
 async function loadSurroundingLand() {
   if (surroundingLandData) {
     return surroundingLandData;
@@ -5898,9 +6049,15 @@ function syncInputs() {
   els.stationLayerToggle.checked = state.showStationLayer;
   els.regionLayerToggle.checked = state.showRegionLayer;
   els.eewWarningToggle.checked = state.showEewWarningLayer;
+  if (els.faultLayerToggle) {
+    els.faultLayerToggle.checked = state.showFaultLayer;
+  }
   els.simulationStationLayerToggle.checked = state.showStationLayer;
   els.simulationRegionLayerToggle.checked = state.showRegionLayer;
   els.simulationEewWarningToggle.checked = state.showEewWarningLayer;
+  if (els.simulationFaultLayerToggle) {
+    els.simulationFaultLayerToggle.checked = state.showFaultLayer;
+  }
   updateEarthquakePresetButtonLabel();
 }
 
