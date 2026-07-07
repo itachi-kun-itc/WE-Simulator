@@ -162,15 +162,21 @@
                 <h2 id="preset-picker-title">プリセット地震</h2>
                 <button class="preset-picker-close" id="preset-picker-close" type="button" aria-label="閉じる"></button>
               </div>
+              <p class="preset-picker-description">一覧表から地震を選択すると、シミュレーターで再現が可能です。</p>
               <div class="preset-picker-table-wrap">
                 <table class="preset-picker-table">
                   <thead>
                     <tr>
-                      <th><span class="preset-sort-head"><span>地震の発生日時</span><button class="preset-sort-button" type="button" data-preset-sort-key="date" aria-label="地震の発生日時の並び順を切り替え">↕</button></span></th>
-                      <th><span class="preset-sort-head"><span>震央地名</span><button class="preset-sort-button" type="button" data-preset-sort-key="epicenter" aria-label="震央地名の並び順を切り替え">↕</button></span></th>
-                      <th><span class="preset-sort-head"><span>深さ</span><button class="preset-sort-button" type="button" data-preset-sort-key="depth" aria-label="深さの並び順を切り替え">↕</button></span></th>
-                      <th><span class="preset-sort-head"><span>マグニチュード</span><button class="preset-sort-button" type="button" data-preset-sort-key="magnitude" aria-label="マグニチュードの並び順を切り替え">↕</button></span></th>
-                      <th><span class="preset-sort-head"><span>最大震度</span><button class="preset-sort-button" type="button" data-preset-sort-key="intensity" aria-label="最大震度の並び順を切り替え">↕</button></span></th>
+                      <th><span class="preset-sort-head"><span>地震の発生日時</span><button class="preset-sort-button" type="button" data-preset-sort-key="date" aria-label="地震の発生日時の並び順を切り替え">▲
+▼</button></span></th>
+                      <th><span class="preset-sort-head"><span>震源地</span><button class="preset-sort-button" type="button" data-preset-sort-key="epicenter" aria-label="震源地の並び順を切り替え">▲
+▼</button></span></th>
+                      <th><span class="preset-sort-head"><span>深さ</span><button class="preset-sort-button" type="button" data-preset-sort-key="depth" aria-label="深さの並び順を切り替え">▲
+▼</button></span></th>
+                      <th><span class="preset-sort-head"><span>マグニチュード</span><button class="preset-sort-button" type="button" data-preset-sort-key="magnitude" aria-label="マグニチュードの並び順を切り替え">▲
+▼</button></span></th>
+                      <th><span class="preset-sort-head"><span>最大震度</span><button class="preset-sort-button" type="button" data-preset-sort-key="intensity" aria-label="最大震度の並び順を切り替え">▲
+▼</button></span></th>
                     </tr>
                   </thead>
                   <tbody id="preset-picker-list"></tbody>
