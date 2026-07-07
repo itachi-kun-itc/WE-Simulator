@@ -1907,7 +1907,7 @@ body.app-loading #setup-panel button:not(#simulation-start) {
 
 .intensity-legend {
   position: absolute;
-  right: 14.3px;
+  right: 14.6px;
   bottom: 8px;
   z-index: 900;
   width: 34px;
