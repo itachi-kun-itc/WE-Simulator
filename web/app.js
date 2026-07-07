@@ -761,7 +761,7 @@ const SOURCE_LINKS = [
   { label: "NIED | 海底地震津波観測網 | 日本海溝海底地震津波観測網：S-net", href: "https://www.seafloor.bosai.go.jp/outline/" },
   { label: "気象研究所 プレート形状データ / Hirose Fuyuki", href: "https://www.mri-jma.go.jp/Dep/sei/fhirose/plate/PlateData.html" },
 ];
-const SOURCE_UPDATED_AT = "2026 07 05";
+const SOURCE_UPDATED_AT = "2026 07 08";
 const SOURCE_SECTIONS = [
   {
     title: "気象庁",
@@ -1753,10 +1753,12 @@ function setupPanelScrollbarOffsets() {
 
 function shouldOffsetForPanelScrollbar() {
   const compactPhone = window.matchMedia("(max-width: 720px)").matches;
-  const phoneLandscape = window.matchMedia(
-    "(pointer: coarse) and (orientation: landscape) and (max-height: 720px)",
-  ).matches;
-  return !compactPhone && !phoneLandscape;
+  const landscapeSidePanel = isLandscapeSidePanelViewport();
+  return !compactPhone && !landscapeSidePanel;
+}
+
+function isLandscapeSidePanelViewport() {
+  return window.matchMedia("(orientation: landscape) and (max-width: 1180px) and (max-height: 720px)").matches;
 }
 
 function isCompactViewport() {
@@ -4808,6 +4810,10 @@ function getInitialMapView() {
 }
 
 function getInitialMapPaddingForViewport() {
+  if (isLandscapeSidePanelViewport()) {
+    return getLandscapeSidePanelMapPaddingForViewport();
+  }
+
   if (isCompactViewport()) {
     return getCompactMapPaddingForViewport();
   }
@@ -4816,6 +4822,19 @@ function getInitialMapPaddingForViewport() {
   const legendRect = document.querySelector(".intensity-legend")?.getBoundingClientRect();
   const leftEdge = Math.ceil(handleRect?.right ?? els.setupPanel?.getBoundingClientRect()?.right ?? 374);
   const rightEdge = Math.floor(legendRect?.left ?? window.innerWidth);
+  return normalizeMapPaddingForViewport({
+    top: 0,
+    right: Math.max(window.innerWidth - rightEdge, 0),
+    bottom: 0,
+    left: Math.max(leftEdge, 0),
+  });
+}
+
+function getLandscapeSidePanelMapPaddingForViewport() {
+  const handleRect = getActiveMenuHandleRect();
+  const controlsRect = document.querySelector(".maplibregl-ctrl-top-right")?.getBoundingClientRect();
+  const leftEdge = Math.ceil(handleRect?.right ?? els.setupPanel?.getBoundingClientRect()?.right ?? 374);
+  const rightEdge = Math.floor(controlsRect?.left ?? window.innerWidth);
   return normalizeMapPaddingForViewport({
     top: 0,
     right: Math.max(window.innerWidth - rightEdge, 0),
