@@ -1927,6 +1927,9 @@ body.app-loading #setup-panel button:not(#simulation-start) {
   font-size: 0.74rem;
   line-height: 1;
   text-align: center;
+  text-orientation: mixed;
+  white-space: nowrap;
+  writing-mode: horizontal-tb;
 }
 
 .intensity-scale {
@@ -2469,6 +2472,7 @@ body.app-loading #setup-panel button:not(#simulation-start) {
 
   .intensity-legend h2 {
     display: grid;
+    flex: 0 0 34px;
     min-width: 34px;
     place-items: center;
     border-right: 1px solid rgba(255, 255, 255, 0.22);
@@ -2621,8 +2625,8 @@ body.app-loading #setup-panel button:not(#simulation-start) {
 
   .intensity-legend {
     left: auto;
-    right: calc(env(safe-area-inset-right) + 67px);
-    top: calc(env(safe-area-inset-top) + 9px);
+    right: calc(env(safe-area-inset-right) + 59px);
+    top: calc(env(safe-area-inset-top) + 9.8px);
     bottom: auto;
     z-index: 901;
     display: flex;
@@ -2632,11 +2636,12 @@ body.app-loading #setup-panel button:not(#simulation-start) {
 
   .intensity-legend h2 {
     display: grid;
-    min-width: 30px;
+    flex: 0 0 34px;
+    min-width: 34px;
     place-items: center;
     border-right: 1px solid rgba(255, 255, 255, 0.22);
     border-bottom: 0;
-    padding: 0 5px;
+    padding: 0 4px;
     font-size: 0.68rem;
   }
 
@@ -2654,6 +2659,13 @@ body.app-loading #setup-panel button:not(#simulation-start) {
 
   .intensity-scale span:last-child {
     border-right: 0;
+  }
+}
+
+@media (orientation: landscape) and (max-width: 980px) and (max-height: 720px) and (hover: none) and (pointer: coarse) {
+  .intensity-legend {
+    right: calc(env(safe-area-inset-right) + 42px);
+    top: calc(env(safe-area-inset-top) + 9px);
   }
 }
 
