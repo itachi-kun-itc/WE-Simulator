@@ -15,6 +15,7 @@ const FEEDBACK_ENDPOINT_URL =
 const MAINTENANCE_ENDPOINT_URL = FEEDBACK_ENDPOINT_URL;
 const ADMIN_PARENT_TOKEN_KEY = "weather-earthquake-admin-parent-token";
 const MAINTENANCE_STATUS_POLL_MS = 60000;
+const LOCAL_PARENT_UNAVAILABLE_LABEL = "Localサーバーでは\n親端末に設定できません";
 
 const INITIAL_CENTER = [139.767, 35.681];
 const INITIAL_ZOOM = 6;
@@ -671,6 +672,7 @@ let stationIntensityFeatureCache;
 let predictedMaximumCache;
 let presetObservationLookupCache;
 let presetPickerScrollClampFrame = 0;
+let presetPickerTouchStart = null;
 let hyogoNanbuSyntheticStationCache;
 let stationPopup;
 let stationClickPopup;
@@ -780,6 +782,7 @@ let areaDataCache = {
   bucket: null,
   data: null,
 };
+let localAreaNearbyStationCache = new Map();
 let lastManagedEpicenter = {
   latitude: state.latitude,
   longitude: state.longitude,
@@ -1062,6 +1065,15 @@ function schedulePresetPickerScrollClamp() {
   presetPickerScrollClampFrame = requestAnimationFrame(clampPresetPickerScrollBounds);
 }
 
+function clampPresetPickerScrollBoundsNow() {
+  if (presetPickerScrollClampFrame) {
+    cancelAnimationFrame(presetPickerScrollClampFrame);
+    presetPickerScrollClampFrame = 0;
+  }
+
+  clampPresetPickerScrollBounds();
+}
+
 function clampPresetPickerScrollBounds() {
   presetPickerScrollClampFrame = 0;
 
@@ -1081,6 +1093,37 @@ function clampPresetPickerScrollBounds() {
 
   if (Math.abs(nextTop - scrollElement.scrollTop) > 0.5) {
     scrollElement.scrollTop = nextTop;
+  }
+}
+
+function trackPresetPickerTouchStart(event) {
+  const touch = event.touches?.[0];
+  presetPickerTouchStart = touch ? { x: touch.clientX, y: touch.clientY } : null;
+}
+
+function limitPresetPickerOverscroll(event) {
+  const scrollElement = els.presetPickerTableWrap;
+  const touch = event.touches?.[0];
+  if (!scrollElement || !touch || !presetPickerTouchStart) {
+    return;
+  }
+
+  const deltaX = touch.clientX - presetPickerTouchStart.x;
+  const deltaY = touch.clientY - presetPickerTouchStart.y;
+  const horizontalSwipe = Math.abs(deltaX) > Math.abs(deltaY);
+
+  const maxLeft = Math.max(0, scrollElement.scrollWidth - scrollElement.clientWidth);
+  const maxTop = Math.max(0, scrollElement.scrollHeight - scrollElement.clientHeight);
+  const pullingPastLeft = scrollElement.scrollLeft <= 0.5 && deltaX > 0;
+  const pullingPastRight = scrollElement.scrollLeft >= maxLeft - 0.5 && deltaX < 0;
+  const pullingPastTop = scrollElement.scrollTop <= 0.5 && deltaY > 0;
+  const pullingPastBottom = scrollElement.scrollTop >= maxTop - 0.5 && deltaY < 0;
+  const pullingPastHorizontalEdge = horizontalSwipe && (pullingPastLeft || pullingPastRight);
+  const pullingPastVerticalEdge = !horizontalSwipe && (pullingPastTop || pullingPastBottom);
+
+  if (pullingPastHorizontalEdge || pullingPastVerticalEdge) {
+    event.preventDefault();
+    clampPresetPickerScrollBoundsNow();
   }
 }
 
@@ -1129,8 +1172,15 @@ function bindSimulationControls() {
       closeEarthquakePresetPicker();
     }
   });
-  els.presetPickerTableWrap?.addEventListener("scroll", () => schedulePresetPickerScrollClamp(), { passive: true });
-  els.presetPickerTableWrap?.addEventListener("touchend", () => schedulePresetPickerScrollClamp(), { passive: true });
+  els.presetPickerTableWrap?.addEventListener("scroll", () => clampPresetPickerScrollBoundsNow(), { passive: true });
+  els.presetPickerTableWrap?.addEventListener("touchstart", trackPresetPickerTouchStart, { passive: true });
+  els.presetPickerTableWrap?.addEventListener("touchmove", limitPresetPickerOverscroll, { passive: false });
+  els.presetPickerTableWrap?.addEventListener("touchend", () => clampPresetPickerScrollBoundsNow(), { passive: true });
+  els.presetPickerTableWrap?.addEventListener("touchcancel", () => {
+    presetPickerTouchStart = null;
+    clampPresetPickerScrollBoundsNow();
+  }, { passive: true });
+  els.presetPickerTableWrap?.addEventListener("pointerup", () => clampPresetPickerScrollBoundsNow(), { passive: true });
   window.addEventListener("resize", () => schedulePresetPickerScrollClamp());
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !els.presetPickerOverlay?.classList.contains("hidden")) {
@@ -1779,10 +1829,19 @@ function addSourceInfoControl() {
   const adminOverlay = createAdminModeOverlay();
   const maintenanceOverlay = createMaintenanceModeOverlay();
   const maintenanceBadge = createMaintenanceModeBadge();
+  const localServerBadge = createLocalServerBadge();
   const sourceOverlay = createSourceInfoOverlay(adminOverlay);
   const feedbackOverlay = createFeedbackOverlay();
   const speechConfirmOverlay = createSpeechConfirmOverlay();
-  document.body.append(sourceOverlay, feedbackOverlay, speechConfirmOverlay, adminOverlay, maintenanceOverlay, maintenanceBadge);
+  document.body.append(
+    sourceOverlay,
+    feedbackOverlay,
+    speechConfirmOverlay,
+    adminOverlay,
+    maintenanceOverlay,
+    maintenanceBadge,
+    localServerBadge,
+  );
   setupMaintenanceMode(maintenanceOverlay, maintenanceBadge);
 
   const sourceInfoControl = {
@@ -2577,6 +2636,14 @@ function createMaintenanceModeBadge() {
   return badge;
 }
 
+function createLocalServerBadge() {
+  const badge = document.createElement("div");
+  badge.className = "local-server-badge";
+  badge.textContent = "Localサーバー";
+  badge.classList.toggle("hidden", !isLocalDevelopmentHost());
+  return badge;
+}
+
 function createAdminModeOverlay() {
   const overlay = document.createElement("section");
   overlay.className = "source-info-overlay admin-mode-overlay hidden";
@@ -2592,7 +2659,7 @@ function createAdminModeOverlay() {
         <input id="admin-mode-password" type="password" autocomplete="current-password" />
       </label>
       <div class="admin-mode-actions">
-        <button class="admin-mode-login" type="submit">親端末にする</button>
+        <button class="admin-mode-login" type="submit">親端末に設定</button>
         <button class="admin-mode-maintenance" id="admin-maintenance-toggle" type="button" disabled>メンテナンスモード</button>
       </div>
       <p class="admin-mode-status" id="admin-mode-status" role="status" aria-live="polite"></p>
@@ -2626,7 +2693,7 @@ function createAdminModeOverlay() {
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (isLocalDevelopmentHost()) {
-      setAdminModeStatus(status, "Localサーバーでは親端末に設定できません。", true);
+      setAdminModeStatus(status, "Localサーバーでは親端末に設定できません", true);
       updateAdminModeControls(overlay);
       return;
     }
@@ -2636,6 +2703,7 @@ function createAdminModeOverlay() {
       setAdminModeStatus(status, "解除中...");
       if (loginButton) {
         loginButton.disabled = true;
+        loginButton.textContent = "解除中...";
       }
       if (toggleButton) {
         toggleButton.disabled = true;
@@ -2655,7 +2723,14 @@ function createAdminModeOverlay() {
       setAdminModeStatus(status, current.maintenance ? "親端末を解除し、メンテナンスモードも解除しました。" : "親端末を解除しました。");
       return;
     }
-    setAdminModeStatus(status, "確認中...");
+    setAdminModeStatus(status, "認証中...");
+    if (loginButton) {
+      loginButton.disabled = true;
+      loginButton.textContent = "認証中...";
+    }
+    if (toggleButton) {
+      toggleButton.disabled = true;
+    }
     const result = await postMaintenanceAction("adminLogin", {
       password: passwordInput?.value ?? "",
     });
@@ -2682,14 +2757,22 @@ function createAdminModeOverlay() {
       return;
     }
 
-    setAdminModeStatus(status, "切替中...");
     const current = await fetchMaintenanceStatus();
     const nextMaintenance = !Boolean(current.maintenance);
+    setAdminModeStatus(status, nextMaintenance ? "設定中..." : "解除中...");
+    if (toggleButton) {
+      toggleButton.disabled = true;
+      toggleButton.textContent = nextMaintenance ? "設定中..." : "解除中...";
+    }
+    if (loginButton) {
+      loginButton.disabled = true;
+    }
     const result = await postMaintenanceAction("setMaintenance", {
       token,
       maintenance: nextMaintenance,
     });
     if (!result.ok) {
+      updateAdminModeControls(overlay, current);
       setAdminModeStatus(status, result.message || "切替に失敗しました。", true);
       return;
     }
@@ -2719,12 +2802,16 @@ function updateAdminModeControls(overlay, maintenanceStatus = null) {
   }
 
   const isParentTerminal = Boolean(localStorage.getItem(ADMIN_PARENT_TOKEN_KEY));
+  const passwordInput = overlay.querySelector("#admin-mode-password");
   const loginButton = overlay.querySelector(".admin-mode-login");
   const toggleButton = overlay.querySelector("#admin-maintenance-toggle");
   if (isLocalDevelopmentHost()) {
+    if (passwordInput) {
+      passwordInput.disabled = true;
+    }
     if (loginButton) {
       loginButton.disabled = true;
-      loginButton.textContent = "Localサーバーでは親端末に設定できません。";
+      loginButton.textContent = LOCAL_PARENT_UNAVAILABLE_LABEL;
     }
     if (toggleButton) {
       toggleButton.disabled = true;
@@ -2733,9 +2820,12 @@ function updateAdminModeControls(overlay, maintenanceStatus = null) {
     return;
   }
 
+  if (passwordInput) {
+    passwordInput.disabled = isParentTerminal;
+  }
   if (loginButton) {
     loginButton.disabled = false;
-    loginButton.textContent = isParentTerminal ? "親端末を解除" : "親端末にする";
+    loginButton.textContent = isParentTerminal ? "親端末を解除" : "親端末に設定";
   }
   if (toggleButton) {
     toggleButton.disabled = !isParentTerminal;
@@ -2834,7 +2924,14 @@ async function postMaintenanceAction(action, payload = {}) {
     const response = await fetch(MAINTENANCE_ENDPOINT_URL, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ action, ...payload }),
+      body: JSON.stringify({
+        action,
+        ...payload,
+        page: location.href,
+        userAgent: navigator.userAgent,
+        createdAt: new Date().toISOString(),
+        sheet: FEEDBACK_SHEET_URL,
+      }),
     });
     if (!response.ok) {
       return { ok: false };
@@ -3887,7 +3984,7 @@ function getInitialMapView() {
 
 function getInitialMapPaddingForViewport() {
   if (isCompactViewport()) {
-    return { top: 0, right: 0, bottom: 0, left: 0 };
+    return getCompactMapPaddingForViewport();
   }
 
   const handleRect = getActiveMenuHandleRect();
@@ -3899,6 +3996,22 @@ function getInitialMapPaddingForViewport() {
     right: Math.max(window.innerWidth - rightEdge, 0),
     bottom: 0,
     left: Math.max(leftEdge, 0),
+  });
+}
+
+function getCompactMapPaddingForViewport() {
+  const mapRect = document.querySelector("#map")?.getBoundingClientRect();
+  const panelRect = getActiveBottomSheetRect();
+  if (!mapRect || !panelRect) {
+    return { top: 0, right: 0, bottom: 0, left: 0 };
+  }
+
+  const coveredHeight = Math.max(mapRect.bottom - Math.max(panelRect.top, mapRect.top), 0);
+  return normalizeMapPaddingForViewport({
+    top: 0,
+    right: 0,
+    bottom: coveredHeight,
+    left: 0,
   });
 }
 
@@ -3977,6 +4090,12 @@ function getActiveMenuHandleRect() {
   const panels = [els.setupPanel, els.simulationPanel].filter(Boolean);
   const activePanel = panels.find((panel) => !panel.classList.contains("hidden")) ?? els.setupPanel;
   return activePanel?.querySelector(".sheet-handle")?.getBoundingClientRect() ?? null;
+}
+
+function getActiveBottomSheetRect() {
+  const panels = [els.setupPanel, els.simulationPanel].filter(Boolean);
+  const activePanel = panels.find((panel) => !panel.classList.contains("hidden")) ?? els.setupPanel;
+  return activePanel?.getBoundingClientRect() ?? null;
 }
 
 function animateMapViewTo(options) {
@@ -4846,7 +4965,7 @@ function getWaveSurfaceRadiusKm(elapsedSec, velocityKmPerSec) {
 }
 
 function toSimulationBucket(elapsedSec) {
-  return Number.isFinite(elapsedSec) ? Math.max(Math.floor(elapsedSec * 4), 0) : Infinity;
+  return Number.isFinite(elapsedSec) ? Math.max(Math.floor(elapsedSec * 8), 0) : Infinity;
 }
 
 function updateSimulationSummary(elapsedSec = getSimulationStationElapsedSec()) {
@@ -5458,6 +5577,7 @@ function invalidateIntensityEstimateCache() {
   areaDataCache = { bucket: null, data: null };
   areaEpicentralDistanceCache = { key: "", distances: [] };
   localAreaStationMembershipCache = null;
+  localAreaNearbyStationCache = new Map();
   simulationRenderBucket = -1;
 }
 
@@ -5990,13 +6110,21 @@ function buildIntensityAreaData(geojson, elapsedSec = Infinity) {
     const predictedAreaStations = stationIds
       .map((stationId) => predictedStationById.get(stationId))
       .filter(Boolean);
+    const smoothedAreaStations = getSmoothedAreaStations(feature, index, areaStations, stationFeatures, activeStationById);
+    const smoothedPredictedAreaStations = getSmoothedAreaStations(
+      feature,
+      index,
+      predictedAreaStations,
+      predictedStationFeatures,
+      predictedStationById,
+    );
     const earliestPArrivalSec =
-      predictedAreaStations.length > 0
-        ? Math.min(...predictedAreaStations.map((stationFeature) => stationFeature.properties.pArrivalSec))
+      smoothedPredictedAreaStations.length > 0
+        ? Math.min(...smoothedPredictedAreaStations.map((stationFeature) => stationFeature.properties.pArrivalSec))
         : Infinity;
     const earliestSArrivalSec =
-      predictedAreaStations.length > 0
-        ? Math.min(...predictedAreaStations.map((stationFeature) => stationFeature.properties.sArrivalSec))
+      smoothedPredictedAreaStations.length > 0
+        ? Math.min(...smoothedPredictedAreaStations.map((stationFeature) => stationFeature.properties.sArrivalSec))
         : Infinity;
     const eewPWaveObserved =
       isSimulation &&
@@ -6007,18 +6135,16 @@ function buildIntensityAreaData(geojson, elapsedSec = Infinity) {
       !Number.isFinite(earliestSArrivalSec) ||
       elapsedSec < earliestSArrivalSec;
     const intensityValue =
-      areaStations.length > 0
-        ? Math.max(...areaStations.map((stationFeature) => stationFeature.properties.intensityValue))
+      smoothedAreaStations.length > 0
+        ? getSmoothedAreaIntensityValue(feature, smoothedAreaStations, "intensityValue")
         : isSimulation
           ? 0
           : selectedPreset
             ? 0
             : estimateMaxIntensityForFeature(feature);
     const predictedIntensityValue =
-      predictedAreaStations.length > 0
-        ? Math.max(
-            ...predictedAreaStations.map((stationFeature) => stationFeature.properties.predictedIntensityValue),
-          )
+      smoothedPredictedAreaStations.length > 0
+        ? getSmoothedAreaIntensityValue(feature, smoothedPredictedAreaStations, "predictedIntensityValue")
         : selectedPreset
           ? 0
           : estimateMaxIntensityForFeature(feature);
@@ -6111,6 +6237,97 @@ function buildIntensityAreaData(geojson, elapsedSec = Infinity) {
   };
 
   return data;
+}
+
+function getSmoothedAreaStations(areaFeature, areaIndex, areaStations, candidateStations, candidateStationById) {
+  if (!Array.isArray(candidateStations) || candidateStations.length === 0) {
+    return areaStations;
+  }
+
+  const stationById = new Map((areaStations ?? []).map((stationFeature) => [stationFeature.properties.id, stationFeature]));
+  const nearbyStationIds = getNearbyStationIdsForArea(areaFeature, areaIndex, candidateStations);
+
+  nearbyStationIds.forEach((stationId) => {
+    const stationFeature = candidateStationById.get(stationId);
+    if (stationFeature) {
+      stationById.set(stationFeature.properties.id, stationFeature);
+    }
+  });
+
+  return [...stationById.values()];
+}
+
+function getNearbyStationIdsForArea(areaFeature, areaIndex, candidateStations) {
+  const lastCandidate = candidateStations[candidateStations.length - 1];
+  const key = `${candidateStations.length}|${candidateStations[0]?.properties?.id ?? ""}|${lastCandidate?.properties?.id ?? ""}`;
+  const areaKey = `${key}|${areaIndex}`;
+
+  if (localAreaNearbyStationCache.has(areaKey)) {
+    return localAreaNearbyStationCache.get(areaKey);
+  }
+
+  const centroid = getFeatureCentroid(areaFeature);
+  if (!centroid) {
+    localAreaNearbyStationCache.set(areaKey, []);
+    return [];
+  }
+
+  const nearbyStationIds = candidateStations
+    .map((stationFeature) => {
+      const coordinates = stationFeature.geometry?.coordinates;
+      if (!Array.isArray(coordinates)) {
+        return null;
+      }
+
+      const distanceKm = haversineKilometers(centroid, coordinates);
+      if (distanceKm > 90) {
+        return null;
+      }
+
+      return { stationId: stationFeature.properties.id, distanceKm };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.distanceKm - b.distanceKm)
+    .slice(0, 10)
+    .map((item) => item.stationId);
+
+  localAreaNearbyStationCache.set(areaKey, nearbyStationIds);
+  return nearbyStationIds;
+}
+
+function getSmoothedAreaIntensityValue(areaFeature, stationFeatures, valueKey) {
+  const centroid = getFeatureCentroid(areaFeature);
+  if (!centroid || !Array.isArray(stationFeatures) || stationFeatures.length === 0) {
+    return 0;
+  }
+
+  const weightedStations = stationFeatures
+    .map((stationFeature) => {
+      const value = Number(stationFeature.properties?.[valueKey] ?? 0);
+      const coordinates = stationFeature.geometry?.coordinates;
+      if (!Number.isFinite(value) || value <= 0 || !Array.isArray(coordinates)) {
+        return null;
+      }
+
+      const distanceKm = haversineKilometers(centroid, coordinates);
+      const weight = 1 / Math.pow(distanceKm + 18, 1.45);
+      return { value, weight };
+    })
+    .filter(Boolean);
+
+  if (weightedStations.length === 0) {
+    return 0;
+  }
+
+  const totalWeight = weightedStations.reduce((sum, station) => sum + station.weight, 0);
+  const weightedAverage =
+    weightedStations.reduce((sum, station) => sum + station.value * station.weight, 0) / Math.max(totalWeight, 0.000001);
+  const localPeak = Math.max(...weightedStations.map((station) => station.value));
+  const peakInfluence = clamp((localPeak - weightedAverage) / 3.2, 0.18, 0.48);
+  const variability = stableUnitInterval(`${areaFeature.properties?.name ?? ""}|${valueKey}`) - 0.5;
+  const blendedValue = weightedAverage * (1 - peakInfluence) + localPeak * peakInfluence + variability * 0.18;
+
+  return clamp(blendedValue, 0, localPeak);
 }
 
 function shouldIssueSimulationEewFeature(feature, elapsedSec = Infinity) {
@@ -7031,8 +7248,7 @@ function buildStationIntensityData(data, elapsedSec = Infinity) {
             ...currentProperties,
           },
         };
-      })
-      .filter((feature) => feature.properties.intensityRank >= 1),
+      }),
   };
 }
 
@@ -7041,18 +7257,24 @@ function getCurrentIntensityProperties(properties, elapsedSec = Infinity) {
   const observed = !isSimulation || elapsedSec >= properties.pArrivalSec;
   const waveState = isSimulation && properties.sArrivalSec > elapsedSec ? "p" : "s";
   const riseProfile = getGroundRiseProfile(properties);
+  const sTransitionLeadSec = getSWaveTransitionLeadSec(properties);
   const riseProgress = isSimulation
-    ? groundAwareRiseProgress(elapsedSec - properties.sArrivalSec - (properties.sWaveRiseDelaySec ?? 0), riseProfile)
+    ? groundAwareRiseProgress(
+        elapsedSec - properties.sArrivalSec + sTransitionLeadSec - (properties.sWaveRiseDelaySec ?? 0),
+        riseProfile,
+      )
     : 1;
   const pWaveProgress = isSimulation
     ? getPWaveRiseProgress(properties, elapsedSec)
     : 1;
   const pWaveTarget = getPWaveIntensityTarget(properties);
   const pWaveIntensity = pWaveTarget * pWaveProgress;
-  const currentIntensityValue =
+  const rawCurrentIntensityValue =
     waveState === "p"
       ? pWaveIntensity
       : Math.max(pWaveIntensity, properties.predictedIntensityValue * riseProgress);
+  const recordedIntensityFloor = getPWaveRecordedIntensityFloor(properties, observed);
+  const currentIntensityValue = Math.max(rawCurrentIntensityValue, recordedIntensityFloor);
   const currentClass = getOldScaleDisplayIntensityClassIfNeeded(
     toJmaIntensityClass(currentIntensityValue),
     currentIntensityValue,
@@ -7074,6 +7296,22 @@ function getCurrentIntensityProperties(properties, elapsedSec = Infinity) {
   };
 }
 
+function getPWaveRecordedIntensityFloor(properties, observed) {
+  if (!observed) {
+    return 0;
+  }
+
+  const finalIntensity = Number(properties.predictedIntensityValue ?? 0);
+  if (finalIntensity < 0.5) {
+    return 0;
+  }
+
+  const siteResponse = properties.pWaveSiteResponse ?? 0.5;
+  const stableVariation = stableUnitInterval(`${properties.displaySortStableKey ?? properties.id ?? ""}|p-record`) - 0.5;
+  const floor = 0.53 + siteResponse * 0.06 + stableVariation * 0.06;
+  return Math.min(finalIntensity, clamp(floor, 0.5, 0.64));
+}
+
 function getPWaveRiseProgress(properties, elapsedSec) {
   const timeSincePArrivalSec = elapsedSec - properties.pArrivalSec - (properties.pWaveRiseDelaySec ?? 0);
   if (timeSincePArrivalSec <= 0) {
@@ -7082,7 +7320,7 @@ function getPWaveRiseProgress(properties, elapsedSec) {
 
   const spGapSec = Math.max(properties.sArrivalSec - properties.pArrivalSec, 0.5);
   const siteResponse = properties.pWaveSiteResponse ?? 0.5;
-  const quickOnsetSec = clamp(spGapSec * (0.12 + (1 - siteResponse) * 0.08), 0.18, 0.82);
+  const quickOnsetSec = clamp(spGapSec * (0.14 + (1 - siteResponse) * 0.1), 0.24, 1.05);
   const quickOnset = smoothStep(clamp(timeSincePArrivalSec / quickOnsetSec, 0, 1));
   const preSwell = smoothStep(
     clamp(
@@ -7092,7 +7330,15 @@ function getPWaveRiseProgress(properties, elapsedSec) {
       1,
     ),
   );
-  return clamp(quickOnset * 0.84 + preSwell * 0.16, 0, 1);
+  return clamp(quickOnset * 0.72 + preSwell * 0.28, 0, 1);
+}
+
+function getSWaveTransitionLeadSec(properties) {
+  const spGapSec = Math.max((properties.sArrivalSec ?? 0) - (properties.pArrivalSec ?? 0), 0.5);
+  const siteResponse = properties.pWaveSiteResponse ?? 0.5;
+  const finalIntensity = Number(properties.predictedIntensityValue ?? 0);
+  const intensityFactor = clamp((finalIntensity - 2.5) / 3.5, 0, 1);
+  return clamp(0.35 + spGapSec * 0.1 + siteResponse * 0.18 + intensityFactor * 0.28, 0.42, 1.35);
 }
 
 function getPWaveIntensityTarget(properties) {
@@ -7112,11 +7358,11 @@ function getPWaveIntensityTarget(properties) {
   const strongMotionFactor = clamp((finalIntensity - 2.5) / 3.6, 0, 1);
   const siteResponse = properties.pWaveSiteResponse ?? 0.5;
   const share =
-    0.31 +
-    magnitudeFactor * 0.1 +
-    groundFactor * 0.13 +
-    strongMotionFactor * 0.14 +
-    siteResponse * 0.07;
+    0.38 +
+    magnitudeFactor * 0.12 +
+    groundFactor * 0.15 +
+    strongMotionFactor * 0.16 +
+    siteResponse * 0.08;
   const pWaveFloor =
     finalIntensity >= 1.5
       ? (0.86 + magnitudeFactor * 0.24 + groundFactor * 0.34 + strongMotionFactor * 0.38 + siteResponse * 0.22) *
@@ -7131,7 +7377,7 @@ function getPWaveIntensityTarget(properties) {
     strongMotionFactor * 1.28 +
     siteResponse * 0.36;
   const target = Math.max(finalIntensity * share, pWaveFloor);
-  return clamp(target, 0, Math.min(finalIntensity * 0.74, pWaveCeiling, 3.25));
+  return clamp(target, 0, Math.min(finalIntensity * 0.82, pWaveCeiling, 3.55));
 }
 
 function getStationWaveResponseProperties(key, finalIntensity, ground = {}) {
@@ -7155,8 +7401,8 @@ function getStationWaveResponseProperties(key, finalIntensity, ground = {}) {
   );
   const sWaveRiseDelaySec = clamp(
     sDelayNoise * 0.34 + (1 - softness) * 0.12 - finalFactor * 0.18,
-    0,
-    0.48,
+    -0.18,
+    0.38,
   );
 
   return {
@@ -7628,6 +7874,10 @@ function findOldScaleSyntheticMunicipalityFeature(observation) {
   });
 
   return findMatchingFeature(municipalityFeatures) ?? findMatchingFeature(allMunicipalityFeatures);
+}
+
+function getFeatureCentroid(feature) {
+  return getMunicipalityRepresentativeCoordinate(feature);
 }
 
 function getMunicipalityRepresentativeCoordinate(feature) {
