@@ -490,7 +490,9 @@ h1 {
 .source-info-overlay-content {
   width: min(980px, 100%);
   max-height: 100%;
+  min-width: 0;
   margin: 0 auto;
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
@@ -513,12 +515,14 @@ h1 {
   color: #ffffff;
   font-size: clamp(1.45rem, 3.2vw, 2.45rem);
   line-height: 1.18;
+  overflow-wrap: anywhere;
 }
 
 .source-info-tabs {
-  display: inline-grid;
-  grid-template-columns: 1fr 1fr;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 4px;
+  width: min(560px, 100%);
   margin: 0 0 clamp(16px, 3vw, 24px);
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 8px;
@@ -527,16 +531,19 @@ h1 {
 }
 
 .source-info-tab {
-  min-width: min(44vw, 180px);
+  min-width: 0;
   border: 0;
   border-radius: 6px;
-  padding: 9px 12px;
+  padding: 9px clamp(6px, 2vw, 12px);
   background: transparent;
   color: rgba(255, 255, 255, 0.72);
   cursor: pointer;
   font: inherit;
   font-size: clamp(0.86rem, 1.8vw, 1rem);
   font-weight: 900;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .source-info-tab.is-active {
@@ -556,6 +563,7 @@ h1 {
 }
 
 .source-info-section {
+  min-width: 0;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 8px;
   padding: clamp(14px, 2.8vw, 22px);
@@ -575,6 +583,8 @@ h1 {
   color: rgba(255, 255, 255, 0.9);
   font-size: clamp(0.9rem, 1.7vw, 1.02rem);
   line-height: 1.7;
+  overflow-wrap: anywhere;
+  word-break: normal;
 }
 
 .source-info-section p {
@@ -1441,6 +1451,43 @@ body.app-loading #setup-panel button:not(#simulation-start) {
   line-height: 1.2;
 }
 
+.preset-sort-head {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 6px;
+}
+
+.preset-sort-button {
+  display: inline-grid;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  border-radius: 5px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.82);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.preset-sort-button.is-active {
+  border-color: rgba(142, 234, 255, 0.72);
+  background: rgba(91, 199, 255, 0.18);
+  color: #ffffff;
+}
+
+.preset-sort-button:hover,
+.preset-sort-button:focus-visible {
+  border-color: rgba(142, 234, 255, 0.86);
+  outline: none;
+}
+
 .preset-picker-table tbody tr {
   cursor: pointer;
 }
@@ -1493,10 +1540,26 @@ body.app-loading #setup-panel button:not(#simulation-start) {
   font-size: 0.9rem;
 }
 
+.toggle-row.layer-toggle-full {
+  grid-column: 1 / -1;
+}
+
 .toggle-row input {
   width: 18px;
   height: 18px;
   accent-color: var(--accent);
+}
+
+.toggle-row:has(input:disabled),
+.toggle-row.is-disabled {
+  color: rgba(216, 229, 235, 0.42);
+  cursor: not-allowed;
+}
+
+.toggle-row:has(input:disabled) input,
+.toggle-row.is-disabled input {
+  accent-color: rgba(216, 229, 235, 0.32);
+  opacity: 0.55;
 }
 
 .control-separator {
@@ -2140,6 +2203,7 @@ body.app-loading #setup-panel button:not(#simulation-start) {
 
   .preset-picker-table th,
   .preset-picker-table td {
+    border-right-color: rgba(255, 255, 255, 0.045);
     padding: 8px 6px;
   }
 
@@ -2461,6 +2525,65 @@ body.app-loading #setup-panel button:not(#simulation-start) {
 }
 
 @media (orientation: landscape) and (max-width: 1180px) and (max-height: 720px) {
+  .sim-panel {
+    left: max(12px, env(safe-area-inset-left));
+    right: auto;
+    top: max(8px, env(safe-area-inset-top));
+    bottom: max(8px, env(safe-area-inset-bottom));
+    display: flex;
+    flex-direction: column;
+    width: min(430px, calc(100vw - 92px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+    max-height: none;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 12px;
+    overflow: hidden;
+  }
+
+  .sim-panel[data-sheet-state="collapsed"] {
+    transform: translateX(calc(-100% + 34px));
+  }
+
+  .sim-panel[data-sheet-state="open"] {
+    transform: translateX(0);
+  }
+
+  .sheet-handle {
+    top: 50%;
+    right: -22px;
+    left: auto;
+    display: block;
+    width: 32px;
+    height: 76px;
+  }
+
+  .mobile-sheet-toggle {
+    display: none;
+  }
+
+  .sim-panel-head {
+    display: flex;
+    align-items: flex-start;
+    flex: 0 0 auto;
+    margin: 0 0 8px;
+    padding: 0;
+    border-bottom: 0;
+    background: transparent;
+    backdrop-filter: none;
+  }
+
+  #setup-panel .sim-panel-scroll,
+  #simulation-panel .sim-panel-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding-bottom: 8px;
+  }
+
+  #setup-panel .simulation-start,
+  #simulation-panel .simulation-actions {
+    flex: 0 0 auto;
+  }
+
   .preset-picker-overlay {
     padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
   }
@@ -2475,6 +2598,7 @@ body.app-loading #setup-panel button:not(#simulation-start) {
 
   .preset-picker-table th,
   .preset-picker-table td {
+    border-right-color: rgba(255, 255, 255, 0.045);
     padding: 8px 8px;
   }
 
