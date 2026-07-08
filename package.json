@@ -19,6 +19,7 @@
     "predeploy": "npm run inject-version",
     "open-site": "node scripts/open_site.js",
     "public-site": "node scripts/public_site.js",
+    "generate:vapid": "node scripts/generate_vapid_keys.js",
     "deploy": "gh-pages -d web"
   },
   "devDependencies": {
