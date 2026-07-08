@@ -375,7 +375,7 @@ h1 {
 }
 
 .push-info-button.is-enabled {
-  border-color: rgba(38, 217, 255, 0.5) !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
 }
 
 .push-info-button.is-enabled::after {
@@ -585,15 +585,17 @@ h1 {
 
 .source-info-overlay-content {
   width: min(980px, 100%);
+  height: 100%;
   max-height: 100%;
   min-width: 0;
   margin: 0 auto;
+  padding-bottom: clamp(22px, 5vw, 48px);
   overflow-x: hidden;
   overflow-y: auto;
-  overscroll-behavior: none;
+  overscroll-behavior: contain;
   scrollbar-gutter: stable;
   touch-action: pan-y;
-  -webkit-overflow-scrolling: auto;
+  -webkit-overflow-scrolling: touch;
   contain: layout paint;
 }
 
@@ -688,6 +690,8 @@ h1 {
 
 .source-info-section p,
 .source-info-section li,
+.source-link-card p,
+.source-link-card a,
 .source-citation-note {
   color: rgba(255, 255, 255, 0.9);
   font-size: clamp(0.9rem, 1.7vw, 1.02rem);
@@ -705,6 +709,35 @@ h1 {
   gap: 5px;
   margin: 0;
   padding-left: 1.25em;
+}
+
+.source-link-list {
+  display: grid;
+  gap: 9px;
+}
+
+.source-link-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 7px;
+  padding: 11px 12px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.source-link-card h4 {
+  margin: 0 0 3px;
+  color: #ffffff;
+  font-size: clamp(0.92rem, 1.8vw, 1.06rem);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.source-link-card p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.78);
 }
 
 .source-info-section a {
@@ -1068,6 +1101,19 @@ h1 {
   color: rgba(255, 255, 255, 0.78);
   font-size: clamp(0.92rem, 2.5vw, 1.08rem);
   line-height: 1.6;
+}
+
+.maintenance-mode-dialog a {
+  color: #5bc7ff;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.maintenance-mode-dialog a:hover,
+.maintenance-mode-dialog a:focus-visible {
+  color: #9ee7ff;
+  outline: none;
 }
 
 .feedback-overlay {
