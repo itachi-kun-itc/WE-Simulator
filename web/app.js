@@ -3797,13 +3797,16 @@ function updateAdminNotificationControls(overlay) {
 
   const isParentTerminal = Boolean(localStorage.getItem(ADMIN_PARENT_TOKEN_KEY));
   const isLocalServer = isLocalDevelopmentHost();
+  const panel = overlay.querySelector(".admin-notification-panel");
   const tokenField = overlay.querySelector(".admin-notification-token-field");
   const button = overlay.querySelector("#admin-notification-send");
   const pending = isAdminNotificationActionPending(overlay);
+  const canShowNotificationPanel = isLocalServer || isParentTerminal;
 
+  panel?.classList.toggle("hidden", !canShowNotificationPanel);
   tokenField?.classList.toggle("hidden", isLocalServer);
   if (button) {
-    button.disabled = pending || (!isLocalServer && !isParentTerminal);
+    button.disabled = pending || !canShowNotificationPanel;
     if (!pending) {
       button.textContent = "通知を送信";
     }

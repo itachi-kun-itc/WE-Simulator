@@ -874,6 +874,10 @@ h1 {
   padding-top: 14px;
 }
 
+.admin-notification-panel.hidden {
+  display: none;
+}
+
 .admin-notification-panel h3 {
   margin: 0;
   font-size: 1rem;
