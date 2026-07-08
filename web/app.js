@@ -17,7 +17,7 @@ const FEEDBACK_ENDPOINT_URL =
 const MAINTENANCE_ENDPOINT_URL = FEEDBACK_ENDPOINT_URL;
 const PUSH_CONFIG_URL = "./push-config.json";
 const ADMIN_PARENT_TOKEN_KEY = "weather-earthquake-admin-parent-token";
-const NOTIFICATION_HISTORY_LAST_SEEN_KEY = "weather-earthquake-notification-history-last-seen";
+const NOTIFICATION_HISTORY_READ_IDS_KEY = "weather-earthquake-notification-history-read-ids";
 const NOTIFICATION_HISTORY_DB_NAME = "we-simulator-notification-history";
 const NOTIFICATION_HISTORY_DB_VERSION = 1;
 const NOTIFICATION_HISTORY_STORE_NAME = "notifications";
@@ -2319,18 +2319,28 @@ function addSourceInfoControl() {
       pushButton.className = "source-info-button push-info-button";
       pushButton.setAttribute("aria-label", "通知を有効にする");
       pushButton.setAttribute("aria-expanded", "false");
+      const pushUnreadDot = document.createElement("span");
+      pushUnreadDot.className = "push-info-unread-dot";
+      pushUnreadDot.setAttribute("aria-hidden", "true");
+      pushButton.append(pushUnreadDot);
 
       pushButton.addEventListener("click", () => {
         showPushConfirmOverlay(pushConfirmOverlay, pushButton);
       });
       refreshPushInfoButtonState(pushButton);
-      updatePushHistoryUnreadIndicator(pushButton);
+      schedulePushHistoryUnreadIndicatorRefresh(pushButton);
 
       pushConfirmOverlay.addEventListener("push-confirm-close", () => {
         pushButton.setAttribute("aria-expanded", "false");
       });
       window.addEventListener("notification-history-change", () => {
-        updatePushHistoryUnreadIndicator(pushButton);
+        schedulePushHistoryUnreadIndicatorRefresh(pushButton);
+      });
+      window.addEventListener("pageshow", () => schedulePushHistoryUnreadIndicatorRefresh(pushButton));
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+          schedulePushHistoryUnreadIndicatorRefresh(pushButton);
+        }
       });
 
       container.append(button, feedbackButton, speechButton, pushButton);
@@ -2465,13 +2475,54 @@ function setupPushConfirmTabs(overlay) {
   });
 
   overlay.querySelector(".push-history-list")?.addEventListener("click", async (event) => {
+    const readButton = event.target?.closest?.("[data-read-notification-history]");
+    if (readButton) {
+      await markNotificationHistoryItemRead(readButton.dataset.readNotificationHistory);
+      await renderNotificationHistory(overlay);
+      return;
+    }
+
     const button = event.target?.closest?.("[data-delete-notification-history]");
-    if (!button || !canManageNotificationHistory()) {
+    if (!button) {
       return;
     }
 
     await deleteNotificationHistoryItem(button.dataset.deleteNotificationHistory);
     await renderNotificationHistory(overlay);
+  });
+
+  overlay.querySelector(".push-history-list")?.addEventListener("click", async (event) => {
+    if (event.target?.closest?.("button")) {
+      return;
+    }
+
+    const item = event.target?.closest?.("[data-read-notification-history-item]");
+    if (!item) {
+      return;
+    }
+
+    await markNotificationHistoryItemRead(item.dataset.readNotificationHistoryItem);
+    await renderNotificationHistory(overlay);
+  });
+
+  overlay.querySelector(".push-history-list")?.addEventListener("focusin", async (event) => {
+    if (event.target?.closest?.("button")) {
+      return;
+    }
+
+    const item = event.target?.closest?.("[data-read-notification-history-item]");
+    if (!item) {
+      return;
+    }
+
+    await markNotificationHistoryItemRead(item.dataset.readNotificationHistoryItem);
+    await renderNotificationHistory(overlay);
+  });
+
+  window.addEventListener("notification-history-change", () => {
+    if (!overlay.classList.contains("hidden") && overlay.dataset.pushTab === "history") {
+      renderNotificationHistory(overlay);
+    }
   });
 }
 
@@ -2488,7 +2539,6 @@ function activatePushConfirmTab(overlay, tabName) {
   });
 
   if (tabName === "history") {
-    markNotificationHistorySeen();
     renderNotificationHistory(overlay);
   }
 }
@@ -2663,7 +2713,7 @@ function setPushPermissionStatus(element, message, isError = false) {
 }
 
 function canManageNotificationHistory() {
-  return isLocalDevelopmentHost() || Boolean(localStorage.getItem(ADMIN_PARENT_TOKEN_KEY));
+  return true;
 }
 
 async function renderNotificationHistory(overlay) {
@@ -2679,13 +2729,16 @@ async function renderNotificationHistory(overlay) {
 
   try {
     const history = await readNotificationHistory();
+    const readIds = getNotificationHistoryReadIds();
     if (history.length === 0) {
       status.textContent = "通知履歴はありません。";
       return;
     }
 
     status.textContent = canManage ? "" : "履歴の削除は親端末またはLocalサーバーでできます。";
-    list.replaceChildren(...history.map((item) => createNotificationHistoryItem(item, canManage)));
+    list.replaceChildren(
+      ...history.map((item) => createNotificationHistoryItem(item, canManage, readIds.has(item.id))),
+    );
   } catch (error) {
     console.warn("notification history render failed", error);
     status.textContent = "通知履歴の読み込みに失敗しました。";
@@ -2700,17 +2753,38 @@ function setupNotificationHistoryMessages() {
   setupNotificationHistoryMessages.done = true;
   navigator.serviceWorker.addEventListener("message", (event) => {
     if (event.data?.type === "notification-history-updated") {
-      dispatchNotificationHistoryChange();
+      dispatchNotificationHistoryChange({ source: "push" });
+      window.setTimeout(() => dispatchNotificationHistoryChange({ source: "push" }), 150);
     }
   });
 }
 
-function dispatchNotificationHistoryChange() {
-  window.dispatchEvent(new CustomEvent("notification-history-change"));
+function dispatchNotificationHistoryChange(detail = {}) {
+  window.dispatchEvent(new CustomEvent("notification-history-change", { detail }));
 }
 
-function markNotificationHistorySeen() {
-  localStorage.setItem(NOTIFICATION_HISTORY_LAST_SEEN_KEY, new Date().toISOString());
+function getNotificationHistoryReadIds() {
+  try {
+    const value = JSON.parse(localStorage.getItem(NOTIFICATION_HISTORY_READ_IDS_KEY) || "[]");
+    return new Set(Array.isArray(value) ? value.filter(Boolean).map(String) : []);
+  } catch (error) {
+    console.warn("notification history read ids parse failed", error);
+    return new Set();
+  }
+}
+
+function setNotificationHistoryReadIds(readIds) {
+  localStorage.setItem(NOTIFICATION_HISTORY_READ_IDS_KEY, JSON.stringify([...readIds].filter(Boolean)));
+}
+
+function markNotificationHistoryItemRead(id) {
+  if (!id) {
+    return;
+  }
+
+  const readIds = getNotificationHistoryReadIds();
+  readIds.add(id);
+  setNotificationHistoryReadIds(readIds);
   dispatchNotificationHistoryChange();
 }
 
@@ -2720,8 +2794,8 @@ async function hasUnreadNotificationHistory() {
     return false;
   }
 
-  const lastSeenAt = localStorage.getItem(NOTIFICATION_HISTORY_LAST_SEEN_KEY) || "";
-  return history.some((item) => String(item.createdAt || "") > lastSeenAt);
+  const readIds = getNotificationHistoryReadIds();
+  return history.some((item) => item.id && !readIds.has(item.id));
 }
 
 async function updatePushHistoryUnreadIndicator(button) {
@@ -2737,10 +2811,20 @@ async function updatePushHistoryUnreadIndicator(button) {
   }
 }
 
-function createNotificationHistoryItem(item, canManage) {
+function schedulePushHistoryUnreadIndicatorRefresh(button) {
+  updatePushHistoryUnreadIndicator(button);
+  requestAnimationFrame(() => updatePushHistoryUnreadIndicator(button));
+  window.setTimeout(() => updatePushHistoryUnreadIndicator(button), 250);
+}
+
+function createNotificationHistoryItem(item, canManage, isRead = false) {
   const article = document.createElement("article");
   article.className = "push-history-item";
   article.setAttribute("role", "listitem");
+  if (!isRead && item.id) {
+    article.tabIndex = 0;
+    article.dataset.readNotificationHistoryItem = item.id;
+  }
 
   const content = document.createElement("div");
   content.className = "push-history-content";
@@ -2751,7 +2835,15 @@ function createNotificationHistoryItem(item, canManage) {
   time.dateTime = item.createdAt || "";
   const title = document.createElement("span");
   title.textContent = item.title || "WE-Simulator";
-  heading.append(time, title);
+  const readState = document.createElement("button");
+  readState.type = "button";
+  readState.className = `push-history-read-state ${isRead ? "is-read" : "is-unread"}`;
+  readState.textContent = isRead ? "\u65e2\u8aad" : "\u672a\u8aad";
+  readState.disabled = isRead;
+  if (!isRead) {
+    readState.dataset.readNotificationHistory = item.id;
+  }
+  heading.append(time, title, readState);
 
   const body = document.createElement("p");
   body.textContent = item.body || "通知内容なし";
@@ -2762,6 +2854,7 @@ function createNotificationHistoryItem(item, canManage) {
   if (canManage) {
     const deleteButton = document.createElement("button");
     deleteButton.type = "button";
+    deleteButton.className = "push-history-delete";
     deleteButton.textContent = "削除";
     deleteButton.dataset.deleteNotificationHistory = item.id;
     article.append(deleteButton);
@@ -2864,6 +2957,10 @@ async function deleteNotificationHistoryItem(id) {
   await runNotificationHistoryTransaction(db, "readwrite", (store) => {
     store.delete(id);
   });
+  const readIds = getNotificationHistoryReadIds();
+  if (readIds.delete(id)) {
+    setNotificationHistoryReadIds(readIds);
+  }
   dispatchNotificationHistoryChange();
 }
 
