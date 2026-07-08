@@ -30,6 +30,35 @@ body {
     sans-serif;
 }
 
+@media (orientation: landscape) and (hover: none) and (pointer: coarse) and (max-height: 540px) and (max-width: 1000px) {
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: rgba(0, 0, 0, 0.88);
+    backdrop-filter: blur(4px);
+    pointer-events: auto;
+  }
+
+  body::after {
+    content: "この画面サイズは対応しておりません。\Aスマートフォンは縦画面でご利用ください。";
+    position: fixed;
+    left: max(24px, env(safe-area-inset-left));
+    right: max(24px, env(safe-area-inset-right));
+    top: 50%;
+    z-index: 10001;
+    color: #ffffff;
+    font-size: clamp(1.05rem, 4vw, 1.45rem);
+    font-weight: 900;
+    line-height: 1.8;
+    text-align: center;
+    white-space: pre-line;
+    transform: translateY(-50%);
+    pointer-events: auto;
+  }
+}
+
 button {
   font: inherit;
 }
