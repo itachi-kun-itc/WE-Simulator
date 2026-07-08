@@ -2193,8 +2193,8 @@ function addSourceInfoControl() {
   const maintenanceOverlay = createMaintenanceModeOverlay();
   const maintenanceBadge = createMaintenanceModeBadge();
   const localServerBadge = createLocalServerBadge();
-  const sourceOverlay = createSourceInfoOverlay(adminOverlay);
   const feedbackOverlay = createFeedbackOverlay();
+  const sourceOverlay = createSourceInfoOverlay(adminOverlay, feedbackOverlay);
   const speechConfirmOverlay = createSpeechConfirmOverlay();
   const pushConfirmOverlay = createPushConfirmOverlay();
   document.body.append(
@@ -2207,6 +2207,7 @@ function addSourceInfoControl() {
     maintenanceBadge,
     localServerBadge,
   );
+  setupMaintenanceFeedbackLink(maintenanceOverlay, feedbackOverlay);
   setupMaintenanceMode(maintenanceOverlay, maintenanceBadge);
 
   const sourceInfoControl = {
@@ -2412,8 +2413,8 @@ function createPushConfirmOverlay() {
   overlay.setAttribute("aria-label", "\u901a\u77e5\u306e\u8a31\u53ef");
   overlay.innerHTML = `
     <div class="push-confirm-dialog">
-      <h2>\u901a\u77e5\u306e\u8a31\u53ef</h2>
-      <p>\u30a2\u30d7\u30ea\u3092\u9589\u3058\u3066\u3044\u3066\u3082\u3001<br />\u91cd\u8981\u306a\u304a\u77e5\u3089\u305b\u3092\u901a\u77e5\u3068\u3057\u3066\u53d7\u3051\u53d6\u308c\u308b\u3088\u3046\u306b\u3057\u307e\u3059\u3002</p>
+      <h2>\u3010\u901a\u77e5\u306e\u8a31\u53ef\u3011</h2>
+      <p>\u30a2\u30d7\u30ea\u3092\u9589\u3058\u3066\u3044\u3066\u3082\u3001<br />\u91cd\u8981\u306a\u304a\u77e5\u3089\u305b\u3092\u901a\u77e5\u3068\u3057\u3066<br />\u53d7\u3051\u53d6\u308c\u308b\u3088\u3046\u306b\u3057\u307e\u3059\u3002</p>
       <div class="push-confirm-actions">
         <button class="push-confirm-yes" type="button">\u901a\u77e5\u3092\u8a31\u53ef</button>
         <button class="push-confirm-no" type="button">\u3044\u3044\u3048</button>
@@ -3203,7 +3204,7 @@ function stripPrefectureName(name) {
   return displayName || "";
 }
 
-function createSourceInfoOverlay(adminOverlay) {
+function createSourceInfoOverlay(adminOverlay, feedbackOverlay) {
   const overlay = document.createElement("section");
   overlay.className = "source-info-overlay hidden";
   overlay.setAttribute("aria-modal", "true");
@@ -3224,6 +3225,12 @@ function createSourceInfoOverlay(adminOverlay) {
   closeButton?.addEventListener("click", closeOverlay);
   adminButton?.addEventListener("click", () => {
     openAdminModeOverlay(adminOverlay);
+  });
+  overlay.querySelector("[data-feedback-link]")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    feedbackOverlay?.classList.remove("hidden");
+    document.body.classList.add("source-overlay-open");
+    document.querySelector(".feedback-info-button")?.setAttribute("aria-expanded", "true");
   });
   overlay.addEventListener("click", (event) => {
     if (event.target === overlay) {
@@ -3259,12 +3266,13 @@ function setupSourceInfoTabs(overlay) {
 }
 
 function setupSourceInfoScrollBounds(overlay) {
-  const scrollElement = overlay.querySelector(".source-info-overlay-content");
+  const scrollElement = getSourceInfoScrollElement(overlay);
   if (!scrollElement) {
     return;
   }
 
   scrollElement.addEventListener("scroll", () => clampSourceInfoScrollBoundsNow(overlay), { passive: true });
+  scrollElement.addEventListener("wheel", (event) => scrollSourceInfoWithWheel(event, overlay), { passive: false });
   scrollElement.addEventListener("touchstart", trackSourceInfoTouchStart, { passive: true });
   scrollElement.addEventListener("touchmove", (event) => limitSourceInfoOverscroll(event, overlay), { passive: false });
   scrollElement.addEventListener("touchend", () => clampSourceInfoScrollBoundsNow(overlay), { passive: true });
@@ -3280,7 +3288,7 @@ function setupSourceInfoScrollBounds(overlay) {
 }
 
 function resetSourceInfoScroll(overlay) {
-  const scrollElement = overlay.querySelector(".source-info-overlay-content");
+  const scrollElement = getSourceInfoScrollElement(overlay);
   if (!scrollElement) {
     return;
   }
@@ -3310,13 +3318,47 @@ function clampSourceInfoScrollBoundsNow(overlay) {
 function clampSourceInfoScrollBounds(overlay) {
   sourceInfoScrollClampFrame = 0;
 
-  const scrollElement = overlay.querySelector(".source-info-overlay-content");
+  const scrollElement = getSourceInfoScrollElement(overlay);
   if (!scrollElement) {
     return;
   }
 
   clampScrollElementBounds(scrollElement);
-  overlay.querySelectorAll(".source-info-tab-panel").forEach(clampScrollElementBounds);
+}
+
+function getSourceInfoScrollElement(overlay) {
+  return overlay.querySelector(".source-info-overlay-content");
+}
+
+function scrollSourceInfoWithWheel(event, overlay) {
+  if (event.target?.closest?.("textarea, input, select")) {
+    return;
+  }
+
+  const scrollElement = getSourceInfoScrollElement(overlay);
+  if (!scrollElement) {
+    return;
+  }
+
+  const maxLeft = Math.max(0, scrollElement.scrollWidth - scrollElement.clientWidth);
+  const maxTop = Math.max(0, scrollElement.scrollHeight - scrollElement.clientHeight);
+  if (maxLeft <= 0 && maxTop <= 0) {
+    return;
+  }
+
+  const nextLeft = Math.min(Math.max(scrollElement.scrollLeft + event.deltaX, 0), maxLeft);
+  const nextTop = Math.min(Math.max(scrollElement.scrollTop + event.deltaY, 0), maxTop);
+  const didMove =
+    Math.abs(nextLeft - scrollElement.scrollLeft) > 0.5 ||
+    Math.abs(nextTop - scrollElement.scrollTop) > 0.5;
+
+  if (!didMove) {
+    return;
+  }
+
+  event.preventDefault();
+  scrollElement.scrollLeft = nextLeft;
+  scrollElement.scrollTop = nextTop;
 }
 
 function clampScrollElementBounds(scrollElement) {
@@ -3340,9 +3382,7 @@ function trackSourceInfoTouchStart(event) {
 }
 
 function limitSourceInfoOverscroll(event, overlay) {
-  const scrollElement =
-    event.target?.closest?.(".source-info-tab-panel") ??
-    overlay.querySelector(".source-info-overlay-content");
+  const scrollElement = getSourceInfoScrollElement(overlay);
   const touch = event.touches?.[0];
   if (!scrollElement || !touch || !sourceInfoTouchStart) {
     return;
@@ -3374,9 +3414,25 @@ function createMaintenanceModeOverlay() {
     <div class="maintenance-mode-dialog">
       <h2>只今メンテナンス中です。</h2>
       <p>しばらくお待ち下さい。</p>
+      <p>お問い合わせは<a href="#feedback" data-maintenance-feedback-link>フィードバック</a>からお送りください。</p>
     </div>
   `;
   return overlay;
+}
+
+function setupMaintenanceFeedbackLink(maintenanceOverlay, feedbackOverlay) {
+  maintenanceOverlay?.addEventListener("click", (event) => {
+    const link = event.target?.closest?.("[data-maintenance-feedback-link]");
+    if (!link) {
+      return;
+    }
+
+    event.preventDefault();
+    feedbackOverlay.dataset.returnToMaintenance = "true";
+    maintenanceOverlay.classList.add("hidden");
+    feedbackOverlay.classList.remove("hidden");
+    document.body.classList.add("source-overlay-open");
+  });
 }
 
 function createMaintenanceReasonOverlay() {
@@ -4034,6 +4090,7 @@ function updateMaintenanceOverlayMessage(overlay, reason = "") {
     <h2>只今メンテナンス中です</h2>
     <p class="maintenance-mode-reason ${reason ? "" : "hidden"}">${reason ? `詳細：${escapeHtml(reason)}` : ""}</p>
     <p>しばらくお待ち下さい。</p>
+    <p>お問い合わせは<a href="#feedback" data-maintenance-feedback-link>フィードバック</a>からお送りください。</p>
   `;
 }
 
@@ -4137,9 +4194,15 @@ function createFeedbackOverlay() {
   const submitButton = overlay.querySelector(".feedback-submit");
   const closeButton = overlay.querySelector(".source-info-close");
   applyFeedbackPlaceholder(textarea);
+  setupSourceInfoScrollBounds(overlay);
   const closeOverlay = () => {
+    const shouldReturnToMaintenance = overlay.dataset.returnToMaintenance === "true";
+    delete overlay.dataset.returnToMaintenance;
     overlay.classList.add("hidden");
     document.body.classList.remove("source-overlay-open");
+    if (shouldReturnToMaintenance) {
+      document.querySelector(".maintenance-mode-overlay")?.classList.remove("hidden");
+    }
     overlay.dispatchEvent(new CustomEvent("feedback-overlay-close"));
   };
 
@@ -4267,7 +4330,13 @@ function buildSourceInfoOverlayHtml() {
     const links = section.links
       .map(
         (source) =>
-          `<li><a href="${source.href}" target="_blank" rel="noreferrer">${escapeHtml(source.label)}</a></li>`,
+          `<article class="source-link-card">
+            <div>
+              <h4>${escapeHtml(source.label)}</h4>
+              <p>${escapeHtml(getSourceLinkDescription(source, section))}</p>
+            </div>
+            <a href="${source.href}" target="_blank" rel="noreferrer">${escapeHtml(formatSourceUrl(source.href))}</a>
+          </article>`,
       )
       .join("");
     const note = section.note ? `<pre class="source-citation-note">${escapeHtml(section.note)}</pre>` : "";
@@ -4276,7 +4345,7 @@ function buildSourceInfoOverlayHtml() {
       <section class="source-info-section">
         <h3>${escapeHtml(section.title)}</h3>
         <p>${escapeHtml(section.description)}</p>
-        <ul>${links}</ul>
+        <div class="source-link-list">${links}</div>
         ${note}
       </section>
     `;
@@ -4305,6 +4374,38 @@ function buildSourceInfoOverlayHtml() {
       <p class="source-info-updated">最終更新：${formatSourceUpdatedAt(SOURCE_UPDATED_AT)}</p>
     </div>
   `;
+}
+
+function getSourceLinkDescription(source, section) {
+  const label = String(source?.label ?? "");
+  const href = String(source?.href ?? "");
+
+  if (label.includes("震度情報で用いる区域名")) return "震度表示で使う地域名と区域の確認に使用しています。";
+  if (label.includes("震央地名")) return "震源地名の候補や震央区域の整理に使用しています。";
+  if (label.includes("JMA_Region")) return "震央地名を地図上に描くためのポリゴンデータとして使用しています。";
+  if (label.includes("震度観測点")) return "震度観測点の名称と位置を表示するために使用しています。";
+  if (label.includes("緊急地震速報")) return "緊急地震速報の表示内容や警報扱いの参考にしています。";
+  if (label.includes("長周期地震動")) return "長周期地震動階級を扱う表示の参考にしています。";
+  if (label.includes("震度について")) return "震度階級の説明と表示基準の参考にしています。";
+  if (label.includes("東北地方太平洋沖")) return "2011年のプリセット地震と観測震度の資料として使用しています。";
+  if (label.includes("大阪府北部")) return "2018年のプリセット地震と観測震度の資料として使用しています。";
+  if (label.includes("熊本地震")) return "2016年のプリセット地震と観測震度の資料として使用しています。";
+  if (label.includes("プレート形状")) return "海溝、トラフ、プレート境界線の描画に使用しています。";
+  if (label.includes("国土数値情報")) return "市区町村などの行政区域データの作成に使用しています。";
+  if (label.includes("GISデータ")) return "気象庁の地理データを地図レイヤーの作成に使用しています。";
+  if (label.includes("J-SHIS 地震ハザード")) return "地盤や揺れやすさに関する資料の参照に使用しています。";
+  if (label.includes("若松・松岡")) return "地形・地盤分類による地盤増幅補正の参考にしています。";
+  if (label.includes("Kunijiban")) return "地盤情報の確認と補助資料として使用しています。";
+  if (label.includes("地震本部")) return "活断層、地震調査研究、関連資料の参照に使用しています。";
+  if (label.includes("Natural Earth")) return "日本周辺の陸域・海岸線など背景地図の補助に使用しています。";
+  if (label.includes("S-net") || label.includes("海底地震津波観測網")) return "海底観測網の表示と資料確認に使用しています。";
+  if (label.includes("MapLibre")) return "地図描画ライブラリとして使用しています。";
+  if (href.includes("jma.go.jp")) return "気象庁が公開している一次資料として参照しています。";
+  return `${section.title}に関する資料として参照しています。`;
+}
+
+function formatSourceUrl(value) {
+  return String(value ?? "").replace(/^https?:\/\//, "");
 }
 
 function buildPrivacyPolicyHtml() {
@@ -4337,7 +4438,7 @@ function buildPrivacyPolicyHtml() {
       </section>
       <section class="source-info-section">
         <h3>問い合わせ</h3>
-        <p>本サイトに関する問い合わせは、<a href="mailto:akurah3000@icloud.com">akurah3000@icloud.com</a> までご連絡ください。</p>
+        <p>本サイトに関する問い合わせは、<br /><a href="mailto:akurah3000@icloud.com">akurah3000@icloud.com</a> または <a href="#feedback" data-feedback-link>フィードバック</a> までご連絡ください。</p>
       </section>
     </div>
   `;
