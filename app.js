@@ -15,6 +15,7 @@ const FEEDBACK_SHEET_URL =
 const FEEDBACK_ENDPOINT_URL =
   "https://script.google.com/macros/s/AKfycbztrmCH_ukdLtY6xUKNSZQWShY0ziCT_8HMm7QI-qtSFRviETHw_APJJhyV50hSRvMy3A/exec";
 const MAINTENANCE_ENDPOINT_URL = FEEDBACK_ENDPOINT_URL;
+const PUSH_CONFIG_URL = "./push-config.json";
 const ADMIN_PARENT_TOKEN_KEY = "weather-earthquake-admin-parent-token";
 const MAINTENANCE_STATUS_POLL_MS = 60000;
 const LOCAL_PARENT_UNAVAILABLE_LABEL = "Localサーバーでは\n親端末に設定できません";
@@ -611,6 +612,8 @@ const state = {
   currentLocationName: "-",
   currentLocationStatus: "idle",
   speechMuted: true,
+  pushConfigured: false,
+  pushSubscribed: false,
 };
 
 const els = {
@@ -832,6 +835,7 @@ setupPanelScrollbarOffsets();
 preventNonMapZoom();
 setupViewportStability();
 setupSpeechSynthesisRecovery();
+setupPushNotifications();
 
 if (window.maplibregl) {
   initEarthquakeMap().catch((error) => {
@@ -1397,6 +1401,139 @@ function bindSimulationControls() {
   syncInputs();
   updateDisplayMode();
   updateSimulationAvailability();
+}
+
+async function setupPushNotifications() {
+  if (!els.notificationEnable || !els.notificationStatus) {
+    return;
+  }
+
+  if (!("serviceWorker" in navigator)) {
+    setPushNotificationStatus("このブラウザはService Workerに対応していません。", { disabled: true });
+    return;
+  }
+
+  try {
+    const registration = await navigator.serviceWorker.register("./sw.js");
+
+    if (!("PushManager" in window) || !("Notification" in window)) {
+      setPushNotificationStatus("このブラウザはPush通知に対応していません。", { disabled: true });
+      return;
+    }
+
+    const config = await loadPushConfig();
+    state.pushConfigured = Boolean(config.workerUrl);
+
+    if (!state.pushConfigured) {
+      setPushNotificationStatus("Cloudflare Worker URLが未設定です。", { disabled: true });
+      return;
+    }
+
+    const subscription = await registration.pushManager.getSubscription();
+    state.pushSubscribed = Boolean(subscription);
+    setPushNotificationStatus(
+      subscription ? "通知は有効です。" : "通知を有効にできます。",
+      { disabled: false },
+    );
+  } catch (error) {
+    console.warn("push notification setup failed", error);
+    setPushNotificationStatus("通知の初期化に失敗しました。", { disabled: false });
+  }
+}
+
+async function enablePushNotifications() {
+  if (!els.notificationEnable) {
+    return;
+  }
+
+  setPushNotificationStatus("通知を設定しています...", { disabled: true });
+
+  try {
+    const config = await loadPushConfig();
+    if (!config.workerUrl) {
+      setPushNotificationStatus("Cloudflare Worker URLが未設定です。", { disabled: true });
+      return;
+    }
+
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") {
+      setPushNotificationStatus("通知の許可が必要です。", { disabled: false });
+      return;
+    }
+
+    const workerUrl = config.workerUrl.replace(/\/+$/, "");
+    const registration = await navigator.serviceWorker.register("./sw.js");
+    const publicKeyResponse = await fetch(`${workerUrl}/vapid-public-key`, { cache: "no-store" });
+    if (!publicKeyResponse.ok) {
+      throw new Error(`VAPID public key request failed: ${publicKeyResponse.status}`);
+    }
+
+    const { publicKey } = await publicKeyResponse.json();
+    if (!publicKey) {
+      throw new Error("VAPID public key is empty");
+    }
+
+    const existingSubscription = await registration.pushManager.getSubscription();
+    const subscription =
+      existingSubscription ||
+      (await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: base64UrlToUint8Array(publicKey),
+      }));
+
+    const saveResponse = await fetch(`${workerUrl}/subscriptions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(subscription),
+    });
+
+    if (!saveResponse.ok) {
+      throw new Error(`subscription save failed: ${saveResponse.status}`);
+    }
+
+    state.pushSubscribed = true;
+    setPushNotificationStatus("通知は有効です。", { disabled: false });
+  } catch (error) {
+    console.warn("push notification enable failed", error);
+    setPushNotificationStatus("通知の設定に失敗しました。", { disabled: false });
+  }
+}
+
+async function loadPushConfig() {
+  try {
+    const response = await fetch(`${PUSH_CONFIG_URL}?v=${Date.now()}`, { cache: "no-store" });
+    if (!response.ok) {
+      return {};
+    }
+
+    const config = await response.json();
+    return {
+      workerUrl: typeof config.workerUrl === "string" ? config.workerUrl.trim() : "",
+    };
+  } catch (error) {
+    console.warn("push config load failed", error);
+    return {};
+  }
+}
+
+function setPushNotificationStatus(message, options = {}) {
+  if (els.notificationStatus) {
+    els.notificationStatus.textContent = message;
+  }
+
+  if (els.notificationEnable) {
+    els.notificationEnable.disabled = Boolean(options.disabled);
+    els.notificationEnable.textContent = state.pushSubscribed ? "通知は有効です" : "通知を有効にする";
+  }
+}
+
+function base64UrlToUint8Array(value) {
+  const padding = "=".repeat((4 - (value.length % 4)) % 4);
+  const base64 = `${value}${padding}`.replace(/-/g, "+").replace(/_/g, "/");
+  const raw = window.atob(base64);
+  return Uint8Array.from([...raw].map((character) => character.charCodeAt(0)));
 }
 
 function resetCheckboxesToDefaults() {
@@ -2059,10 +2196,12 @@ function addSourceInfoControl() {
   const sourceOverlay = createSourceInfoOverlay(adminOverlay);
   const feedbackOverlay = createFeedbackOverlay();
   const speechConfirmOverlay = createSpeechConfirmOverlay();
+  const pushConfirmOverlay = createPushConfirmOverlay();
   document.body.append(
     sourceOverlay,
     feedbackOverlay,
     speechConfirmOverlay,
+    pushConfirmOverlay,
     adminOverlay,
     maintenanceOverlay,
     maintenanceBadge,
@@ -2126,13 +2265,43 @@ function addSourceInfoControl() {
         setSpeechButtonMuted(speechButton, true);
       });
 
-      container.append(button, feedbackButton, speechButton);
+      const pushButton = document.createElement("button");
+      pushButton.type = "button";
+      pushButton.className = "source-info-button push-info-button";
+      pushButton.setAttribute("aria-label", "通知を有効にする");
+      pushButton.setAttribute("aria-expanded", "false");
+
+      pushButton.addEventListener("click", () => {
+        showPushConfirmOverlay(pushConfirmOverlay, pushButton);
+      });
+      refreshPushInfoButtonState(pushButton);
+
+      pushConfirmOverlay.addEventListener("push-confirm-close", () => {
+        pushButton.setAttribute("aria-expanded", "false");
+      });
+
+      container.append(button, feedbackButton, speechButton, pushButton);
       return container;
     },
     onRemove() {},
   };
 
   map.addControl(sourceInfoControl, "top-right");
+}
+
+async function refreshPushInfoButtonState(button) {
+  if (!button || !("serviceWorker" in navigator) || !("PushManager" in window)) {
+    return;
+  }
+
+  try {
+    const registration = await navigator.serviceWorker.register("./sw.js");
+    const subscription = await registration.pushManager.getSubscription();
+    state.pushSubscribed = Boolean(subscription);
+    button.classList.toggle("is-enabled", state.pushSubscribed);
+  } catch (error) {
+    console.warn("push button state refresh failed", error);
+  }
 }
 
 function setSpeechButtonMuted(button, muted) {
@@ -2193,6 +2362,232 @@ function showSpeechConfirmOverlay(overlay, onConfirm) {
   overlay.classList.remove("hidden");
   document.body.classList.add("speech-confirm-open");
   yesButton?.focus();
+}
+
+function createPushConfirmOverlay() {
+  const overlay = document.createElement("section");
+  overlay.className = "push-confirm-overlay hidden";
+  overlay.setAttribute("aria-modal", "true");
+  overlay.setAttribute("role", "dialog");
+  overlay.setAttribute("aria-label", "通知の許可");
+  overlay.innerHTML = `
+    <div class="push-confirm-dialog">
+      <h2>通知を有効にしますか</h2>
+      <p>アプリを閉じていても、重要なお知らせを通知として受け取れるようにします。</p>
+      <div class="push-confirm-actions">
+        <button class="push-confirm-yes" type="button">許可する</button>
+        <button class="push-confirm-no" type="button">キャンセル</button>
+      </div>
+      <p class="push-confirm-status" role="status" aria-live="polite"></p>
+    </div>
+  `;
+  return overlay;
+}
+
+function createPushConfirmOverlay() {
+  const overlay = document.createElement("section");
+  overlay.className = "push-confirm-overlay hidden";
+  overlay.setAttribute("aria-modal", "true");
+  overlay.setAttribute("role", "dialog");
+  overlay.setAttribute("aria-label", "通知の許可");
+  overlay.innerHTML = `
+    <div class="push-confirm-dialog">
+      <h2>通知の許可</h2>
+      <p>アプリを閉じていても、<br />重要なお知らせを通知として受け取れるようにします。</p>
+      <div class="push-confirm-actions">
+        <button class="push-confirm-yes" type="button">通知を許可</button>
+        <button class="push-confirm-no" type="button">いいえ</button>
+      </div>
+      <p class="push-confirm-status" role="status" aria-live="polite"></p>
+    </div>
+  `;
+  return overlay;
+}
+
+function createPushConfirmOverlay() {
+  const overlay = document.createElement("section");
+  overlay.className = "push-confirm-overlay hidden";
+  overlay.setAttribute("aria-modal", "true");
+  overlay.setAttribute("role", "dialog");
+  overlay.setAttribute("aria-label", "\u901a\u77e5\u306e\u8a31\u53ef");
+  overlay.innerHTML = `
+    <div class="push-confirm-dialog">
+      <h2>\u901a\u77e5\u306e\u8a31\u53ef</h2>
+      <p>\u30a2\u30d7\u30ea\u3092\u9589\u3058\u3066\u3044\u3066\u3082\u3001<br />\u91cd\u8981\u306a\u304a\u77e5\u3089\u305b\u3092\u901a\u77e5\u3068\u3057\u3066\u53d7\u3051\u53d6\u308c\u308b\u3088\u3046\u306b\u3057\u307e\u3059\u3002</p>
+      <div class="push-confirm-actions">
+        <button class="push-confirm-yes" type="button">\u901a\u77e5\u3092\u8a31\u53ef</button>
+        <button class="push-confirm-no" type="button">\u3044\u3044\u3048</button>
+      </div>
+      <p class="push-confirm-status" role="status" aria-live="polite"></p>
+    </div>
+  `;
+  return overlay;
+}
+
+function showPushConfirmOverlay(overlay, triggerButton) {
+  const yesButton = overlay.querySelector(".push-confirm-yes");
+  const noButton = overlay.querySelector(".push-confirm-no");
+  const status = overlay.querySelector(".push-confirm-status");
+  const isLocalServer = isLocalDevelopmentHost();
+  const close = () => {
+    overlay.classList.add("hidden");
+    document.body.classList.remove("push-confirm-open");
+    triggerButton?.setAttribute("aria-expanded", "false");
+    overlay.dispatchEvent(new CustomEvent("push-confirm-close"));
+  };
+
+  yesButton.onclick = async () => {
+    const originalActionText = yesButton.textContent;
+    yesButton.disabled = true;
+    noButton.disabled = true;
+    const shouldUnsubscribe = state.pushSubscribed;
+    yesButton.textContent = shouldUnsubscribe ? "\u901a\u77e5\u89e3\u9664\u4e2d..." : "\u901a\u77e5\u8a2d\u5b9a\u4e2d...";
+    setPushPermissionStatus(status, shouldUnsubscribe ? "通知を解除しています..." : "通知を設定しています...");
+    const enabled = shouldUnsubscribe
+      ? await disablePushNotificationsFromOverlay(status)
+      : await enablePushNotificationsFromOverlay(status);
+    if (enabled) {
+      yesButton.disabled = true;
+      noButton.disabled = true;
+      triggerButton?.classList.toggle("is-enabled", state.pushSubscribed);
+      window.setTimeout(close, 900);
+      return;
+    }
+    yesButton.disabled = false;
+    noButton.disabled = false;
+    yesButton.textContent = originalActionText;
+  };
+  noButton.onclick = close;
+  overlay.onclick = (event) => {
+    if (event.target === overlay) {
+      close();
+    }
+  };
+
+  yesButton.disabled = isLocalServer;
+  yesButton.textContent = state.pushSubscribed ? "通知を解除" : "通知を許可";
+  noButton.disabled = false;
+  setPushPermissionStatus(
+    status,
+    isLocalServer ? "Localサーバーでは通知の許可はできません。\n公開サイトから有効にしてください。" : "",
+    isLocalServer,
+  );
+  triggerButton?.setAttribute("aria-expanded", "true");
+  triggerButton?.classList.toggle("is-enabled", state.pushSubscribed);
+  overlay.classList.remove("hidden");
+  document.body.classList.add("push-confirm-open");
+  (isLocalServer ? noButton : yesButton)?.focus();
+}
+
+async function enablePushNotificationsFromOverlay(statusElement = null) {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
+    setPushPermissionStatus(statusElement, "このブラウザはPush通知に対応していません。", true);
+    return false;
+  }
+
+  try {
+    const config = await loadPushConfig();
+    if (!config.workerUrl) {
+      setPushPermissionStatus(statusElement, "Cloudflare Worker URLが未設定です。", true);
+      return false;
+    }
+
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") {
+      setPushPermissionStatus(statusElement, "通知の許可が必要です。", true);
+      return false;
+    }
+
+    const workerUrl = config.workerUrl.replace(/\/+$/, "");
+    const registration = await navigator.serviceWorker.register("./sw.js");
+    const publicKeyResponse = await fetch(`${workerUrl}/vapid-public-key`, { cache: "no-store" });
+    if (!publicKeyResponse.ok) {
+      throw new Error(`VAPID public key request failed: ${publicKeyResponse.status}`);
+    }
+
+    const { publicKey } = await publicKeyResponse.json();
+    if (!publicKey) {
+      throw new Error("VAPID public key is empty");
+    }
+
+    const existingSubscription = await registration.pushManager.getSubscription();
+    const subscription =
+      existingSubscription ||
+      (await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: base64UrlToUint8Array(publicKey),
+      }));
+
+    const saveResponse = await fetch(`${workerUrl}/subscriptions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(subscription),
+    });
+
+    if (!saveResponse.ok) {
+      throw new Error(`subscription save failed: ${saveResponse.status}`);
+    }
+
+    state.pushConfigured = true;
+    state.pushSubscribed = true;
+    setPushPermissionStatus(statusElement, "通知を有効にしました。");
+    return true;
+  } catch (error) {
+    console.warn("push notification enable failed", error);
+    setPushPermissionStatus(statusElement, "通知の設定に失敗しました。", true);
+    return false;
+  }
+}
+
+async function disablePushNotificationsFromOverlay(statusElement = null) {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+    state.pushSubscribed = false;
+    setPushPermissionStatus(statusElement, "通知は解除されています。");
+    return true;
+  }
+
+  try {
+    const registration = await navigator.serviceWorker.register("./sw.js");
+    const subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+      state.pushSubscribed = false;
+      setPushPermissionStatus(statusElement, "通知は解除されています。");
+      return true;
+    }
+
+    const config = await loadPushConfig();
+    const workerUrl = config.workerUrl?.replace(/\/+$/, "");
+    await subscription.unsubscribe();
+    state.pushSubscribed = false;
+
+    if (workerUrl) {
+      await fetch(`${workerUrl}/subscriptions`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ endpoint: subscription.endpoint }),
+      }).catch((error) => console.warn("push subscription delete failed", error));
+    }
+
+    setPushPermissionStatus(statusElement, "通知を解除しました。");
+    return true;
+  } catch (error) {
+    console.warn("push notification disable failed", error);
+    setPushPermissionStatus(statusElement, "通知の解除に失敗しました。", true);
+    return false;
+  }
+}
+
+function setPushPermissionStatus(element, message, isError = false) {
+  if (!element) {
+    return;
+  }
+
+  element.textContent = message;
+  element.classList.toggle("push-confirm-status-error", Boolean(isError));
 }
 
 function createSpeechAnnouncementState() {
@@ -2878,6 +3273,9 @@ function setupSourceInfoScrollBounds(overlay) {
     clampSourceInfoScrollBoundsNow(overlay);
   }, { passive: true });
   scrollElement.addEventListener("pointerup", () => clampSourceInfoScrollBoundsNow(overlay), { passive: true });
+  overlay.querySelectorAll(".source-info-tab-panel").forEach((panel) => {
+    panel.addEventListener("scroll", () => clampSourceInfoScrollBoundsNow(overlay), { passive: true });
+  });
   window.addEventListener("resize", () => scheduleSourceInfoScrollClamp(overlay));
 }
 
@@ -2917,6 +3315,11 @@ function clampSourceInfoScrollBounds(overlay) {
     return;
   }
 
+  clampScrollElementBounds(scrollElement);
+  overlay.querySelectorAll(".source-info-tab-panel").forEach(clampScrollElementBounds);
+}
+
+function clampScrollElementBounds(scrollElement) {
   const maxLeft = Math.max(0, scrollElement.scrollWidth - scrollElement.clientWidth);
   const maxTop = Math.max(0, scrollElement.scrollHeight - scrollElement.clientHeight);
   const nextLeft = Math.min(Math.max(scrollElement.scrollLeft, 0), maxLeft);
@@ -2937,7 +3340,9 @@ function trackSourceInfoTouchStart(event) {
 }
 
 function limitSourceInfoOverscroll(event, overlay) {
-  const scrollElement = overlay.querySelector(".source-info-overlay-content");
+  const scrollElement =
+    event.target?.closest?.(".source-info-tab-panel") ??
+    overlay.querySelector(".source-info-overlay-content");
   const touch = event.touches?.[0];
   if (!scrollElement || !touch || !sourceInfoTouchStart) {
     return;
@@ -3084,6 +3489,23 @@ function createAdminModeOverlay() {
         <button class="admin-mode-login" type="submit">親端末に設定</button>
         <button class="admin-mode-maintenance" id="admin-maintenance-toggle" type="button" disabled>メンテナンスモード</button>
       </div>
+      <section class="admin-notification-panel" aria-label="通知送信">
+        <h3>通知送信</h3>
+        <label class="admin-mode-field">
+          <span>タイトル</span>
+          <input id="admin-notification-title" type="text" maxlength="80" value="WE-Simulator" />
+        </label>
+        <label class="admin-mode-field">
+          <span>本文</span>
+          <textarea id="admin-notification-body" rows="4" maxlength="300" placeholder="通知内容を入力"></textarea>
+        </label>
+        <label class="admin-mode-field admin-notification-token-field">
+          <span>通知送信用トークン</span>
+          <input id="admin-notification-token" type="password" autocomplete="off" />
+        </label>
+        <button class="admin-notification-send" id="admin-notification-send" type="button">通知を送信</button>
+        <p class="admin-notification-status" id="admin-notification-status" role="status" aria-live="polite"></p>
+      </section>
       <p class="admin-mode-status" id="admin-mode-status" role="status" aria-live="polite"></p>
     </form>
   `;
@@ -3094,6 +3516,7 @@ function createAdminModeOverlay() {
   const status = overlay.querySelector("#admin-mode-status");
   const loginButton = overlay.querySelector(".admin-mode-login");
   const toggleButton = overlay.querySelector("#admin-maintenance-toggle");
+  const notificationSendButton = overlay.querySelector("#admin-notification-send");
 
   const closeOverlay = () => {
     overlay.classList.add("hidden");
@@ -3251,7 +3674,161 @@ function createAdminModeOverlay() {
     setAdminModeStatus(status, nextMaintenance ? "メンテナンスモードに切り替えました。" : "メンテナンスモードを解除しました。");
   });
 
+  notificationSendButton?.addEventListener("click", () => sendAdminNotification(overlay));
+
   return overlay;
+}
+
+async function sendAdminNotification(overlay) {
+  if (!overlay || isAdminNotificationActionPending(overlay)) {
+    return;
+  }
+
+  const titleInput = overlay.querySelector("#admin-notification-title");
+  const bodyInput = overlay.querySelector("#admin-notification-body");
+  const tokenInput = overlay.querySelector("#admin-notification-token");
+  const status = overlay.querySelector("#admin-notification-status");
+  const button = overlay.querySelector("#admin-notification-send");
+  const isParentTerminal = Boolean(localStorage.getItem(ADMIN_PARENT_TOKEN_KEY));
+  const canSend = isLocalDevelopmentHost() || isParentTerminal;
+
+  if (!canSend) {
+    setAdminNotificationStatus(status, "Localサーバーまたは親端末でのみ送信できます。", true);
+    return;
+  }
+
+  const title = String(titleInput?.value || "WE-Simulator").trim().slice(0, 80) || "WE-Simulator";
+  const body = String(bodyInput?.value || "").trim().slice(0, 300);
+  if (!body) {
+    setAdminNotificationStatus(status, "本文を入力してください。", true);
+    return;
+  }
+
+  const payload = {
+    title,
+    body,
+    url: "./",
+    tag: "we-simulator-admin",
+    renotify: true,
+  };
+
+  setAdminNotificationActionPending(overlay, true);
+  if (button) {
+    button.disabled = true;
+    button.textContent = "送信中...";
+  }
+  setAdminNotificationStatus(status, "通知を送信しています...");
+
+  try {
+    const result = isLocalDevelopmentHost()
+      ? await postLocalAdminNotification(payload)
+      : await postParentAdminNotification(payload, tokenInput);
+
+    if (!result.ok) {
+      setAdminNotificationStatus(status, result.message || "通知送信に失敗しました。", true);
+      return;
+    }
+
+    if (bodyInput) {
+      bodyInput.value = "";
+    }
+    setAdminNotificationStatus(
+      status,
+      `通知を送信しました。購読端末: ${result.subscribers ?? 0} / 送信: ${result.sent ?? 0}`,
+    );
+  } catch (error) {
+    console.warn(error);
+    setAdminNotificationStatus(status, "通知送信に失敗しました。", true);
+  } finally {
+    setAdminNotificationActionPending(overlay, false);
+    updateAdminNotificationControls(overlay);
+  }
+}
+
+async function postLocalAdminNotification(payload) {
+  const response = await fetch("./api/notify", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+    },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json().catch(() => ({}));
+  return {
+    ok: response.ok && data.ok !== false,
+    ...data,
+  };
+}
+
+async function postParentAdminNotification(payload, tokenInput) {
+  const config = await loadPushConfig();
+  const workerUrl = config.workerUrl?.replace(/\/+$/, "");
+  const token = String(tokenInput?.value || "").trim();
+
+  if (!workerUrl) {
+    return { ok: false, message: "Cloudflare Worker URLが未設定です。" };
+  }
+
+  if (!token) {
+    return { ok: false, message: "通知送信用トークンを入力してください。" };
+  }
+
+  const response = await fetch(`${workerUrl}/notify`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json; charset=utf-8",
+    },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json().catch(() => ({}));
+
+  return {
+    ok: response.ok && data.ok !== false,
+    message: data.message || data.error,
+    ...data,
+  };
+}
+
+function updateAdminNotificationControls(overlay) {
+  if (!overlay) {
+    return;
+  }
+
+  const isParentTerminal = Boolean(localStorage.getItem(ADMIN_PARENT_TOKEN_KEY));
+  const isLocalServer = isLocalDevelopmentHost();
+  const tokenField = overlay.querySelector(".admin-notification-token-field");
+  const button = overlay.querySelector("#admin-notification-send");
+  const pending = isAdminNotificationActionPending(overlay);
+
+  tokenField?.classList.toggle("hidden", isLocalServer);
+  if (button) {
+    button.disabled = pending || (!isLocalServer && !isParentTerminal);
+    if (!pending) {
+      button.textContent = "通知を送信";
+    }
+  }
+}
+
+function setAdminNotificationStatus(element, message, isError = false) {
+  if (!element) {
+    return;
+  }
+
+  element.textContent = message;
+  element.classList.toggle("admin-mode-status-error", Boolean(isError));
+}
+
+function setAdminNotificationActionPending(overlay, isPending) {
+  if (!overlay) {
+    return;
+  }
+
+  overlay.dataset.notificationActionPending = isPending ? "true" : "false";
+}
+
+function isAdminNotificationActionPending(overlay) {
+  return overlay?.dataset.notificationActionPending === "true";
 }
 
 function isInvalidParentTokenResponse(result) {
@@ -3292,6 +3869,7 @@ function updateAdminModeControls(overlay, maintenanceStatus = null) {
   const passwordInput = overlay.querySelector("#admin-mode-password");
   const loginButton = overlay.querySelector(".admin-mode-login");
   const toggleButton = overlay.querySelector("#admin-maintenance-toggle");
+  updateAdminNotificationControls(overlay);
   if (isLocalDevelopmentHost()) {
     if (passwordInput) {
       passwordInput.disabled = true;

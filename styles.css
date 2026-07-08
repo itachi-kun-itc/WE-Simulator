@@ -326,6 +326,62 @@ h1 {
   transform: translate(-50%, -50%);
 }
 
+.push-info-button::before {
+  left: 50%;
+  top: 50%;
+  width: 23px;
+  height: 25px;
+  border: 0;
+  border-radius: 0;
+  background: #ffffff;
+  clip-path: polygon(
+    43% 5%,
+    57% 5%,
+    61% 13%,
+    70% 18%,
+    78% 30%,
+    80% 57%,
+    88% 72%,
+    78% 82%,
+    61% 82%,
+    57% 93%,
+    43% 93%,
+    39% 82%,
+    22% 82%,
+    12% 72%,
+    20% 57%,
+    22% 30%,
+    30% 18%,
+    39% 13%
+  );
+  transform: translate(-50%, -50%);
+}
+
+.push-info-button::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: calc(50% + 0.5px);
+  display: block;
+  width: 29px;
+  height: 4px;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow:
+    0 0 0 1.25px rgba(0, 0, 0, 0.86),
+    0 1px 0 1.25px rgba(0, 0, 0, 0.48);
+  transform: translate(-50%, -50%) rotate(-48deg);
+  transform-origin: center;
+}
+
+.push-info-button.is-enabled {
+  border-color: rgba(38, 217, 255, 0.5) !important;
+}
+
+.push-info-button.is-enabled::after {
+  display: none;
+}
+
 .source-info-panel {
   display: grid;
   gap: 6px;
@@ -359,7 +415,12 @@ h1 {
   overflow: hidden;
 }
 
-.speech-confirm-overlay {
+.push-confirm-open {
+  overflow: hidden;
+}
+
+.speech-confirm-overlay,
+.push-confirm-overlay {
   position: fixed;
   inset: 0;
   z-index: 3100;
@@ -371,11 +432,13 @@ h1 {
   backdrop-filter: blur(3px);
 }
 
-.speech-confirm-overlay.hidden {
+.speech-confirm-overlay.hidden,
+.push-confirm-overlay.hidden {
   display: none;
 }
 
-.speech-confirm-dialog {
+.speech-confirm-dialog,
+.push-confirm-dialog {
   display: grid;
   gap: 16px;
   width: min(460px, calc(100vw - 48px));
@@ -386,7 +449,16 @@ h1 {
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.34);
 }
 
-.speech-confirm-dialog p {
+.push-confirm-dialog h2 {
+  margin: 0;
+  color: #ffffff;
+  font-size: clamp(1.05rem, 2.4vw, 1.28rem);
+  line-height: 1.25;
+  text-align: center;
+}
+
+.speech-confirm-dialog p,
+.push-confirm-dialog p {
   margin: 0;
   color: #ffffff;
   font-size: clamp(0.88rem, 2.2vw, 1.05rem);
@@ -395,7 +467,8 @@ h1 {
   text-align: center;
 }
 
-.speech-confirm-actions {
+.speech-confirm-actions,
+.push-confirm-actions {
   display: flex;
   justify-content: flex-end;
   align-self: end;
@@ -403,7 +476,8 @@ h1 {
   margin-top: 2px;
 }
 
-.speech-confirm-actions button {
+.speech-confirm-actions button,
+.push-confirm-actions button {
   min-width: 68px;
   border: 1px solid rgba(255, 255, 255, 0.24);
   border-radius: 6px;
@@ -415,17 +489,37 @@ h1 {
   font-weight: 800;
 }
 
-.speech-confirm-actions .speech-confirm-yes {
+.speech-confirm-actions .speech-confirm-yes,
+.push-confirm-actions .push-confirm-yes {
   border-color: rgba(255, 255, 255, 0.32);
   background: #e51b45;
   color: #ffffff;
 }
 
 .speech-confirm-actions button:hover,
-.speech-confirm-actions button:focus-visible {
+.speech-confirm-actions button:focus-visible,
+.push-confirm-actions button:hover,
+.push-confirm-actions button:focus-visible {
   border-color: rgba(142, 234, 255, 0.72);
   background: rgba(38, 217, 255, 0.16);
   outline: none;
+}
+
+.push-confirm-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.push-confirm-status {
+  min-height: 1.35em;
+  color: rgba(255, 255, 255, 0.78) !important;
+  font-size: 0.86rem !important;
+  font-weight: 700 !important;
+  white-space: pre-line;
+}
+
+.push-confirm-status-error {
+  color: #ffb4c2 !important;
 }
 
 .source-info-overlay {
@@ -433,6 +527,8 @@ h1 {
   inset: 0;
   z-index: 3000;
   overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
   padding: clamp(58px, 7vw, 84px) clamp(18px, 5vw, 72px) clamp(72px, 8vw, 98px);
   background: rgba(0, 0, 0, 0.76);
   color: #ffffff;
@@ -494,8 +590,11 @@ h1 {
   margin: 0 auto;
   overflow-x: hidden;
   overflow-y: auto;
-  overscroll-behavior: contain;
+  overscroll-behavior: none;
   scrollbar-gutter: stable;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: auto;
+  contain: layout paint;
 }
 
 .source-info-header {
@@ -557,13 +656,23 @@ h1 {
   outline-offset: 2px;
 }
 
+.source-info-tab-panel {
+  max-width: 100%;
+  overflow-x: hidden;
+  overscroll-behavior: none;
+}
+
 .source-info-sections {
   display: grid;
   gap: clamp(14px, 2.8vw, 22px);
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .source-info-section {
   min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 8px;
   padding: clamp(14px, 2.8vw, 22px);
@@ -664,7 +773,7 @@ h1 {
 .admin-mode-dialog {
   display: grid;
   gap: 14px;
-  width: min(460px, 100%);
+  width: min(520px, 100%);
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 8px;
   padding: 22px;
@@ -698,7 +807,26 @@ h1 {
   outline: none;
 }
 
+.admin-mode-field textarea {
+  min-width: 0;
+  min-height: 96px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 6px;
+  padding: 10px 12px;
+  resize: vertical;
+  background: rgba(0, 0, 0, 0.42);
+  color: #ffffff;
+  font: inherit;
+  line-height: 1.5;
+  outline: none;
+}
+
 .admin-mode-field input:focus {
+  border-color: rgba(91, 199, 255, 0.82);
+  box-shadow: 0 0 0 3px rgba(91, 199, 255, 0.18);
+}
+
+.admin-mode-field textarea:focus {
   border-color: rgba(91, 199, 255, 0.82);
   box-shadow: 0 0 0 3px rgba(91, 199, 255, 0.18);
 }
@@ -737,6 +865,47 @@ h1 {
 
 .admin-mode-maintenance {
   background: #e11d48 !important;
+}
+
+.admin-notification-panel {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  padding-top: 14px;
+}
+
+.admin-notification-panel h3 {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+.admin-notification-token-field.hidden {
+  display: none;
+}
+
+.admin-notification-send {
+  width: 100%;
+  border: 1px solid rgba(38, 217, 255, 0.44);
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: rgba(38, 217, 255, 0.16);
+  color: #ffffff;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.admin-notification-send:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.admin-notification-status {
+  min-height: 1.4em;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.84rem;
+  line-height: 1.45;
 }
 
 .admin-mode-status {
