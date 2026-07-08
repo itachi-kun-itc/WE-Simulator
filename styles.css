@@ -31,6 +31,13 @@ body {
 }
 
 @media (orientation: landscape) and (hover: none) and (pointer: coarse) and (max-height: 540px) and (max-width: 1000px) {
+  body.unsupported-screen-active .sim-panel,
+  body.unsupported-screen-active .intensity-legend,
+  body.unsupported-screen-active .source-info-control,
+  body.unsupported-screen-active .source-info-button {
+    display: none !important;
+  }
+
   body::before {
     content: "";
     position: fixed;
@@ -578,6 +585,7 @@ h1 {
 .push-confirm-panel[data-push-panel="settings"] {
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 8px;
+  min-height: clamp(220px, 32vh, 320px);
   padding: clamp(14px, 2.8vw, 22px);
   background: rgba(255, 255, 255, 0.06);
   overflow: visible;
@@ -609,6 +617,13 @@ h1 {
 
 .speech-confirm-actions {
   justify-content: flex-end;
+}
+
+.push-confirm-actions {
+  justify-content: flex-end;
+  align-self: end;
+  order: 4;
+  margin-top: auto;
 }
 
 .speech-confirm-actions button,
@@ -646,6 +661,7 @@ h1 {
 }
 
 .push-confirm-status {
+  order: 3;
   min-height: 1.35em;
   color: rgba(255, 255, 255, 0.78) !important;
   font-size: 0.86rem !important;
@@ -1333,7 +1349,8 @@ h1 {
 }
 
 .maintenance-mode-badge,
-.local-server-badge {
+.local-server-badge,
+.parent-terminal-badge {
   position: fixed;
   bottom: max(14px, env(safe-area-inset-bottom));
   left: max(14px, env(safe-area-inset-left));
@@ -1360,8 +1377,13 @@ h1 {
   z-index: 7000;
 }
 
+.parent-terminal-badge {
+  z-index: 6500;
+}
+
 .maintenance-mode-badge.hidden,
-.local-server-badge.hidden {
+.local-server-badge.hidden,
+.parent-terminal-badge.hidden {
   display: none;
 }
 

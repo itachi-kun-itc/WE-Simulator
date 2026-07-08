@@ -22,6 +22,7 @@ const NOTIFICATION_HISTORY_DB_NAME = "we-simulator-notification-history";
 const NOTIFICATION_HISTORY_DB_VERSION = 1;
 const NOTIFICATION_HISTORY_STORE_NAME = "notifications";
 const NOTIFICATION_HISTORY_LIMIT = 80;
+const NOTIFICATION_HISTORY_RETENTION_DAYS = 30;
 const NOTIFICATION_HISTORY_BACKFILL_KEY = "weather-earthquake-notification-history-backfill-v1";
 const LEGACY_NOTIFICATION_HISTORY_ITEMS = [
   {
@@ -70,12 +71,12 @@ const SIMULATION_END_GRACE_SEC = 15;
 const SIMULATION_DATA_UPDATE_HZ = 5;
 const GEOLOCATION_TARGET_ACCURACY_M = 35;
 const GEOLOCATION_ACCEPTABLE_ACCURACY_M = 120;
-const GEOLOCATION_IPAD_ACCEPTABLE_ACCURACY_M = 350;
+const GEOLOCATION_IPAD_ACCEPTABLE_ACCURACY_M = 700;
 const GEOLOCATION_FAST_SETTLE_MS = 2500;
 const GEOLOCATION_MAX_WAIT_MS = 16000;
-const GEOLOCATION_IPAD_MAX_WAIT_MS = 32000;
+const GEOLOCATION_IPAD_MAX_WAIT_MS = 45000;
 const GEOLOCATION_CACHED_MAX_AGE_MS = 15000;
-const GEOLOCATION_IPAD_CACHED_MAX_AGE_MS = 120000;
+const GEOLOCATION_IPAD_CACHED_MAX_AGE_MS = 300000;
 const WAVE_RENDER_RADIUS_STEP_KM = 1.5;
 const WAVE_CIRCLE_STEPS = 160;
 const RESET_VIEW_ANIMATION_MS = 1200;
@@ -725,6 +726,7 @@ let stationCanvasRenderFrame = 0;
 let stationCanvasFeatureCache = { data: null, features: [] };
 let submarineStationCanvasFeatureCache = { data: null, features: [] };
 let maintenanceReasonOverlay;
+let latestMaintenanceStatus = { maintenance: false, reason: "" };
 let currentLocationMarker;
 let epicenterHoverPopup;
 let epicenterClickPopup;
@@ -1397,31 +1399,38 @@ function bindSimulationControls() {
   els.simulationStop.addEventListener("click", () => stopSimulation());
 
   els.resetEpicenter.addEventListener("click", () => {
-    state.latitude = 35.681;
-    state.longitude = 139.767;
-    state.depthKm = 10;
-    state.magnitude = 3.5;
-    state.selectedPresetId = "";
-    resetCheckboxesToDefaults();
-    state.epicenterName = "未選択";
-    state.municipalityName = "未選択";
-    invalidateIntensityEstimateCache();
-    syncInputs();
-    updateEpicenterEditMode();
-    updateDisplayMode();
-    clearCurrentLocationLink();
-    updateEpicenter({ resolveLocation: true, enforceManagedArea: true });
-    resetViewAnimating = true;
-    updateSimulationAvailability();
-    resetMapViewToInitial().finally(() => {
-      resetViewAnimating = false;
-      updateSimulationAvailability();
-    });
+    resetEpicenterToInitialState();
   });
 
   syncInputs();
   updateDisplayMode();
   updateSimulationAvailability();
+}
+
+function resetEpicenterToInitialState(options = {}) {
+  if (options.cancelSpeech) {
+    cancelSpeechAnnouncements();
+  }
+  state.latitude = 35.681;
+  state.longitude = 139.767;
+  state.depthKm = 10;
+  state.magnitude = 3.5;
+  state.selectedPresetId = "";
+  resetCheckboxesToDefaults();
+  state.epicenterName = "未選択";
+  state.municipalityName = "未選択";
+  invalidateIntensityEstimateCache();
+  syncInputs();
+  updateEpicenterEditMode();
+  updateDisplayMode();
+  clearCurrentLocationLink();
+  updateEpicenter({ resolveLocation: true, enforceManagedArea: true });
+  resetViewAnimating = true;
+  updateSimulationAvailability();
+  resetMapViewToInitial().finally(() => {
+    resetViewAnimating = false;
+    updateSimulationAvailability();
+  });
 }
 
 async function setupPushNotifications() {
@@ -1459,66 +1468,6 @@ async function setupPushNotifications() {
   } catch (error) {
     console.warn("push notification setup failed", error);
     setPushNotificationStatus("通知の初期化に失敗しました。", { disabled: false });
-  }
-}
-
-async function enablePushNotifications() {
-  if (!els.notificationEnable) {
-    return;
-  }
-
-  setPushNotificationStatus("通知を設定しています...", { disabled: true });
-
-  try {
-    const config = await loadPushConfig();
-    if (!config.workerUrl) {
-      setPushNotificationStatus("Cloudflare Worker URLが未設定です。", { disabled: true });
-      return;
-    }
-
-    const permission = await Notification.requestPermission();
-    if (permission !== "granted") {
-      setPushNotificationStatus("通知の許可が必要です。", { disabled: false });
-      return;
-    }
-
-    const workerUrl = config.workerUrl.replace(/\/+$/, "");
-    const registration = await navigator.serviceWorker.register("./sw.js");
-    const publicKeyResponse = await fetch(`${workerUrl}/vapid-public-key`, { cache: "no-store" });
-    if (!publicKeyResponse.ok) {
-      throw new Error(`VAPID public key request failed: ${publicKeyResponse.status}`);
-    }
-
-    const { publicKey } = await publicKeyResponse.json();
-    if (!publicKey) {
-      throw new Error("VAPID public key is empty");
-    }
-
-    const existingSubscription = await registration.pushManager.getSubscription();
-    const subscription =
-      existingSubscription ||
-      (await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: base64UrlToUint8Array(publicKey),
-      }));
-
-    const saveResponse = await fetch(`${workerUrl}/subscriptions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(subscription),
-    });
-
-    if (!saveResponse.ok) {
-      throw new Error(`subscription save failed: ${saveResponse.status}`);
-    }
-
-    state.pushSubscribed = true;
-    setPushNotificationStatus("通知は有効です。", { disabled: false });
-  } catch (error) {
-    console.warn("push notification enable failed", error);
-    setPushNotificationStatus("通知の設定に失敗しました。", { disabled: false });
   }
 }
 
@@ -2029,8 +1978,15 @@ function setupSmartphoneLandscapeUnsupportedReset() {
   );
 
   const applyResetIfNeeded = () => {
+    document.body.classList.toggle("unsupported-screen-active", media.matches);
     if (!media.matches) {
+      const shouldResetAfterReturn = smartphoneLandscapeResetApplied;
       smartphoneLandscapeResetApplied = false;
+      if (shouldResetAfterReturn) {
+        requestAnimationFrame(() => {
+          resetEpicenterToInitialState({ cancelSpeech: true });
+        });
+      }
       return;
     }
 
@@ -2040,7 +1996,7 @@ function setupSmartphoneLandscapeUnsupportedReset() {
 
     smartphoneLandscapeResetApplied = true;
     requestAnimationFrame(() => {
-      els.resetEpicenter?.click();
+      resetEpicenterToInitialState({ cancelSpeech: true });
     });
   };
 
@@ -2241,6 +2197,7 @@ function addSourceInfoControl() {
   const maintenanceOverlay = createMaintenanceModeOverlay();
   const maintenanceBadge = createMaintenanceModeBadge();
   const localServerBadge = createLocalServerBadge();
+  const parentTerminalBadge = createParentTerminalBadge();
   const feedbackOverlay = createFeedbackOverlay();
   const sourceOverlay = createSourceInfoOverlay(adminOverlay, feedbackOverlay);
   const speechConfirmOverlay = createSpeechConfirmOverlay();
@@ -2254,8 +2211,10 @@ function addSourceInfoControl() {
     maintenanceOverlay,
     maintenanceBadge,
     localServerBadge,
+    parentTerminalBadge,
   );
   setupMaintenanceFeedbackLink(maintenanceOverlay, feedbackOverlay);
+  setupParentTerminalBadge(parentTerminalBadge);
   setupMaintenanceMode(maintenanceOverlay, maintenanceBadge);
 
   const sourceInfoControl = {
@@ -2449,8 +2408,7 @@ function createPushConfirmOverlay() {
         <h2>\u3010\u901a\u77e5\u306e\u8a31\u53ef\u3011</h2>
         <p>\u30a2\u30d7\u30ea\u3092\u9589\u3058\u3066\u3044\u3066\u3082\u3001<br class="push-confirm-mobile-break" />\u91cd\u8981\u306a\u304a\u77e5\u3089\u305b\u3092\u901a\u77e5\u3068\u3057\u3066\u53d7\u3051\u53d6\u308c\u308b\u3088\u3046\u306b\u3057\u307e\u3059\u3002</p>
         <div class="push-confirm-actions">
-          <button class="push-confirm-yes" type="button">\u901a\u77e5\u3092\u8a31\u53ef</button>
-          <button class="push-confirm-no" type="button">\u3044\u3044\u3048</button>
+          <button class="push-confirm-yes" type="button">\u901a\u77e5\u3092\u8a2d\u5b9a</button>
         </div>
         <p class="push-confirm-status" role="status" aria-live="polite"></p>
       </section>
@@ -2559,7 +2517,9 @@ function showPushConfirmOverlay(overlay, triggerButton) {
   yesButton.onclick = async () => {
     const originalActionText = yesButton.textContent;
     yesButton.disabled = true;
-    noButton.disabled = true;
+    if (noButton) {
+      noButton.disabled = true;
+    }
     const shouldUnsubscribe = state.pushSubscribed;
     yesButton.textContent = shouldUnsubscribe ? "\u901a\u77e5\u89e3\u9664\u4e2d..." : "\u901a\u77e5\u8a2d\u5b9a\u4e2d...";
     setPushPermissionStatus(status, shouldUnsubscribe ? "通知を解除しています..." : "通知を設定しています...");
@@ -2568,16 +2528,22 @@ function showPushConfirmOverlay(overlay, triggerButton) {
       : await enablePushNotificationsFromOverlay(status);
     if (enabled) {
       yesButton.disabled = true;
-      noButton.disabled = true;
+      if (noButton) {
+        noButton.disabled = true;
+      }
       triggerButton?.classList.toggle("is-enabled", state.pushSubscribed);
       window.setTimeout(close, 900);
       return;
     }
     yesButton.disabled = false;
-    noButton.disabled = false;
+    if (noButton) {
+      noButton.disabled = false;
+    }
     yesButton.textContent = originalActionText;
   };
-  noButton.onclick = close;
+  if (noButton) {
+    noButton.onclick = close;
+  }
   closeButton.onclick = close;
   overlay.onclick = (event) => {
     if (event.target === overlay) {
@@ -2586,8 +2552,10 @@ function showPushConfirmOverlay(overlay, triggerButton) {
   };
 
   yesButton.disabled = isLocalServer;
-  yesButton.textContent = state.pushSubscribed ? "通知を解除" : "通知を許可";
-  noButton.disabled = false;
+  yesButton.textContent = state.pushSubscribed ? "通知を解除" : "通知を設定";
+  if (noButton) {
+    noButton.disabled = false;
+  }
   setPushPermissionStatus(
     status,
     isLocalServer ? "Localサーバーでは通知の許可はできません。\n公開サイトから有効にしてください。" : "",
@@ -2598,7 +2566,7 @@ function showPushConfirmOverlay(overlay, triggerButton) {
   triggerButton?.classList.toggle("is-enabled", state.pushSubscribed);
   overlay.classList.remove("hidden");
   document.body.classList.add("push-confirm-open");
-  (isLocalServer ? noButton : yesButton)?.focus();
+  yesButton?.focus();
 }
 
 async function enablePushNotificationsFromOverlay(statusElement = null) {
@@ -2731,7 +2699,7 @@ async function renderNotificationHistory(overlay) {
     const history = await readNotificationHistory();
     const readIds = getNotificationHistoryReadIds();
     if (history.length === 0) {
-      status.textContent = "通知履歴はありません。";
+      status.textContent = "過去30日以内に配信された通知はありません。";
       return;
     }
 
@@ -2928,7 +2896,7 @@ async function saveNotificationHistoryItem(notification) {
       source: notification.source || "local",
     });
   });
-  await trimNotificationHistory();
+  await pruneNotificationHistory();
   dispatchNotificationHistoryChange();
 }
 
@@ -2938,14 +2906,16 @@ async function readNotificationHistory() {
   }
 
   const db = await openNotificationHistoryDb();
-  const items = await new Promise((resolve, reject) => {
-    const transaction = db.transaction(NOTIFICATION_HISTORY_STORE_NAME, "readonly");
-    const request = transaction.objectStore(NOTIFICATION_HISTORY_STORE_NAME).getAll();
-    request.onsuccess = () => resolve(request.result || []);
-    request.onerror = () => reject(request.error);
-  });
+  const items = await readNotificationHistoryItems(db);
+  const expiredIds = getExpiredNotificationHistoryIds(items);
+  if (expiredIds.length > 0) {
+    await deleteNotificationHistoryIds(db, expiredIds);
+    removeNotificationHistoryReadIds(expiredIds);
+  }
 
-  return items.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+  return items
+    .filter((item) => !expiredIds.includes(item.id))
+    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
 }
 
 async function deleteNotificationHistoryItem(id) {
@@ -2964,17 +2934,73 @@ async function deleteNotificationHistoryItem(id) {
   dispatchNotificationHistoryChange();
 }
 
-async function trimNotificationHistory() {
-  const items = await readNotificationHistory();
-  if (items.length <= NOTIFICATION_HISTORY_LIMIT) {
+async function pruneNotificationHistory() {
+  if (!("indexedDB" in window)) {
     return;
   }
 
   const db = await openNotificationHistoryDb();
-  const removeIds = items.slice(NOTIFICATION_HISTORY_LIMIT).map((item) => item.id);
-  await runNotificationHistoryTransaction(db, "readwrite", (store) => {
-    removeIds.forEach((id) => store.delete(id));
+  const items = await readNotificationHistoryItems(db);
+  const sortedActiveItems = items
+    .filter((item) => !isNotificationHistoryExpired(item))
+    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+  const removeIds = [
+    ...getExpiredNotificationHistoryIds(items),
+    ...sortedActiveItems.slice(NOTIFICATION_HISTORY_LIMIT).map((item) => item.id),
+  ].filter(Boolean);
+  if (removeIds.length === 0) {
+    return;
+  }
+
+  await deleteNotificationHistoryIds(db, removeIds);
+  removeNotificationHistoryReadIds(removeIds);
+}
+
+function isNotificationHistoryExpired(item, now = Date.now()) {
+  const createdAtMs = Date.parse(item?.createdAt ?? "");
+  if (!Number.isFinite(createdAtMs)) {
+    return false;
+  }
+
+  return now - createdAtMs >= NOTIFICATION_HISTORY_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+}
+
+function getExpiredNotificationHistoryIds(items) {
+  const now = Date.now();
+  return items.filter((item) => item?.id && isNotificationHistoryExpired(item, now)).map((item) => item.id);
+}
+
+function readNotificationHistoryItems(db) {
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(NOTIFICATION_HISTORY_STORE_NAME, "readonly");
+    const request = transaction.objectStore(NOTIFICATION_HISTORY_STORE_NAME).getAll();
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = () => reject(request.error);
   });
+}
+
+function deleteNotificationHistoryIds(db, ids) {
+  const uniqueIds = [...new Set(ids)].filter(Boolean);
+  if (uniqueIds.length === 0) {
+    return Promise.resolve();
+  }
+
+  return runNotificationHistoryTransaction(db, "readwrite", (store) => {
+    uniqueIds.forEach((id) => store.delete(id));
+  });
+}
+
+function removeNotificationHistoryReadIds(ids) {
+  const readIds = getNotificationHistoryReadIds();
+  let changed = false;
+  ids.forEach((id) => {
+    if (readIds.delete(id)) {
+      changed = true;
+    }
+  });
+  if (changed) {
+    setNotificationHistoryReadIds(readIds);
+  }
 }
 
 function openNotificationHistoryDb() {
@@ -3479,27 +3505,6 @@ function getOldScalePresetSpeechLabels(preset) {
   return [];
 }
 
-function announceOldScalePresetObservedIntensityUpdate(elapsedSec, intensityLabels) {
-  const snapshot = buildOldScalePresetObservedSpeechSnapshot(elapsedSec, intensityLabels);
-  if (!snapshot) {
-    return;
-  }
-
-  if (snapshot.maxRank < speechAnnouncementState.maxObservedRank) {
-    return;
-  }
-
-  if (snapshot.signature === speechAnnouncementState.observedIntensitySpeechSignature) {
-    return;
-  }
-
-  speechAnnouncementState.maxObservedRank = snapshot.maxRank;
-  speechAnnouncementState.observedIntensitySpeechSignature = snapshot.signature;
-  speechAnnouncementState.latestObservedIntensityMessage = snapshot.message;
-  speechAnnouncementState.observedIntensityRepeatCompleted = false;
-  speakAnnouncement(snapshot.message);
-}
-
 function buildOldScalePresetObservedSpeechSnapshot(elapsedSec, intensityLabels) {
   if (!shindoStationData) {
     return null;
@@ -3937,6 +3942,13 @@ function createLocalServerBadge() {
   return badge;
 }
 
+function createParentTerminalBadge() {
+  const badge = document.createElement("div");
+  badge.className = "parent-terminal-badge hidden";
+  badge.textContent = "親端末";
+  return badge;
+}
+
 function createAdminModeOverlay() {
   const overlay = document.createElement("section");
   overlay.className = "source-info-overlay admin-mode-overlay hidden";
@@ -4026,6 +4038,27 @@ function createAdminModeOverlay() {
         toggleButton.disabled = true;
       }
       const current = await fetchMaintenanceStatus();
+      if (current.maintenance) {
+        const maintenanceReleaseResult = await postMaintenanceAction("setMaintenance", {
+          token,
+          maintenance: false,
+          reason: "",
+          maintenanceReason: "",
+          maintenanceDetail: "",
+          details: "",
+        });
+        if (!maintenanceReleaseResult.ok) {
+          if (isInvalidParentTokenResponse(maintenanceReleaseResult)) {
+            await forceReleaseInvalidParentTerminal(overlay, passwordInput, status, token);
+            return;
+          }
+          setAdminParentActionPending(overlay, false);
+          updateAdminModeControls(overlay, current);
+          setAdminModeStatus(status, maintenanceReleaseResult.message || "メンテナンスモードの解除に失敗しました。", true);
+          return;
+        }
+        notifyMaintenanceStatusChange({ maintenance: false, reason: "" });
+      }
       const result = await postMaintenanceAction("releaseParent", { token });
       if (!result.ok) {
         if (isInvalidParentTokenResponse(result)) {
@@ -4039,6 +4072,7 @@ function createAdminModeOverlay() {
       }
 
       localStorage.removeItem(ADMIN_PARENT_TOKEN_KEY);
+      notifyAdminParentStatusChange();
       passwordInput.value = "";
       setAdminParentActionPending(overlay, false);
       updateAdminModeControls(overlay, { maintenance: false });
@@ -4063,6 +4097,7 @@ function createAdminModeOverlay() {
     if (!result.ok || !result.token) {
       setAdminParentActionPending(overlay, false);
       localStorage.removeItem(ADMIN_PARENT_TOKEN_KEY);
+      notifyAdminParentStatusChange();
       updateAdminModeControls(overlay);
       const message = result.ok && !result.token
         ? "Apps Scriptの管理者処理が未反映です。デプロイを更新してください。"
@@ -4072,6 +4107,7 @@ function createAdminModeOverlay() {
     }
 
     localStorage.setItem(ADMIN_PARENT_TOKEN_KEY, result.token);
+    notifyAdminParentStatusChange();
     passwordInput.value = "";
     setAdminParentActionPending(overlay, false);
     updateAdminModeControls(overlay);
@@ -4315,8 +4351,29 @@ function isInvalidParentTokenResponse(result) {
 }
 
 async function forceReleaseInvalidParentTerminal(overlay, passwordInput, status, token) {
-  await postMaintenanceAction("forceReleaseInvalidParent", { token });
+  const current = await fetchMaintenanceStatus();
+  if (current.maintenance) {
+    await postMaintenanceAction("setMaintenance", {
+      token,
+      maintenance: false,
+      reason: "",
+      maintenanceReason: "",
+      maintenanceDetail: "",
+      details: "",
+    });
+    notifyMaintenanceStatusChange({ maintenance: false, reason: "" });
+  }
+  await postMaintenanceAction("forceReleaseInvalidParent", {
+    token,
+    releaseMaintenance: true,
+    maintenance: false,
+    reason: "",
+    maintenanceReason: "",
+    maintenanceDetail: "",
+    details: "",
+  });
   localStorage.removeItem(ADMIN_PARENT_TOKEN_KEY);
+  notifyAdminParentStatusChange();
   if (passwordInput) {
     passwordInput.value = "";
   }
@@ -4483,10 +4540,38 @@ function setupMaintenanceMode(maintenanceOverlay, maintenanceBadge) {
   window.setInterval(refresh, MAINTENANCE_STATUS_POLL_MS);
 }
 
+function setupParentTerminalBadge(badge) {
+  const refresh = () => updateParentTerminalBadge(badge, latestMaintenanceStatus);
+  window.addEventListener("admin-parent-status-change", refresh);
+  window.addEventListener("maintenance-status-change", (event) => {
+    updateParentTerminalBadge(badge, event.detail);
+  });
+  window.addEventListener("storage", (event) => {
+    if (event.key === ADMIN_PARENT_TOKEN_KEY) {
+      refresh();
+    }
+  });
+  refresh();
+}
+
+function updateParentTerminalBadge(badge, maintenanceStatus = latestMaintenanceStatus) {
+  if (!badge) {
+    return;
+  }
+
+  const isParentTerminal = Boolean(localStorage.getItem(ADMIN_PARENT_TOKEN_KEY));
+  badge.textContent = maintenanceStatus?.maintenance ? "親端末／メンテナンスモード" : "親端末";
+  badge.classList.toggle("hidden", !isParentTerminal || isLocalDevelopmentHost());
+}
+
 function updateMaintenanceStateIndicators(overlay, badge, status) {
+  latestMaintenanceStatus = {
+    maintenance: Boolean(status?.maintenance),
+    reason: extractMaintenanceReason(status),
+  };
   const isParentTerminal = Boolean(localStorage.getItem(ADMIN_PARENT_TOKEN_KEY));
   const isMaintenanceExemptTerminal = isParentTerminal || isLocalDevelopmentHost();
-  const reason = extractMaintenanceReason(status);
+  const reason = latestMaintenanceStatus.reason;
   if (status.maintenance && !isMaintenanceExemptTerminal && state.simulationRunning) {
     stopSimulation();
   }
@@ -4495,7 +4580,9 @@ function updateMaintenanceStateIndicators(overlay, badge, status) {
     overlay.classList.toggle("hidden", !status.maintenance || isMaintenanceExemptTerminal);
   }
   if (badge) {
-    badge.classList.toggle("hidden", !status.maintenance || !isParentTerminal);
+    badge.classList.toggle("hidden", !status.maintenance || isParentTerminal);
+    const parentBadge = document.querySelector(".parent-terminal-badge");
+    updateParentTerminalBadge(parentBadge, latestMaintenanceStatus);
   }
 }
 
@@ -4515,6 +4602,10 @@ function updateMaintenanceOverlayMessage(overlay, reason = "") {
 
 function notifyMaintenanceStatusChange(status) {
   window.dispatchEvent(new CustomEvent("maintenance-status-change", { detail: status }));
+}
+
+function notifyAdminParentStatusChange() {
+  window.dispatchEvent(new CustomEvent("admin-parent-status-change"));
 }
 
 function extractMaintenanceReason(payload) {
@@ -5024,16 +5115,6 @@ async function waitForStableStartupMap(paintVersion) {
     Boolean(municipalityDisplayData?.features?.length) &&
     Boolean(localAreaData?.features?.length) &&
     Boolean(shindoStationData)
-  );
-}
-
-function isStartupIntensityLayerReady() {
-  const areaData = sourceDataRefs.get("jma-local-areas");
-  return Boolean(
-    map?.getLayer("jma-intensity-fill") &&
-      map?.getSource("jma-local-areas") &&
-      areaData?.features?.length &&
-      areaData.features.every((feature) => typeof feature.properties?.intensityColor === "string"),
   );
 }
 
@@ -6587,7 +6668,7 @@ function requestCurrentPosition() {
     }
 
     let settled = false;
-    let watchId = null;
+    let watchIds = [];
     let settleTimer = null;
     let timeoutTimer = null;
     let bestPosition = null;
@@ -6597,10 +6678,8 @@ function requestCurrentPosition() {
     const acceptableAccuracy = isIpad ? GEOLOCATION_IPAD_ACCEPTABLE_ACCURACY_M : GEOLOCATION_ACCEPTABLE_ACCURACY_M;
 
     const clearTimers = () => {
-      if (watchId != null) {
-        navigator.geolocation.clearWatch(watchId);
-        watchId = null;
-      }
+      watchIds.forEach((id) => navigator.geolocation.clearWatch(id));
+      watchIds = [];
       clearTimeout(settleTimer);
       clearTimeout(timeoutTimer);
     };
@@ -6697,7 +6776,14 @@ function requestCurrentPosition() {
         timeout: Math.min(14000, maxWaitMs),
       });
     }
-    watchId = navigator.geolocation.watchPosition(onPosition, onError, highAccuracyOptions);
+    watchIds.push(navigator.geolocation.watchPosition(onPosition, onError, highAccuracyOptions));
+    if (isIpad) {
+      watchIds.push(navigator.geolocation.watchPosition(onPosition, onError, {
+        enableHighAccuracy: false,
+        maximumAge: GEOLOCATION_IPAD_CACHED_MAX_AGE_MS,
+        timeout: maxWaitMs,
+      }));
+    }
   });
 }
 
@@ -10566,17 +10652,6 @@ function pointInPolygon(point, polygon) {
 
 function pointInFeature(point, feature) {
   return getFeaturePolygons(feature).some((polygon) => pointInPolygon(point, polygon));
-}
-
-function distanceToPolygonKilometers(point, polygon) {
-  if (pointInPolygon(point, polygon)) {
-    return 0;
-  }
-
-  return polygon.reduce(
-    (minimum, ring) => Math.min(minimum, distanceToRingKilometers(point, ring)),
-    Infinity,
-  );
 }
 
 function getNearestPointOnFeature(point, feature) {

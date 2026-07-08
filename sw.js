@@ -3,6 +3,7 @@ const NOTIFICATION_HISTORY_DB_NAME = "we-simulator-notification-history";
 const NOTIFICATION_HISTORY_DB_VERSION = 1;
 const NOTIFICATION_HISTORY_STORE_NAME = "notifications";
 const NOTIFICATION_HISTORY_LIMIT = 80;
+const NOTIFICATION_HISTORY_RETENTION_DAYS = 30;
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -25,6 +26,7 @@ self.addEventListener("activate", (event) => {
       .then((keys) =>
         Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))),
       )
+      .then(() => pruneNotificationHistory().catch((error) => console.warn("notification history prune failed", error)))
       .then(() => self.clients.claim()),
   );
 });
@@ -148,7 +150,7 @@ async function saveNotificationHistoryItem(notification) {
     await runNotificationHistoryTransaction(db, "readwrite", (store) => {
       store.put(notification);
     });
-    await trimNotificationHistory(db);
+    await pruneNotificationHistory(db);
     await notifyNotificationHistoryUpdated();
   } catch (error) {
     console.warn("notification history save failed", error);
@@ -186,21 +188,38 @@ function runNotificationHistoryTransaction(db, mode, callback) {
   });
 }
 
-async function trimNotificationHistory(db) {
+async function pruneNotificationHistory(existingDb = null) {
+  if (!self.indexedDB) {
+    return;
+  }
+
+  const db = existingDb ?? (await openNotificationHistoryDb());
   const items = await new Promise((resolve, reject) => {
     const transaction = db.transaction(NOTIFICATION_HISTORY_STORE_NAME, "readonly");
     const request = transaction.objectStore(NOTIFICATION_HISTORY_STORE_NAME).getAll();
     request.onsuccess = () => resolve(request.result || []);
     request.onerror = () => reject(request.error);
   });
+  const expiredItems = items.filter(isNotificationHistoryExpired);
   const extraItems = items
+    .filter((item) => !isNotificationHistoryExpired(item))
     .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
     .slice(NOTIFICATION_HISTORY_LIMIT);
-  if (extraItems.length === 0) {
+  const removeIds = [...expiredItems, ...extraItems].map((item) => item.id).filter(Boolean);
+  if (removeIds.length === 0) {
     return;
   }
 
   await runNotificationHistoryTransaction(db, "readwrite", (store) => {
-    extraItems.forEach((item) => store.delete(item.id));
+    [...new Set(removeIds)].forEach((id) => store.delete(id));
   });
+}
+
+function isNotificationHistoryExpired(item, now = Date.now()) {
+  const createdAtMs = Date.parse(item?.createdAt ?? "");
+  if (!Number.isFinite(createdAtMs)) {
+    return false;
+  }
+
+  return now - createdAtMs >= NOTIFICATION_HISTORY_RETENTION_DAYS * 24 * 60 * 60 * 1000;
 }
