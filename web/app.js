@@ -1408,6 +1408,9 @@ function bindSimulationControls() {
 }
 
 function resetEpicenterToInitialState(options = {}) {
+  if (options.stopSimulation && state.simulationRunning) {
+    stopSimulation();
+  }
   if (options.cancelSpeech) {
     cancelSpeechAnnouncements();
   }
@@ -1984,7 +1987,7 @@ function setupSmartphoneLandscapeUnsupportedReset() {
       smartphoneLandscapeResetApplied = false;
       if (shouldResetAfterReturn) {
         requestAnimationFrame(() => {
-          resetEpicenterToInitialState({ cancelSpeech: true });
+          resetEpicenterToInitialState({ cancelSpeech: true, stopSimulation: true });
         });
       }
       return;
@@ -1996,7 +1999,7 @@ function setupSmartphoneLandscapeUnsupportedReset() {
 
     smartphoneLandscapeResetApplied = true;
     requestAnimationFrame(() => {
-      resetEpicenterToInitialState({ cancelSpeech: true });
+      resetEpicenterToInitialState({ cancelSpeech: true, stopSimulation: true });
     });
   };
 
@@ -2406,7 +2409,7 @@ function createPushConfirmOverlay() {
       </div>
       <section class="source-info-tab-panel push-confirm-panel" data-push-panel="settings" role="tabpanel">
         <h2>\u3010\u901a\u77e5\u306e\u8a31\u53ef\u3011</h2>
-        <p>\u30a2\u30d7\u30ea\u3092\u9589\u3058\u3066\u3044\u3066\u3082\u3001<br class="push-confirm-mobile-break" />\u91cd\u8981\u306a\u304a\u77e5\u3089\u305b\u3092\u901a\u77e5\u3068\u3057\u3066\u53d7\u3051\u53d6\u308c\u308b\u3088\u3046\u306b\u3057\u307e\u3059\u3002</p>
+        <p>\u30a2\u30d7\u30ea\u3092\u9589\u3058\u3066\u3044\u3066\u3082\u3001<br class="push-confirm-mobile-break" />\u91cd\u8981\u306a\u304a\u77e5\u3089\u305b\u3092\u901a\u77e5\u3068\u3057\u3066<br class="push-confirm-mobile-break" />\u53d7\u3051\u53d6\u308c\u308b\u3088\u3046\u306b\u3057\u307e\u3059\u3002</p>
         <div class="push-confirm-actions">
           <button class="push-confirm-yes" type="button">\u901a\u77e5\u3092\u8a2d\u5b9a</button>
         </div>
@@ -2693,22 +2696,26 @@ async function renderNotificationHistory(overlay) {
 
   const canManage = canManageNotificationHistory();
   list.replaceChildren();
+  status.classList.remove("is-empty");
   status.textContent = "読み込み中...";
 
   try {
     const history = await readNotificationHistory();
     const readIds = getNotificationHistoryReadIds();
     if (history.length === 0) {
+      status.classList.add("is-empty");
       status.textContent = "過去30日以内に配信された通知はありません。";
       return;
     }
 
+    status.classList.remove("is-empty");
     status.textContent = canManage ? "" : "履歴の削除は親端末またはLocalサーバーでできます。";
     list.replaceChildren(
       ...history.map((item) => createNotificationHistoryItem(item, canManage, readIds.has(item.id))),
     );
   } catch (error) {
     console.warn("notification history render failed", error);
+    status.classList.remove("is-empty");
     status.textContent = "通知履歴の読み込みに失敗しました。";
   }
 }
@@ -2797,12 +2804,13 @@ function createNotificationHistoryItem(item, canManage, isRead = false) {
   const content = document.createElement("div");
   content.className = "push-history-content";
 
-  const heading = document.createElement("h3");
+  const heading = document.createElement("div");
+  heading.className = "push-history-heading";
+  const meta = document.createElement("div");
+  meta.className = "push-history-meta";
   const time = document.createElement("time");
   time.textContent = formatNotificationHistoryTime(item.createdAt);
   time.dateTime = item.createdAt || "";
-  const title = document.createElement("span");
-  title.textContent = item.title || "WE-Simulator";
   const readState = document.createElement("button");
   readState.type = "button";
   readState.className = `push-history-read-state ${isRead ? "is-read" : "is-unread"}`;
@@ -2811,7 +2819,12 @@ function createNotificationHistoryItem(item, canManage, isRead = false) {
   if (!isRead) {
     readState.dataset.readNotificationHistory = item.id;
   }
-  heading.append(time, title, readState);
+  meta.append(time, readState);
+
+  const title = document.createElement("h3");
+  title.className = "push-history-title";
+  title.textContent = item.title || "WE-Simulator";
+  heading.append(meta, title);
 
   const body = document.createElement("p");
   body.textContent = item.body || "通知内容なし";

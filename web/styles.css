@@ -281,7 +281,7 @@ h1 {
   content: "i";
   position: absolute;
   left: calc(50% - 0.5px);
-  top: calc(50% - 1.2px);
+  top: calc(50% - 1px);
   color: #ffffff;
   font-size: 1rem;
   font-style: normal;
@@ -585,7 +585,7 @@ h1 {
 .push-confirm-panel[data-push-panel="settings"] {
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 8px;
-  min-height: clamp(220px, 32vh, 320px);
+  min-height: clamp(200px, 28vh, 288px);
   padding: clamp(14px, 2.8vw, 22px);
   background: rgba(255, 255, 255, 0.06);
   overflow: visible;
@@ -719,33 +719,43 @@ h1 {
   gap: 4px;
 }
 
+.push-history-heading,
 .push-history-content h3,
 .push-history-content p {
   margin: 0;
   text-align: left;
 }
 
-.push-history-content h3 {
+.push-history-heading {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.push-history-meta {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
   min-width: 0;
-  font-size: 0.88rem;
-  line-height: 1.25;
 }
 
-.push-history-content h3 time {
-  color: rgba(255, 255, 255, 0.82);
-  font: inherit;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.push-history-content h3 > span:not(.push-history-read-state) {
+.push-history-title {
   min-width: 0;
   overflow: hidden;
   color: #ffffff;
+  font-size: 0.88rem;
+  font-weight: 900;
+  line-height: 1.25;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.push-history-meta time {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
@@ -823,6 +833,12 @@ h1 {
   font-weight: 700 !important;
   line-height: 1.45 !important;
   text-align: left !important;
+}
+
+.push-history-status.is-empty {
+  grid-row: 2;
+  align-self: center;
+  margin-top: clamp(24px, 8vh, 86px);
 }
 
 .source-info-overlay {
@@ -1379,6 +1395,16 @@ h1 {
 
 .parent-terminal-badge {
   z-index: 6500;
+}
+
+.maintenance-mode-badge,
+.parent-terminal-badge {
+  min-height: 58px;
+  padding: 0 18px;
+  font-size: clamp(0.98rem, 2.2vw, 1.12rem);
+  overflow-wrap: anywhere;
+  white-space: normal;
+  word-break: keep-all;
 }
 
 .maintenance-mode-badge.hidden,
