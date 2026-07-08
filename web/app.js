@@ -756,6 +756,7 @@ let waveCanvasRadiusState = { p: 0, s: 0 };
 const waveCircleBearingCache = new Map();
 const eewForecastAreaNameCache = new Map();
 let resetViewAnimating = false;
+let smartphoneLandscapeResetApplied = false;
 let postMapInteractionRenderTimer;
 let localAreaStationMembershipCache;
 let localAreaStationSnapshotCache;
@@ -852,6 +853,7 @@ setupTransientPanelScrollbars();
 setupPanelScrollbarOffsets();
 preventNonMapZoom();
 setupViewportStability();
+setupSmartphoneLandscapeUnsupportedReset();
 setupSpeechSynthesisRecovery();
 setupPushNotifications();
 backfillLegacyNotificationHistory();
@@ -2019,6 +2021,33 @@ function setupViewportStability() {
     window.visualViewport.addEventListener("resize", handleViewportChange, { passive: true });
     window.visualViewport.addEventListener("scroll", handleViewportChange, { passive: true });
   }
+}
+
+function setupSmartphoneLandscapeUnsupportedReset() {
+  const media = window.matchMedia(
+    "(orientation: landscape) and (hover: none) and (pointer: coarse) and (max-height: 540px) and (max-width: 1000px)",
+  );
+
+  const applyResetIfNeeded = () => {
+    if (!media.matches) {
+      smartphoneLandscapeResetApplied = false;
+      return;
+    }
+
+    if (smartphoneLandscapeResetApplied) {
+      return;
+    }
+
+    smartphoneLandscapeResetApplied = true;
+    requestAnimationFrame(() => {
+      els.resetEpicenter?.click();
+    });
+  };
+
+  applyResetIfNeeded();
+  media.addEventListener?.("change", applyResetIfNeeded);
+  window.addEventListener("resize", applyResetIfNeeded, { passive: true });
+  window.addEventListener("orientationchange", applyResetIfNeeded, { passive: true });
 }
 
 function setupSpeechSynthesisRecovery() {
