@@ -408,9 +408,25 @@ h1 {
 }
 
 .push-info-button.has-unread-history {
-  background:
-    radial-gradient(circle at calc(100% - 12px) 12px, #ff234f 0 5px, #ffffff 5.5px 6.8px, transparent 7.2px),
-    rgba(82, 87, 92, 0.96);
+  background: rgba(82, 87, 92, 0.96) !important;
+  background-color: rgba(82, 87, 92, 0.96) !important;
+}
+
+.push-info-unread-dot {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  z-index: 2;
+  display: none;
+  width: 17px;
+  height: 17px;
+  border-radius: 999px;
+  background: #ff123b;
+  pointer-events: none;
+}
+
+.push-info-button.has-unread-history .push-info-unread-dot {
+  display: block;
 }
 
 .push-info-button.is-enabled::after {
@@ -668,7 +684,7 @@ h1 {
   grid-template-columns: 1fr;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 8px;
-  padding: 6px 10px;
+  padding: 6px 58px 6px 10px;
   background: rgba(255, 255, 255, 0.055);
   overflow: hidden;
   outline: none;
@@ -694,8 +710,8 @@ h1 {
 }
 
 .push-history-content h3 {
-  display: grid;
-  grid-template-columns: auto 1fr;
+  display: flex;
+  align-items: baseline;
   gap: 8px;
   min-width: 0;
   font-size: 0.88rem;
@@ -709,12 +725,46 @@ h1 {
   white-space: nowrap;
 }
 
-.push-history-content h3 span {
+.push-history-content h3 > span:not(.push-history-read-state) {
   min-width: 0;
   overflow: hidden;
   color: #ffffff;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.push-history-read-state {
+  appearance: none;
+  align-self: center;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 1px 5px 2px;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1.15;
+  opacity: 1;
+  white-space: nowrap;
+  text-shadow: none;
+}
+
+.push-history-read-state.is-unread {
+  cursor: pointer;
+}
+
+.push-history-read-state:focus-visible {
+  outline: 2px solid rgba(142, 234, 255, 0.78);
+  outline-offset: 2px;
+}
+
+.push-history-read-state.is-unread {
+  color: #ff234f;
+  background: rgba(255, 35, 79, 0.14);
+}
+
+.push-history-read-state.is-read {
+  color: #2fdf72;
+  background: rgba(47, 223, 114, 0.14);
 }
 
 .push-history-content p {
@@ -726,12 +776,12 @@ h1 {
   word-break: break-word;
 }
 
-.push-history-item button {
+.push-history-delete {
   position: absolute;
-  top: 6px;
+  bottom: 6px;
   right: 6px;
-  opacity: 0;
-  pointer-events: none;
+  opacity: 1;
+  pointer-events: auto;
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 6px;
   padding: 6px 9px;
@@ -743,9 +793,9 @@ h1 {
   transition: opacity 120ms ease;
 }
 
-.push-history-item:focus button,
-.push-history-item:focus-within button,
-.push-history-item:hover button {
+.push-history-item:focus .push-history-delete,
+.push-history-item:focus-within .push-history-delete,
+.push-history-item:hover .push-history-delete {
   opacity: 1;
   pointer-events: auto;
 }
