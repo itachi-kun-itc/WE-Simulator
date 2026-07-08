@@ -1391,6 +1391,10 @@ body.app-loading #setup-panel button:not(#simulation-start) {
   -webkit-overflow-scrolling: touch;
 }
 
+.preset-picker-description span + span::before {
+  content: "、";
+}
+
 .preset-picker-table-wrap {
   position: relative;
   min-height: 0;
@@ -1408,7 +1412,8 @@ body.app-loading #setup-panel button:not(#simulation-start) {
   width: 100%;
   min-width: 760px;
   table-layout: auto;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   background: rgba(255, 255, 255, 0.015);
   font-size: 0.98rem;
 }
@@ -2209,9 +2214,21 @@ body.app-loading #setup-panel button:not(#simulation-start) {
     padding: 9px 10px;
   }
 
+  .preset-picker-description {
+    white-space: normal;
+  }
+
+  .preset-picker-description span {
+    display: block;
+  }
+
+  .preset-picker-description span + span::before {
+    content: "";
+  }
+
   .preset-picker-table {
-    width: 630px;
-    min-width: 630px;
+    width: 642px;
+    min-width: 642px;
     table-layout: fixed;
     font-size: 0.76rem;
   }
@@ -2235,13 +2252,17 @@ body.app-loading #setup-panel button:not(#simulation-start) {
   }
 
   .preset-picker-table th:nth-child(3),
-  .preset-picker-table th:nth-child(4),
   .preset-picker-table th:nth-child(5),
   .preset-picker-table td:nth-child(3),
-  .preset-picker-table td:nth-child(4),
   .preset-picker-table td:nth-child(5) {
     width: 116px;
     min-width: 116px;
+  }
+
+  .preset-picker-table th:nth-child(4),
+  .preset-picker-table td:nth-child(4) {
+    width: 128px;
+    min-width: 128px;
   }
 
   .preset-picker-table td:nth-child(3),

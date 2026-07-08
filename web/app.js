@@ -1062,11 +1062,14 @@ function getPresetSortValue(preset, key) {
 }
 
 function togglePresetSort(key) {
-  if (state.presetSortKey === key) {
-    state.presetSortDirection = state.presetSortDirection === "asc" ? "desc" : "asc";
-  } else {
+  if (state.presetSortKey !== key) {
     state.presetSortKey = key;
     state.presetSortDirection = "asc";
+  } else if (state.presetSortDirection === "asc") {
+    state.presetSortDirection = "desc";
+  } else {
+    state.presetSortKey = null;
+    state.presetSortDirection = "desc";
   }
   renderEarthquakePresetPicker();
   clampPresetPickerScrollBoundsNow();
@@ -1759,6 +1762,10 @@ function shouldOffsetForPanelScrollbar() {
 
 function isLandscapeSidePanelViewport() {
   return window.matchMedia("(orientation: landscape) and (max-width: 1180px) and (max-height: 720px)").matches;
+}
+
+function isPhonePortraitViewport() {
+  return window.matchMedia("(orientation: portrait) and (max-width: 720px)").matches;
 }
 
 function isCompactViewport() {
@@ -5830,7 +5837,7 @@ async function startSimulation() {
   els.simulationStart.textContent = "シミュレーション中止";
   els.setupPanel.classList.add("hidden");
   els.simulationPanel.classList.remove("hidden");
-  setSheetState(els.simulationPanel, isCompactViewport() ? "collapsed" : "open");
+  setSheetState(els.simulationPanel, isCompactViewport() && !isPhonePortraitViewport() ? "collapsed" : "open");
   cancelAnimationFrame(simulationFrame);
   tickSimulation(simulationStartedAt);
 }
