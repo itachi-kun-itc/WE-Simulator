@@ -779,7 +779,7 @@ const SOURCE_SECTIONS = [
       { label: "長周期地震動に関する情報の運用開始について", href: "https://www.jma.go.jp/jma/kishou/know/jishin/eew/shiryo/lpgm_start202302/202302_setsumei.pdf" },
       { label: "震度について", href: "https://www.jma.go.jp/jma/kishou/know/shindo/index.html" },
       { label: "東北地方太平洋沖地震（2011）", href: "https://www.data.jma.go.jp/eqev/data/2011_03_11_tohoku/" },
-      { label: "大阪府北部の地震（2018）", href: "https://www.data.jma.go.jp/eqev/data/higai/20180618_oosaka_jishin_menu.html" },
+      { label: "大阪北部地震（2018）", href: "https://www.data.jma.go.jp/eqev/data/higai/20180618_oosaka_jishin_menu.html" },
       { label: "熊本地震（2016）", href: "https://www.data.jma.go.jp/eqev/data/2016_04_14_kumamoto/index.html" },
     ],
   },
@@ -4388,7 +4388,7 @@ function getSourceLinkDescription(source, section) {
   if (label.includes("長周期地震動")) return "長周期地震動階級を扱う表示の参考にしています。";
   if (label.includes("震度について")) return "震度階級の説明と表示基準の参考にしています。";
   if (label.includes("東北地方太平洋沖")) return "2011年のプリセット地震と観測震度の資料として使用しています。";
-  if (label.includes("大阪府北部")) return "2018年のプリセット地震と観測震度の資料として使用しています。";
+  if (label.includes("大阪北部地震")) return "2018年のプリセット地震と観測震度の資料として使用しています。";
   if (label.includes("熊本地震")) return "2016年のプリセット地震と観測震度の資料として使用しています。";
   if (label.includes("プレート形状")) return "海溝、トラフ、プレート境界線の描画に使用しています。";
   if (label.includes("国土数値情報")) return "市区町村などの行政区域データの作成に使用しています。";
