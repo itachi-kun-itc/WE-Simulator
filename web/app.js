@@ -17,6 +17,21 @@ const FEEDBACK_ENDPOINT_URL =
 const MAINTENANCE_ENDPOINT_URL = FEEDBACK_ENDPOINT_URL;
 const PUSH_CONFIG_URL = "./push-config.json";
 const ADMIN_PARENT_TOKEN_KEY = "weather-earthquake-admin-parent-token";
+const NOTIFICATION_HISTORY_LAST_SEEN_KEY = "weather-earthquake-notification-history-last-seen";
+const NOTIFICATION_HISTORY_DB_NAME = "we-simulator-notification-history";
+const NOTIFICATION_HISTORY_DB_VERSION = 1;
+const NOTIFICATION_HISTORY_STORE_NAME = "notifications";
+const NOTIFICATION_HISTORY_LIMIT = 80;
+const NOTIFICATION_HISTORY_BACKFILL_KEY = "weather-earthquake-notification-history-backfill-v1";
+const LEGACY_NOTIFICATION_HISTORY_ITEMS = [
+  {
+    id: "legacy-2026-07-08-1700-feature-update",
+    title: "機能更新について",
+    body: "・地震プリセットを5つ追加\n・出典のリンク先を詳細に明記\n・その他細かな改善を行いました。",
+    createdAt: "2026-07-08T08:00:00.000Z",
+    source: "backfill",
+  },
+];
 const MAINTENANCE_STATUS_POLL_MS = 60000;
 const LOCAL_PARENT_UNAVAILABLE_LABEL = "Localサーバーでは\n親端末に設定できません";
 
@@ -603,7 +618,6 @@ const state = {
   eewWarningBlinkStartedAt: {},
   eewInitialWarningKeys: new Set(),
   eewPreviousWarningKeys: new Set(),
-  maxIntensityHistory: [],
   simulationRunning: false,
   simulationPaused: false,
   mapInteracting: false,
@@ -720,6 +734,7 @@ let currentLocationRequestId = 0;
 let currentLocationForecastCache;
 let locationResolveTimer;
 let simulationFrame;
+let simulationCompleteAtSec = null;
 let municipalityBoundaryVisibilityTimer;
 let startupMapVisualReady = false;
 let municipalityBoundaryVisible = false;
@@ -735,9 +750,11 @@ let simulationRenderBucket = -1;
 let simulationStationRenderBucket = -1;
 let maxStationListRenderBucket = null;
 let simulationTimeTextCache = "";
+let eewForecastPanelRenderSignature = "";
 let waveRenderRadiusCache = { p: null, s: null };
 let waveCanvasRadiusState = { p: 0, s: 0 };
 const waveCircleBearingCache = new Map();
+const eewForecastAreaNameCache = new Map();
 let resetViewAnimating = false;
 let postMapInteractionRenderTimer;
 let localAreaStationMembershipCache;
@@ -746,6 +763,7 @@ let areaEpicentralDistanceCache = {
   key: "",
   distances: [],
 };
+let stationSummaryCache = { data: null, summary: null };
 let speechAnnouncementState = createSpeechAnnouncementState();
 let postMunicipalityDataScheduled = false;
 const sourceDataRefs = new Map();
@@ -836,6 +854,7 @@ preventNonMapZoom();
 setupViewportStability();
 setupSpeechSynthesisRecovery();
 setupPushNotifications();
+backfillLegacyNotificationHistory();
 
 if (window.maplibregl) {
   initEarthquakeMap().catch((error) => {
@@ -2276,9 +2295,13 @@ function addSourceInfoControl() {
         showPushConfirmOverlay(pushConfirmOverlay, pushButton);
       });
       refreshPushInfoButtonState(pushButton);
+      updatePushHistoryUnreadIndicator(pushButton);
 
       pushConfirmOverlay.addEventListener("push-confirm-close", () => {
         pushButton.setAttribute("aria-expanded", "false");
+      });
+      window.addEventListener("notification-history-change", () => {
+        updatePushHistoryUnreadIndicator(pushButton);
       });
 
       container.append(button, feedbackButton, speechButton, pushButton);
@@ -2288,6 +2311,7 @@ function addSourceInfoControl() {
   };
 
   map.addControl(sourceInfoControl, "top-right");
+  setupNotificationHistoryMessages();
 }
 
 async function refreshPushInfoButtonState(button) {
@@ -2367,67 +2391,83 @@ function showSpeechConfirmOverlay(overlay, onConfirm) {
 
 function createPushConfirmOverlay() {
   const overlay = document.createElement("section");
-  overlay.className = "push-confirm-overlay hidden";
-  overlay.setAttribute("aria-modal", "true");
-  overlay.setAttribute("role", "dialog");
-  overlay.setAttribute("aria-label", "通知の許可");
-  overlay.innerHTML = `
-    <div class="push-confirm-dialog">
-      <h2>通知を有効にしますか</h2>
-      <p>アプリを閉じていても、重要なお知らせを通知として受け取れるようにします。</p>
-      <div class="push-confirm-actions">
-        <button class="push-confirm-yes" type="button">許可する</button>
-        <button class="push-confirm-no" type="button">キャンセル</button>
-      </div>
-      <p class="push-confirm-status" role="status" aria-live="polite"></p>
-    </div>
-  `;
-  return overlay;
-}
-
-function createPushConfirmOverlay() {
-  const overlay = document.createElement("section");
-  overlay.className = "push-confirm-overlay hidden";
-  overlay.setAttribute("aria-modal", "true");
-  overlay.setAttribute("role", "dialog");
-  overlay.setAttribute("aria-label", "通知の許可");
-  overlay.innerHTML = `
-    <div class="push-confirm-dialog">
-      <h2>通知の許可</h2>
-      <p>アプリを閉じていても、<br />重要なお知らせを通知として受け取れるようにします。</p>
-      <div class="push-confirm-actions">
-        <button class="push-confirm-yes" type="button">通知を許可</button>
-        <button class="push-confirm-no" type="button">いいえ</button>
-      </div>
-      <p class="push-confirm-status" role="status" aria-live="polite"></p>
-    </div>
-  `;
-  return overlay;
-}
-
-function createPushConfirmOverlay() {
-  const overlay = document.createElement("section");
-  overlay.className = "push-confirm-overlay hidden";
+  overlay.className = "source-info-overlay push-confirm-overlay hidden";
   overlay.setAttribute("aria-modal", "true");
   overlay.setAttribute("role", "dialog");
   overlay.setAttribute("aria-label", "\u901a\u77e5\u306e\u8a31\u53ef");
   overlay.innerHTML = `
-    <div class="push-confirm-dialog">
-      <h2>\u3010\u901a\u77e5\u306e\u8a31\u53ef\u3011</h2>
-      <p>\u30a2\u30d7\u30ea\u3092\u9589\u3058\u3066\u3044\u3066\u3082\u3001<br />\u91cd\u8981\u306a\u304a\u77e5\u3089\u305b\u3092\u901a\u77e5\u3068\u3057\u3066<br />\u53d7\u3051\u53d6\u308c\u308b\u3088\u3046\u306b\u3057\u307e\u3059\u3002</p>
-      <div class="push-confirm-actions">
-        <button class="push-confirm-yes" type="button">\u901a\u77e5\u3092\u8a31\u53ef</button>
-        <button class="push-confirm-no" type="button">\u3044\u3044\u3048</button>
+    <button class="source-info-close push-confirm-close" type="button" aria-label="\u901a\u77e5\u30e1\u30cb\u30e5\u30fc\u3092\u9589\u3058\u308b">\u00d7</button>
+    <div class="source-info-overlay-content push-confirm-dialog">
+      <header class="source-info-header push-confirm-header">
+        <p>Notifications</p>
+        <h2>\u901a\u77e5</h2>
+      </header>
+      <div class="source-info-tabs push-confirm-tabs" role="tablist" aria-label="\u901a\u77e5\u30e1\u30cb\u30e5\u30fc">
+        <button class="source-info-tab push-confirm-tab is-active" type="button" role="tab" aria-selected="true" data-push-tab="settings">\u901a\u77e5\u8a2d\u5b9a</button>
+        <button class="source-info-tab push-confirm-tab" type="button" role="tab" aria-selected="false" data-push-tab="history">\u901a\u77e5\u5c65\u6b74</button>
       </div>
-      <p class="push-confirm-status" role="status" aria-live="polite"></p>
+      <section class="source-info-tab-panel push-confirm-panel" data-push-panel="settings" role="tabpanel">
+        <h2>\u3010\u901a\u77e5\u306e\u8a31\u53ef\u3011</h2>
+        <p>\u30a2\u30d7\u30ea\u3092\u9589\u3058\u3066\u3044\u3066\u3082\u3001<br class="push-confirm-mobile-break" />\u91cd\u8981\u306a\u304a\u77e5\u3089\u305b\u3092\u901a\u77e5\u3068\u3057\u3066\u53d7\u3051\u53d6\u308c\u308b\u3088\u3046\u306b\u3057\u307e\u3059\u3002</p>
+        <div class="push-confirm-actions">
+          <button class="push-confirm-yes" type="button">\u901a\u77e5\u3092\u8a31\u53ef</button>
+          <button class="push-confirm-no" type="button">\u3044\u3044\u3048</button>
+        </div>
+        <p class="push-confirm-status" role="status" aria-live="polite"></p>
+      </section>
+      <section class="source-info-tab-panel push-confirm-panel hidden" data-push-panel="history" role="tabpanel">
+        <div class="push-history-head">
+          <h2>\u901a\u77e5\u5c65\u6b74</h2>
+        </div>
+        <div class="push-history-list" role="list"></div>
+        <p class="push-history-status" role="status" aria-live="polite"></p>
+      </section>
     </div>
   `;
+  setupPushConfirmTabs(overlay);
   return overlay;
+}
+
+function setupPushConfirmTabs(overlay) {
+  overlay.querySelectorAll("[data-push-tab]").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      activatePushConfirmTab(overlay, tab.dataset.pushTab || "settings");
+    });
+  });
+
+  overlay.querySelector(".push-history-list")?.addEventListener("click", async (event) => {
+    const button = event.target?.closest?.("[data-delete-notification-history]");
+    if (!button || !canManageNotificationHistory()) {
+      return;
+    }
+
+    await deleteNotificationHistoryItem(button.dataset.deleteNotificationHistory);
+    await renderNotificationHistory(overlay);
+  });
+}
+
+function activatePushConfirmTab(overlay, tabName) {
+  overlay.dataset.pushTab = tabName;
+  overlay.querySelectorAll("[data-push-tab]").forEach((tab) => {
+    const active = tab.dataset.pushTab === tabName;
+    tab.classList.toggle("is-active", active);
+    tab.setAttribute("aria-selected", String(active));
+  });
+
+  overlay.querySelectorAll("[data-push-panel]").forEach((panel) => {
+    panel.classList.toggle("hidden", panel.dataset.pushPanel !== tabName);
+  });
+
+  if (tabName === "history") {
+    markNotificationHistorySeen();
+    renderNotificationHistory(overlay);
+  }
 }
 
 function showPushConfirmOverlay(overlay, triggerButton) {
   const yesButton = overlay.querySelector(".push-confirm-yes");
   const noButton = overlay.querySelector(".push-confirm-no");
+  const closeButton = overlay.querySelector(".push-confirm-close");
   const status = overlay.querySelector(".push-confirm-status");
   const isLocalServer = isLocalDevelopmentHost();
   const close = () => {
@@ -2459,6 +2499,7 @@ function showPushConfirmOverlay(overlay, triggerButton) {
     yesButton.textContent = originalActionText;
   };
   noButton.onclick = close;
+  closeButton.onclick = close;
   overlay.onclick = (event) => {
     if (event.target === overlay) {
       close();
@@ -2473,6 +2514,7 @@ function showPushConfirmOverlay(overlay, triggerButton) {
     isLocalServer ? "Localサーバーでは通知の許可はできません。\n公開サイトから有効にしてください。" : "",
     isLocalServer,
   );
+  activatePushConfirmTab(overlay, "settings");
   triggerButton?.setAttribute("aria-expanded", "true");
   triggerButton?.classList.toggle("is-enabled", state.pushSubscribed);
   overlay.classList.remove("hidden");
@@ -2589,6 +2631,248 @@ function setPushPermissionStatus(element, message, isError = false) {
 
   element.textContent = message;
   element.classList.toggle("push-confirm-status-error", Boolean(isError));
+}
+
+function canManageNotificationHistory() {
+  return isLocalDevelopmentHost() || Boolean(localStorage.getItem(ADMIN_PARENT_TOKEN_KEY));
+}
+
+async function renderNotificationHistory(overlay) {
+  const list = overlay?.querySelector(".push-history-list");
+  const status = overlay?.querySelector(".push-history-status");
+  if (!list || !status) {
+    return;
+  }
+
+  const canManage = canManageNotificationHistory();
+  list.replaceChildren();
+  status.textContent = "読み込み中...";
+
+  try {
+    const history = await readNotificationHistory();
+    if (history.length === 0) {
+      status.textContent = "通知履歴はありません。";
+      return;
+    }
+
+    status.textContent = canManage ? "" : "履歴の削除は親端末またはLocalサーバーでできます。";
+    list.replaceChildren(...history.map((item) => createNotificationHistoryItem(item, canManage)));
+  } catch (error) {
+    console.warn("notification history render failed", error);
+    status.textContent = "通知履歴の読み込みに失敗しました。";
+  }
+}
+
+function setupNotificationHistoryMessages() {
+  if (!("serviceWorker" in navigator) || setupNotificationHistoryMessages.done) {
+    return;
+  }
+
+  setupNotificationHistoryMessages.done = true;
+  navigator.serviceWorker.addEventListener("message", (event) => {
+    if (event.data?.type === "notification-history-updated") {
+      dispatchNotificationHistoryChange();
+    }
+  });
+}
+
+function dispatchNotificationHistoryChange() {
+  window.dispatchEvent(new CustomEvent("notification-history-change"));
+}
+
+function markNotificationHistorySeen() {
+  localStorage.setItem(NOTIFICATION_HISTORY_LAST_SEEN_KEY, new Date().toISOString());
+  dispatchNotificationHistoryChange();
+}
+
+async function hasUnreadNotificationHistory() {
+  const history = await readNotificationHistory();
+  if (history.length === 0) {
+    return false;
+  }
+
+  const lastSeenAt = localStorage.getItem(NOTIFICATION_HISTORY_LAST_SEEN_KEY) || "";
+  return history.some((item) => String(item.createdAt || "") > lastSeenAt);
+}
+
+async function updatePushHistoryUnreadIndicator(button) {
+  if (!button) {
+    return;
+  }
+
+  try {
+    button.classList.toggle("has-unread-history", await hasUnreadNotificationHistory());
+  } catch (error) {
+    console.warn("notification history unread check failed", error);
+    button.classList.remove("has-unread-history");
+  }
+}
+
+function createNotificationHistoryItem(item, canManage) {
+  const article = document.createElement("article");
+  article.className = "push-history-item";
+  article.setAttribute("role", "listitem");
+
+  const content = document.createElement("div");
+  content.className = "push-history-content";
+
+  const heading = document.createElement("h3");
+  const time = document.createElement("time");
+  time.textContent = formatNotificationHistoryTime(item.createdAt);
+  time.dateTime = item.createdAt || "";
+  const title = document.createElement("span");
+  title.textContent = item.title || "WE-Simulator";
+  heading.append(time, title);
+
+  const body = document.createElement("p");
+  body.textContent = item.body || "通知内容なし";
+
+  content.append(heading, body);
+  article.append(content);
+
+  if (canManage) {
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.textContent = "削除";
+    deleteButton.dataset.deleteNotificationHistory = item.id;
+    article.append(deleteButton);
+  }
+
+  return article;
+}
+
+function formatNotificationHistoryTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "--:--";
+  }
+
+  const now = new Date();
+  const isToday =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate();
+
+  if (isToday) {
+    return new Intl.DateTimeFormat("ja-JP", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date);
+  }
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  return `${year}/${month}/${day} ${hour}:${minute}`;
+}
+
+function createNotificationHistoryId() {
+  return `notification-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+async function backfillLegacyNotificationHistory() {
+  if (!("indexedDB" in window) || localStorage.getItem(NOTIFICATION_HISTORY_BACKFILL_KEY) === "done") {
+    return;
+  }
+
+  try {
+    const history = await readNotificationHistory();
+    const existingIds = new Set(history.map((item) => item.id));
+    for (const item of LEGACY_NOTIFICATION_HISTORY_ITEMS) {
+      if (!existingIds.has(item.id)) {
+        await saveNotificationHistoryItem(item);
+      }
+    }
+    localStorage.setItem(NOTIFICATION_HISTORY_BACKFILL_KEY, "done");
+  } catch (error) {
+    console.warn("notification history backfill failed", error);
+  }
+}
+
+async function saveNotificationHistoryItem(notification) {
+  if (!notification?.id || !("indexedDB" in window)) {
+    return;
+  }
+
+  const db = await openNotificationHistoryDb();
+  await runNotificationHistoryTransaction(db, "readwrite", (store) => {
+    store.put({
+      id: notification.id,
+      title: String(notification.title || "WE-Simulator").slice(0, 80),
+      body: String(notification.body || "").slice(0, 300),
+      createdAt: notification.createdAt || new Date().toISOString(),
+      source: notification.source || "local",
+    });
+  });
+  await trimNotificationHistory();
+  dispatchNotificationHistoryChange();
+}
+
+async function readNotificationHistory() {
+  if (!("indexedDB" in window)) {
+    return [];
+  }
+
+  const db = await openNotificationHistoryDb();
+  const items = await new Promise((resolve, reject) => {
+    const transaction = db.transaction(NOTIFICATION_HISTORY_STORE_NAME, "readonly");
+    const request = transaction.objectStore(NOTIFICATION_HISTORY_STORE_NAME).getAll();
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = () => reject(request.error);
+  });
+
+  return items.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+}
+
+async function deleteNotificationHistoryItem(id) {
+  if (!id || !("indexedDB" in window)) {
+    return;
+  }
+
+  const db = await openNotificationHistoryDb();
+  await runNotificationHistoryTransaction(db, "readwrite", (store) => {
+    store.delete(id);
+  });
+  dispatchNotificationHistoryChange();
+}
+
+async function trimNotificationHistory() {
+  const items = await readNotificationHistory();
+  if (items.length <= NOTIFICATION_HISTORY_LIMIT) {
+    return;
+  }
+
+  const db = await openNotificationHistoryDb();
+  const removeIds = items.slice(NOTIFICATION_HISTORY_LIMIT).map((item) => item.id);
+  await runNotificationHistoryTransaction(db, "readwrite", (store) => {
+    removeIds.forEach((id) => store.delete(id));
+  });
+}
+
+function openNotificationHistoryDb() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(NOTIFICATION_HISTORY_DB_NAME, NOTIFICATION_HISTORY_DB_VERSION);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(NOTIFICATION_HISTORY_STORE_NAME)) {
+        db.createObjectStore(NOTIFICATION_HISTORY_STORE_NAME, { keyPath: "id" });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function runNotificationHistoryTransaction(db, mode, callback) {
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(NOTIFICATION_HISTORY_STORE_NAME, mode);
+    callback(transaction.objectStore(NOTIFICATION_HISTORY_STORE_NAME));
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
 }
 
 function createSpeechAnnouncementState() {
@@ -3761,8 +4045,10 @@ async function sendAdminNotification(overlay) {
   }
 
   const payload = {
+    id: createNotificationHistoryId(),
     title,
     body,
+    createdAt: new Date().toISOString(),
     url: "./",
     tag: "we-simulator-admin",
     renotify: true,
@@ -3788,6 +4074,13 @@ async function sendAdminNotification(overlay) {
     if (bodyInput) {
       bodyInput.value = "";
     }
+    await saveNotificationHistoryItem({
+      id: payload.id,
+      title: payload.title,
+      body: payload.body,
+      createdAt: payload.createdAt,
+      source: isLocalDevelopmentHost() ? "local" : "parent",
+    });
     setAdminNotificationStatus(
       status,
       `通知を送信しました。購読端末: ${result.subscribers ?? 0} / 送信: ${result.sent ?? 0}`,
@@ -5277,8 +5570,11 @@ function renderStationCanvasOverlay() {
   const submarineFeatures = getSubmarineStationCanvasFeatures();
   const zoom = map.getZoom();
 
-  drawWaveCanvasRadiusFill(context, waveCanvasRadiusState.p, "rgba(45, 212, 255, 0.08)");
-  drawWaveCanvasRadiusFill(context, waveCanvasRadiusState.s, "rgba(255, 55, 95, 0.1)");
+  const projectedPWaveRing = getProjectedWaveCanvasRing(waveCanvasRadiusState.p);
+  const projectedSWaveRing = getProjectedWaveCanvasRing(waveCanvasRadiusState.s);
+
+  drawProjectedWaveCanvasRadiusFill(context, projectedPWaveRing, "rgba(45, 212, 255, 0.08)");
+  drawProjectedWaveCanvasRadiusFill(context, projectedSWaveRing, "rgba(255, 55, 95, 0.1)");
 
   if ((state.showStationLayer && features.length) || (state.showSubmarineStationLayer && submarineFeatures.length)) {
     const radius = interpolateByZoom(zoom, [
@@ -5330,8 +5626,21 @@ function renderStationCanvasOverlay() {
     }
   }
 
-  drawWaveCanvasRadiusLine(context, waveCanvasRadiusState.p, "#7de7ff", 2.4, 0.9);
-  drawWaveCanvasRadiusLine(context, waveCanvasRadiusState.s, "#ff6b7f", 3.4, 0.95);
+  drawProjectedWaveCanvasRadiusLine(context, projectedPWaveRing, "#7de7ff", 2.4, 0.9);
+  drawProjectedWaveCanvasRadiusLine(context, projectedSWaveRing, "#ff6b7f", 3.4, 0.95);
+}
+
+function getProjectedWaveCanvasRing(radiusKm) {
+  if (!Number.isFinite(radiusKm) || radiusKm <= 0) {
+    return null;
+  }
+
+  const ring = buildGeodesicCircle(simulationEpicenter, radiusKm);
+  if (ring.length < 2) {
+    return null;
+  }
+
+  return ring.map((coordinate) => map.project({ lng: coordinate[0], lat: coordinate[1] }));
 }
 
 function getStationCanvasFeatures() {
@@ -5453,21 +5762,15 @@ function drawSubmarineStationCanvasMarker(context, x, y, radius, fontSize, label
   context.restore();
 }
 
-function drawWaveCanvasRadiusFill(context, radiusKm, color) {
-  if (!Number.isFinite(radiusKm) || radiusKm <= 0) {
-    return;
-  }
-
-  const ring = buildGeodesicCircle(simulationEpicenter, radiusKm);
-  if (ring.length < 3) {
+function drawProjectedWaveCanvasRadiusFill(context, projectedRing, color) {
+  if (!projectedRing || projectedRing.length < 3) {
     return;
   }
 
   context.save();
   context.fillStyle = color;
   context.beginPath();
-  ring.forEach((coordinate, index) => {
-    const point = map.project({ lng: coordinate[0], lat: coordinate[1] });
+  projectedRing.forEach((point, index) => {
     if (index === 0) {
       context.moveTo(point.x, point.y);
       return;
@@ -5532,13 +5835,8 @@ function getLandscapeSidePanelMapPaddingForViewport() {
   });
 }
 
-function drawWaveCanvasRadiusLine(context, radiusKm, color, lineWidth, alpha) {
-  if (!Number.isFinite(radiusKm) || radiusKm <= 0) {
-    return;
-  }
-
-  const ring = buildGeodesicCircle(simulationEpicenter, radiusKm);
-  if (ring.length < 2) {
+function drawProjectedWaveCanvasRadiusLine(context, projectedRing, color, lineWidth, alpha) {
+  if (!projectedRing || projectedRing.length < 2) {
     return;
   }
 
@@ -5549,8 +5847,7 @@ function drawWaveCanvasRadiusLine(context, radiusKm, color, lineWidth, alpha) {
   context.lineCap = "round";
   context.lineJoin = "round";
   context.beginPath();
-  ring.forEach((coordinate, index) => {
-    const point = map.project({ lng: coordinate[0], lat: coordinate[1] });
+  projectedRing.forEach((point, index) => {
     if (index === 0) {
       context.moveTo(point.x, point.y);
       return;
@@ -6003,23 +6300,25 @@ function findStationFeaturePropertiesById(featureId, data = sourceDataRefs.get("
 
 function stationPopupHtml(properties) {
   const unobservedSubmarine = properties.submarineObservation && !properties.observed;
+  const currentValue = Number(properties.currentIntensityValue ?? properties.intensityValue ?? 0);
+  const submarineCurrentUnavailable =
+    properties.submarineObservation && (!properties.observed || currentValue <= 0);
   const waveLabel =
     unobservedSubmarine
       ? "未観測"
       : properties.waveState === "p"
         ? `P波到達 / S波 ${Number(properties.sArrivalSec).toFixed(1)}秒`
-        : `震度${properties.intensityLabel}`;
-  const currentValue = Number(properties.currentIntensityValue ?? properties.intensityValue ?? 0);
+        : submarineCurrentUnavailable
+          ? "震度 -"
+          : `震度${properties.intensityLabel}`;
   const predictedValue = Number(properties.predictedIntensityValue ?? 0);
-  const hideSubmarineCurrentIntensity =
-    properties.submarineObservation && (!properties.observed || currentValue <= 0);
   const hideSubmarinePredictedIntensity = properties.submarineObservation && predictedValue <= 0;
   const currentMeasured =
-    unobservedSubmarine || hideSubmarineCurrentIntensity ? "-" : formatMeasuredIntensity(properties, currentValue);
+    submarineCurrentUnavailable ? "-" : formatMeasuredIntensity(properties, currentValue);
   const predictedMeasured =
     hideSubmarinePredictedIntensity ? "-" : formatMeasuredIntensity(properties, predictedValue);
   const currentIntensityLabel =
-    unobservedSubmarine || hideSubmarineCurrentIntensity ? "-" : (properties.intensityLabel ?? "0");
+    submarineCurrentUnavailable ? "-" : (properties.intensityLabel ?? "0");
   const predictedIntensityLabel =
     hideSubmarinePredictedIntensity ? "-" : (properties.predictedIntensityLabel ?? "0");
   const submarineDepth = properties.submarineObservation
@@ -6045,6 +6344,10 @@ function formatMeasuredIntensity(properties, fallbackValue) {
   }
 
   const value = Number(properties.measuredIntensity ?? fallbackValue);
+  if (properties.submarineObservation && value <= 0) {
+    return "-";
+  }
+
   const displayValue = clamp(value, 0, 6.7);
   return Number.isFinite(displayValue) ? displayValue.toFixed(1) : "-";
 }
@@ -6462,7 +6765,6 @@ async function startSimulation() {
 
   simulationPreviousEpicenterEditEnabled = state.epicenterEditEnabled;
   simulationEpicenter = [state.longitude, state.latitude];
-  state.maxIntensityHistory = [];
   state.eewWarningReportNumber = null;
   state.eewWarningFinalReport = false;
   state.eewReportAreaKeySignature = "";
@@ -6474,6 +6776,9 @@ async function startSimulation() {
   state.eewPreviousWarningKeys = new Set();
   resetSpeechAnnouncementState();
   resetWaveRenderCache();
+  simulationCompleteAtSec = getSimulationCompleteAtSec();
+  stationSummaryCache = { data: null, summary: null };
+  eewForecastPanelRenderSignature = "";
   simulationRenderBucket = -1;
   simulationStationRenderBucket = -1;
   maxStationListRenderBucket = null;
@@ -6540,6 +6845,7 @@ function stopSimulation() {
   cancelAnimationFrame(simulationFrame);
   simulationFrame = null;
   simulationStartedAt = null;
+  simulationCompleteAtSec = null;
   simulationPausedAt = null;
   simulationRenderBucket = -1;
   simulationStationRenderBucket = -1;
@@ -6602,7 +6908,6 @@ function tickSimulation(now) {
     els.simulationTime.textContent = nextSimulationTimeText;
     simulationTimeTextCache = nextSimulationTimeText;
   }
-  updateCurrentLocationForecast(elapsedSec);
 
   if (currentBucket !== simulationStationRenderBucket) {
     simulationStationRenderBucket = currentBucket;
@@ -6636,6 +6941,7 @@ function tickSimulation(now) {
     resetSpeechAnnouncementState();
     finishSpeechAnnouncementsGracefully();
     simulationFrame = null;
+    simulationCompleteAtSec = null;
     simulationPausedAt = null;
     maxStationListRenderBucket = null;
     clearCurrentLocationLink({ updateForecast: false });
@@ -6688,20 +6994,7 @@ function toSimulationBucket(elapsedSec) {
 }
 
 function updateSimulationSummary(elapsedSec = getSimulationStationElapsedSec()) {
-  const stationFeatures = [];
-  let maxRank = 0;
-  let maxValue = 0;
-  if (shindoStationData) {
-    getStationIntensityDataForElapsed(elapsedSec).features.forEach((feature) => {
-      if (!feature.properties.observed || feature.properties.intensityRank <= 0) {
-        return;
-      }
-
-      stationFeatures.push(feature);
-      maxRank = Math.max(maxRank, feature.properties.intensityRank);
-      maxValue = Math.max(maxValue, feature.properties.currentIntensityValue ?? 0);
-    });
-  }
+  const { stationFeatures, maxRank } = getObservedStationSummaryForElapsed(elapsedSec);
   const maxClass = INTENSITY_CLASSES.find((item) => item.rank === maxRank) ?? INTENSITY_CLASSES[0];
   const hasObservedIntensity = stationFeatures.length > 0;
 
@@ -6717,10 +7010,32 @@ function updateSimulationSummary(elapsedSec = getSimulationStationElapsedSec()) 
   updateCurrentLocationForecast(elapsedSec);
   updateMaxStationList(stationFeatures, elapsedSec);
   announceSimulationUpdates(elapsedSec);
+}
 
-  if (hasObservedIntensity) {
-    recordMaxIntensityHistory(elapsedSec, maxValue);
+function getObservedStationSummaryForElapsed(elapsedSec) {
+  if (!shindoStationData) {
+    return { stationFeatures: [], maxRank: 0, maxValue: 0 };
   }
+
+  const data = getStationIntensityDataForElapsed(elapsedSec);
+  if (stationSummaryCache.data === data && stationSummaryCache.summary) {
+    return stationSummaryCache.summary;
+  }
+
+  const stationFeatures = [];
+  let maxRank = 0;
+  data.features.forEach((feature) => {
+    if (!feature.properties.observed || feature.properties.intensityRank <= 0) {
+      return;
+    }
+
+    stationFeatures.push(feature);
+    maxRank = Math.max(maxRank, feature.properties.intensityRank);
+  });
+
+  const summary = { stationFeatures, maxRank };
+  stationSummaryCache = { data, summary };
+  return summary;
 }
 
 function setTextContentIfChanged(element, value) {
@@ -6764,39 +7079,31 @@ function updateMaxStationList(stationFeatures, elapsedSec) {
   }
 }
 
-function recordMaxIntensityHistory(elapsedSec, maxValue) {
-  if (!state.simulationRunning || !Number.isFinite(elapsedSec)) {
-    return;
+function isSimulationComplete(elapsedSec) {
+  if (!Number.isFinite(simulationCompleteAtSec)) {
+    return false;
   }
 
-  const lastPoint = state.maxIntensityHistory.at(-1);
-  if (lastPoint && elapsedSec - lastPoint.elapsedSec < 0.25) {
-    lastPoint.maxIntensityValue = Number(Math.max(lastPoint.maxIntensityValue, maxValue).toFixed(2));
-    return;
-  }
-
-  state.maxIntensityHistory.push({
-    elapsedSec: Number(elapsedSec.toFixed(2)),
-    maxIntensityValue: Number(maxValue.toFixed(2)),
-  });
+  return elapsedSec >= simulationCompleteAtSec;
 }
 
-function isSimulationComplete(elapsedSec) {
+function getSimulationCompleteAtSec() {
   if (!shindoStationData) {
-    return false;
+    return Infinity;
   }
 
   const observedStations = buildStationIntensityFeatures(shindoStationData).filter(
     (feature) => feature.properties.predictedIntensityRank >= 1,
   );
   if (observedStations.length === 0) {
-    return elapsedSec >= SIMULATION_END_GRACE_SEC;
+    return SIMULATION_END_GRACE_SEC;
   }
 
-  const latestEndSec = Math.max(
-    ...observedStations.map((feature) => feature.properties.intensityCompleteSec),
+  const latestEndSec = observedStations.reduce(
+    (latest, feature) => Math.max(latest, Number(feature.properties.intensityCompleteSec) || 0),
+    0,
   );
-  return elapsedSec >= latestEndSec + SIMULATION_END_GRACE_SEC;
+  return latestEndSec + SIMULATION_END_GRACE_SEC;
 }
 
 function setWaveRadiusData(pRadiusKm, sRadiusKm) {
@@ -7332,6 +7639,9 @@ function invalidateIntensityEstimateCache() {
   presetObservationLookupCache = null;
   hyogoNanbuSyntheticStationCache = null;
   currentLocationForecastCache = null;
+  simulationCompleteAtSec = null;
+  stationSummaryCache = { data: null, summary: null };
+  eewForecastPanelRenderSignature = "";
   if (!state.simulationRunning) {
     state.eewWarningFinalReport = false;
   }
@@ -8839,6 +9149,18 @@ function updateEewForecastPanel() {
   }
 
   const visible = state.showEewWarningLayer && state.eewWarningForecastAreas.length > 0;
+  const signature = [
+    visible ? "1" : "0",
+    state.eewWarningFinalReport ? "1" : "0",
+    state.eewWarningReportNumber ?? "",
+    state.epicenterName ?? "",
+    state.eewWarningForecastAreas.join("|"),
+  ].join("\u001f");
+  if (signature === eewForecastPanelRenderSignature) {
+    return;
+  }
+  eewForecastPanelRenderSignature = signature;
+
   const heading = els.eewForecastPanel.querySelector("h2");
   if (heading) {
     heading.textContent = state.eewWarningFinalReport
@@ -8879,49 +9201,39 @@ function getEewForecastAreaName(localAreaName) {
     return "不明";
   }
 
+  if (eewForecastAreaNameCache.has(localAreaName)) {
+    return eewForecastAreaNameCache.get(localAreaName);
+  }
+
+  let forecastAreaName = localAreaName;
   const hokkaidoForecastArea = getHokkaidoEewForecastAreaName(localAreaName);
   if (hokkaidoForecastArea) {
-    return hokkaidoForecastArea;
+    forecastAreaName = hokkaidoForecastArea;
+  } else if (/^東京都(２３区|多摩)/.test(localAreaName)) {
+    forecastAreaName = "東京";
+  } else if (["伊豆大島", "新島", "神津島", "三宅島", "八丈島"].includes(localAreaName)) {
+    forecastAreaName = "伊豆諸島";
+  } else if (localAreaName === "小笠原") {
+    forecastAreaName = "小笠原";
+  } else if (localAreaName.startsWith("鹿児島県奄美")) {
+    forecastAreaName = "奄美群島";
+  } else if (localAreaName.startsWith("沖縄県本島")) {
+    forecastAreaName = "沖縄本島";
+  } else if (localAreaName.startsWith("沖縄県大東島")) {
+    forecastAreaName = "大東島";
+  } else if (localAreaName.startsWith("沖縄県宮古島")) {
+    forecastAreaName = "宮古島";
+  } else if (/^沖縄県(石垣島|与那国島|西表島)/.test(localAreaName)) {
+    forecastAreaName = "八重山";
+  } else {
+    const prefecture = PREFECTURE_NAMES.find((name) => localAreaName.startsWith(name));
+    if (prefecture) {
+      forecastAreaName = prefecture.replace(/[都府県]$/, "");
+    }
   }
 
-  if (/^東京都(２３区|多摩)/.test(localAreaName)) {
-    return "東京";
-  }
-
-  if (["伊豆大島", "新島", "神津島", "三宅島", "八丈島"].includes(localAreaName)) {
-    return "伊豆諸島";
-  }
-
-  if (localAreaName === "小笠原") {
-    return "小笠原";
-  }
-
-  if (localAreaName.startsWith("鹿児島県奄美")) {
-    return "奄美群島";
-  }
-
-  if (localAreaName.startsWith("沖縄県本島")) {
-    return "沖縄本島";
-  }
-
-  if (localAreaName.startsWith("沖縄県大東島")) {
-    return "大東島";
-  }
-
-  if (localAreaName.startsWith("沖縄県宮古島")) {
-    return "宮古島";
-  }
-
-  if (/^沖縄県(石垣島|与那国島|西表島)/.test(localAreaName)) {
-    return "八重山";
-  }
-
-  const prefecture = PREFECTURE_NAMES.find((name) => localAreaName.startsWith(name));
-  if (prefecture) {
-    return prefecture.replace(/[都府県]$/, "");
-  }
-
-  return localAreaName;
+  eewForecastAreaNameCache.set(localAreaName, forecastAreaName);
+  return forecastAreaName;
 }
 
 function getHokkaidoEewForecastAreaName(localAreaName) {

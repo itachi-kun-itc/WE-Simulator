@@ -1,4 +1,8 @@
 const CACHE_NAME = "we-simulator-pwa-v1";
+const NOTIFICATION_HISTORY_DB_NAME = "we-simulator-notification-history";
+const NOTIFICATION_HISTORY_DB_VERSION = 1;
+const NOTIFICATION_HISTORY_STORE_NAME = "notifications";
+const NOTIFICATION_HISTORY_LIMIT = 80;
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -67,8 +71,17 @@ async function showPushNotification(event) {
   const payload = event.data ? safeJsonParse(event.data.text()) : null;
   const notification = payload || (await fetchLatestNotification()) || {};
   const title = notification.title || "WE-Simulator";
-  const options = {
+  const historyItem = {
+    id: notification.id || `notification-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+    title,
     body: notification.body || "新しい通知があります。",
+    createdAt: notification.createdAt || new Date().toISOString(),
+    source: "push",
+  };
+  await saveNotificationHistoryItem(historyItem);
+
+  const options = {
+    body: historyItem.body,
     icon: "./icon-192.png",
     badge: "./icon-192.png",
     tag: notification.tag || "we-simulator-notification",
@@ -123,4 +136,71 @@ function safeJsonParse(text) {
   } catch (error) {
     return null;
   }
+}
+
+async function saveNotificationHistoryItem(notification) {
+  if (!self.indexedDB || !notification?.id) {
+    return;
+  }
+
+  try {
+    const db = await openNotificationHistoryDb();
+    await runNotificationHistoryTransaction(db, "readwrite", (store) => {
+      store.put(notification);
+    });
+    await trimNotificationHistory(db);
+    await notifyNotificationHistoryUpdated();
+  } catch (error) {
+    console.warn("notification history save failed", error);
+  }
+}
+
+async function notifyNotificationHistoryUpdated() {
+  const clientList = await self.clients.matchAll({ includeUncontrolled: true, type: "window" });
+  clientList.forEach((client) => {
+    client.postMessage({ type: "notification-history-updated" });
+  });
+}
+
+function openNotificationHistoryDb() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(NOTIFICATION_HISTORY_DB_NAME, NOTIFICATION_HISTORY_DB_VERSION);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(NOTIFICATION_HISTORY_STORE_NAME)) {
+        db.createObjectStore(NOTIFICATION_HISTORY_STORE_NAME, { keyPath: "id" });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function runNotificationHistoryTransaction(db, mode, callback) {
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(NOTIFICATION_HISTORY_STORE_NAME, mode);
+    callback(transaction.objectStore(NOTIFICATION_HISTORY_STORE_NAME));
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
+}
+
+async function trimNotificationHistory(db) {
+  const items = await new Promise((resolve, reject) => {
+    const transaction = db.transaction(NOTIFICATION_HISTORY_STORE_NAME, "readonly");
+    const request = transaction.objectStore(NOTIFICATION_HISTORY_STORE_NAME).getAll();
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = () => reject(request.error);
+  });
+  const extraItems = items
+    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
+    .slice(NOTIFICATION_HISTORY_LIMIT);
+  if (extraItems.length === 0) {
+    return;
+  }
+
+  await runNotificationHistoryTransaction(db, "readwrite", (store) => {
+    extraItems.forEach((item) => store.delete(item.id));
+  });
 }
