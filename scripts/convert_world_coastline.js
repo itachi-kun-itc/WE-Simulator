@@ -15,10 +15,10 @@ const simplifyTolerance = Number(process.env.WORLD_COASTLINE_SIMPLIFY_TOLERANCE 
 const minLinePoints = Number(process.env.WORLD_COASTLINE_MIN_LINE_POINTS || 2);
 const buildWorldMap = process.env.WORLD_COASTLINE_WORLD !== "0";
 const clipBounds = {
-  west: Number(process.env.WORLD_COASTLINE_WEST || (buildWorldMap ? -180 : 116)),
-  south: Number(process.env.WORLD_COASTLINE_SOUTH || (buildWorldMap ? -90 : 18)),
-  east: Number(process.env.WORLD_COASTLINE_EAST || (buildWorldMap ? 180 : 155)),
-  north: Number(process.env.WORLD_COASTLINE_NORTH || (buildWorldMap ? 90 : 54)),
+  west: Number(process.env.WORLD_COASTLINE_WEST || 85),
+  south: Number(process.env.WORLD_COASTLINE_SOUTH || 1),
+  east: Number(process.env.WORLD_COASTLINE_EAST || 180),
+  north: Number(process.env.WORLD_COASTLINE_NORTH || 89),
 };
 const clipBoundsList = splitClipBounds(clipBounds);
 

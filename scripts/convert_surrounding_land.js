@@ -15,10 +15,10 @@ const simplifyTolerance = Number(process.env.SURROUNDING_LAND_SIMPLIFY_TOLERANCE
 const minRingArea = Number(process.env.SURROUNDING_LAND_MIN_RING_AREA || 0.00001);
 const buildWorldMap = process.env.SURROUNDING_LAND_WORLD === "1";
 const clipBounds = {
-  west: Number(process.env.SURROUNDING_LAND_WEST || (buildWorldMap ? -180 : 116)),
-  south: Number(process.env.SURROUNDING_LAND_SOUTH || (buildWorldMap ? -90 : 18)),
-  east: Number(process.env.SURROUNDING_LAND_EAST || (buildWorldMap ? 180 : 155)),
-  north: Number(process.env.SURROUNDING_LAND_NORTH || (buildWorldMap ? 90 : 54)),
+  west: Number(process.env.SURROUNDING_LAND_WEST || 85),
+  south: Number(process.env.SURROUNDING_LAND_SOUTH || 1),
+  east: Number(process.env.SURROUNDING_LAND_EAST || 180),
+  north: Number(process.env.SURROUNDING_LAND_NORTH || 89),
 };
 const clipBoundsList = splitClipBounds(clipBounds);
 
