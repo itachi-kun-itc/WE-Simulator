@@ -5,7 +5,11 @@ const root = path.resolve(__dirname, "..");
 const inputDir = process.env.NORTHERN_ISLANDS_INPUT_DIR
   ? path.resolve(root, process.env.NORTHERN_ISLANDS_INPUT_DIR)
   : path.join(root, "data", "raw", "ne_10m_admin_0_countries_jpn");
-const outputPath = path.join(root, "web", "data", "northern_islands_land.geojson");
+const jmaLocalAreasPath = path.join(root, "web", "data", "jma_local_areas.geojson");
+const municipalitiesPath = path.join(root, "web", "data", "municipalities.geojson");
+const outputPath = process.env.NORTHERN_ISLANDS_OUTPUT_PATH
+  ? path.resolve(root, process.env.NORTHERN_ISLANDS_OUTPUT_PATH)
+  : path.join(root, "web", "data", "northern_islands_land.geojson");
 const coordinatePrecision = Number(process.env.NORTHERN_ISLANDS_COORDINATE_PRECISION || 5);
 const clipBounds = {
   west: Number(process.env.NORTHERN_ISLANDS_WEST || 145.15),
@@ -13,11 +17,20 @@ const clipBounds = {
   east: Number(process.env.NORTHERN_ISLANDS_EAST || 149.7),
   north: Number(process.env.NORTHERN_ISLANDS_NORTH || 46.35),
 };
+const habomaiFallbackBounds = {
+  west: 145.85,
+  south: 43.35,
+  east: 146.45,
+  north: 43.66,
+};
+const habomaiMunicipalityCodes = new Set(["0122300", "01223"]);
+const jmaNorthernIslandNames = new Set(["色丹島", "国後島", "択捉島"]);
 
 const shpPath = findFile(".shp");
 const dbfPath = findFile(".dbf");
 const records = readDbf(dbfPath);
-const features = [];
+const naturalEarthPolygons = [];
+let naturalEarthSourceProperties = null;
 
 readShp(shpPath, (recordIndex, rings) => {
   const record = records[recordIndex];
@@ -27,31 +40,42 @@ readShp(shpPath, (recordIndex, rings) => {
     return;
   }
 
-  features.push({
-    type: "Feature",
-    properties: {
-      name: "北方領土",
-      nameEn: "Northern Territories",
-      sourceName: record.NAME_JA || record.NAME || record.ADMIN,
-      sourceNameEn: record.NAME_EN || record.NAME || record.ADMIN,
-      isoA3: record.ADM0_A3,
-      source: path.relative(root, inputDir),
-      mapTreatment: "northern-island-display-only",
-    },
-    geometry: {
-      type: "MultiPolygon",
-      coordinates: polygons,
-    },
-  });
+  naturalEarthSourceProperties = {
+    sourceName: record.NAME_JA || record.NAME || record.ADMIN,
+    sourceNameEn: record.NAME_EN || record.NAME || record.ADMIN,
+    isoA3: record.ADM0_A3,
+    source: path.relative(root, inputDir),
+  };
+  naturalEarthPolygons.push(...polygons);
 });
+
+const detailedIslandFeatures = readJmaNorthernIslandFeatures();
+const detailedHabomaiPolygons = readHabomaiMunicipalityPolygons();
+const naturalEarthHabomaiPolygons = naturalEarthPolygons.filter((polygon) =>
+  ringCenterInBounds(polygon[0], habomaiFallbackBounds),
+);
+const habomaiPolygons = detailedHabomaiPolygons.length > 0
+  ? detailedHabomaiPolygons
+  : naturalEarthHabomaiPolygons;
+const features = detailedIslandFeatures.length > 0
+  ? [
+      ...detailedIslandFeatures,
+      ...(habomaiPolygons.length > 0
+        ? [buildHabomaiFallbackFeature(habomaiPolygons, naturalEarthSourceProperties)]
+        : []),
+    ]
+  : [buildNaturalEarthFallbackFeature(naturalEarthPolygons, naturalEarthSourceProperties)];
 
 fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 fs.writeFileSync(
   outputPath,
   `${JSON.stringify({
     type: "FeatureCollection",
-    name: "Northern islands high-resolution land display",
-    source: path.relative(root, inputDir),
+    name: "Northern territories detailed land display",
+    source: {
+      detailed: path.relative(root, jmaLocalAreasPath),
+      fallback: path.relative(root, inputDir),
+    },
     version: readVersion(),
     bounds: clipBounds,
     features,
@@ -60,6 +84,113 @@ fs.writeFileSync(
 );
 
 console.log(`Wrote ${features.length} northern islands features to ${path.relative(root, outputPath)}`);
+
+function readJmaNorthernIslandFeatures() {
+  if (!fs.existsSync(jmaLocalAreasPath)) {
+    return [];
+  }
+
+  const geojson = JSON.parse(fs.readFileSync(jmaLocalAreasPath, "utf8"));
+  return (geojson.features ?? [])
+    .filter((feature) => jmaNorthernIslandNames.has(feature.properties?.name))
+    .map((feature) => ({
+      type: "Feature",
+      properties: {
+        name: feature.properties.name,
+        namekana: feature.properties.namekana,
+        source: path.relative(root, jmaLocalAreasPath),
+        mapTreatment: "northern-island-display-only",
+      },
+      geometry: roundGeometryCoordinates(feature.geometry),
+    }));
+}
+
+function readHabomaiMunicipalityPolygons() {
+  if (!fs.existsSync(municipalitiesPath)) {
+    return [];
+  }
+
+  const geojson = JSON.parse(fs.readFileSync(municipalitiesPath, "utf8"));
+  const nemuro = (geojson.features ?? []).find((feature) =>
+    habomaiMunicipalityCodes.has(String(feature.properties?.code ?? "")),
+  );
+  const polygons = nemuro?.geometry?.type === "MultiPolygon"
+    ? nemuro.geometry.coordinates
+    : nemuro?.geometry?.type === "Polygon"
+      ? [nemuro.geometry.coordinates]
+      : [];
+
+  return polygons
+    .filter((polygon) => {
+      const outerRing = polygon?.[0];
+      return Array.isArray(outerRing) && outerRing.length >= 4 && ringCenterInBounds(outerRing, habomaiFallbackBounds);
+    })
+    .map((polygon) => roundCoordinates(polygon));
+}
+
+function buildHabomaiFallbackFeature(polygons, sourceProperties) {
+  return {
+    type: "Feature",
+    properties: {
+      name: "歯舞群島",
+      namekana: "はぼまいぐんとう",
+      ...(sourceProperties ?? {}),
+      source: polygons === naturalEarthHabomaiPolygons
+        ? sourceProperties?.source ?? path.relative(root, inputDir)
+        : path.relative(root, municipalitiesPath),
+      mapTreatment: "northern-island-display-only",
+      geometryRole: polygons === naturalEarthHabomaiPolygons ? "habomai-fallback" : "habomai-detailed",
+    },
+    geometry: {
+      type: "MultiPolygon",
+      coordinates: polygons,
+    },
+  };
+}
+
+function buildNaturalEarthFallbackFeature(polygons, sourceProperties) {
+  return {
+    type: "Feature",
+    properties: {
+      name: "北方領土",
+      nameEn: "Northern Territories",
+      ...(sourceProperties ?? {}),
+      source: sourceProperties?.source ?? path.relative(root, inputDir),
+      mapTreatment: "northern-island-display-only",
+      geometryRole: "natural-earth-fallback",
+    },
+    geometry: {
+      type: "MultiPolygon",
+      coordinates: polygons,
+    },
+  };
+}
+
+function roundGeometryCoordinates(geometry) {
+  if (!geometry?.coordinates) {
+    return geometry;
+  }
+
+  return {
+    ...geometry,
+    coordinates: roundCoordinates(geometry.coordinates),
+  };
+}
+
+function roundCoordinates(value) {
+  if (!Array.isArray(value)) {
+    return value;
+  }
+
+  if (typeof value[0] === "number" && typeof value[1] === "number") {
+    return [
+      Number(value[0].toFixed(coordinatePrecision)),
+      Number(value[1].toFixed(coordinatePrecision)),
+    ];
+  }
+
+  return value.map(roundCoordinates);
+}
 
 function findFile(extension) {
   const fileName = fs.readdirSync(inputDir).find((name) => name.endsWith(extension));

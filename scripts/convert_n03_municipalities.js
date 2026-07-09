@@ -8,10 +8,16 @@ const legacyN03InputDir = path.join(root, "N03-180101_GML");
 const inputDir = process.env.MUNICIPALITIES_INPUT_DIR
   ? path.resolve(root, process.env.MUNICIPALITIES_INPUT_DIR)
   : firstExistingDirectory([defaultJmaInputDir, defaultN03InputDir, legacyN03InputDir]);
-const outputPath = path.join(root, "web", "data", "municipalities.geojson");
-const namesOutputPath = path.join(root, "data", "processed", "municipality_names.json");
-const tolerance = Number(process.env.SIMPLIFY_TOLERANCE || 0.0004);
-const minArea = Number(process.env.MIN_RING_AREA || 0.000001);
+const outputPath = process.env.MUNICIPALITIES_OUTPUT_PATH
+  ? path.resolve(root, process.env.MUNICIPALITIES_OUTPUT_PATH)
+  : path.join(root, "web", "data", "municipalities.geojson");
+const namesOutputSetting = process.env.MUNICIPALITY_NAMES_OUTPUT_PATH;
+const shouldWriteMunicipalityNames = !isDisabledOutputPath(namesOutputSetting);
+const namesOutputPath = namesOutputSetting && shouldWriteMunicipalityNames
+  ? path.resolve(root, namesOutputSetting)
+  : path.join(root, "data", "processed", "municipality_names.json");
+const tolerance = Number(process.env.SIMPLIFY_TOLERANCE || 0.00012);
+const minArea = Number(process.env.MIN_RING_AREA || 0.0000002);
 const sourceName = path.relative(root, inputDir);
 
 const shpPath = findFile(".shp");
@@ -49,6 +55,7 @@ const features = municipalities.map((municipality) => ({
     prefecture: municipality.prefecture,
     subprefecture: municipality.subprefecture,
     county: municipality.county,
+    ward: municipality.ward,
     municipality: municipality.municipality,
     name: municipality.name,
     nameKana: municipality.nameKana,
@@ -67,6 +74,7 @@ const municipalityNames = municipalities
     prefecture: municipality.prefecture,
     subprefecture: municipality.subprefecture,
     county: municipality.county,
+    ward: municipality.ward,
     municipality: municipality.municipality,
     name: municipality.name,
     nameKana: municipality.nameKana,
@@ -84,35 +92,44 @@ fs.writeFileSync(
   }),
 );
 
-fs.mkdirSync(path.dirname(namesOutputPath), { recursive: true });
-let wroteMunicipalityNames = true;
-try {
-  fs.writeFileSync(
-    namesOutputPath,
-    JSON.stringify(
-      {
-        source: sourceName,
-        schema,
-        count: municipalityNames.length,
-        municipalities: municipalityNames,
-      },
-      null,
-      2,
-    ),
-  );
-} catch (error) {
-  if (error.code !== "EPERM") {
-    throw error;
-  }
+let wroteMunicipalityNames = false;
+if (shouldWriteMunicipalityNames) {
+  fs.mkdirSync(path.dirname(namesOutputPath), { recursive: true });
+  wroteMunicipalityNames = true;
+  try {
+    fs.writeFileSync(
+      namesOutputPath,
+      JSON.stringify(
+        {
+          source: sourceName,
+          schema,
+          count: municipalityNames.length,
+          municipalities: municipalityNames,
+        },
+        null,
+        2,
+      ),
+    );
+  } catch (error) {
+    if (error.code !== "EPERM") {
+      throw error;
+    }
 
-  wroteMunicipalityNames = false;
-  console.warn(`Skipped locked municipality names file: ${path.relative(root, namesOutputPath)}`);
+    wroteMunicipalityNames = false;
+    console.warn(`Skipped locked municipality names file: ${path.relative(root, namesOutputPath)}`);
+  }
 }
 
 console.log(`Input schema: ${schema}`);
 console.log(`Wrote ${features.length} municipalities to ${path.relative(root, outputPath)}`);
 if (wroteMunicipalityNames) {
   console.log(`Wrote ${municipalityNames.length} municipality names to ${path.relative(root, namesOutputPath)}`);
+} else if (!shouldWriteMunicipalityNames) {
+  console.log("Skipped municipality names output");
+}
+
+function isDisabledOutputPath(value) {
+  return /^(?:0|false|no|none|null|skip)$/i.test(String(value ?? "").trim());
 }
 
 function firstExistingDirectory(directories) {
@@ -161,7 +178,8 @@ function normalizeMunicipalityRecord(record, schema) {
     prefecture: record.N03_001,
     subprefecture: record.N03_002,
     county: record.N03_003,
-    municipality: record.N03_004,
+    ward: record.N03_005,
+    municipality: localMunicipalityName(record.N03_004, record.N03_005),
     nameKana: "",
   };
 
@@ -180,6 +198,16 @@ function municipalityName(municipality) {
   }
 
   return [municipality.prefecture, area, name].filter(Boolean).join("");
+}
+
+function localMunicipalityName(city, ward) {
+  const cityName = String(city ?? "").trim();
+  const wardName = String(ward ?? "").trim();
+  if (!wardName || cityName.endsWith(wardName)) {
+    return cityName || wardName;
+  }
+
+  return `${cityName}${wardName}`;
 }
 
 function cleanWeatherCityName(regionName, fallbackName) {
@@ -210,7 +238,7 @@ function readDbf(filePath) {
   const schema = fieldNames.includes("regioncode") && fieldNames.includes("regionname")
     ? "jma_weather_city"
     : "n03";
-  const decoder = new TextDecoder(schema === "jma_weather_city" ? "utf-8" : "shift_jis");
+  const decoder = new TextDecoder(getDbfEncoding(filePath, schema));
 
   return {
     schema,
@@ -226,6 +254,39 @@ function readDbf(filePath) {
       return record;
     }),
   };
+}
+
+function getDbfEncoding(filePath, schema) {
+  if (schema === "jma_weather_city") {
+    return "utf-8";
+  }
+
+  return normalizeDbfEncoding(readCpgEncoding(filePath)) || "shift_jis";
+}
+
+function readCpgEncoding(filePath) {
+  const parsed = path.parse(filePath);
+  const cpgPath = path.join(parsed.dir, `${parsed.name}.cpg`);
+  if (!fs.existsSync(cpgPath)) {
+    return "";
+  }
+
+  return fs.readFileSync(cpgPath, "utf8").trim();
+}
+
+function normalizeDbfEncoding(value) {
+  const normalized = String(value ?? "").trim().toLowerCase().replace(/[_\s-]+/g, "");
+  if (!normalized) {
+    return "";
+  }
+  if (normalized === "utf8" || normalized === "65001") {
+    return "utf-8";
+  }
+  if (["shiftjis", "sjis", "ms932", "cp932", "932"].includes(normalized)) {
+    return "shift_jis";
+  }
+
+  return value;
 }
 
 function readShp(filePath, onRecord) {

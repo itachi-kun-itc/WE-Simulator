@@ -11,6 +11,7 @@ const presetFiles = [
   "兵庫県南部地震（1995）.csv",
   "新潟県中越地震（2004）.csv",
   "東北地方太平洋沖地震（2011）.csv",
+  "長野県北部の地震（2011）.csv",
   "静岡県東部の地震（2011）.csv",
   "淡路島付近の地震（2013）.csv",
   "小笠原諸島西方沖の地震（2015）.csv",
@@ -22,6 +23,7 @@ const presetFiles = [
   "山形県沖の地震（2019）.csv",
   "福島県沖の地震（2022）.csv",
   "能登半島沖地震（2024）.csv",
+  "豊後水道の地震（2024）.csv",
   "日向灘の地震（2024）.csv",
   "青森県東方沖の地震（2025）.csv",
   "岩手県沖の地震（2026）.csv",
@@ -31,6 +33,7 @@ const eewForecastAreasByName = {
   "兵庫県南部地震（1995）": ["近畿"],
   "新潟県中越地震（2004）": ["新潟", "長野"],
   "東北地方太平洋沖地震（2011）": ["東北", "関東", "新潟", "長野", "静岡"],
+  "長野県北部の地震（2011）": ["関東", "新潟", "長野"],
   "静岡県東部の地震（2011）": ["関東", "静岡", "長野"],
   "熊本地震 前震（2016）": ["九州"],
   "熊本地震 本震（2016）": ["九州"],
@@ -40,6 +43,7 @@ const eewForecastAreasByName = {
   "山形県沖の地震（2019）": ["東北", "新潟", "北陸"],
   "福島県沖の地震（2022）": ["東北", "関東", "新潟", "北陸", "長野", "静岡"],
   "能登半島沖地震（2024）": ["北陸", "長野"],
+  "豊後水道の地震（2024）": ["九州", "中国", "四国"],
   "日向灘の地震（2024）": ["九州", "中国", "四国"],
   "青森県東方沖の地震（2025）": ["北海道", "東北"],
   "岩手県沖の地震（2026）": ["北海道", "東北"],
@@ -67,6 +71,10 @@ const representativeIntensity = new Map([
   ["震度２", 1.5],
   ["震度1", 0.5],
   ["震度１", 0.5],
+]);
+
+const epicenterNameOverridesByName = new Map([
+  ["長野県北部の地震（2011）", "長野県北部"],
 ]);
 
 const prefectureNames = [
@@ -189,7 +197,7 @@ function parsePreset(fileName) {
     label: eventName,
     date: primaryEvent["地震の発生日"] ?? "",
     time: primaryEvent["地震の発生時刻"] ?? "",
-    epicenterName: primaryEvent["震央地名"] ?? eventName,
+    epicenterName: epicenterNameOverridesByName.get(eventName) ?? primaryEvent["震央地名"] ?? eventName,
     latitude: parseCoordinate(primaryEvent["緯度"]),
     longitude: parseCoordinate(primaryEvent["経度"]),
     depthKm: parseDepth(primaryEvent["深さ"]),

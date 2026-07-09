@@ -8,14 +8,18 @@ const inputDir = process.env.MUNICIPALITIES_INPUT_DIR
 const jmaLocalAreaInputDir = process.env.JMA_LOCAL_AREA_INPUT_DIR
   ? path.resolve(root, process.env.JMA_LOCAL_AREA_INPUT_DIR)
   : path.join(root, "data", "raw", "jma_earthquake_local_areas");
-const outputPath = path.join(root, "web", "data", "boundary_layers.geojson");
-const jmaLocalAreasOutputPath = path.join(root, "web", "data", "jma_local_areas.geojson");
+const outputPath = process.env.BOUNDARY_OUTPUT_PATH
+  ? path.resolve(root, process.env.BOUNDARY_OUTPUT_PATH)
+  : path.join(root, "web", "data", "boundary_layers.geojson");
+const jmaLocalAreasOutputPath = process.env.JMA_LOCAL_AREAS_OUTPUT_PATH
+  ? path.resolve(root, process.env.JMA_LOCAL_AREAS_OUTPUT_PATH)
+  : path.join(root, "web", "data", "jma_local_areas.geojson");
 const decoder = new TextDecoder("shift_jis");
 const jmaDecoder = new TextDecoder("utf-8");
 const coordinatePrecision = Number(process.env.BOUNDARY_COORDINATE_PRECISION || 5);
 const simplifyTolerance = Number(process.env.BOUNDARY_SIMPLIFY_TOLERANCE || 0.0008);
-const jmaAreaSimplifyTolerance = Number(process.env.JMA_AREA_SIMPLIFY_TOLERANCE || 0.002);
-const minJmaAreaRingArea = Number(process.env.MIN_JMA_AREA_RING_AREA || 0.00002);
+const jmaAreaSimplifyTolerance = Number(process.env.JMA_AREA_SIMPLIFY_TOLERANCE || 0.00012);
+const minJmaAreaRingArea = Number(process.env.MIN_JMA_AREA_RING_AREA || 0.000001);
 
 const regionByPrefectureCode = new Map(
   [
@@ -59,15 +63,10 @@ const prefectureLines = joinSegments(prefectureSegments)
   .map((line) => simplifyLine(line, simplifyTolerance))
   .filter((line) => line.length >= 2);
 const jmaLocalAreas = readAreaFeatures(jmaLocalAreaInputDir);
-const jmaRegionLines = jmaLocalAreas.features.flatMap((feature) =>
-  feature.geometry.coordinates.flatMap((polygon) =>
-    polygon.map((ring) => simplifyLine(trimClosingPoint(ring), jmaAreaSimplifyTolerance)),
-  ),
-);
 
 const boundaryLayers = {
   type: "FeatureCollection",
-  name: "N03-derived prefecture and JMA earthquake information region boundaries",
+  name: "N03-derived prefecture boundaries",
   sources: {
     jmaPage: "https://www.jma.go.jp/jma/kishou/know/jishin/joho/shindo-name.html",
     municipalities: path.relative(root, inputDir),
@@ -85,17 +84,6 @@ const boundaryLayers = {
         coordinates: prefectureLines,
       },
     },
-    {
-      type: "Feature",
-      properties: {
-        layer: "jma_region",
-        name: "気象庁地震情報細分区域境界",
-      },
-      geometry: {
-        type: "MultiLineString",
-        coordinates: jmaRegionLines,
-      },
-    },
   ],
 };
 
@@ -104,7 +92,7 @@ fs.writeFileSync(jmaLocalAreasOutputPath, JSON.stringify(jmaLocalAreas));
 
 console.log(`Found ${prefectureSegments.length} prefecture boundary segments`);
 console.log(`Wrote ${prefectureLines.length} prefecture boundary lines`);
-console.log(`Wrote ${jmaRegionLines.length} JMA local area boundary lines`);
+console.log(`Wrote ${jmaLocalAreas.features.length} JMA local area polygons`);
 console.log(`Wrote ${path.relative(root, outputPath)}`);
 console.log(`Wrote ${path.relative(root, jmaLocalAreasOutputPath)}`);
 

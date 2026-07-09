@@ -5,6 +5,9 @@ const CORS_HEADERS = {
 };
 
 const LATEST_NOTIFICATION_KEY = "latest-notification";
+const NOTIFICATION_HISTORY_KEY = "notification-history";
+const NOTIFICATION_HISTORY_LIMIT = 80;
+const NOTIFICATION_HISTORY_RETENTION_DAYS = 30;
 const SUBSCRIPTION_PREFIX = "subscription:";
 
 export default {
@@ -23,6 +26,11 @@ export default {
       if (request.method === "GET" && url.pathname === "/latest-notification") {
         const notification = await env.PUSH_SUBSCRIPTIONS.get(LATEST_NOTIFICATION_KEY, "json");
         return json(notification || {});
+      }
+
+      if (request.method === "GET" && url.pathname === "/notification-history") {
+        const notifications = await readNotificationHistory(env);
+        return json({ notifications });
       }
 
       if (request.method === "POST" && url.pathname === "/subscriptions") {
@@ -49,6 +57,7 @@ export default {
         const body = await request.json();
         const notification = normalizeNotification(body);
         await env.PUSH_SUBSCRIPTIONS.put(LATEST_NOTIFICATION_KEY, JSON.stringify(notification));
+        await appendNotificationHistory(env, notification);
         const result = await sendNotificationToAll(request.url, env);
         return json({ ok: true, notification, ...result });
       }
@@ -169,13 +178,49 @@ async function importVapidPrivateKey(env) {
 
 function normalizeNotification(body) {
   return {
+    id: String(body?.id || `notification-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`),
     title: String(body?.title || "WE-Simulator"),
     body: String(body?.body || "新しい通知があります。"),
     url: String(body?.url || "./"),
     tag: String(body?.tag || "we-simulator-notification"),
     renotify: Boolean(body?.renotify),
-    createdAt: new Date().toISOString(),
+    createdAt: body?.createdAt ? String(body.createdAt) : new Date().toISOString(),
+    source: "remote",
   };
+}
+
+async function readNotificationHistory(env) {
+  const notifications = await env.PUSH_SUBSCRIPTIONS.get(NOTIFICATION_HISTORY_KEY, "json");
+  return pruneNotificationHistory(Array.isArray(notifications) ? notifications : []);
+}
+
+async function appendNotificationHistory(env, notification) {
+  const notifications = await readNotificationHistory(env);
+  const nextNotifications = pruneNotificationHistory([
+    notification,
+    ...notifications.filter((item) => item?.id !== notification.id),
+  ]);
+  await env.PUSH_SUBSCRIPTIONS.put(NOTIFICATION_HISTORY_KEY, JSON.stringify(nextNotifications));
+}
+
+function pruneNotificationHistory(notifications, now = Date.now()) {
+  return notifications
+    .filter((item) => {
+      if (!item?.id) {
+        return false;
+      }
+      const createdAtMs = Date.parse(item.createdAt || "");
+      return !Number.isFinite(createdAtMs) || now - createdAtMs < NOTIFICATION_HISTORY_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+    })
+    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
+    .slice(0, NOTIFICATION_HISTORY_LIMIT)
+    .map((item) => ({
+      id: String(item.id),
+      title: String(item.title || "WE-Simulator").slice(0, 80),
+      body: String(item.body || "").slice(0, 300),
+      createdAt: item.createdAt || new Date().toISOString(),
+      source: item.source || "remote",
+    }));
 }
 
 function validateSubscription(subscription) {

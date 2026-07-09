@@ -5,11 +5,14 @@ const root = path.resolve(__dirname, "..");
 const inputDir = process.env.SURROUNDING_LAND_INPUT_DIR
   ? path.resolve(root, process.env.SURROUNDING_LAND_INPUT_DIR)
   : path.join(root, "data", "raw", "ne_10m_admin_0_countries_jpn");
-const outputPath = path.join(root, "web", "data", "surrounding_land.geojson");
-const sourceName = path.relative(root, inputDir);
+const outputPath = process.env.SURROUNDING_LAND_OUTPUT_PATH
+  ? path.resolve(root, process.env.SURROUNDING_LAND_OUTPUT_PATH)
+  : path.join(root, "web", "data", "surrounding_land.geojson");
+const sourceName = process.env.SURROUNDING_LAND_SOURCE_NAME || path.relative(root, inputDir);
+const shapeBasename = process.env.SURROUNDING_LAND_SHAPE_BASENAME || "";
 const coordinatePrecision = Number(process.env.SURROUNDING_LAND_COORDINATE_PRECISION || 5);
-const simplifyTolerance = Number(process.env.SURROUNDING_LAND_SIMPLIFY_TOLERANCE || 0.01);
-const minRingArea = Number(process.env.SURROUNDING_LAND_MIN_RING_AREA || 0.00004);
+const simplifyTolerance = Number(process.env.SURROUNDING_LAND_SIMPLIFY_TOLERANCE || 0.002);
+const minRingArea = Number(process.env.SURROUNDING_LAND_MIN_RING_AREA || 0.00001);
 const buildWorldMap = process.env.SURROUNDING_LAND_WORLD === "1";
 const clipBounds = {
   west: Number(process.env.SURROUNDING_LAND_WEST || (buildWorldMap ? -180 : 116)),
@@ -17,6 +20,7 @@ const clipBounds = {
   east: Number(process.env.SURROUNDING_LAND_EAST || (buildWorldMap ? 180 : 155)),
   north: Number(process.env.SURROUNDING_LAND_NORTH || (buildWorldMap ? 90 : 54)),
 };
+const clipBoundsList = splitClipBounds(clipBounds);
 
 const shpPath = findFile(".shp");
 const dbfPath = findFile(".dbf");
@@ -24,7 +28,7 @@ const records = readDbf(dbfPath);
 const features = [];
 
 readShp(shpPath, (recordIndex, rings) => {
-  const record = records[recordIndex];
+  const record = records[recordIndex] ?? {};
   const polygons = buildPolygons(rings);
 
   if (polygons.length === 0) {
@@ -34,9 +38,9 @@ readShp(shpPath, (recordIndex, rings) => {
   features.push({
     type: "Feature",
     properties: {
-      name: record.NAME_JA || record.NAME || record.ADMIN,
-      nameEn: record.NAME_EN || record.NAME || record.ADMIN,
-      isoA3: record.ADM0_A3,
+      name: record.NAME_JA || record.NAME || record.ADMIN || "世界の陸地",
+      nameEn: record.NAME_EN || record.NAME || record.ADMIN || "World land",
+      isoA3: record.ADM0_A3 || "",
       source: sourceName,
     },
     geometry: {
@@ -55,6 +59,7 @@ fs.writeFileSync(
     source: sourceName,
     version: readVersion(),
     bounds: clipBounds,
+    boundsParts: clipBoundsList,
     features,
   }),
 );
@@ -62,16 +67,20 @@ fs.writeFileSync(
 console.log(`Wrote ${features.length} surrounding land features to ${path.relative(root, outputPath)}`);
 
 function findFile(extension) {
-  const fileName = fs.readdirSync(inputDir).find((name) => name.endsWith(extension));
+  const fileName = fs
+    .readdirSync(inputDir)
+    .find((name) => name.endsWith(extension) && (!shapeBasename || name === `${shapeBasename}${extension}`));
   if (!fileName) {
-    throw new Error(`No ${extension} file found in ${inputDir}`);
+    throw new Error(`No ${shapeBasename || ""}${extension} file found in ${inputDir}`);
   }
 
   return path.join(inputDir, fileName);
 }
 
 function readVersion() {
-  const versionPath = fs.readdirSync(inputDir).find((name) => name.endsWith(".VERSION.txt"));
+  const versionPath = fs
+    .readdirSync(inputDir)
+    .find((name) => name.endsWith(".VERSION.txt") && (!shapeBasename || name === `${shapeBasename}.VERSION.txt`));
   if (!versionPath) {
     return "";
   }
@@ -135,7 +144,7 @@ function readShp(filePath, onRecord) {
       north: buffer.readDoubleLE(recordStart + 28),
     };
 
-    if (!boxesIntersect(recordBox, clipBounds)) {
+    if (!boxesIntersectAny(recordBox, clipBoundsList)) {
       offset += 8 + contentLength;
       recordIndex += 1;
       continue;
@@ -152,11 +161,11 @@ function readShp(filePath, onRecord) {
       return [buffer.readDoubleLE(pointOffset), buffer.readDoubleLE(pointOffset + 8)];
     });
     const rings = partOffsets
-      .map((start, index) => {
+      .flatMap((start, index) => {
         const end = partOffsets[index + 1] ?? points.length;
-        return simplifyRing(points.slice(start, end));
+        return clipRingToBoundsList(simplifyRing(points.slice(start, end)), clipBoundsList);
       })
-      .filter((ring) => ring.length >= 4 && ringIntersectsBounds(ring, clipBounds));
+      .filter((ring) => ring.length >= 4);
 
     onRecord(recordIndex, rings);
     offset += 8 + contentLength;
@@ -168,27 +177,117 @@ function boxesIntersect(a, b) {
   return a.west <= b.east && a.east >= b.west && a.south <= b.north && a.north >= b.south;
 }
 
-function ringIntersectsBounds(ring, bounds) {
-  const box = ring.reduce(
-    (current, point) => ({
-      west: Math.min(current.west, point[0]),
-      south: Math.min(current.south, point[1]),
-      east: Math.max(current.east, point[0]),
-      north: Math.max(current.north, point[1]),
-    }),
-    { west: Infinity, south: Infinity, east: -Infinity, north: -Infinity },
-  );
+function boxesIntersectAny(box, boundsList) {
+  return boundsList.some((bounds) => boxesIntersect(box, bounds));
+}
 
-  return boxesIntersect(box, bounds);
+function splitClipBounds(bounds) {
+  if (bounds.west <= bounds.east) {
+    return [bounds];
+  }
+
+  return [
+    { ...bounds, east: 180 },
+    { ...bounds, west: -180 },
+  ];
+}
+
+function clipRingToBoundsList(ring, boundsList) {
+  return boundsList
+    .map((bounds) => clipRingToBounds(ring, bounds))
+    .filter((clippedRing) => clippedRing.length >= 4 && Math.abs(ringArea(clippedRing)) >= minRingArea);
+}
+
+function clipRingToBounds(ring, bounds) {
+  const openRing = pointsEqual(ring[0], ring.at(-1)) ? ring.slice(0, -1) : ring;
+  const clipped = [
+    {
+      inside: ([longitude]) => longitude >= bounds.west,
+      intersect: (start, end) => intersectVertical(start, end, bounds.west),
+    },
+    {
+      inside: ([longitude]) => longitude <= bounds.east,
+      intersect: (start, end) => intersectVertical(start, end, bounds.east),
+    },
+    {
+      inside: ([, latitude]) => latitude >= bounds.south,
+      intersect: (start, end) => intersectHorizontal(start, end, bounds.south),
+    },
+    {
+      inside: ([, latitude]) => latitude <= bounds.north,
+      intersect: (start, end) => intersectHorizontal(start, end, bounds.north),
+    },
+  ].reduce((points, edge) => clipPolygonEdge(points, edge), openRing);
+
+  if (clipped.length < 3) {
+    return [];
+  }
+
+  const rounded = dedupeConsecutivePoints(clipped.map(roundPoint));
+  if (rounded.length < 3) {
+    return [];
+  }
+
+  if (!pointsEqual(rounded[0], rounded.at(-1))) {
+    rounded.push([...rounded[0]]);
+  }
+
+  return rounded;
+}
+
+function clipPolygonEdge(points, edge) {
+  if (points.length === 0) {
+    return [];
+  }
+
+  const output = [];
+  let previous = points.at(-1);
+  let previousInside = edge.inside(previous);
+
+  for (const current of points) {
+    const currentInside = edge.inside(current);
+
+    if (currentInside) {
+      if (!previousInside) {
+        output.push(edge.intersect(previous, current));
+      }
+      output.push(current);
+    } else if (previousInside) {
+      output.push(edge.intersect(previous, current));
+    }
+
+    previous = current;
+    previousInside = currentInside;
+  }
+
+  return output;
+}
+
+function intersectVertical(start, end, longitude) {
+  const ratio = (longitude - start[0]) / (end[0] - start[0] || 1);
+  return [longitude, start[1] + ratio * (end[1] - start[1])];
+}
+
+function intersectHorizontal(start, end, latitude) {
+  const ratio = (latitude - start[1]) / (end[1] - start[1] || 1);
+  return [start[0] + ratio * (end[0] - start[0]), latitude];
+}
+
+function roundPoint(point) {
+  return [
+    Number(point[0].toFixed(coordinatePrecision)),
+    Number(point[1].toFixed(coordinatePrecision)),
+  ];
+}
+
+function dedupeConsecutivePoints(points) {
+  return points.filter((point, index) => index === 0 || !pointsEqual(point, points[index - 1]));
 }
 
 function simplifyRing(ring) {
   const openRing = pointsEqual(ring[0], ring.at(-1)) ? ring.slice(0, -1) : ring;
   const simplified = simplifyTolerance > 0 ? douglasPeucker(openRing, simplifyTolerance) : openRing;
-  const rounded = simplified.map(([longitude, latitude]) => [
-    Number(longitude.toFixed(coordinatePrecision)),
-    Number(latitude.toFixed(coordinatePrecision)),
-  ]);
+  const rounded = simplified.map(roundPoint);
 
   if (!pointsEqual(rounded[0], rounded.at(-1))) {
     rounded.push([...rounded[0]]);
