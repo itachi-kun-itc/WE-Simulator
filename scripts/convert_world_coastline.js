@@ -16,7 +16,7 @@ const minLinePoints = Number(process.env.WORLD_COASTLINE_MIN_LINE_POINTS || 2);
 const buildWorldMap = process.env.WORLD_COASTLINE_WORLD !== "0";
 const clipBounds = {
   west: Number(process.env.WORLD_COASTLINE_WEST || 85),
-  south: Number(process.env.WORLD_COASTLINE_SOUTH || 1),
+  south: Number(process.env.WORLD_COASTLINE_SOUTH || -25),
   east: Number(process.env.WORLD_COASTLINE_EAST || 180),
   north: Number(process.env.WORLD_COASTLINE_NORTH || 89),
 };

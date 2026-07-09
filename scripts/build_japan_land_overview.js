@@ -8,8 +8,8 @@ const inputPath = process.env.JAPAN_LAND_OVERVIEW_INPUT_PATH
 const outputPath = process.env.JAPAN_LAND_OVERVIEW_OUTPUT_PATH
   ? path.resolve(root, process.env.JAPAN_LAND_OVERVIEW_OUTPUT_PATH)
   : path.join(root, "web", "data", "japan_land_overview.geojson");
-const coordinatePrecision = Number(process.env.JAPAN_LAND_OVERVIEW_COORDINATE_PRECISION || 5);
-const simplifyTolerance = Number(process.env.JAPAN_LAND_OVERVIEW_SIMPLIFY_TOLERANCE || 0.0008);
+const coordinatePrecision = Number(process.env.JAPAN_LAND_OVERVIEW_COORDINATE_PRECISION || 4);
+const simplifyTolerance = Number(process.env.JAPAN_LAND_OVERVIEW_SIMPLIFY_TOLERANCE || 0.0014);
 const minRingArea = Number(process.env.JAPAN_LAND_OVERVIEW_MIN_RING_AREA || 0.00000008);
 
 const source = JSON.parse(fs.readFileSync(inputPath, "utf8"));
@@ -45,11 +45,7 @@ function simplifyFeature(feature) {
     type: "Feature",
     properties: {
       code: feature.properties?.code,
-      prefectureCode: feature.properties?.prefectureCode,
       prefecture: feature.properties?.prefecture,
-      subprefecture: feature.properties?.subprefecture,
-      county: feature.properties?.county,
-      ward: feature.properties?.ward,
       municipality: feature.properties?.municipality,
       name: feature.properties?.name,
     },
