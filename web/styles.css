@@ -1062,7 +1062,7 @@ h1 {
   background: rgba(0, 0, 0, 0.16);
 }
 
-.source-link-card h4 {
+.source-link-label {
   margin: 0 0 3px;
   color: #ffffff;
   font-size: clamp(0.92rem, 1.8vw, 1.06rem);
@@ -1070,9 +1070,13 @@ h1 {
   overflow-wrap: anywhere;
 }
 
-.source-link-card p {
+.source-link-description {
   margin: 0;
   color: rgba(255, 255, 255, 0.78);
+}
+
+.source-link-url {
+  overflow-wrap: anywhere;
 }
 
 .source-info-section a {
