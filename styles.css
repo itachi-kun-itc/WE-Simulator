@@ -404,8 +404,8 @@ h1 {
   border-radius: 999px;
   background: #ffffff;
   box-shadow:
-    0 0 0 1.25px rgba(0, 0, 0, 0.86),
-    0 1px 0 1.25px rgba(0, 0, 0, 0.48);
+    0 0 0 0.75px rgba(0, 0, 0, 0.72),
+    0 0.5px 0 0.75px rgba(0, 0, 0, 0.34);
   transform: translate(-50%, -50%) rotate(-48deg);
   transform-origin: center;
 }
@@ -916,6 +916,17 @@ h1 {
   touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
   contain: layout paint;
+}
+
+@media (min-width: 721px) {
+  .push-confirm-overlay[data-push-tab="history"] {
+    padding-bottom: clamp(32px, 4vh, 56px);
+  }
+
+  .push-confirm-overlay[data-push-tab="history"] .source-info-overlay-content,
+  .push-confirm-overlay[data-push-tab="history"] .push-confirm-dialog {
+    padding-bottom: clamp(8px, 2vh, 20px);
+  }
 }
 
 .source-info-header {

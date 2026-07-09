@@ -1,4 +1,4 @@
-const CACHE_NAME = "we-simulator-pwa-v1";
+const CACHE_NAME = "we-simulator-pwa-v2";
 const NOTIFICATION_HISTORY_DB_NAME = "we-simulator-notification-history";
 const NOTIFICATION_HISTORY_DB_VERSION = 1;
 const NOTIFICATION_HISTORY_STORE_NAME = "notifications";
@@ -36,11 +36,20 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  const requestUrl = new URL(event.request.url);
+  if (!["http:", "https:"].includes(requestUrl.protocol)) {
+    return;
+  }
+
   event.respondWith(
     fetch(event.request)
       .then((response) => {
         const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        if (response.ok) {
+          caches.open(CACHE_NAME)
+            .then((cache) => cache.put(event.request, copy))
+            .catch((error) => console.warn("cache put failed", error));
+        }
         return response;
       })
       .catch(() => caches.match(event.request)),
