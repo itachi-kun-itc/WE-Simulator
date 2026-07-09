@@ -10,6 +10,8 @@ const ACTIVE_FAULT_SEGMENTS_URL = "./data/activefault_japan_segments.geojson";
 const SUBMARINE_OBSERVATION_POINTS_URL = "./data/submarine_observation_points.geojson";
 const SURROUNDING_LAND_URL = "./data/surrounding_land.geojson";
 const WORLD_COASTLINE_URL = "./data/world_coastline.geojson";
+const GEOSHAPE_MUNICIPALITY_TILE_URL = "https://geoshape.ex.nii.ac.jp/vector-adm/tile/city/{z}/{x}/{y}.pbf";
+const GEOSHAPE_MUNICIPALITY_SOURCE_LAYER = "city";
 const GROUND_MODEL_URL = "./data/ground_model.json";
 const SHINDO_STATIONS_URL = "./data/jma_shindo_stations.json";
 const EARTHQUAKE_PRESETS_URL = "./data/earthquake_presets.json";
@@ -536,6 +538,7 @@ const SOURCE_LINKS = [
   { label: "JMA_Region", href: "https://github.com/0Quake/JMA_Region" },
   { label: "地震調査研究推進本部", href: "https://www.jishin.go.jp/" },
   { label: "国土数値情報", href: "https://nlftp.mlit.go.jp/ksj/" },
+  { label: "Geoshape", href: "https://geoshape.ex.nii.ac.jp/vector-adm/" },
   { label: "J-SHIS", href: "https://www.j-shis.bosai.go.jp/" },
   { label: "Natural Earth", href: "https://www.naturalearthdata.com/" },
   { label: "S-net", href: "https://www.seafloor.bosai.go.jp/outline/" },
@@ -4725,16 +4728,17 @@ function setFeedbackStatus(element, message, isError) {
 }
 
 function buildSourceInfoOverlayHtml() {
-  const sections = SOURCE_INFO_SECTIONS.map((section) => {
+  const sections = SOURCE_SECTIONS.map((section) => {
     const links = section.links.map((source) => {
       const description = source.description || getSourceLinkDescription(source, section);
       const labelSuffix = source.kind ? ` <span class="source-link-kind">${escapeHtml(source.kind)}</span>` : "";
+      const sourceUrl = escapeHtml(source.href);
       return `
-        <a class="source-link-card" href="${escapeHtml(source.href)}" target="_blank" rel="noopener noreferrer">
+        <article class="source-link-card">
           <span class="source-link-label">${escapeHtml(source.label)}${labelSuffix}</span>
           <span class="source-link-description">${escapeHtml(description)}</span>
-          <span class="source-link-url">${escapeHtml(formatSourceUrl(source.href))}</span>
-        </a>
+          <a class="source-link-url" href="${sourceUrl}" target="_blank" rel="noopener noreferrer">${escapeHtml(formatSourceUrl(source.href))}</a>
+        </article>
       `;
     }).join("");
 
@@ -4791,6 +4795,7 @@ function getSourceLinkDescription(source, section) {
   if (label.includes("熊本地震")) return "2016年のプリセット地震と観測震度の資料として使用しています。";
   if (label.includes("プレート形状")) return "海溝、トラフ、プレート境界線の描画に使用しています。";
   if (label.includes("国土数値情報")) return "市区町村などの行政区域データの作成に使用しています。";
+  if (label.includes("Geoshape")) return "市区町村境界のベクトルタイル描画に使用しています。";
   if (label.includes("GISデータ")) return "気象庁の地理データを地図レイヤーの作成に使用しています。";
   if (label.includes("J-SHIS 地震ハザード")) return "地盤や揺れやすさに関する資料の参照に使用しています。";
   if (label.includes("若松・松岡")) return "地形・地盤分類による地盤増幅補正の参考にしています。";
@@ -4861,8 +4866,12 @@ async function showMapLayers() {
   addGeoJsonSource("japan-base-land", emptyFeatureCollection());
   addGeoJsonSource("japan-base-outline", emptyFeatureCollection());
   addGeoJsonSource("display-only-territory-land", emptyFeatureCollection());
-  addGeoJsonSource("municipalities", emptyFeatureCollection());
-  addGeoJsonSource("municipalities-linework", emptyFeatureCollection());
+  addVectorTileSource("geoshape-municipalities", {
+    tiles: [GEOSHAPE_MUNICIPALITY_TILE_URL],
+    minzoom: 5,
+    maxzoom: 12,
+    attribution: "Geoshape / National Land Numerical Information",
+  });
   addGeoJsonSource("jma-local-areas", emptyFeatureCollection());
   addGeoJsonSource("plate-boundaries", emptyFeatureCollection());
   addGeoJsonSource("active-faults", emptyFeatureCollection());
@@ -4929,11 +4938,6 @@ function applyMunicipalityDisplayData(displayData, options = {}) {
   if (shouldRefreshDerivedState) {
     invalidateIntensityEstimateCache();
   }
-  setGeoJsonSourceData(
-    "municipalities-linework",
-    removeExcludedJapanIslandPolygons(municipalityDisplayData),
-  );
-  setGeoJsonSourceData("municipalities", municipalityDisplayData);
   keepWaveAndStationLayerOrder();
   if (shouldRefreshDerivedState) {
     updateSetupResultOutputs();
@@ -5402,6 +5406,17 @@ function addGeoJsonSource(id, data) {
   sourceDataRefs.set(id, data);
 }
 
+function addVectorTileSource(id, options) {
+  if (map.getSource(id)) {
+    return;
+  }
+
+  map.addSource(id, {
+    type: "vector",
+    ...options,
+  });
+}
+
 function setGeoJsonSourceData(id, data) {
   const source = map?.getSource(id);
   if (!source) {
@@ -5607,8 +5622,18 @@ function addMapLayers() {
   addLayerIfMissing({
     id: "municipality-boundaries",
     type: "line",
-    source: "municipalities-linework",
+    source: "geoshape-municipalities",
+    "source-layer": GEOSHAPE_MUNICIPALITY_SOURCE_LAYER,
     minzoom: MUNICIPALITY_BOUNDARY_MIN_ZOOM,
+    filter: [
+      "any",
+      ["!", ["has", "N03_007"]],
+      ["!", ["in", ["get", "N03_007"], ["literal", [...EXCLUDED_TERRITORY_CODES]]]],
+    ],
+    layout: {
+      "line-cap": "round",
+      "line-join": "round",
+    },
     paint: {
       "line-color": "#ffffff",
       "line-opacity": 0.58,
@@ -6907,15 +6932,15 @@ function getGeolocationAccuracy(position) {
 
 async function resolveMunicipalityNameAt(longitude, latitude) {
   try {
-    const municipalities = await loadMunicipalities();
-    const municipality = findFeatureAtPoint(municipalities, longitude, latitude);
-    if (!municipality || isExcludedTerritoryName(municipality.properties?.name)) {
+    const municipality = await findMunicipalityAtPoint(longitude, latitude);
+    const properties = municipality?.properties ?? {};
+    const municipalityName = cleanDisplayAreaName(
+      properties.city || properties.municipality || properties.name || "",
+    );
+    if (!municipality || isExcludedTerritoryName(municipalityName)) {
       return "-";
     }
-    const prefecture = cleanDisplayAreaName(municipality.properties?.prefecture || "");
-    const municipalityName = cleanDisplayAreaName(
-      municipality.properties?.municipality || municipality.properties?.name || "",
-    );
+    const prefecture = cleanDisplayAreaName(properties.pref || properties.prefecture || "");
     if (!municipalityName) {
       return "-";
     }
@@ -7738,6 +7763,37 @@ async function loadMunicipalities() {
 
   municipalityData = filterExcludedGeoJsonFeatures(await loadMunicipalitySourceData());
   return municipalityData;
+}
+
+async function findMunicipalityAtPoint(longitude, latitude) {
+  if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {
+    return null;
+  }
+
+  try {
+    const index = await loadMunicipalityChunkIndex();
+    const candidateChunks = (index.chunks ?? []).filter((chunk) =>
+      isPointInBoundsArray(chunk.bounds, longitude, latitude),
+    );
+
+    if (!candidateChunks.length) {
+      return null;
+    }
+
+    const chunkDataList = await Promise.all(candidateChunks.map(loadMunicipalityChunk));
+    for (const chunkData of chunkDataList) {
+      const municipality = findFeatureAtPoint(chunkData, longitude, latitude);
+      if (municipality) {
+        return municipality;
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.warn("Municipality chunk lookup unavailable; falling back to full municipality GeoJSON", error);
+    const municipalities = await loadMunicipalities();
+    return findFeatureAtPoint(municipalities, longitude, latitude);
+  }
 }
 
 async function loadMunicipalitySourceData() {
@@ -8650,11 +8706,10 @@ async function updateLocationNames() {
   let inManagedArea = false;
 
   try {
-    const [municipalities, epicenterAreas] = await Promise.all([
-      loadMunicipalities(),
+    const [municipality, epicenterAreas] = await Promise.all([
+      findMunicipalityAtPoint(state.longitude, state.latitude),
       loadEpicenterAreas(),
     ]);
-    const municipality = findFeatureAtPoint(municipalities, state.longitude, state.latitude);
     const epicenterArea = findEpicenterAreaAtPoint(epicenterAreas, state.longitude, state.latitude);
     inManagedArea = Boolean(municipality || epicenterArea);
 
@@ -8675,8 +8730,8 @@ async function updateLocationNames() {
 }
 
 function formatMunicipalityDisplayName(properties = {}) {
-  const prefecture = cleanDisplayAreaName(properties.prefecture || "");
-  const municipality = cleanDisplayAreaName(properties.municipality || "");
+  const prefecture = cleanDisplayAreaName(properties.pref || properties.prefecture || "");
+  const municipality = cleanDisplayAreaName(properties.city || properties.municipality || "");
   const fullName = cleanDisplayAreaName(properties.name || "");
 
   if (prefecture && municipality) {
@@ -10906,6 +10961,7 @@ function formatDepth(depthKm) {
 
 function findFeatureAtPoint(geojson, longitude, latitude) {
   return geojson.features.find((feature) =>
+    isPointInFeatureBounds(feature, longitude, latitude) &&
     getFeaturePolygons(feature).some((polygon) => pointInPolygon([longitude, latitude], polygon)),
   );
 }
@@ -10923,6 +10979,28 @@ function toEpicenterAreaSourceLongitude(longitude) {
   }
 
   return longitude < 0 ? longitude + 360 : longitude;
+}
+
+function isPointInFeatureBounds(feature, longitude, latitude) {
+  const bounds = feature.properties?.bbox ?? feature.bbox;
+  if (!bounds) {
+    return true;
+  }
+
+  return isPointInBoundsArray(bounds, longitude, latitude);
+}
+
+function isPointInBoundsArray(bounds, longitude, latitude) {
+  if (!Array.isArray(bounds) || bounds.length < 4) {
+    return false;
+  }
+
+  return (
+    longitude >= Number(bounds[0]) &&
+    latitude >= Number(bounds[1]) &&
+    longitude <= Number(bounds[2]) &&
+    latitude <= Number(bounds[3])
+  );
 }
 
 function getFeaturePolygons(feature) {
