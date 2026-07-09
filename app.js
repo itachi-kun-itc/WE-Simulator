@@ -1,5 +1,6 @@
 const MUNICIPALITIES_URL = "./data/municipalities.geojson";
 const JAPAN_LAND_OVERVIEW_URL = "./data/japan_land_overview.geojson";
+const MUNICIPALITY_CHUNK_INDEX_URL = "./data/municipality_chunks/index.json";
 const BOUNDARY_LAYERS_URL = "./data/boundary_layers.geojson";
 const JMA_LOCAL_AREAS_URL = "./data/jma_local_areas.geojson";
 const JMA_EPICENTER_AREAS_URL = "./data/jma_epicenter_areas.geojson";
@@ -42,7 +43,7 @@ const INITIAL_CENTER = [139.767, 35.681];
 const INITIAL_ZOOM = 6;
 const MOBILE_INITIAL_CENTER = INITIAL_CENTER;
 const MOBILE_INITIAL_ZOOM = 6;
-const MAP_PAN_BOUNDS = [[85, 15], [180, 65]];
+const MAP_PAN_BOUNDS = [[85, 1], [180, 89]];
 const BASE_MAP_MIN_ZOOM = 3.5;
 const MAP_CONSTRAINT_TILE_SIZE = 512;
 const STATION_LABEL_ALL_VISIBLE_MIN_ZOOM = 8.8;
@@ -81,6 +82,9 @@ const JAPAN_WORLD_COASTLINE_SUPPRESS_BOUNDS = [
   ...NORTHERN_TERRITORIES_BOUNDS,
 ];
 const MUNICIPALITY_BOUNDARY_MIN_ZOOM = 8;
+const MUNICIPALITY_DETAIL_MIN_ZOOM = 8.1;
+const MUNICIPALITY_DETAIL_VIEWPORT_BUFFER_DEGREES = 0.45;
+const MUNICIPALITY_DETAIL_UPDATE_DELAY_MS = 240;
 const EARTH_RADIUS_KM = 6371;
 const EARTHQUAKE_MODEL = {
   pWaveVelocityKmPerSec: 6.5,
@@ -719,6 +723,14 @@ let municipalityDisplayData;
 let municipalityLoadPromise;
 let japanLandOverviewData;
 let japanLandOverviewLoadPromise;
+let municipalityOverviewDisplayData;
+let municipalityChunkIndexData;
+let municipalityChunkIndexLoadPromise;
+let municipalityDetailUpdateTimer = 0;
+let municipalityDetailRequestId = 0;
+let renderedMunicipalityDetailChunkKey = "";
+const municipalityChunkDataCache = new Map();
+const municipalityChunkLoadPromises = new Map();
 let boundaryData;
 let boundaryLoadPromise;
 let localAreaData;
@@ -765,6 +777,7 @@ let stationCanvasRenderFrame = 0;
 let stationCanvasFeatureCache = { data: null, features: [] };
 let submarineStationCanvasFeatureCache = { data: null, features: [] };
 let maintenanceReasonOverlay;
+let appOverlays;
 let latestMaintenanceStatus = { maintenance: false, reason: "" };
 let currentLocationMarker;
 let epicenterHoverPopup;
@@ -880,6 +893,7 @@ let lastManagedEpicenter = {
   longitude: state.longitude,
 };
 
+setupGlobalOverlays();
 setupTabs();
 renderDepthOptions();
 renderMagnitudeOptions();
@@ -2164,6 +2178,7 @@ async function initEarthquakeMap() {
   map.on("moveend", () => {
     state.mapInteracting = false;
     constrainMapToPanRange();
+    scheduleVisibleMunicipalityDetailUpdate();
     scheduleStationCanvasRender({ force: true });
     schedulePostMapInteractionRender();
   });
@@ -2172,6 +2187,7 @@ async function initEarthquakeMap() {
   });
   map.on("zoomend", () => {
     state.mapInteracting = false;
+    scheduleVisibleMunicipalityDetailUpdate(0);
     scheduleStationCanvasRender({ force: true });
     schedulePostMapInteractionRender();
   });
@@ -2247,22 +2263,18 @@ function addZoomOnlyControl() {
   map.addControl(zoomControl, "top-right");
 }
 
-function addSourceInfoControl() {
-  const adminOverlay = createAdminModeOverlay();
+function setupGlobalOverlays() {
+  if (appOverlays) {
+    return appOverlays;
+  }
+
   const maintenanceOverlay = createMaintenanceModeOverlay();
   const maintenanceBadge = createMaintenanceModeBadge();
   const localServerBadge = createLocalServerBadge();
   const parentTerminalBadge = createParentTerminalBadge();
   const feedbackOverlay = createFeedbackOverlay();
-  const sourceOverlay = createSourceInfoOverlay(adminOverlay, feedbackOverlay);
-  const speechConfirmOverlay = createSpeechConfirmOverlay();
-  const pushConfirmOverlay = createPushConfirmOverlay();
   document.body.append(
-    sourceOverlay,
     feedbackOverlay,
-    speechConfirmOverlay,
-    pushConfirmOverlay,
-    adminOverlay,
     maintenanceOverlay,
     maintenanceBadge,
     localServerBadge,
@@ -2272,6 +2284,34 @@ function addSourceInfoControl() {
   setupLocalServerBadge(localServerBadge);
   setupParentTerminalBadge(parentTerminalBadge);
   setupMaintenanceMode(maintenanceOverlay, maintenanceBadge);
+
+  const adminOverlay = createAdminModeOverlay();
+  const sourceOverlay = createSourceInfoOverlay(adminOverlay, feedbackOverlay);
+  const speechConfirmOverlay = createSpeechConfirmOverlay();
+  const pushConfirmOverlay = createPushConfirmOverlay();
+  document.body.append(sourceOverlay, speechConfirmOverlay, pushConfirmOverlay, adminOverlay);
+
+  appOverlays = {
+    adminOverlay,
+    maintenanceOverlay,
+    maintenanceBadge,
+    localServerBadge,
+    parentTerminalBadge,
+    feedbackOverlay,
+    sourceOverlay,
+    speechConfirmOverlay,
+    pushConfirmOverlay,
+  };
+  return appOverlays;
+}
+
+function addSourceInfoControl() {
+  const {
+    sourceOverlay,
+    feedbackOverlay,
+    speechConfirmOverlay,
+    pushConfirmOverlay,
+  } = setupGlobalOverlays();
 
   const sourceInfoControl = {
     onAdd() {
@@ -5129,19 +5169,8 @@ async function hydrateDeferredMapData() {
 
     window.requestAnimationFrame(() => {
       const displayMunicipalities = filterExcludedGeoJsonFeatures(municipalities);
-      municipalityDisplayData = withoutInteriorRings(displayMunicipalities);
-      invalidateIntensityEstimateCache();
-
-      setGeoJsonSourceData(
-        "municipalities-linework",
-        removeExcludedJapanIslandPolygons(municipalityDisplayData),
-      );
-      setGeoJsonSourceData(
-        "excluded-japan-islands",
-        extractExcludedJapanIslandPolygons(municipalityDisplayData),
-      );
-      setGeoJsonSourceData("municipalities", municipalityDisplayData);
-      updateSetupResultOutputs();
+      municipalityOverviewDisplayData = withoutInteriorRings(displayMunicipalities);
+      applyMunicipalityDisplayData(municipalityOverviewDisplayData);
       addMapLayers();
       setupStationHoverPopup();
       keepWaveAndStationLayerOrder();
@@ -5153,9 +5182,7 @@ async function hydrateDeferredMapData() {
       scheduleDeferredTask(() => scheduleLocationResolve(), 1400, 3000);
       updateSimulationAvailability();
       schedulePostMunicipalityDataHydration();
-      scheduleDeferredTask(() => {
-        hydrateDeferredFullMunicipalityData().catch((error) => console.warn(error));
-      }, 1600, 5000);
+      scheduleVisibleMunicipalityDetailUpdate(0);
       hydrateDeferredSupplementaryMapData().catch((error) => console.warn(error));
       hydrateDeferredSimulationMapData().catch((error) => console.warn(error));
     });
@@ -5170,9 +5197,19 @@ async function hydrateDeferredMapData() {
 async function hydrateDeferredFullMunicipalityData() {
   const municipalities = await loadMunicipalitySourceData();
   const displayMunicipalities = withoutInteriorRings(filterExcludedGeoJsonFeatures(municipalities));
-  municipalityDisplayData = displayMunicipalities;
-  invalidateIntensityEstimateCache();
+  applyMunicipalityDisplayData(displayMunicipalities);
+}
 
+function applyMunicipalityDisplayData(displayData, options = {}) {
+  if (!displayData?.features?.length) {
+    return;
+  }
+
+  const shouldRefreshDerivedState = options.refreshDerivedState !== false;
+  municipalityDisplayData = displayData;
+  if (shouldRefreshDerivedState) {
+    invalidateIntensityEstimateCache();
+  }
   setGeoJsonSourceData(
     "municipalities-linework",
     removeExcludedJapanIslandPolygons(municipalityDisplayData),
@@ -5183,9 +5220,117 @@ async function hydrateDeferredFullMunicipalityData() {
   );
   setGeoJsonSourceData("municipalities", municipalityDisplayData);
   keepWaveAndStationLayerOrder();
-  updateSetupResultOutputs();
-  updateIntensityLayer();
-  updateSimulationAvailability();
+  if (shouldRefreshDerivedState) {
+    updateSetupResultOutputs();
+    updateIntensityLayer();
+    updateSimulationAvailability();
+  }
+}
+
+function scheduleVisibleMunicipalityDetailUpdate(delayMs = MUNICIPALITY_DETAIL_UPDATE_DELAY_MS) {
+  if (!map || !municipalityOverviewDisplayData?.features?.length) {
+    return;
+  }
+
+  window.clearTimeout(municipalityDetailUpdateTimer);
+  municipalityDetailUpdateTimer = window.setTimeout(() => {
+    hydrateVisibleMunicipalityDetailData().catch((error) => console.warn(error));
+  }, delayMs);
+}
+
+async function hydrateVisibleMunicipalityDetailData() {
+  if (!map || !municipalityOverviewDisplayData?.features?.length) {
+    return;
+  }
+
+  const requestId = ++municipalityDetailRequestId;
+  if (map.getZoom() < MUNICIPALITY_DETAIL_MIN_ZOOM) {
+    if (renderedMunicipalityDetailChunkKey) {
+      renderedMunicipalityDetailChunkKey = "";
+      applyMunicipalityDisplayData(municipalityOverviewDisplayData, { refreshDerivedState: false });
+    }
+    return;
+  }
+
+  const index = await loadMunicipalityChunkIndex();
+  const visibleBounds = getBufferedMapViewportBounds(MUNICIPALITY_DETAIL_VIEWPORT_BUFFER_DEGREES);
+  const visibleChunks = (index.chunks ?? []).filter((chunk) => boundsIntersect(chunk.bounds, visibleBounds));
+  const nextChunkKey = visibleChunks.map((chunk) => chunk.id).sort().join("|");
+  if (nextChunkKey === renderedMunicipalityDetailChunkKey) {
+    return;
+  }
+
+  const chunkData = await Promise.all(visibleChunks.map(loadMunicipalityChunk));
+  if (
+    requestId !== municipalityDetailRequestId ||
+    !map ||
+    map.getZoom() < MUNICIPALITY_DETAIL_MIN_ZOOM
+  ) {
+    return;
+  }
+
+  renderedMunicipalityDetailChunkKey = nextChunkKey;
+  applyMunicipalityDisplayData(
+    mergeMunicipalityOverviewWithDetailChunks(municipalityOverviewDisplayData, chunkData),
+    { refreshDerivedState: false },
+  );
+}
+
+function getBufferedMapViewportBounds(bufferDegrees = 0) {
+  const bounds = map.getBounds();
+  return {
+    west: Math.max(MAP_PAN_BOUNDS[0][0], bounds.getWest() - bufferDegrees),
+    south: Math.max(MAP_PAN_BOUNDS[0][1], bounds.getSouth() - bufferDegrees),
+    east: Math.min(MAP_PAN_BOUNDS[1][0], bounds.getEast() + bufferDegrees),
+    north: Math.min(MAP_PAN_BOUNDS[1][1], bounds.getNorth() + bufferDegrees),
+  };
+}
+
+function boundsIntersect(bounds, viewportBounds) {
+  if (!Array.isArray(bounds) || bounds.length < 4 || !viewportBounds) {
+    return false;
+  }
+
+  const [west, south, east, north] = bounds;
+  return (
+    west <= viewportBounds.east &&
+    east >= viewportBounds.west &&
+    south <= viewportBounds.north &&
+    north >= viewportBounds.south
+  );
+}
+
+function mergeMunicipalityOverviewWithDetailChunks(overviewData, chunkDataList) {
+  const detailFeaturesByCode = new Map();
+  for (const chunkData of chunkDataList) {
+    for (const feature of chunkData.features ?? []) {
+      const code = feature.properties?.code;
+      if (code) {
+        detailFeaturesByCode.set(code, feature);
+      }
+    }
+  }
+
+  const overviewCodes = new Set();
+  const features = (overviewData.features ?? []).map((feature) => {
+    const code = feature.properties?.code;
+    if (code) {
+      overviewCodes.add(code);
+    }
+    return code && detailFeaturesByCode.has(code) ? detailFeaturesByCode.get(code) : feature;
+  });
+
+  for (const [code, feature] of detailFeaturesByCode) {
+    if (!overviewCodes.has(code)) {
+      features.push(feature);
+    }
+  }
+
+  return {
+    ...overviewData,
+    name: "Japan land progressive municipality detail",
+    features,
+  };
 }
 
 async function hydrateDeferredSupplementaryMapData() {
@@ -7699,6 +7844,25 @@ function latitudeFromMercatorY(y) {
   return toDegrees(Math.atan(Math.sinh(Math.PI * (1 - 2 * y))));
 }
 
+function getMapConstraintViewport(rect) {
+  const padding = typeof map?.getPadding === "function"
+    ? map.getPadding()
+    : { top: 0, right: 0, bottom: 0, left: 0 };
+  const safePadding = {
+    top: clamp(Number(padding.top) || 0, 0, rect.height),
+    right: clamp(Number(padding.right) || 0, 0, rect.width),
+    bottom: clamp(Number(padding.bottom) || 0, 0, rect.height),
+    left: clamp(Number(padding.left) || 0, 0, rect.width),
+  };
+
+  return {
+    centerX: (safePadding.left + rect.width - safePadding.right) / 2,
+    centerY: (safePadding.top + rect.height - safePadding.bottom) / 2,
+    width: rect.width,
+    height: rect.height,
+  };
+}
+
 function constrainMapToPanRange() {
   if (!map || mapPanConstraintApplying) {
     return;
@@ -7729,18 +7893,18 @@ function getViewportConstrainedMapCenter(center) {
   }
 
   const worldSize = MAP_CONSTRAINT_TILE_SIZE * 2 ** map.getZoom();
-  const halfLongitudeSpan = (rect.width * 180) / worldSize;
-  const minLongitude = west + halfLongitudeSpan;
-  const maxLongitude = east - halfLongitudeSpan;
+  const viewport = getMapConstraintViewport(rect);
+  const longitudePerPixel = 360 / worldSize;
+  const minLongitude = west + viewport.centerX * longitudePerPixel;
+  const maxLongitude = east - (viewport.width - viewport.centerX) * longitudePerPixel;
   const constrainedLongitude = minLongitude <= maxLongitude
     ? clamp(center.lng, minLongitude, maxLongitude)
-    : (west + east) / 2;
+    : (minLongitude + maxLongitude) / 2;
 
-  const halfMercatorSpan = rect.height / (worldSize * 2);
   const northY = mercatorY(north);
   const southY = mercatorY(south);
-  const minCenterY = northY + halfMercatorSpan;
-  const maxCenterY = southY - halfMercatorSpan;
+  const minCenterY = northY + viewport.centerY / worldSize;
+  const maxCenterY = southY - (viewport.height - viewport.centerY) / worldSize;
   const centerY = mercatorY(center.lat);
   const constrainedY = minCenterY <= maxCenterY
     ? clamp(centerY, minCenterY, maxCenterY)
@@ -7796,6 +7960,43 @@ async function loadJapanLandOverview() {
 
   japanLandOverviewData = await japanLandOverviewLoadPromise;
   return japanLandOverviewData;
+}
+
+async function loadMunicipalityChunkIndex() {
+  if (municipalityChunkIndexData) {
+    return municipalityChunkIndexData;
+  }
+
+  if (!municipalityChunkIndexLoadPromise) {
+    municipalityChunkIndexLoadPromise = fetchJson(MUNICIPALITY_CHUNK_INDEX_URL, "Municipality chunk index");
+  }
+
+  municipalityChunkIndexData = await municipalityChunkIndexLoadPromise;
+  return municipalityChunkIndexData;
+}
+
+async function loadMunicipalityChunk(chunk) {
+  if (!chunk?.id || !chunk?.file) {
+    return emptyFeatureCollection();
+  }
+
+  if (municipalityChunkDataCache.has(chunk.id)) {
+    return municipalityChunkDataCache.get(chunk.id);
+  }
+
+  if (!municipalityChunkLoadPromises.has(chunk.id)) {
+    const url = new URL(chunk.file, new URL(MUNICIPALITY_CHUNK_INDEX_URL, window.location.href)).toString();
+    municipalityChunkLoadPromises.set(
+      chunk.id,
+      fetchJson(url, `Municipality detail chunk ${chunk.id}`).then((geojson) =>
+        withoutInteriorRings(filterExcludedGeoJsonFeatures(geojson)),
+      ),
+    );
+  }
+
+  const data = await municipalityChunkLoadPromises.get(chunk.id);
+  municipalityChunkDataCache.set(chunk.id, data);
+  return data;
 }
 
 async function loadBoundaryLayers() {
