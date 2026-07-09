@@ -493,6 +493,11 @@ h1 {
   z-index: 3100;
 }
 
+.feedback-overlay.from-maintenance,
+.push-confirm-overlay.from-maintenance {
+  z-index: 5200;
+}
+
 .speech-confirm-overlay.hidden,
 .push-confirm-overlay.hidden {
   display: none;
@@ -1449,11 +1454,20 @@ h1 {
   line-height: 1.6;
 }
 
+.maintenance-mode-links {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.28em;
+  pointer-events: auto;
+}
+
 .maintenance-mode-dialog a {
   color: #5bc7ff;
   font-weight: 800;
   text-decoration: underline;
   text-underline-offset: 3px;
+  pointer-events: auto;
 }
 
 .maintenance-mode-dialog a:hover,
@@ -1562,24 +1576,8 @@ h1 {
   cursor: crosshair;
 }
 
-body.app-loading #map,
-body.app-loading .maplibregl-control-container,
-body.app-loading .source-info-control,
-body.app-loading .source-info-button,
-body.app-loading #setup-panel .sim-panel-scroll,
-body.app-loading #setup-panel .sheet-handle,
-body.app-loading #setup-sheet-toggle,
-body.app-loading #reset-epicenter {
+body.app-loading #map .maplibregl-canvas {
   pointer-events: none;
-}
-
-body.app-loading .source-info-button {
-  cursor: wait;
-  border-color: rgba(255, 255, 255, 0.1) !important;
-  background: rgba(54, 59, 64, 0.96) !important;
-  background-color: rgba(54, 59, 64, 0.96) !important;
-  box-shadow: inset 0 0 0 999px rgba(54, 59, 64, 0.96) !important;
-  opacity: 1;
 }
 
 body.app-loading #map {
@@ -1603,12 +1601,6 @@ body.map-core-loading .map-wrap::after {
 
 body.map-core-loading .maplibregl-marker {
   visibility: hidden;
-}
-
-body.app-loading #setup-panel input,
-body.app-loading #setup-panel select,
-body.app-loading #setup-panel button:not(#simulation-start) {
-  cursor: wait;
 }
 
 .sim-panel {

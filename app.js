@@ -1,5 +1,6 @@
 const MUNICIPALITIES_URL = "./data/municipalities.geojson";
 const JAPAN_LAND_OVERVIEW_URL = "./data/japan_land_overview.geojson";
+const EQ_APP_JAPAN_LAND_URL = "./data/eq_app_japan_land.geojson";
 const MUNICIPALITY_CHUNK_INDEX_URL = "./data/municipality_chunks/index.json";
 const BOUNDARY_LAYERS_URL = "./data/boundary_layers.geojson";
 const JMA_LOCAL_AREAS_URL = "./data/jma_local_areas.geojson";
@@ -8,7 +9,6 @@ const PLATE_BOUNDARIES_URL = "./data/plate_boundaries.geojson";
 const ACTIVE_FAULT_SEGMENTS_URL = "./data/activefault_japan_segments.geojson";
 const SUBMARINE_OBSERVATION_POINTS_URL = "./data/submarine_observation_points.geojson";
 const SURROUNDING_LAND_URL = "./data/surrounding_land.geojson";
-const NORTHERN_ISLANDS_LAND_URL = "./data/northern_islands_land.geojson";
 const WORLD_COASTLINE_URL = "./data/world_coastline.geojson";
 const GROUND_MODEL_URL = "./data/ground_model.json";
 const SHINDO_STATIONS_URL = "./data/jma_shindo_stations.json";
@@ -43,7 +43,7 @@ const INITIAL_CENTER = [139.767, 35.681];
 const INITIAL_ZOOM = 6;
 const MOBILE_INITIAL_CENTER = INITIAL_CENTER;
 const MOBILE_INITIAL_ZOOM = 6;
-const MAP_PAN_BOUNDS = [[85, 1], [180, 89]];
+const MAP_PAN_BOUNDS = [[85, -25], [180, 75]];
 const BASE_MAP_MIN_ZOOM = 3.5;
 const MAP_CONSTRAINT_TILE_SIZE = 512;
 const STATION_LABEL_ALL_VISIBLE_MIN_ZOOM = 8.8;
@@ -55,6 +55,10 @@ const EXCLUDED_JAPAN_LAND_BOUNDS = [
 const EXCLUDED_TERRITORY_CODES = new Set(["01695", "01696", "01697", "01698", "01699", "01700"]);
 const NORTHERN_TERRITORIES_BOUNDS = [
   { west: 145.15, south: 43.1, east: 149.1, north: 45.7 },
+];
+const DISPLAY_ONLY_TERRITORY_BOUNDS = [
+  ...NORTHERN_TERRITORIES_BOUNDS,
+  ...EXCLUDED_JAPAN_LAND_BOUNDS,
 ];
 const JAPAN_OUTLYING_ISLAND_WORLD_SUPPRESS_BOUNDS = [
   { west: 128.35, south: 32.35, east: 129.35, north: 33.25 },
@@ -85,6 +89,10 @@ const MUNICIPALITY_BOUNDARY_MIN_ZOOM = 8;
 const MUNICIPALITY_DETAIL_MIN_ZOOM = 8.1;
 const MUNICIPALITY_DETAIL_VIEWPORT_BUFFER_DEGREES = 0.45;
 const MUNICIPALITY_DETAIL_UPDATE_DELAY_MS = 240;
+const EPICENTER_DEFERRED_UPDATE_DELAY_MS = 220;
+const EPICENTER_DRAG_UPDATE_DELAY_MS = 320;
+const INTENSITY_DISTANCE_SIMPLIFY_TOLERANCE_DEGREES = 0.008;
+const INTENSITY_DISTANCE_SIMPLIFY_MIN_POINTS = 14;
 const EARTH_RADIUS_KM = 6371;
 const EARTHQUAKE_MODEL = {
   pWaveVelocityKmPerSec: 6.5,
@@ -119,312 +127,12 @@ const LIGHT_DEFERRED_DATA_DELAY_MS = 180;
 const STATION_DEFERRED_DATA_DELAY_MS = 450;
 const PRESET_DEFERRED_DATA_DELAY_MS = 900;
 const HEAVY_DEFERRED_DATA_DELAY_MS = 6000;
-const STARTUP_PRIMARY_IDLE_TIMEOUT_MS = 650;
-const STARTUP_SECONDARY_IDLE_TIMEOUT_MS = 260;
-const STARTUP_OVERLAY_RELEASE_DELAY_MS = 1000;
-const STARTUP_BOUNDARY_REVEAL_DELAY_MS = 120;
-const EARTHQUAKE_PRESETS = [
-  {
-    id: "tohoku-2011",
-    label: "東北地方太平洋沖地震（2011）",
-    latitude: 38 + 6.2 / 60,
-    longitude: 142 + 51.6 / 60,
-    depthKm: 24,
-    magnitude: 9.0,
-    epicenterName: "三陸沖",
-    observedStations: [
-      { stationId: "00518", intensityValue: 6.6 },
-      ...observationsFromNames(
-        [
-          "栗原市若柳",
-          "石巻市桃生町",
-          "登米市米山町",
-          "大崎市古川三日町",
-          "大崎市田尻",
-          "宮城川崎町前川",
-          "仙台宮城野区苦竹",
-          "名取市増田",
-          "栗原市高清水",
-          "大崎市古川北町",
-          "宮城美里町木間塚",
-          "東松島市矢本",
-          "大崎市鹿島台",
-          "栗原市一迫",
-          "塩竈市旭町",
-          "涌谷町新町",
-          "大衡村大衡",
-          "蔵王町円田",
-          "登米市南方町",
-          "山元町浅生原",
-        ],
-        6.1,
-      ),
-      ...observationsFromNames(
-        [
-          "栗原市金成",
-          "登米市迫町",
-          "大崎市松山",
-          "岩沼市桜",
-          "石巻市門脇",
-          "石巻市前谷地",
-          "気仙沼市赤岩",
-          "角田市角田",
-          "仙台若林区遠見塚",
-          "仙台泉区将監",
-          "宮城美里町北浦",
-          "登米市豊里町",
-          "仙台青葉区大倉",
-          "登米市登米町",
-          "栗原市栗駒",
-          "東松島市小野",
-          "松島町高城",
-          "登米市中田町",
-          "白石市亘理町",
-          "利府町利府",
-          "大郷町粕川",
-          "大河原町新南",
-          "仙台宮城野区五輪",
-          "南三陸町歌津",
-          "石巻市鮎川浜",
-          "仙台空港",
-          "亘理町下小路",
-          "大和町吉岡",
-        ],
-        5.7,
-      ),
-    ],
-    eewForecastAreas: ["東北", "関東", "新潟", "長野", "静岡"],
-  },
-  {
-    id: "osaka-northern-2018",
-    label: "大阪北部地震（2018）",
-    latitude: 34 + 50.6 / 60,
-    longitude: 135 + 37.2 / 60,
-    depthKm: 13,
-    magnitude: 6.1,
-    epicenterName: "大阪府北部",
-    observedStations: [
-      { stationId: "02670", intensityValue: 5.6 },
-      { stationId: "02678", intensityValue: 5.6 },
-      { stationId: "02682", intensityValue: 5.6 },
-      { stationId: "02683", intensityValue: 5.6 },
-      { stationId: "02688", intensityValue: 5.6 },
-      ...observationsFromNames(
-        [
-          "大阪都島区都島本通",
-          "大阪東淀川区北江口",
-          "大阪旭区大宮",
-          "大阪淀川区木川東",
-          "豊中市曽根南町",
-          "豊中市役所",
-          "吹田市内本町",
-          "高槻市桃園町",
-          "高槻市消防本部",
-          "寝屋川市役所",
-          "箕面市箕面",
-          "摂津市三島",
-          "交野市私部",
-          "島本町若山台",
-          "京都中京区河原町御池",
-          "京都伏見区向島",
-          "京都伏見区久我",
-          "京都西京区大枝",
-          "亀岡市余部町",
-          "長岡京市開田",
-          "八幡市八幡",
-          "大山崎町円明寺",
-          "久御山町田井",
-        ],
-        5.1,
-      ),
-      ...observationsFromNames(
-        [
-          "大阪福島区福島",
-          "大阪此花区春日出北",
-          "大阪港区築港",
-          "大阪西淀川区千舟",
-          "大阪東淀川区柴島",
-          "大阪生野区舎利寺",
-          "大阪国際空港",
-          "池田市城南",
-          "守口市京阪本通",
-          "大東市新町",
-          "四條畷市中野",
-          "豊能町余野",
-          "能勢町役場",
-          "京都伏見区竹田",
-          "京都伏見区醍醐",
-          "京都伏見区淀",
-          "京都西京区樫原",
-          "宇治市宇治琵琶",
-          "宇治市折居台",
-          "亀岡市安町",
-          "城陽市寺田",
-          "向日市寺戸町",
-          "京田辺市田辺",
-          "井手町井手",
-          "精華町南稲八妻",
-          "南丹市八木町八木",
-          "大津市南郷",
-          "尼崎市昭和通",
-          "西宮市宮前町",
-          "西宮市平木",
-          "伊丹市千僧",
-          "川西市中央町",
-          "大和郡山市北郡山町",
-          "御所市役所",
-          "高取町観覚寺",
-          "広陵町南郷",
-        ],
-        4.6,
-      ),
-      ...observationsFromNames(
-        [
-          "大阪西区九条南",
-          "大阪大正区泉尾",
-          "大阪天王寺区上本町",
-          "大阪浪速区元町",
-          "大阪東成区東中本",
-          "大阪城東区放出西",
-          "大阪阿倍野区松崎町",
-          "大阪住吉区遠里小野",
-          "大阪東住吉区杭全",
-          "大阪西成区岸里",
-          "大阪鶴見区横堤",
-          "大阪住之江区御崎",
-          "大阪平野区平野南",
-          "大阪中央区大手前",
-          "八尾市本町",
-          "柏原市安堂町",
-          "門真市中町",
-          "東大阪市荒本北",
-          "能勢町今西",
-          "岸和田市畑町",
-          "泉大津市東雲町",
-          "富田林市高辺台",
-          "松原市阿保",
-          "大阪和泉市府中町",
-          "羽曳野市誉田",
-          "藤井寺市岡",
-          "大阪太子町山田",
-          "河南町白木",
-          "大阪堺市堺区山本町",
-          "大阪堺市堺区大浜南町",
-        ],
-        4.0,
-      ),
-    ],
-    eewForecastAreas: ["近畿"],
-  },
-  {
-    id: "kumamoto-2016",
-    label: "熊本地震（2016）",
-    latitude: 32 + 45.2 / 60,
-    longitude: 130 + 45.7 / 60,
-    depthKm: 12,
-    magnitude: 7.3,
-    epicenterName: "熊本県熊本地方",
-    observedStations: [
-      { stationId: "03947", intensityValue: 6.7 },
-      { stationId: "03944", intensityValue: 6.6 },
-      ...observationsFromNames(
-        [
-          "菊池市旭志",
-          "南阿蘇村河陽",
-          "宇土市浦田町",
-          "嘉島町上島",
-          "合志市竹迫",
-          "宇城市豊野町",
-          "大津町大津",
-          "宇城市松橋町",
-          "宇城市小川町",
-          "熊本中央区大江",
-          "熊本東区佐土原",
-          "熊本西区春日",
-        ],
-        6.1,
-      ),
-      ...observationsFromNames(
-        [
-          "南阿蘇村中松",
-          "熊本美里町馬場",
-          "宇城市不知火町",
-          "熊本南区城南町",
-          "熊本南区富合町",
-          "菊陽町久保田",
-          "熊本北区植木町",
-          "阿蘇市内牧",
-          "菊池市隈府",
-          "山都町下馬尾",
-          "氷川町島地",
-          "和水町江田",
-          "大津町引水",
-          "御船町御船",
-          "玉名市天水町",
-          "熊本美里町永富",
-          "菊池市泗水町",
-          "合志市御代志",
-          "玉名市横島町",
-          "阿蘇市一の宮町",
-          "上天草市大矢野町",
-          "天草市五和町",
-          "八代市鏡町",
-        ],
-        5.7,
-      ),
-      ...observationsFromNames(
-        [
-          "南小国町赤馬場",
-          "産山村山鹿",
-          "玉東町木葉",
-          "南阿蘇村吉田",
-          "八代市千丁町",
-          "熊本高森町高森",
-          "甲佐町豊内",
-          "氷川町宮原",
-          "八代市松江城町",
-          "山鹿市鹿央町",
-          "菊池市七城町",
-          "熊本小国町宮原",
-          "長洲町長洲",
-          "八代市平山新町",
-          "上天草市松島町",
-          "山鹿市菊鹿町",
-          "玉名市中尾",
-          "山鹿市鹿本町",
-          "芦北町芦北",
-          "芦北町田浦町",
-        ],
-        5.2,
-      ),
-      ...observationsFromNames(
-        [
-          "阿蘇市波野",
-          "八代市坂本町",
-          "玉名市岱明町",
-          "山都町大平",
-          "山都町今",
-          "和水町板楠",
-          "山江村山田",
-          "山鹿市老人福祉センター",
-          "山鹿市山鹿",
-          "宇城市三角町",
-          "津奈木町小津奈木",
-          "荒尾市宮内出目",
-          "八代市泉支所",
-          "南関町関町",
-          "人吉市西間下町",
-          "あさぎり町須惠",
-          "八代市東陽町",
-          "水俣市牧ノ内",
-          "上天草市姫戸町",
-        ],
-        4.7,
-      ),
-    ],
-    eewForecastAreas: ["九州"],
-  },
-];
+const STARTUP_PRIMARY_IDLE_TIMEOUT_MS = 180;
+const STARTUP_SECONDARY_IDLE_TIMEOUT_MS = 60;
+const STARTUP_OVERLAY_RELEASE_DELAY_MS = 120;
+const STARTUP_BOUNDARY_REVEAL_DELAY_MS = 20;
+const EARTHQUAKE_PRESETS = [];
+
 const INTENSITY_CLASSES = [
   { label: "0", shortLabel: "0", min: 0, color: "#d9dde3", textColor: "#1f2937", rank: 0 },
   { label: "1", shortLabel: "1", min: 0.5, color: "#ffffff", textColor: "#111827", rank: 1 },
@@ -631,9 +339,9 @@ const state = {
   longitude: 139.767,
   depthKm: 10,
   magnitude: 3.5,
-  epicenterName: "未選択",
-  municipalityName: "未選択",
-  maxIntensityLabel: "未計算",
+  epicenterName: "",
+  municipalityName: "",
+  maxIntensityLabel: "-",
   epicenterEditEnabled: false,
   showStationLayer: false,
   showSubmarineStationLayer: false,
@@ -723,6 +431,8 @@ let municipalityDisplayData;
 let municipalityLoadPromise;
 let japanLandOverviewData;
 let japanLandOverviewLoadPromise;
+let eqAppJapanLandData;
+let eqAppJapanLandLoadPromise;
 let municipalityOverviewDisplayData;
 let municipalityChunkIndexData;
 let municipalityChunkIndexLoadPromise;
@@ -745,8 +455,6 @@ let submarineObservationPointData;
 let submarineObservationPointLoadPromise;
 let surroundingLandData;
 let surroundingLandLoadPromise;
-let northernIslandsLandData;
-let northernIslandsLandLoadPromise;
 let worldCoastlineData;
 let worldCoastlineLoadPromise;
 let groundModelData;
@@ -814,6 +522,7 @@ let smartphoneLandscapeResetApplied = false;
 let postMapInteractionRenderTimer;
 let localAreaStationMembershipCache;
 let localAreaStationSnapshotCache;
+const intensityDistanceGeometryCache = new WeakMap();
 let areaEpicentralDistanceCache = {
   key: "",
   distances: [],
@@ -824,58 +533,33 @@ let postMunicipalityDataScheduled = false;
 const sourceDataRefs = new Map();
 const SOURCE_LINKS = [
   { label: "気象庁", href: "https://www.jma.go.jp/" },
-  { label: "JMA_Region 震央地名ポリゴン", href: "https://github.com/0Quake/JMA_Region" },
-  { label: "東北地方太平洋沖地震（2011）", href: "https://www.data.jma.go.jp/eqev/data/2011_03_11_tohoku/" },
-  { label: "大阪北部地震（2018）", href: "https://www.data.jma.go.jp/eqev/data/higai/20180618_oosaka_jishin_menu.html" },
-  { label: "熊本地震（2016）", href: "https://www.data.jma.go.jp/eqev/data/2016_04_14_kumamoto/index.html" },
-  { label: "地震本部", href: "https://www.jishin.go.jp/" },
+  { label: "JMA_Region", href: "https://github.com/0Quake/JMA_Region" },
+  { label: "地震調査研究推進本部", href: "https://www.jishin.go.jp/" },
   { label: "国土数値情報", href: "https://nlftp.mlit.go.jp/ksj/" },
   { label: "J-SHIS", href: "https://www.j-shis.bosai.go.jp/" },
-  { label: "若松・松岡(2020) 地形・地盤分類データ", href: "https://www.j-shis.bosai.go.jp/map/JSHIS2/download.html?lang=jp" },
-  { label: "Kunijiban（国土地盤情報）", href: "http://www.kunijiban.pwri.go.jp/jp/" },
   { label: "Natural Earth", href: "https://www.naturalearthdata.com/" },
-  { label: "NIED | 海底地震津波観測網 | 日本海溝海底地震津波観測網：S-net", href: "https://www.seafloor.bosai.go.jp/outline/" },
-  { label: "気象研究所 プレート形状データ / Hirose Fuyuki", href: "https://www.mri-jma.go.jp/Dep/sei/fhirose/plate/PlateData.html" },
+  { label: "S-net", href: "https://www.seafloor.bosai.go.jp/outline/" },
+  { label: "MapLibre GL JS", href: "https://maplibre.org/maplibre-gl-js/docs/" },
 ];
 const SOURCE_UPDATED_AT = "2026 07 08";
 const SOURCE_SECTIONS = [
   {
     title: "気象庁",
-    description: "震央区分、震度観測点、緊急地震速報（警報）の府県予報区、震度階級、長周期地震動、過去地震資料の参照に使用。このサイトでは緊急地震速報の特別警報相当も警報として扱い、表示上は区別しません。",
+    description: "地震情報、震度観測点、緊急地震速報などの参考データ。",
     links: [
       { label: "気象庁", href: "https://www.jma.go.jp/" },
-      { label: "震度情報で用いる区域名", href: "https://www.jma.go.jp/jma/kishou/know/jishin/joho/shindo-name.html" },
+      { label: "震度情報で用いる区域名称", href: "https://www.jma.go.jp/jma/kishou/know/jishin/joho/shindo-name.html" },
       { label: "地震情報で用いる震央地名", href: "https://www.data.jma.go.jp/eqev/data/joho/region/index.html" },
-      { label: "JMA_Region 震央地名ポリゴン", href: "https://github.com/0Quake/JMA_Region" },
-      { label: "震度観測点", href: "https://www.data.jma.go.jp/eqev/data/kyoshin/jma-shindo.html" },
-      { label: "緊急地震速報のしくみ", href: "https://www.jma.go.jp/jma/kishou/know/jishin/eew/shikumi/shikumi.html" },
-      { label: "長周期地震動に関する情報の運用開始について", href: "https://www.jma.go.jp/jma/kishou/know/jishin/eew/shiryo/lpgm_start202302/202302_setsumei.pdf" },
-      { label: "震度について", href: "https://www.jma.go.jp/jma/kishou/know/shindo/index.html" },
-      { label: "東北地方太平洋沖地震（2011）", href: "https://www.data.jma.go.jp/eqev/data/2011_03_11_tohoku/" },
-      { label: "大阪北部地震（2018）", href: "https://www.data.jma.go.jp/eqev/data/higai/20180618_oosaka_jishin_menu.html" },
-      { label: "熊本地震（2016）", href: "https://www.data.jma.go.jp/eqev/data/2016_04_14_kumamoto/index.html" },
+      { label: "JMA_Region", href: "https://github.com/0Quake/JMA_Region" },
     ],
   },
   {
-    title: "気象研究所 プレート形状データ",
-    description: "日本周辺の海域プレート境界・海溝・トラフ線の描画に使用。",
-    links: [
-      { label: "プレート形状 数値データ", href: "https://www.mri-jma.go.jp/Dep/sei/fhirose/plate/PlateData.html" },
-    ],
-    note: "Kita et al. (2010, EPSL)およびNakajima and Hasegawa (2006, GRL)\nNakajima and Hasegawa (2006, GRL)，弘瀬・他 (2008, 地震)，Nakajima et al. (2009, JGR)\nBaba et al. (2002, PEPI)，Nakajima and Hasegawa (2007, JGR)，Hirose et al. (2008, JGR)",
-  },
-  {
-    title: "地図・地盤・境界データ",
-    description: "市区町村、周辺陸域、地盤増幅、シミュレーション補正、背景地図の作成に使用。",
+    title: "地図・地盤データ",
+    description: "日本地図、周辺陸地、海岸線、地盤補正などの表示・計算用データ。",
     links: [
       { label: "国土数値情報", href: "https://nlftp.mlit.go.jp/ksj/" },
-      { label: "気象庁 GISデータ", href: "https://www.data.jma.go.jp/developer/gis.html" },
-      { label: "J-SHIS 地震ハザードステーション", href: "https://www.j-shis.bosai.go.jp/" },
-      { label: "若松・松岡(2020) 地形・地盤分類データ", href: "https://www.j-shis.bosai.go.jp/map/JSHIS2/download.html?lang=jp" },
-      { label: "Kunijiban（国土地盤情報）", href: "http://www.kunijiban.pwri.go.jp/jp/" },
-      { label: "地震本部", href: "https://www.jishin.go.jp/" },
+      { label: "J-SHIS", href: "https://www.j-shis.bosai.go.jp/" },
       { label: "Natural Earth", href: "https://www.naturalearthdata.com/" },
-      { label: "NIED | 海底地震津波観測網 | 日本海溝海底地震津波観測網：S-net", href: "https://www.seafloor.bosai.go.jp/outline/" },
       { label: "MapLibre GL JS", href: "https://maplibre.org/maplibre-gl-js/docs/" },
     ],
   },
@@ -1807,7 +1491,7 @@ function getPresetObservationLookup(preset) {
 function normalizeStationNameForMatch(name) {
   return String(name ?? "")
     .normalize("NFKC")
-    .replace(/[＊*]/g, "")
+    .replace(/[・･]/g, "")
     .replace(/（旧[^）]*）/g, "")
     .replace(/\(旧[^)]*\)/g, "")
     .replace(/[()\[\]（）「」『』\s]/g, "")
@@ -2175,6 +1859,9 @@ async function initEarthquakeMap() {
   map.on("movestart", () => {
     state.mapInteracting = true;
   });
+  map.on("move", () => {
+    constrainMapToPanRange();
+  });
   map.on("moveend", () => {
     state.mapInteracting = false;
     constrainMapToPanRange();
@@ -2251,7 +1938,7 @@ function addZoomOnlyControl() {
       zoomOut.type = "button";
       zoomOut.title = "縮小";
       zoomOut.setAttribute("aria-label", "縮小");
-      zoomOut.textContent = "−";
+      zoomOut.textContent = "-";
       zoomOut.addEventListener("click", () => targetMap.zoomOut({ duration: 240 }));
 
       container.append(zoomIn, zoomOut);
@@ -2280,7 +1967,6 @@ function setupGlobalOverlays() {
     localServerBadge,
     parentTerminalBadge,
   );
-  setupMaintenanceFeedbackLink(maintenanceOverlay, feedbackOverlay);
   setupLocalServerBadge(localServerBadge);
   setupParentTerminalBadge(parentTerminalBadge);
   setupMaintenanceMode(maintenanceOverlay, maintenanceBadge);
@@ -2290,6 +1976,7 @@ function setupGlobalOverlays() {
   const speechConfirmOverlay = createSpeechConfirmOverlay();
   const pushConfirmOverlay = createPushConfirmOverlay();
   document.body.append(sourceOverlay, speechConfirmOverlay, pushConfirmOverlay, adminOverlay);
+  setupMaintenanceLinks(maintenanceOverlay, feedbackOverlay, pushConfirmOverlay);
 
   appOverlays = {
     adminOverlay,
@@ -3254,9 +2941,9 @@ function normalizeSpeechAnnouncementText(message) {
     .replace(/北海道道南/g, "ほっかいどうどうなん")
     .replace(/北海道道北/g, "ほっかいどうどうほく")
     .replace(/北海道道東/g, "ほっかいどうどうとう")
-    .replace(/四国/g, "シコク")
-    .replace(/嶺北/g, "れいほく")
-    .replace(/嶺南/g, "れいなん")
+    .replace(/四国/g, "しこく")
+    .replace(/礼北/g, "れいほく")
+    .replace(/礼南/g, "れいなん")
     .replace(/中越/g, "ちゅうえつ")
     .replace(/三八上北/g, "さんぱちかみきた")
     .replace(/山梨県東部・富士五湖/g, "やまなしけんとうぶ・ふじごこ")
@@ -3571,11 +3258,11 @@ function buildObservedIntensitySpeechSnapshotFromGroups(speechGroups) {
   const currentLocationText = getCurrentLocationSpeechText();
   const intensityText = speechGroups
     .map((group) => `震度${group.label} ${group.areaNames.join("、")}`)
-    .join("、");
+    .join("。");
   return {
     maxRank,
     signature,
-    message: `${intensityText}、${currentLocationText}`,
+    message: `${intensityText}。${currentLocationText}`,
   };
 }
 
@@ -3983,28 +3670,53 @@ function createMaintenanceModeOverlay() {
   const overlay = document.createElement("section");
   overlay.className = "maintenance-mode-overlay hidden";
   overlay.setAttribute("aria-live", "polite");
+  overlay.setAttribute("aria-label", "メンテナンスモード");
   overlay.innerHTML = `
     <div class="maintenance-mode-dialog">
-      <h2>只今メンテナンス中です。</h2>
+      <h2>只今メンテナンス中です</h2>
       <p>しばらくお待ち下さい。</p>
-      <p>お問い合わせは <a href="#feedback" data-maintenance-feedback-link>フィードバック</a> より<br />お送りください。</p>
+      ${buildMaintenanceOverlayLinksHtml()}
     </div>
   `;
   return overlay;
 }
 
-function setupMaintenanceFeedbackLink(maintenanceOverlay, feedbackOverlay) {
+function buildMaintenanceOverlayLinksHtml() {
+  return `
+    <p class="maintenance-mode-links">
+      <a href="#feedback" data-maintenance-feedback-link>フィードバック</a><span aria-hidden="true">｜</span><a href="#notification-settings" data-maintenance-notification-link>通知設定</a>
+    </p>
+  `;
+}
+
+function setupMaintenanceLinks(maintenanceOverlay, feedbackOverlay, pushConfirmOverlay) {
   maintenanceOverlay?.addEventListener("click", (event) => {
-    const link = event.target?.closest?.("[data-maintenance-feedback-link]");
-    if (!link) {
+    const feedbackLink = event.target?.closest?.("[data-maintenance-feedback-link]");
+    const notificationLink = event.target?.closest?.("[data-maintenance-notification-link]");
+    if (!feedbackLink && !notificationLink) {
       return;
     }
 
     event.preventDefault();
-    feedbackOverlay.dataset.returnToMaintenance = "true";
-    maintenanceOverlay.classList.add("hidden");
-    feedbackOverlay.classList.remove("hidden");
-    document.body.classList.add("source-overlay-open");
+    if (feedbackLink) {
+      feedbackOverlay.classList.add("from-maintenance");
+      feedbackOverlay.classList.remove("hidden");
+      document.body.classList.add("source-overlay-open");
+      return;
+    }
+
+    if (pushConfirmOverlay) {
+      pushConfirmOverlay.classList.add("from-maintenance");
+      showPushConfirmOverlay(pushConfirmOverlay);
+    }
+  });
+
+  feedbackOverlay?.addEventListener("feedback-overlay-close", () => {
+    feedbackOverlay.classList.remove("from-maintenance");
+  });
+
+  pushConfirmOverlay?.addEventListener("push-confirm-close", () => {
+    pushConfirmOverlay.classList.remove("from-maintenance");
   });
 }
 
@@ -4015,11 +3727,11 @@ function createMaintenanceReasonOverlay() {
   overlay.setAttribute("role", "dialog");
   overlay.setAttribute("aria-label", "メンテナンス理由");
   overlay.innerHTML = `
-    <button class="source-info-close maintenance-reason-cancel" type="button" aria-label="メンテナンス理由入力を閉じる">×</button>
+    <button class="source-info-close maintenance-reason-cancel" type="button" aria-label="メンテナンス理由の入力を閉じる">×</button>
     <form class="maintenance-reason-dialog" id="maintenance-reason-form">
       <h2>メンテナンス理由</h2>
       <label class="maintenance-reason-field">
-        <span>理由（任意）</span>
+        <span>利用者に表示する理由（任意）</span>
         <textarea id="maintenance-reason-input" rows="5" maxlength="500" placeholder="例：データ更新のため"></textarea>
       </label>
       <div class="maintenance-reason-actions">
@@ -4320,7 +4032,7 @@ function createAdminModeOverlay() {
     if (!result.ok) {
       setAdminMaintenanceActionPending(overlay, false);
       updateAdminModeControls(overlay, current);
-      setAdminModeStatus(status, result.message || "切替に失敗しました。", true);
+      setAdminModeStatus(status, result.message || "切り替えに失敗しました。", true);
       return;
     }
 
@@ -4773,7 +4485,7 @@ function updateMaintenanceOverlayMessage(overlay, reason = "") {
     <h2>只今メンテナンス中です</h2>
     <p class="maintenance-mode-reason ${reason ? "" : "hidden"}">${reason ? `詳細：${escapeHtml(reason)}` : ""}</p>
     <p>しばらくお待ち下さい。</p>
-    <p>お問い合わせは <a href="#feedback" data-maintenance-feedback-link>フィードバック</a> より<br />お送りください。</p>
+    ${buildMaintenanceOverlayLinksHtml()}
   `;
 }
 
@@ -5013,20 +4725,20 @@ function setFeedbackStatus(element, message, isError) {
 }
 
 function buildSourceInfoOverlayHtml() {
-  const sections = SOURCE_SECTIONS.map((section) => {
-    const links = section.links
-      .map(
-        (source) =>
-          `<article class="source-link-card">
-            <div>
-              <h4>${escapeHtml(source.label)}</h4>
-              <p>${escapeHtml(getSourceLinkDescription(source, section))}</p>
-            </div>
-            <a href="${source.href}" target="_blank" rel="noreferrer">${escapeHtml(formatSourceUrl(source.href))}</a>
-          </article>`,
-      )
-      .join("");
-    const note = section.note ? `<pre class="source-citation-note">${escapeHtml(section.note)}</pre>` : "";
+  const sections = SOURCE_INFO_SECTIONS.map((section) => {
+    const links = section.links.map((source) => {
+      const description = source.description || getSourceLinkDescription(source, section);
+      const labelSuffix = source.kind ? ` <span class="source-link-kind">${escapeHtml(source.kind)}</span>` : "";
+      return `
+        <a class="source-link-card" href="${escapeHtml(source.href)}" target="_blank" rel="noopener noreferrer">
+          <span class="source-link-label">${escapeHtml(source.label)}${labelSuffix}</span>
+          <span class="source-link-description">${escapeHtml(description)}</span>
+          <span class="source-link-url">${escapeHtml(formatSourceUrl(source.href))}</span>
+        </a>
+      `;
+    }).join("");
+
+    const note = section.note ? `<p class="source-section-note">${escapeHtml(section.note)}</p>` : "";
 
     return `
       <section class="source-info-section">
@@ -5146,10 +4858,11 @@ async function showMapLayers() {
   startupLocationResolved = false;
   addGeoJsonSource("surrounding-land", emptyFeatureCollection());
   addGeoJsonSource("world-coastline", emptyFeatureCollection());
+  addGeoJsonSource("japan-base-land", emptyFeatureCollection());
+  addGeoJsonSource("japan-base-outline", emptyFeatureCollection());
+  addGeoJsonSource("display-only-territory-land", emptyFeatureCollection());
   addGeoJsonSource("municipalities", emptyFeatureCollection());
   addGeoJsonSource("municipalities-linework", emptyFeatureCollection());
-  addGeoJsonSource("excluded-japan-islands", emptyFeatureCollection());
-  addGeoJsonSource("northern-islands-land", emptyFeatureCollection());
   addGeoJsonSource("jma-local-areas", emptyFeatureCollection());
   addGeoJsonSource("plate-boundaries", emptyFeatureCollection());
   addGeoJsonSource("active-faults", emptyFeatureCollection());
@@ -5165,9 +4878,15 @@ async function showMapLayers() {
 
 async function hydrateDeferredMapData() {
   try {
-    const municipalities = await loadJapanLandOverview();
+    const [municipalities, eqAppJapanLand] = await Promise.all([
+      loadJapanLandOverview(),
+      loadEqAppJapanLand(),
+    ]);
 
     window.requestAnimationFrame(() => {
+      setGeoJsonSourceData("japan-base-land", eqAppJapanLand);
+      setGeoJsonSourceData("japan-base-outline", buildPolygonBoundaryLinework(eqAppJapanLand));
+      setGeoJsonSourceData("display-only-territory-land", extractDisplayOnlyTerritoryPolygons(eqAppJapanLand));
       const displayMunicipalities = filterExcludedGeoJsonFeatures(municipalities);
       municipalityOverviewDisplayData = withoutInteriorRings(displayMunicipalities);
       applyMunicipalityDisplayData(municipalityOverviewDisplayData);
@@ -5213,10 +4932,6 @@ function applyMunicipalityDisplayData(displayData, options = {}) {
   setGeoJsonSourceData(
     "municipalities-linework",
     removeExcludedJapanIslandPolygons(municipalityDisplayData),
-  );
-  setGeoJsonSourceData(
-    "excluded-japan-islands",
-    extractExcludedJapanIslandPolygons(municipalityDisplayData),
   );
   setGeoJsonSourceData("municipalities", municipalityDisplayData);
   keepWaveAndStationLayerOrder();
@@ -5336,19 +5051,16 @@ function mergeMunicipalityOverviewWithDetailChunks(overviewData, chunkDataList) 
 async function hydrateDeferredSupplementaryMapData() {
   const [
     surroundingLand,
-    northernIslandsLand,
     worldCoastline,
     boundaries,
   ] = await Promise.all([
     loadOptionalGeoJsonData(loadSurroundingLand, "Surrounding land GeoJSON"),
-    loadOptionalGeoJsonData(loadNorthernIslandsLand, "Northern islands land GeoJSON"),
     loadOptionalGeoJsonData(loadWorldCoastline, "World coastline GeoJSON"),
     loadOptionalGeoJsonData(loadBoundaryLayers, "Boundary GeoJSON"),
   ]);
 
   setGeoJsonSourceData("surrounding-land", filterSurroundingLandForDisplay(surroundingLand));
   setGeoJsonSourceData("world-coastline", removeWorldJapanOverlapLinework(worldCoastline));
-  setNorthernIslandDisplayData(withoutInteriorRings(northernIslandsLand));
   setGeoJsonSourceData(
     "boundaries",
     removeExcludedJapanIslandLinework(filterExcludedGeoJsonFeatures(boundaries), EXCLUDED_JAPAN_LAND_BOUNDS),
@@ -5724,8 +5436,8 @@ function addMapLayers() {
     source: "surrounding-land",
     paint: {
       "fill-antialias": false,
-      "fill-color": "#69727a",
-      "fill-outline-color": "#69727a",
+      "fill-color": "#5f676d",
+      "fill-outline-color": "#5f676d",
       "fill-opacity": 1,
     },
   });
@@ -5739,7 +5451,7 @@ function addMapLayers() {
       "line-join": "round",
     },
     paint: {
-      "line-color": "#69727a",
+      "line-color": "#5f676d",
       "line-opacity": 1,
       "line-width": ["interpolate", ["linear"], ["zoom"], 1, 1.8, 4, 2.5, 7, 1.7, 10, 0.9],
     },
@@ -5763,7 +5475,7 @@ function addMapLayers() {
   addLayerIfMissing({
     id: "japan-land-fill",
     type: "fill",
-    source: "municipalities",
+    source: "japan-base-land",
     paint: {
       "fill-antialias": false,
       "fill-color": "#8c9298",
@@ -5775,7 +5487,7 @@ function addMapLayers() {
   addLayerIfMissing({
     id: "japan-land-gap-fill",
     type: "line",
-    source: "municipalities-linework",
+    source: "japan-base-outline",
     layout: {
       "line-cap": "round",
       "line-join": "round",
@@ -5788,57 +5500,29 @@ function addMapLayers() {
   });
 
   addLayerIfMissing({
-    id: "excluded-japan-islands-fill",
+    id: "display-only-territory-fill",
     type: "fill",
-    source: "excluded-japan-islands",
+    source: "display-only-territory-land",
     paint: {
       "fill-antialias": false,
-      "fill-color": "#8c9298",
-      "fill-outline-color": "rgba(140, 146, 152, 0)",
+      "fill-color": "#5f676d",
+      "fill-outline-color": "#5f676d",
       "fill-opacity": 1,
     },
   });
 
   addLayerIfMissing({
-    id: "excluded-japan-islands-outline",
+    id: "display-only-territory-outline",
     type: "line",
-    source: "excluded-japan-islands",
+    source: "display-only-territory-land",
     layout: {
       "line-cap": "round",
       "line-join": "round",
     },
     paint: {
-      "line-color": "#b9c2ca",
-      "line-opacity": 0.72,
-      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.45, 7, 0.75, 10, 1.05],
-    },
-  });
-  updateLayerVisibility("excluded-japan-islands-outline", false);
-
-  addLayerIfMissing({
-    id: "northern-islands-land-fill",
-    type: "fill",
-    source: "northern-islands-land",
-    paint: {
-      "fill-antialias": false,
-      "fill-color": "#8c9298",
-      "fill-outline-color": "#8c9298",
-      "fill-opacity": 1,
-    },
-  });
-
-  addLayerIfMissing({
-    id: "northern-islands-land-outline",
-    type: "line",
-    source: "northern-islands-land",
-    layout: {
-      "line-cap": "round",
-      "line-join": "round",
-    },
-    paint: {
-      "line-color": "#c9d3dc",
-      "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.56, 7, 0.72, 10, 0.86],
-      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.9, 7, 1.45, 10, 2.05],
+      "line-color": "#535b61",
+      "line-opacity": 1,
+      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 2.1, 7, 1.45, 10, 0.8, 12, 0.55],
     },
   });
 
@@ -6052,8 +5736,6 @@ function moveLayerToTop(layerId) {
 }
 
 function keepWaveAndStationLayerOrder() {
-  moveLayerToTop("northern-islands-land-fill");
-  moveLayerToTop("northern-islands-land-outline");
   moveLayerToTop("active-fault-lines");
   moveLayerToTop("p-wave-fill");
   moveLayerToTop("s-wave-fill");
@@ -6067,7 +5749,7 @@ function updateLayerVisibility(layerId, visible) {
   if (map?.getLayer(layerId)) {
     map.setLayoutProperty(layerId, "visibility", visible ? "visible" : "none");
   }
-  if (layerId === "shindo-station-points") {
+  if (layerId === "shindo-station-points" || layerId === "submarine-observation-fill") {
     scheduleStationCanvasRender();
   }
 }
@@ -6661,8 +6343,9 @@ function updateSubmarineObservationToggleAvailability() {
 
 function updateSubmarineObservationLayerVisibility() {
   updateSubmarineObservationToggleAvailability();
-  updateLayerVisibility("submarine-observation-fill", state.showSubmarineStationLayer);
   if (!state.showSubmarineStationLayer || !map?.getSource("submarine-observation-points")) {
+    setGeoJsonSourceData("submarine-observation-points", emptyFeatureCollection());
+    updateLayerVisibility("submarine-observation-fill", false);
     return;
   }
 
@@ -6671,11 +6354,7 @@ function updateSubmarineObservationLayerVisibility() {
       if (!state.showSubmarineStationLayer || !map?.getSource("submarine-observation-points")) {
         return;
       }
-      setGeoJsonSourceData(
-        "submarine-observation-points",
-        getSubmarineObservationDataForElapsed(getSubmarineObservationElapsedSec(), points),
-      );
-      updateLayerVisibility("submarine-observation-fill", true);
+      setSubmarineObservationSourceForElapsed(getSubmarineObservationElapsedSec(), points);
       keepWaveAndStationLayerOrder();
     })
     .catch((error) => {
@@ -6689,6 +6368,41 @@ function updateSubmarineObservationLayerVisibility() {
       }
       updateLayerVisibility("submarine-observation-fill", false);
     });
+}
+
+function setSubmarineObservationSourceForElapsed(elapsedSec, data = submarineObservationPointData) {
+  if (!map?.getSource("submarine-observation-points")) {
+    return emptyFeatureCollection();
+  }
+
+  const nextData = getSubmarineObservationDataForElapsed(elapsedSec, data);
+  setGeoJsonSourceData("submarine-observation-points", nextData);
+  const hasObservedFeatures = state.showSubmarineStationLayer && nextData.features.length > 0;
+  updateLayerVisibility("submarine-observation-fill", hasObservedFeatures);
+  if (!hasObservedFeatures) {
+    closeInactiveStationPopups();
+  }
+  return nextData;
+}
+
+function closeInactiveStationPopups() {
+  const submarineData = sourceDataRefs.get("submarine-observation-points");
+  const visibleIds = new Set((submarineData?.features ?? []).map((feature) => String(feature.properties?.id ?? "")));
+
+  if (isSubmarineFeatureId(hoveredStationFeatureId) && !visibleIds.has(hoveredStationFeatureId)) {
+    hoveredStationFeatureId = null;
+    hoveredStationLngLat = null;
+    stationPopup?.remove();
+  }
+
+  if (isSubmarineFeatureId(clickedStationFeatureId) && !visibleIds.has(clickedStationFeatureId)) {
+    clickedStationFeatureId = null;
+    stationClickPopup?.remove();
+  }
+}
+
+function isSubmarineFeatureId(featureId) {
+  return String(featureId ?? "").startsWith("submarine-");
 }
 
 function updateFaultLayerVisibility() {
@@ -6788,6 +6502,10 @@ function bindStationPopupLayer(layerId) {
     if (!feature) {
       return;
     }
+    if (!isStationFeatureInteractive(feature.properties)) {
+      stationPopup.remove();
+      return;
+    }
 
     hoveredStationFeatureId = String(feature.properties?.id ?? "");
     if (clickedStationFeatureId && clickedStationFeatureId === hoveredStationFeatureId) {
@@ -6804,6 +6522,9 @@ function bindStationPopupLayer(layerId) {
   map.on("click", layerId, (event) => {
     const feature = event.features?.[0];
     if (!feature) {
+      return;
+    }
+    if (!isStationFeatureInteractive(feature.properties)) {
       return;
     }
 
@@ -6826,6 +6547,14 @@ function bindStationPopupLayer(layerId) {
     hoveredStationLngLat = null;
     stationPopup.remove();
   });
+}
+
+function isStationFeatureInteractive(properties = {}) {
+  if (!properties.submarineObservation) {
+    return true;
+  }
+
+  return properties.observed === true && Number(properties.intensityRank ?? 0) >= 1;
 }
 
 function updateActiveStationPopups(data = sourceDataRefs.get("shindo-stations")) {
@@ -6928,7 +6657,7 @@ function getMeasuredIntensityListSuffix(properties, fallbackValue) {
   }
 
   const measuredIntensity = formatMeasuredIntensity(properties, fallbackValue);
-  return measuredIntensity === "-" ? "" : `（${measuredIntensity}）`;
+  return measuredIntensity === "-" ? "" : `（計測震度 ${measuredIntensity}）`;
 }
 
 async function toggleCurrentLocationLink() {
@@ -7275,8 +7004,8 @@ function updateCurrentLocationForecast(elapsedSec = 0) {
   }
 
   if (forecast.intensityClass.rank < 1) {
-    setTextContentIfChanged(els.currentLocationIntensity, "該当無し");
-    setTextContentIfChanged(els.currentLocationArrival, "該当無し");
+    setTextContentIfChanged(els.currentLocationIntensity, "該当なし");
+    setTextContentIfChanged(els.currentLocationArrival, "該当なし");
     return;
   }
 
@@ -7505,7 +7234,7 @@ function tickSimulation(now) {
       map?.getSource("submarine-observation-points") &&
       submarineObservationPointData
     ) {
-      setGeoJsonSourceData("submarine-observation-points", getSubmarineObservationDataForElapsed(elapsedSec));
+      setSubmarineObservationSourceForElapsed(elapsedSec);
     }
   }
 
@@ -7540,14 +7269,14 @@ function tickSimulation(now) {
     state.epicenterEditEnabled = simulationPreviousEpicenterEditEnabled;
     els.epicenterEditToggle.checked = state.epicenterEditEnabled;
     updateEpicenterEditMode();
-    els.simulationStart.textContent = "シミュレーション開始";
+    els.simulationStart.textContent = "シミュレーション開";
     els.simulationPanel.dataset.simulationComplete = "true";
     if (els.simulationPause) {
-      els.simulationPause.textContent = "再度実行";
+      els.simulationPause.textContent = "再度実";
       els.simulationPause.disabled = false;
     }
     if (els.simulationStop) {
-      els.simulationStop.textContent = "シミュレーション終了";
+      els.simulationStop.textContent = "シミュレーション終";
     }
     updateSimulationAvailability();
     return;
@@ -7928,6 +7657,80 @@ function emptyStationData() {
   };
 }
 
+function buildPolygonBoundaryLinework(geojson) {
+  const lines = [];
+  for (const feature of geojson?.features ?? []) {
+    const geometry = feature.geometry;
+    if (geometry?.type === "Polygon") {
+      lines.push(...geometry.coordinates);
+    } else if (geometry?.type === "MultiPolygon") {
+      geometry.coordinates.forEach((polygon) => lines.push(...polygon));
+    }
+  }
+
+  return {
+    type: "FeatureCollection",
+    features: lines.length
+      ? [
+          {
+            type: "Feature",
+            properties: {
+              kind: "generated-outline",
+            },
+            geometry: {
+              type: "MultiLineString",
+              coordinates: lines,
+            },
+          },
+        ]
+      : [],
+  };
+}
+
+function extractDisplayOnlyTerritoryPolygons(geojson) {
+  return {
+    type: "FeatureCollection",
+    features: (geojson?.features ?? []).flatMap((feature) => {
+      const geometry = feature.geometry;
+      if (!geometry?.coordinates) {
+        return [];
+      }
+
+      const coordinates =
+        geometry.type === "MultiPolygon"
+          ? geometry.coordinates.filter(isDisplayOnlyTerritoryPolygon)
+          : geometry.type === "Polygon" && isDisplayOnlyTerritoryPolygon(geometry.coordinates)
+            ? [geometry.coordinates]
+            : [];
+
+      if (coordinates.length === 0) {
+        return [];
+      }
+
+      return [{
+        type: "Feature",
+        properties: {
+          treatment: "display-only-territory",
+        },
+        geometry: {
+          type: "MultiPolygon",
+          coordinates,
+        },
+      }];
+    }),
+  };
+}
+
+function isDisplayOnlyTerritoryPolygon(polygon) {
+  const outerRing = polygon?.[0];
+  if (!Array.isArray(outerRing) || outerRing.length === 0) {
+    return false;
+  }
+
+  const center = getRingCentroidCoordinate(outerRing);
+  return center ? isPointInBoundsList(center, DISPLAY_ONLY_TERRITORY_BOUNDS) : false;
+}
+
 async function loadMunicipalities() {
   if (municipalityData) {
     return municipalityData;
@@ -7960,6 +7763,23 @@ async function loadJapanLandOverview() {
 
   japanLandOverviewData = await japanLandOverviewLoadPromise;
   return japanLandOverviewData;
+}
+
+async function loadEqAppJapanLand() {
+  if (eqAppJapanLandData) {
+    return eqAppJapanLandData;
+  }
+
+  if (!eqAppJapanLandLoadPromise) {
+    eqAppJapanLandLoadPromise = fetchJson(EQ_APP_JAPAN_LAND_URL, "EQ-app Japan land GeoJSON")
+      .catch((error) => {
+        console.warn("EQ-app Japan land unavailable; falling back to Japan land overview", error);
+        return loadJapanLandOverview();
+      });
+  }
+
+  eqAppJapanLandData = await eqAppJapanLandLoadPromise;
+  return eqAppJapanLandData;
 }
 
 async function loadMunicipalityChunkIndex() {
@@ -8091,19 +7911,6 @@ async function loadSurroundingLand() {
 
   surroundingLandData = await surroundingLandLoadPromise;
   return surroundingLandData;
-}
-
-async function loadNorthernIslandsLand() {
-  if (northernIslandsLandData) {
-    return northernIslandsLandData;
-  }
-
-  if (!northernIslandsLandLoadPromise) {
-    northernIslandsLandLoadPromise = fetchJson(NORTHERN_ISLANDS_LAND_URL, "Northern islands land GeoJSON");
-  }
-
-  northernIslandsLandData = await northernIslandsLandLoadPromise;
-  return northernIslandsLandData;
 }
 
 async function loadWorldCoastline() {
@@ -8250,21 +8057,6 @@ function extractExcludedJapanIslandPolygons(geojson) {
       }];
     }),
   };
-}
-
-function setNorthernIslandDisplayData(geojson) {
-  setGeoJsonSourceData("northern-islands-land", {
-    type: "FeatureCollection",
-    name: "Northern territories MapLibre display",
-    features: (geojson.features ?? []).map((feature) => ({
-      ...feature,
-      properties: {
-        ...feature.properties,
-        mapTreatment: "northern-island-display-only",
-        islandGroups: "択捉・国後・歯舞・色丹",
-      },
-    })),
-  });
 }
 
 function removeExcludedJapanIslandLinework(geojson, boundsList = getExcludedJapanDisplayBounds()) {
@@ -8485,7 +8277,6 @@ function invalidateIntensityEstimateCache() {
   stationDataCache = { bucket: null, data: null };
   areaDataCache = { bucket: null, data: null };
   areaEpicentralDistanceCache = { key: "", distances: [] };
-  localAreaStationMembershipCache = null;
   localAreaStationSnapshotCache = null;
   stationCanvasFeatureCache = { data: null, features: [] };
   submarineStationCanvasFeatureCache = { data: null, features: [] };
@@ -8575,7 +8366,7 @@ function updateSimulationAvailability() {
     Number.isFinite(predictedMaximum.value) && predictedMaximum.rank >= 1;
 
   els.simulationStart.disabled = !canStart;
-  els.simulationStart.textContent = "シミュレーション開始";
+  els.simulationStart.textContent = "シミュレーション開";
   els.simulationStart.title = canStart
     ? ""
     : "震度1以上が見込まれないため開始できません";
@@ -8646,7 +8437,7 @@ function syncEpicenterMarkerPosition() {
   return lngLat;
 }
 
-function scheduleDeferredEpicenterUpdate(options = {}, delayMs = 80) {
+function scheduleDeferredEpicenterUpdate(options = {}, delayMs = EPICENTER_DEFERRED_UPDATE_DELAY_MS) {
   window.clearTimeout(deferredEpicenterUpdateTimer);
   deferredEpicenterUpdateTimer = window.setTimeout(() => {
     deferredEpicenterUpdateTimer = 0;
@@ -8698,7 +8489,7 @@ async function updateEpicenter(options = {}) {
     markerElement.className = "epicenter-marker-shell";
     markerElement.tabIndex = 0;
     markerElement.setAttribute("role", "button");
-    markerElement.setAttribute("aria-label", "震源情報を表示");
+    markerElement.setAttribute("aria-label", "震度情報を表示");
     markerElement.innerHTML = `
       <svg class="epicenter-marker" viewBox="0 0 48 48" aria-hidden="true">
         <path d="M10 15 L15 10 L24 19 L33 10 L38 15 L29 24 L38 33 L33 38 L24 29 L15 38 L10 33 L19 24 Z" />
@@ -8809,7 +8600,7 @@ async function updateEpicenter(options = {}) {
       invalidateIntensityEstimateCache();
       syncInputs();
       updateActiveEpicenterPopups([state.longitude, state.latitude]);
-      scheduleDeferredEpicenterUpdate({ resolveLocation: true, enforceManagedArea: true }, 120);
+      scheduleDeferredEpicenterUpdate({ resolveLocation: true, enforceManagedArea: true }, EPICENTER_DRAG_UPDATE_DELAY_MS);
     });
     updateEpicenterEditMode();
   }
@@ -8925,9 +8716,7 @@ function isExcludedFeature(feature) {
 }
 
 function cleanDisplayAreaName(name) {
-  return String(name ?? "")
-    .replace(/^気象庁予報警報規程別表第四の二に示す「(.+)」の区域$/, "$1")
-    .trim();
+  return String(name ?? "").trim();
 }
 
 function updateIntensityLayer() {
@@ -8945,10 +8734,7 @@ function updateIntensityLayer() {
     map.getSource("submarine-observation-points") &&
     submarineObservationPointData
   ) {
-    setGeoJsonSourceData(
-      "submarine-observation-points",
-      getSubmarineObservationDataForElapsed(getSubmarineObservationElapsedSec()),
-    );
+    setSubmarineObservationSourceForElapsed(getSubmarineObservationElapsedSec());
   }
 
   if (map.getSource("jma-local-areas")) {
@@ -9042,7 +8828,7 @@ function getAreaEpicentralDistances(geojson) {
 }
 
 function getSubmarineObservationDataForElapsed(elapsedSec = Infinity, data = submarineObservationPointData) {
-  if (!data?.features?.length || getSelectedPreset()) {
+  if (!data?.features?.length || getSelectedPreset() || !Number.isFinite(elapsedSec)) {
     return emptyFeatureCollection();
   }
 
@@ -9061,16 +8847,21 @@ function getSubmarineObservationDataForElapsed(elapsedSec = Infinity, data = sub
     };
   }
 
-  const features = buildSubmarineObservationIntensityFeatures(data).map((feature) => {
-    const currentProperties = getCurrentIntensityProperties(feature.properties, elapsedSec);
-    return {
-      ...feature,
-      properties: {
-        ...feature.properties,
-        ...currentProperties,
-      },
-    };
-  });
+  const features = buildSubmarineObservationIntensityFeatures(data)
+    .map((feature) => {
+      const currentProperties = getCurrentIntensityProperties(feature.properties, elapsedSec);
+      return {
+        ...feature,
+        properties: {
+          ...feature.properties,
+          ...currentProperties,
+        },
+      };
+    })
+    .filter((feature) =>
+      feature.properties.observed === true &&
+      Number(feature.properties.intensityRank ?? 0) >= 1
+    );
 
   submarineObservationIntensityCache = { key: cacheKey, features };
   return {
@@ -9254,7 +9045,7 @@ function buildIntensityAreaData(geojson, elapsedSec = Infinity) {
   updateEewForecastPanel();
 
   const displayedMaxClass = getPresetDisplayIntensityClass(maxClass, maxValue, selectedPreset);
-  state.maxIntensityLabel = `${displayedMaxClass.label}（計測震度 ${selectedPreset ? "-" : maxValue.toFixed(1)}）`;
+  state.maxIntensityLabel = `${displayedMaxClass.label}（予測震度 ${selectedPreset ? "-" : maxValue.toFixed(1)}）`;
 
   const data = {
     ...geojson,
@@ -9738,10 +9529,12 @@ function getEewFeatureKey(feature) {
 }
 
 function getLocalAreaStationMembership(geojson, stationFeatures) {
+  const stationSignature = getStationMembershipSignature(stationFeatures);
   if (
     localAreaStationMembershipCache &&
+    localAreaStationMembershipCache.geojson === geojson &&
     localAreaStationMembershipCache.areaCount === geojson.features.length &&
-    localAreaStationMembershipCache.stationCount === stationFeatures.length
+    localAreaStationMembershipCache.stationSignature === stationSignature
   ) {
     return localAreaStationMembershipCache.stationIdsByArea;
   }
@@ -9759,12 +9552,18 @@ function getLocalAreaStationMembership(geojson, stationFeatures) {
   });
 
   localAreaStationMembershipCache = {
+    geojson,
     areaCount: geojson.features.length,
     stationCount: stationFeatures.length,
+    stationSignature,
     stationIdsByArea,
   };
 
   return stationIdsByArea;
+}
+
+function getStationMembershipSignature(stationFeatures) {
+  return stationFeatures.map((feature) => feature.properties?.id ?? "").join("|");
 }
 
 function compactForecastAreas(areaNames) {
@@ -9797,23 +9596,11 @@ function compactForecastAreas(areaNames) {
 
   return sortForecastAreasForDisplay([...compacted, ...remaining]);
 }
-
 function normalizeForecastAreaDisplayName(areaName) {
   const normalizedName = String(areaName ?? "").normalize("NFKC").replace(/\s+/g, "");
-  if (normalizedName === "奄美群島" || normalizedName === "奄美諸島") {
-    return "奄美";
-  }
-  if (
-    normalizedName === "沖縄本島" ||
-    normalizedName === "大東島" ||
-    normalizedName === "沖縄県本島" ||
-    normalizedName === "沖縄県大東島"
-  ) {
-    return "沖縄";
-  }
-  if (normalizedName === "長野") {
-    return "北陸";
-  }
+  if (normalizedName === "奄美群島" || normalizedName === "奄美諸島") return "奄美";
+  if (["沖縄本島", "沖縄県本島", "沖縄県大東島", "大東島"].includes(normalizedName)) return normalizedName.includes("大東") ? "大東島" : "沖縄";
+  if (normalizedName === "長野") return "北陸";
   return areaName;
 }
 
@@ -9830,121 +9617,27 @@ const FORECAST_AREA_GROUP_MEMBERS = {
 };
 
 const FORECAST_AREA_ORDER = [
-  "北海道",
-  "北海道道央",
-  "北海道道南",
-  "北海道道北",
-  "北海道道東",
-  "東北",
-  "青森",
-  "岩手",
-  "宮城",
-  "秋田",
-  "山形",
-  "福島",
-  "関東",
-  "茨城",
-  "栃木",
-  "群馬",
-  "埼玉",
-  "千葉",
-  "東京",
-  "神奈川",
-  "山梨",
-  "北陸",
-  "新潟",
-  "富山",
-  "石川",
-  "福井",
-  "長野",
-  "東海",
-  "岐阜",
-  "静岡",
-  "愛知",
-  "三重",
-  "近畿",
-  "滋賀",
-  "京都",
-  "大阪",
-  "兵庫",
-  "奈良",
-  "和歌山",
-  "中国",
-  "鳥取",
-  "島根",
-  "岡山",
-  "広島",
-  "山口",
-  "四国",
-  "徳島",
-  "香川",
-  "愛媛",
-  "高知",
-  "九州",
-  "福岡",
-  "佐賀",
-  "長崎",
-  "熊本",
-  "大分",
-  "宮崎",
-  "鹿児島",
-  "奄美群島",
-  "沖縄本島",
-  "大東島",
-  "宮古島",
-  "八重山",
-  "伊豆諸島",
-  "小笠原",
+  "北海道", "北海道道央", "北海道道南", "北海道道北", "北海道道東",
+  "東北", "青森", "岩手", "宮城", "秋田", "山形", "福島",
+  "関東", "茨城", "栃木", "群馬", "埼玉", "千葉", "東京", "神奈川", "山梨",
+  "北陸", "新潟", "富山", "石川", "福井", "長野",
+  "東海", "岐阜", "静岡", "愛知", "三重",
+  "近畿", "滋賀", "京都", "大阪", "兵庫", "奈良", "和歌山",
+  "中国", "鳥取", "島根", "岡山", "広島", "山口",
+  "四国", "徳島", "香川", "愛媛", "高知",
+  "九州", "福岡", "佐賀", "長崎", "熊本", "大分", "宮崎", "鹿児島",
+  "奄美群島", "沖縄本島", "大東島", "宮古島", "八重山", "伊豆諸島", "小笠原",
 ];
 
 const PREFECTURE_NAMES = [
-  "北海道",
-  "青森県",
-  "岩手県",
-  "宮城県",
-  "秋田県",
-  "山形県",
-  "福島県",
-  "茨城県",
-  "栃木県",
-  "群馬県",
-  "埼玉県",
-  "千葉県",
-  "東京都",
-  "神奈川県",
-  "新潟県",
-  "富山県",
-  "石川県",
-  "福井県",
-  "山梨県",
-  "長野県",
-  "岐阜県",
-  "静岡県",
-  "愛知県",
-  "三重県",
-  "滋賀県",
-  "京都府",
-  "大阪府",
-  "兵庫県",
-  "奈良県",
-  "和歌山県",
-  "鳥取県",
-  "島根県",
-  "岡山県",
-  "広島県",
-  "山口県",
-  "徳島県",
-  "香川県",
-  "愛媛県",
-  "高知県",
-  "福岡県",
-  "佐賀県",
-  "長崎県",
-  "熊本県",
-  "大分県",
-  "宮崎県",
-  "鹿児島県",
-  "沖縄県",
+  "北海道", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県",
+  "茨城県", "栃木県", "群馬県", "埼玉県", "千葉県", "東京都", "神奈川県",
+  "新潟県", "富山県", "石川県", "福井県", "山梨県", "長野県",
+  "岐阜県", "静岡県", "愛知県", "三重県",
+  "滋賀県", "京都府", "大阪府", "兵庫県", "奈良県", "和歌山県",
+  "鳥取県", "島根県", "岡山県", "広島県", "山口県",
+  "徳島県", "香川県", "愛媛県", "高知県",
+  "福岡県", "佐賀県", "長崎県", "熊本県", "大分県", "宮崎県", "鹿児島県", "沖縄県",
 ];
 
 function sortForecastAreas(areaNames) {
@@ -9972,36 +9665,17 @@ function forecastAreaDisplayGroupIndex(areaName) {
 
 function isBroadForecastArea(areaName) {
   return [
-    "北海道",
-    "北海道道央",
-    "北海道道南",
-    "北海道道北",
-    "北海道道東",
-    "東北",
-    "関東",
-    "北陸",
-    "東海",
-    "近畿",
-    "中国",
-    "四国",
-    "九州",
-    "奄美群島",
-    "沖縄本島",
-    "大東島",
-    "宮古島",
-    "八重山",
-    "伊豆諸島",
-    "小笠原",
+    "北海道", "北海道道央", "北海道道南", "北海道道北", "北海道道東",
+    "東北", "関東", "北陸", "東海", "近畿", "中国", "四国", "九州",
+    "奄美群島", "沖縄本島", "大東島", "宮古島", "八重山", "伊豆諸島", "小笠原",
   ].includes(areaName);
 }
 
 function forecastAreaSortIndex(areaName) {
-  const sortName =
-    areaName === "奄美" ? "奄美群島" : areaName === "沖縄" ? "沖縄本島" : areaName;
+  const sortName = areaName === "奄美" ? "奄美群島" : areaName === "沖縄" ? "沖縄本島" : areaName;
   const index = FORECAST_AREA_ORDER.indexOf(sortName);
   return index >= 0 ? index : FORECAST_AREA_ORDER.length;
 }
-
 function updateEewForecastPanel() {
   if (!els.eewForecastPanel || !els.eewForecastList) {
     return;
@@ -10023,9 +9697,9 @@ function updateEewForecastPanel() {
   const heading = els.eewForecastPanel.querySelector("h2");
   if (heading) {
     heading.textContent = state.eewWarningFinalReport
-      ? "緊急地震速報（警報） 最終報"
+      ? "緊急地震速報（警報）最終報"
       : state.eewWarningReportNumber
-        ? `緊急地震速報（警報） 第${state.eewWarningReportNumber}報`
+        ? `緊急地震速報（警報）第${state.eewWarningReportNumber}報`
         : "緊急地震速報（警報）";
   }
   updateEewForecastMessage(heading);
@@ -10051,50 +9725,46 @@ function updateEewForecastMessage(heading) {
     heading?.after(message);
   }
 
-  const epicenterName = state.epicenterName || "震央";
-  message.textContent = `${epicenterName}で地震 強い揺れに警戒`;
+  const epicenterName = state.epicenterName || "震度";
+  message.textContent = `${epicenterName}で地震。強い揺れに警戒してください。`;
 }
 
 function getEewForecastAreaName(localAreaName) {
   if (!localAreaName) {
     return "不明";
   }
-
   if (eewForecastAreaNameCache.has(localAreaName)) {
     return eewForecastAreaNameCache.get(localAreaName);
   }
-
   let forecastAreaName = localAreaName;
   const hokkaidoForecastArea = getHokkaidoEewForecastAreaName(localAreaName);
   if (hokkaidoForecastArea) {
     forecastAreaName = hokkaidoForecastArea;
-  } else if (/^東京都(２３区|多摩)/.test(localAreaName)) {
+  } else if (/^東京都/.test(localAreaName)) {
     forecastAreaName = "東京";
-  } else if (["伊豆大島", "新島", "神津島", "三宅島", "八丈島"].includes(localAreaName)) {
+  } else if (["伊豆大島", "新島", "神津島", "三宅島", "八丈島"].some((name) => localAreaName.includes(name))) {
     forecastAreaName = "伊豆諸島";
-  } else if (localAreaName === "小笠原") {
+  } else if (localAreaName.includes("小笠原")) {
     forecastAreaName = "小笠原";
-  } else if (localAreaName.startsWith("鹿児島県奄美")) {
+  } else if (localAreaName.includes("奄美")) {
     forecastAreaName = "奄美群島";
-  } else if (localAreaName.startsWith("沖縄県本島")) {
-    forecastAreaName = "沖縄本島";
-  } else if (localAreaName.startsWith("沖縄県大東島")) {
+  } else if (localAreaName.includes("大東島")) {
     forecastAreaName = "大東島";
-  } else if (localAreaName.startsWith("沖縄県宮古島")) {
+  } else if (localAreaName.includes("宮古島")) {
     forecastAreaName = "宮古島";
-  } else if (/^沖縄県(石垣島|与那国島|西表島)/.test(localAreaName)) {
+  } else if (localAreaName.includes("八重山")) {
     forecastAreaName = "八重山";
+  } else if (localAreaName.includes("沖縄")) {
+    forecastAreaName = "沖縄本島";
   } else {
     const prefecture = PREFECTURE_NAMES.find((name) => localAreaName.startsWith(name));
     if (prefecture) {
-      forecastAreaName = prefecture.replace(/[都府県]$/, "");
+      forecastAreaName = prefecture.replace(/[都道府県]$/, "");
     }
   }
-
   eewForecastAreaNameCache.set(localAreaName, forecastAreaName);
   return forecastAreaName;
 }
-
 function getHokkaidoEewForecastAreaName(localAreaName) {
   if (
     [
@@ -10446,17 +10116,14 @@ function getEarthquakeWaveformProfile() {
 
 function getOffshoreEpicenterFactor() {
   const name = state.epicenterName ?? "";
-  if (/沖|海|湾|灘|海峡|トラフ|海溝|台湾付近|台湾東方沖/.test(name)) {
+  if (/沖|海|湾|灘|トラフ|海溝/.test(name)) {
     return 1;
   }
-
   if (/近海|東方|南方|北西|南東/.test(name)) {
     return 0.75;
   }
-
   return 0;
 }
-
 function getStationDisplaySortKey(intensityRank, stableKey) {
   const rank = Number(intensityRank) || 0;
   return Number((rank * 100000 + stableUnitInterval(`station-sort|${stableKey}`)).toFixed(6));
@@ -10654,7 +10321,7 @@ function isHyogoNanbuPreset(preset) {
 }
 
 function isNaganoHokubuPreset(preset) {
-  return Boolean(preset?.label?.includes("長野県北部の地震"));
+  return Boolean(preset?.label?.includes("長野県北部"));
 }
 
 function getPresetEpicenterNameOverride(preset) {
@@ -10813,7 +10480,7 @@ function buildOldScaleSyntheticStationFeatures(preset, existingFeatures) {
         actualObserved: true,
         oldJmaScale: Boolean(observation.oldJmaScale),
         sourceObservationName: observation.stationName,
-        observationStatus: `${preset.label} 観測点（市町村内代表点）`,
+        observationStatus: `${preset.label} 観測点（市区町村代表点）`,
         measuredIntensity: null,
         intensityValue: Number(intensityValue.toFixed(2)),
         intensityLabel,
@@ -10855,64 +10522,20 @@ function buildOldScaleSyntheticStationFeatures(preset, existingFeatures) {
   return features;
 }
 
-const HYOGO_NANBU_MUNICIPALITY_HINTS = [
-  ["ポートアイランド", "神戸市"],
-  ["六甲アイランド", "神戸市"],
-  ["東神戸", "神戸市"],
-  ["新神戸", "神戸市"],
-  ["神戸港", "神戸市"],
-  ["神戸", "神戸市"],
-  ["葺合", "神戸市"],
-  ["鷹取", "神戸市"],
-  ["本山", "神戸市"],
-  ["六甲", "神戸市"],
-  ["西明石", "明石市"],
-  ["明石", "明石市"],
-  ["尼崎", "尼崎市"],
-  ["関電", "尼崎市"],
-  ["竹谷", "尼崎市"],
-  ["西宮", "西宮市"],
-  ["宝塚", "宝塚市"],
-  ["猪名川", "猪名川町"],
-  ["美方町", "香美町"],
-  ["奈良市", "奈良市西部"],
-  ["鳥取市", "鳥取市北部"],
-  ["松本市", "松本市"],
-  ["静岡駿河区", "静岡市南部"],
-  ["浜松中区", "浜松市南部"],
-];
-
+const HYOGO_NANBU_MUNICIPALITY_HINTS = [];
 function findOldScaleSyntheticMunicipalityFeature(observation) {
   const stationName = normalizeStationNameForMatch(observation.stationName);
-  const hintedMunicipality = HYOGO_NANBU_MUNICIPALITY_HINTS.find(([hint]) =>
-    stationName.includes(normalizeStationNameForMatch(hint)),
-  )?.[1];
   const allMunicipalityFeatures = municipalityDisplayData.features;
   const municipalityFeatures = allMunicipalityFeatures.filter(
     (feature) => feature.properties.prefecture === observation.prefecture,
   );
-
-  if (hintedMunicipality) {
-    const normalizedHint = normalizeStationNameForMatch(hintedMunicipality);
-    return allMunicipalityFeatures.find(
-      (feature) => normalizeStationNameForMatch(feature.properties.name) === normalizedHint,
-    );
-  }
-
   const findMatchingFeature = (candidates) => candidates.find((feature) => {
     const municipalityName = normalizeStationNameForMatch(feature.properties.name);
-    const shortName = municipalityName.replace(/[市区町村]$/u, "");
-    const baseCityName = municipalityName.match(/^(.+?[市区町村])/u)?.[1] ?? shortName;
-    return (
-      (shortName.length >= 2 && stationName.includes(shortName)) ||
-      (baseCityName.length >= 2 && stationName.includes(baseCityName)) ||
-      (stationName.length >= 2 && (municipalityName.includes(stationName) || baseCityName.includes(stationName)))
-    );
+    const shortName = municipalityName.replace(/[市区町村郡]$/u, "");
+    return shortName.length >= 2 && stationName.includes(shortName);
   });
-
   return findMatchingFeature(municipalityFeatures) ?? findMatchingFeature(allMunicipalityFeatures);
 }
-
 function getMunicipalityRepresentativeCoordinate(feature) {
   const stableInteriorCoordinate = getStableInteriorCoordinate(feature);
   if (stableInteriorCoordinate) {
@@ -11135,7 +10758,9 @@ function offsetFreeSyntheticStationCoordinate(center, index) {
 
 function estimateMaxIntensityForFeature(feature) {
   const epicenter = [state.longitude, state.latitude];
-  const nearestPoint = getNearestPointOnFeature(epicenter, feature);
+  const nearestPoint = getNearestPointOnFeature(epicenter, feature, {
+    polygons: getFeatureIntensityDistancePolygons(feature),
+  });
   return estimateIntensityAtPoint(nearestPoint.point[0], nearestPoint.point[1], nearestPoint.distanceKm);
 }
 
@@ -11312,6 +10937,90 @@ function getFeaturePolygons(feature) {
   return [];
 }
 
+function getFeatureIntensityDistancePolygons(feature) {
+  const cached = intensityDistanceGeometryCache.get(feature);
+  if (cached) {
+    return cached;
+  }
+
+  const polygons = getFeaturePolygons(feature)
+    .map(simplifyIntensityDistancePolygon)
+    .filter((polygon) => polygon.length);
+  const result = polygons.length ? polygons : getFeaturePolygons(feature);
+  intensityDistanceGeometryCache.set(feature, result);
+  return result;
+}
+
+function simplifyIntensityDistancePolygon(polygon) {
+  const rings = polygon
+    .map(simplifyIntensityDistanceRing)
+    .filter((ring) => ring.length >= 4);
+  return rings.length ? rings : polygon;
+}
+
+function simplifyIntensityDistanceRing(ring) {
+  if (!Array.isArray(ring) || ring.length <= INTENSITY_DISTANCE_SIMPLIFY_MIN_POINTS) {
+    return ring;
+  }
+
+  const closed = coordinatesEqual(ring[0], ring.at(-1));
+  const openRing = closed ? ring.slice(0, -1) : ring;
+  const simplified = simplifyCoordinateLine(
+    openRing,
+    INTENSITY_DISTANCE_SIMPLIFY_TOLERANCE_DEGREES,
+  );
+
+  if (simplified.length < 3) {
+    return ring;
+  }
+
+  const result = closed ? [...simplified, [...simplified[0]]] : simplified;
+  return result.length >= 4 ? result : ring;
+}
+
+function simplifyCoordinateLine(points, tolerance) {
+  if (!Array.isArray(points) || points.length <= 3 || tolerance <= 0) {
+    return points;
+  }
+
+  let maxDistance = 0;
+  let maxIndex = 0;
+  const start = points[0];
+  const end = points.at(-1);
+
+  for (let index = 1; index < points.length - 1; index += 1) {
+    const distance = perpendicularDistanceDegrees(points[index], start, end);
+    if (distance > maxDistance) {
+      maxDistance = distance;
+      maxIndex = index;
+    }
+  }
+
+  if (maxDistance <= tolerance) {
+    return [start, end];
+  }
+
+  return [
+    ...simplifyCoordinateLine(points.slice(0, maxIndex + 1), tolerance).slice(0, -1),
+    ...simplifyCoordinateLine(points.slice(maxIndex), tolerance),
+  ];
+}
+
+function perpendicularDistanceDegrees(point, start, end) {
+  const dx = end[0] - start[0];
+  const dy = end[1] - start[1];
+  if (dx === 0 && dy === 0) {
+    return Math.hypot(point[0] - start[0], point[1] - start[1]);
+  }
+
+  return Math.abs(dy * point[0] - dx * point[1] + end[0] * start[1] - end[1] * start[0]) /
+    Math.hypot(dx, dy);
+}
+
+function coordinatesEqual(a, b) {
+  return a?.[0] === b?.[0] && a?.[1] === b?.[1];
+}
+
 function pointInPolygon(point, polygon) {
   return pointInRing(point, polygon[0]) && polygon.slice(1).every((ring) => !pointInRing(point, ring));
 }
@@ -11320,13 +11029,13 @@ function pointInFeature(point, feature) {
   return getFeaturePolygons(feature).some((polygon) => pointInPolygon(point, polygon));
 }
 
-function getNearestPointOnFeature(point, feature) {
+function getNearestPointOnFeature(point, feature, options = {}) {
   let nearest = {
     point,
     distanceKm: Infinity,
   };
 
-  for (const polygon of getFeaturePolygons(feature)) {
+  for (const polygon of options.polygons ?? getFeaturePolygons(feature)) {
     const candidate = getNearestPointOnPolygon(point, polygon);
     if (candidate.distanceKm < nearest.distanceKm) {
       nearest = candidate;
