@@ -1,6 +1,5 @@
-const JAPAN_LAND_OVERVIEW_URL = "./data/japan_land_overview.geojson";
+const JAPAN_LAND_OVERVIEW_URL = "./data/japan_municipalities_light.geojson";
 const EQ_APP_JAPAN_LAND_URL = "./data/eq_app_japan_land.geojson";
-const MUNICIPALITY_CHUNK_INDEX_URL = "./data/municipality_chunks/index.json";
 const BOUNDARY_LAYERS_URL = "./data/boundary_layers.geojson";
 const JMA_LOCAL_AREAS_URL = "./data/jma_local_areas.geojson";
 const JMA_EEW_FORECAST_AREAS_URL = "./data/jma_eew_forecast_areas.json";
@@ -82,9 +81,6 @@ const JAPAN_WORLD_COASTLINE_SUPPRESS_BOUNDS = [
   ...NORTHERN_TERRITORIES_BOUNDS,
 ];
 const MUNICIPALITY_BOUNDARY_MIN_ZOOM = 8;
-const MUNICIPALITY_DETAIL_MIN_ZOOM = 8.1;
-const MUNICIPALITY_DETAIL_VIEWPORT_BUFFER_DEGREES = 0.45;
-const MUNICIPALITY_DETAIL_UPDATE_DELAY_MS = 240;
 const EPICENTER_DEFERRED_UPDATE_DELAY_MS = 220;
 const EPICENTER_DRAG_UPDATE_DELAY_MS = 320;
 const INTENSITY_DISTANCE_SIMPLIFY_TOLERANCE_DEGREES = 0.008;
@@ -424,16 +420,8 @@ let japanLandOverviewLoadPromise;
 let eqAppJapanLandData;
 let eqAppJapanLandLoadPromise;
 let municipalityOverviewDisplayData;
-let municipalityChunkIndexData;
-let municipalityChunkIndexLoadPromise;
-let municipalityDetailUpdateTimer = 0;
-let municipalityDetailRequestId = 0;
-let renderedMunicipalityDetailChunkKey = "";
 let oldScaleSyntheticMunicipalityHydrationPromise;
 let oldScaleSyntheticMunicipalityHydratingPresetId = "";
-let oldScaleSyntheticMunicipalityChunkDataList = [];
-const municipalityChunkDataCache = new Map();
-const municipalityChunkLoadPromises = new Map();
 let boundaryData;
 let boundaryLoadPromise;
 let localAreaData;
@@ -912,17 +900,46 @@ function formatPresetMaxIntensity(preset) {
   return intensityClass?.label ?? intensityClass?.shortLabel ?? "-";
 }
 
+function normalizeIntensityLabelToken(value) {
+  return String(value ?? "")
+    .trim()
+    .replace(/[０-９]/g, (char) => String(char.charCodeAt(0) - 0xff10))
+    .replace(/[＋]/g, "+")
+    .replace(/[－ー―]/g, "-")
+    .replace(/\s+/g, "")
+    .replace(/^震度/, "")
+    .replace(/強/g, "+")
+    .replace(/弱/g, "-");
+}
+
+function findIntensityClassByLabel(value) {
+  const normalizedLabel = normalizeIntensityLabelToken(value);
+  if (!normalizedLabel || normalizedLabel === "-") {
+    return null;
+  }
+
+  if (normalizedLabel === "6") {
+    return INTENSITY_CLASSES.find((item) => item.shortLabel === "6+") ?? null;
+  }
+  if (normalizedLabel === "5") {
+    return INTENSITY_CLASSES.find((item) => item.shortLabel === "5+") ?? null;
+  }
+
+  return (
+    INTENSITY_CLASSES.find(
+      (item) =>
+        item.label === value ||
+        item.shortLabel === value ||
+        normalizeIntensityLabelToken(item.label) === normalizedLabel ||
+        normalizeIntensityLabelToken(item.shortLabel) === normalizedLabel,
+    ) ?? null
+  );
+}
+
 function getPresetMaxIntensityClass(preset) {
   const label = String(preset?.maxIntensity ?? "").trim();
   if (label) {
-    const normalizedLabel = label.replace(/^震度/, "");
-    const matchedClass = INTENSITY_CLASSES.find(
-      (item) =>
-        item.label === label ||
-        item.shortLabel === label ||
-        item.label === normalizedLabel ||
-        item.shortLabel === normalizedLabel,
-    );
+    const matchedClass = findIntensityClassByLabel(label);
     if (matchedClass) {
       return matchedClass;
     }
@@ -1451,7 +1468,7 @@ function getLegendIntensityClass(label) {
     }
   }
 
-  return INTENSITY_CLASSES.find((item) => item.shortLabel === label || item.label === label);
+  return findIntensityClassByLabel(label);
 }
 
 async function applyEarthquakePreset(presetId) {
@@ -1520,7 +1537,6 @@ function clearSelectedPreset() {
   presetDetailLoadingId = "";
   oldScaleSyntheticMunicipalityHydrationPromise = null;
   oldScaleSyntheticMunicipalityHydratingPresetId = "";
-  oldScaleSyntheticMunicipalityChunkDataList = [];
   updateEarthquakePresetButtonLabel();
   updateLegendColors();
 }
@@ -1965,7 +1981,6 @@ async function initEarthquakeMap() {
   map.on("moveend", () => {
     state.mapInteracting = false;
     constrainMapToPanRange();
-    scheduleVisibleMunicipalityDetailUpdate();
     scheduleStationCanvasRender({ force: true });
     schedulePostMapInteractionRender();
   });
@@ -1974,7 +1989,6 @@ async function initEarthquakeMap() {
   });
   map.on("zoomend", () => {
     state.mapInteracting = false;
-    scheduleVisibleMunicipalityDetailUpdate(0);
     scheduleStationCanvasRender({ force: true });
     schedulePostMapInteractionRender();
   });
@@ -3897,7 +3911,14 @@ function openMaintenanceReasonOverlay() {
 }
 
 function normalizeMaintenanceReason(reason) {
-  return String(reason ?? "").trim().replace(/\s+/g, " ").slice(0, 500);
+  return String(reason ?? "")
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+    .slice(0, 500);
 }
 
 function createMaintenanceModeBadge() {
@@ -4014,6 +4035,8 @@ function createAdminModeOverlay() {
         const maintenanceReleaseResult = await postMaintenanceAction("setMaintenance", {
           token,
           maintenance: false,
+          parentRelease: true,
+          releaseMaintenanceWithParent: true,
           reason: "",
           maintenanceReason: "",
           maintenanceDetail: "",
@@ -4031,7 +4054,11 @@ function createAdminModeOverlay() {
         }
         notifyMaintenanceStatusChange({ maintenance: false, reason: "" });
       }
-      const result = await postMaintenanceAction("releaseParent", { token });
+      const result = await postMaintenanceAction("releaseParent", {
+        token,
+        releaseMaintenance: true,
+        releaseMaintenanceWithParent: Boolean(current.maintenance),
+      });
       if (!result.ok) {
         if (isInvalidParentTokenResponse(result)) {
           await forceReleaseInvalidParentTerminal(overlay, passwordInput, status, token);
@@ -4329,6 +4356,8 @@ async function forceReleaseInvalidParentTerminal(overlay, passwordInput, status,
     await postMaintenanceAction("setMaintenance", {
       token,
       maintenance: false,
+      parentRelease: true,
+      releaseMaintenanceWithParent: true,
       reason: "",
       maintenanceReason: "",
       maintenanceDetail: "",
@@ -4593,10 +4622,14 @@ function updateMaintenanceOverlayMessage(overlay, reason = "") {
 
   dialog.innerHTML = `
     <h2>只今メンテナンス中です</h2>
-    <p class="maintenance-mode-reason ${reason ? "" : "hidden"}">${reason ? `詳細：${escapeHtml(reason)}` : ""}</p>
+    <p class="maintenance-mode-reason ${reason ? "" : "hidden"}">${reason ? formatMaintenanceReasonHtml(reason) : ""}</p>
     <p>しばらくお待ち下さい。</p>
     ${buildMaintenanceOverlayLinksHtml()}
   `;
+}
+
+function formatMaintenanceReasonHtml(reason) {
+  return `詳細：${escapeHtml(reason).replace(/\n/g, "<br>")}`;
 }
 
 function notifyMaintenanceStatusChange(status) {
@@ -5003,39 +5036,46 @@ async function showMapLayers() {
   addGeoJsonSource("s-wave", emptyFeatureCollection());
   addGeoJsonSource("boundaries", emptyFeatureCollection());
 
+  addMapLayers();
+  setupStationHoverPopup();
+  keepWaveAndStationLayerOrder();
   fitInitialMapBounds(getInitialJapanBounds());
   hydrateDeferredMapData();
 }
 
 async function hydrateDeferredMapData() {
-  try {
-    const [municipalities, eqAppJapanLand] = await Promise.all([
-      loadJapanLandOverview(),
-      loadEqAppJapanLand(),
-    ]);
-
-    window.requestAnimationFrame(() => {
-      setGeoJsonSourceData("japan-base-land", eqAppJapanLand);
-      setGeoJsonSourceData("japan-base-outline", buildPolygonBoundaryLinework(eqAppJapanLand));
-      setGeoJsonSourceData("display-only-territory-land", extractDisplayOnlyTerritoryPolygons(eqAppJapanLand));
-      const displayMunicipalities = filterExcludedGeoJsonFeatures(municipalities);
-      municipalityOverviewDisplayData = withoutInteriorRings(displayMunicipalities);
-      applyMunicipalityDisplayData(municipalityOverviewDisplayData);
-      addMapLayers();
-      setupStationHoverPopup();
-      keepWaveAndStationLayerOrder();
-      safelyResizeMap();
-      if (document.body.classList.contains("map-core-loading")) {
-        startupLocationResolved = true;
-      }
-      showMunicipalityLinework();
-      scheduleDeferredTask(() => scheduleLocationResolve(), 1400, 3000);
-      updateSimulationAvailability();
-      schedulePostMunicipalityDataHydration();
-      scheduleVisibleMunicipalityDetailUpdate(0);
-      hydrateDeferredSupplementaryMapData().catch((error) => console.warn(error));
-      hydrateDeferredSimulationMapData().catch((error) => console.warn(error));
+  const japanLandPromise = loadEqAppJapanLand()
+    .then((eqAppJapanLand) => {
+      window.requestAnimationFrame(() => {
+        setGeoJsonSourceData("japan-base-land", eqAppJapanLand);
+        setGeoJsonSourceData("japan-base-outline", buildPolygonBoundaryLinework(eqAppJapanLand));
+        setGeoJsonSourceData("display-only-territory-land", emptyFeatureCollection());
+        keepWaveAndStationLayerOrder();
+        safelyResizeMap();
+      });
+      return eqAppJapanLand;
     });
+
+  const municipalityPromise = loadJapanLandOverview()
+    .then((municipalities) => {
+      window.requestAnimationFrame(() => {
+        municipalityOverviewDisplayData = withoutInteriorRings(municipalities);
+        applyMunicipalityDisplayData(municipalityOverviewDisplayData);
+        if (document.body.classList.contains("map-core-loading")) {
+          startupLocationResolved = true;
+        }
+        showMunicipalityLinework();
+        scheduleDeferredTask(() => scheduleLocationResolve(), 900, 2400);
+        updateSimulationAvailability();
+        schedulePostMunicipalityDataHydration();
+      });
+      return municipalities;
+    });
+
+  try {
+    await Promise.all([japanLandPromise, municipalityPromise]);
+    hydrateDeferredSupplementaryMapData().catch((error) => console.warn(error));
+    hydrateDeferredSimulationMapData().catch((error) => console.warn(error));
   } catch (error) {
     console.warn(error);
     document.body.classList.remove("map-core-loading");
@@ -5062,115 +5102,6 @@ function applyMunicipalityDisplayData(displayData, options = {}) {
   }
 }
 
-function scheduleVisibleMunicipalityDetailUpdate(delayMs = MUNICIPALITY_DETAIL_UPDATE_DELAY_MS) {
-  if (!map || !municipalityOverviewDisplayData?.features?.length) {
-    return;
-  }
-
-  window.clearTimeout(municipalityDetailUpdateTimer);
-  municipalityDetailUpdateTimer = window.setTimeout(() => {
-    hydrateVisibleMunicipalityDetailData().catch((error) => console.warn(error));
-  }, delayMs);
-}
-
-async function hydrateVisibleMunicipalityDetailData() {
-  if (!map || !municipalityOverviewDisplayData?.features?.length) {
-    return;
-  }
-
-  const requestId = ++municipalityDetailRequestId;
-  if (map.getZoom() < MUNICIPALITY_DETAIL_MIN_ZOOM) {
-    if (renderedMunicipalityDetailChunkKey) {
-      renderedMunicipalityDetailChunkKey = "";
-      applyMunicipalityDisplayData(municipalityOverviewDisplayData, { refreshDerivedState: false });
-    }
-    return;
-  }
-
-  const index = await loadMunicipalityChunkIndex();
-  const visibleBounds = getBufferedMapViewportBounds(MUNICIPALITY_DETAIL_VIEWPORT_BUFFER_DEGREES);
-  const visibleChunks = (index.chunks ?? []).filter((chunk) => boundsIntersect(chunk.bounds, visibleBounds));
-  const nextChunkKey = visibleChunks.map((chunk) => chunk.id).sort().join("|");
-  if (nextChunkKey === renderedMunicipalityDetailChunkKey) {
-    return;
-  }
-
-  const chunkData = await Promise.all(visibleChunks.map(loadMunicipalityChunk));
-  if (
-    requestId !== municipalityDetailRequestId ||
-    !map ||
-    map.getZoom() < MUNICIPALITY_DETAIL_MIN_ZOOM
-  ) {
-    return;
-  }
-
-  renderedMunicipalityDetailChunkKey = nextChunkKey;
-  applyMunicipalityDisplayData(
-    mergeMunicipalityOverviewWithDetailChunks(
-      municipalityOverviewDisplayData,
-      [...chunkData, ...oldScaleSyntheticMunicipalityChunkDataList],
-    ),
-    { refreshDerivedState: false },
-  );
-}
-
-function getBufferedMapViewportBounds(bufferDegrees = 0) {
-  const bounds = map.getBounds();
-  return {
-    west: Math.max(MAP_PAN_BOUNDS[0][0], bounds.getWest() - bufferDegrees),
-    south: Math.max(MAP_PAN_BOUNDS[0][1], bounds.getSouth() - bufferDegrees),
-    east: Math.min(MAP_PAN_BOUNDS[1][0], bounds.getEast() + bufferDegrees),
-    north: Math.min(MAP_PAN_BOUNDS[1][1], bounds.getNorth() + bufferDegrees),
-  };
-}
-
-function boundsIntersect(bounds, viewportBounds) {
-  if (!Array.isArray(bounds) || bounds.length < 4 || !viewportBounds) {
-    return false;
-  }
-
-  const [west, south, east, north] = bounds;
-  return (
-    west <= viewportBounds.east &&
-    east >= viewportBounds.west &&
-    south <= viewportBounds.north &&
-    north >= viewportBounds.south
-  );
-}
-
-function mergeMunicipalityOverviewWithDetailChunks(overviewData, chunkDataList) {
-  const detailFeaturesByCode = new Map();
-  for (const chunkData of chunkDataList) {
-    for (const feature of chunkData.features ?? []) {
-      const code = feature.properties?.code;
-      if (code) {
-        detailFeaturesByCode.set(code, feature);
-      }
-    }
-  }
-
-  const overviewCodes = new Set();
-  const features = (overviewData.features ?? []).map((feature) => {
-    const code = feature.properties?.code;
-    if (code) {
-      overviewCodes.add(code);
-    }
-    return code && detailFeaturesByCode.has(code) ? detailFeaturesByCode.get(code) : feature;
-  });
-
-  for (const [code, feature] of detailFeaturesByCode) {
-    if (!overviewCodes.has(code)) {
-      features.push(feature);
-    }
-  }
-
-  return {
-    ...overviewData,
-    name: "Japan land progressive municipality detail",
-    features,
-  };
-}
-
 function isOldScaleSyntheticMunicipalityHydrating() {
   const preset = getSelectedPreset();
   return Boolean(
@@ -5184,12 +5115,15 @@ function scheduleOldScaleSyntheticMunicipalityHydration(preset) {
   if (!isOldJmaScaleSyntheticPreset(preset)) {
     oldScaleSyntheticMunicipalityHydrationPromise = null;
     oldScaleSyntheticMunicipalityHydratingPresetId = "";
-    oldScaleSyntheticMunicipalityChunkDataList = [];
     return;
   }
 
   oldScaleSyntheticMunicipalityHydratingPresetId = preset.id;
-  oldScaleSyntheticMunicipalityHydrationPromise = hydrateOldScaleSyntheticMunicipalityData(preset)
+  oldScaleSyntheticMunicipalityHydrationPromise = scheduleDeferredTask(
+    () => hydrateOldScaleSyntheticMunicipalityData(preset),
+    350,
+    1800,
+  )
     .catch((error) => console.warn("Old JMA scale municipality representatives unavailable", error))
     .finally(() => {
       if (oldScaleSyntheticMunicipalityHydratingPresetId === preset.id) {
@@ -5208,33 +5142,7 @@ async function hydrateOldScaleSyntheticMunicipalityData(preset) {
     return;
   }
 
-  const requiredPrefectures = new Set(
-    preset.observedStations
-      .map((observation) => observation.prefecture)
-      .filter(Boolean),
-  );
-  if (requiredPrefectures.size === 0) {
-    return;
-  }
-
-  const index = await loadMunicipalityChunkIndex();
-  const requiredChunks = (index.chunks ?? []).filter((chunk) => requiredPrefectures.has(chunk.prefecture));
-  if (requiredChunks.length === 0) {
-    return;
-  }
-
-  const chunkDataList = await Promise.all(requiredChunks.map(loadMunicipalityChunk));
-  if (getSelectedPreset()?.id !== preset.id) {
-    return;
-  }
-
-  oldScaleSyntheticMunicipalityChunkDataList = chunkDataList;
-  applyMunicipalityDisplayData(
-    mergeMunicipalityOverviewWithDetailChunks(
-      municipalityDisplayData ?? municipalityOverviewDisplayData,
-      chunkDataList,
-    ),
-  );
+  applyMunicipalityDisplayData(municipalityOverviewDisplayData);
 }
 
 async function hydrateDeferredSupplementaryMapData() {
@@ -5250,10 +5158,7 @@ async function hydrateDeferredSupplementaryMapData() {
 
   setGeoJsonSourceData("surrounding-land", filterSurroundingLandForDisplay(surroundingLand));
   setGeoJsonSourceData("world-coastline", removeWorldJapanOverlapLinework(worldCoastline));
-  setGeoJsonSourceData(
-    "boundaries",
-    removeExcludedJapanIslandLinework(filterExcludedGeoJsonFeatures(boundaries), EXCLUDED_JAPAN_LAND_BOUNDS),
-  );
+  setGeoJsonSourceData("boundaries", boundaries);
   keepWaveAndStationLayerOrder();
 }
 
@@ -5351,14 +5256,24 @@ function schedulePostMunicipalityDataHydration() {
 }
 
 function scheduleDeferredTask(callback, delayMs = 0, timeoutMs = 3000) {
-  window.setTimeout(() => {
-    if ("requestIdleCallback" in window) {
-      window.requestIdleCallback(callback, { timeout: timeoutMs });
-      return;
-    }
+  return new Promise((resolve, reject) => {
+    window.setTimeout(() => {
+      const run = () => {
+        try {
+          resolve(callback());
+        } catch (error) {
+          reject(error);
+        }
+      };
 
-    window.setTimeout(callback, 0);
-  }, delayMs);
+      if ("requestIdleCallback" in window) {
+        window.requestIdleCallback(run, { timeout: timeoutMs });
+        return;
+      }
+
+      window.setTimeout(run, 0);
+    }, delayMs);
+  });
 }
 
 function loadSecondaryMapData() {
@@ -7218,7 +7133,7 @@ function getCurrentLocationForecast() {
 }
 
 async function startSimulation() {
-  if (els.simulationStart.disabled || isOldScaleSyntheticMunicipalityHydrating()) {
+  if (els.simulationStart.disabled) {
     return;
   }
 
@@ -7539,15 +7454,7 @@ function updateMaxStationList(stationFeatures, elapsedSec) {
   }
 
   maxStationListRenderBucket = listBucket;
-  const observedStations = [...stationFeatures].sort(
-    (a, b) => b.properties.currentIntensityValue - a.properties.currentIntensityValue,
-  );
-  const signature = buildMaxStationListSignature(observedStations);
-  if (signature === maxStationListRenderSignature) {
-    return;
-  }
-
-  pendingMaxStationListRender = { observedStations, signature };
+  pendingMaxStationListRender = { stationFeatures: stationFeatures.slice() };
   scheduleMaxStationListRender();
 }
 
@@ -7582,7 +7489,7 @@ function scheduleMaxStationListRender() {
 
   if ("requestIdleCallback" in window) {
     maxStationListRenderHandleType = "idle";
-    maxStationListRenderHandle = window.requestIdleCallback(render, { timeout: 120 });
+    maxStationListRenderHandle = window.requestIdleCallback(render, { timeout: 900 });
     return;
   }
 
@@ -7614,8 +7521,15 @@ function renderPendingMaxStationList() {
   }
 
   pendingMaxStationListRender = null;
-  maxStationListRenderSignature = renderState.signature;
-  const { observedStations } = renderState;
+  const observedStations = renderState.stationFeatures.sort(
+    (a, b) => b.properties.currentIntensityValue - a.properties.currentIntensityValue,
+  );
+  const signature = buildMaxStationListSignature(observedStations);
+  if (signature === maxStationListRenderSignature) {
+    return;
+  }
+
+  maxStationListRenderSignature = signature;
   els.maxStationList.replaceChildren(
     ...(observedStations.length > 0
       ? observedStations.map((feature, index) => {
@@ -8007,26 +7921,10 @@ async function findMunicipalityAtPoint(longitude, latitude) {
   }
 
   try {
-    const index = await loadMunicipalityChunkIndex();
-    const candidateChunks = (index.chunks ?? []).filter((chunk) =>
-      isPointInBoundsArray(chunk.bounds, longitude, latitude),
-    );
-
-    if (!candidateChunks.length) {
-      return null;
-    }
-
-    const chunkDataList = await Promise.all(candidateChunks.map(loadMunicipalityChunk));
-    for (const chunkData of chunkDataList) {
-      const municipality = findFeatureAtPoint(chunkData, longitude, latitude);
-      if (municipality) {
-        return municipality;
-      }
-    }
-
-    return null;
+    const municipalities = municipalityDisplayData ?? municipalityOverviewDisplayData ?? await loadJapanLandOverview();
+    return findFeatureAtPoint(municipalities, longitude, latitude) ?? null;
   } catch (error) {
-    console.warn("Municipality chunk lookup unavailable", error);
+    console.warn("Municipality lookup unavailable", error);
     return null;
   }
 }
@@ -8063,43 +7961,6 @@ async function loadEqAppJapanLand() {
 
   eqAppJapanLandData = await eqAppJapanLandLoadPromise;
   return eqAppJapanLandData;
-}
-
-async function loadMunicipalityChunkIndex() {
-  if (municipalityChunkIndexData) {
-    return municipalityChunkIndexData;
-  }
-
-  if (!municipalityChunkIndexLoadPromise) {
-    municipalityChunkIndexLoadPromise = fetchJson(MUNICIPALITY_CHUNK_INDEX_URL, "Municipality chunk index");
-  }
-
-  municipalityChunkIndexData = await municipalityChunkIndexLoadPromise;
-  return municipalityChunkIndexData;
-}
-
-async function loadMunicipalityChunk(chunk) {
-  if (!chunk?.id || !chunk?.file) {
-    return emptyFeatureCollection();
-  }
-
-  if (municipalityChunkDataCache.has(chunk.id)) {
-    return municipalityChunkDataCache.get(chunk.id);
-  }
-
-  if (!municipalityChunkLoadPromises.has(chunk.id)) {
-    const url = new URL(chunk.file, new URL(MUNICIPALITY_CHUNK_INDEX_URL, window.location.href)).toString();
-    municipalityChunkLoadPromises.set(
-      chunk.id,
-      fetchJson(url, `Municipality detail chunk ${chunk.id}`).then((geojson) =>
-        withoutInteriorRings(filterExcludedGeoJsonFeatures(geojson)),
-      ),
-    );
-  }
-
-  const data = await municipalityChunkLoadPromises.get(chunk.id);
-  municipalityChunkDataCache.set(chunk.id, data);
-  return data;
 }
 
 async function loadBoundaryLayers() {
@@ -8672,14 +8533,6 @@ function updateSimulationAvailability() {
     els.simulationStart.disabled = true;
     els.simulationStart.textContent = "プリセットを読み込み中...";
     els.simulationStart.title = "プリセット地震の詳細データを読み込んでいます";
-    return;
-  }
-
-  if (isOldScaleSyntheticMunicipalityHydrating()) {
-    setStartupInteractionLocked(false);
-    els.simulationStart.disabled = true;
-    els.simulationStart.textContent = "観測点データを準備中...";
-    els.simulationStart.title = "市町村代表点の観測点データを準備しています";
     return;
   }
 
@@ -10737,6 +10590,55 @@ function coordinatesKey([longitude, latitude]) {
   return `${Number(longitude).toFixed(4)},${Number(latitude).toFixed(4)}`;
 }
 
+const DESIGNATED_CITY_BASE_NAMES = [
+  "札幌",
+  "仙台",
+  "さいたま",
+  "千葉",
+  "横浜",
+  "川崎",
+  "相模原",
+  "新潟",
+  "静岡",
+  "浜松",
+  "名古屋",
+  "京都",
+  "大阪",
+  "堺",
+  "神戸",
+  "岡山",
+  "広島",
+  "北九州",
+  "福岡",
+  "熊本",
+];
+
+function normalizeOldScaleSyntheticMunicipalityName(name, prefecture = "") {
+  const displayName = cleanDisplayAreaName(name);
+  if (!displayName || prefecture === "東京都") {
+    return displayName;
+  }
+
+  const localName = stripPrefectureName(displayName);
+  for (const city of DESIGNATED_CITY_BASE_NAMES) {
+    const cityName = `${city}市`;
+    if (localName === cityName) {
+      return cityName;
+    }
+
+    const suffix = localName.startsWith(cityName)
+      ? localName.slice(cityName.length)
+      : localName.startsWith(city)
+        ? localName.slice(city.length)
+        : "";
+    if (suffix && suffix.includes("区")) {
+      return cityName;
+    }
+  }
+
+  return localName || displayName;
+}
+
 function buildOldScaleSyntheticStationFeatures(preset, existingFeatures) {
   if (!municipalityDisplayData?.features || !preset?.observedStations) {
     return [];
@@ -10776,7 +10678,11 @@ function buildOldScaleSyntheticStationFeatures(preset, existingFeatures) {
       return;
     }
 
-    const municipalityName = municipalityFeature?.properties?.name ?? observation.stationName;
+    const municipalityName = normalizeOldScaleSyntheticMunicipalityName(
+      municipalityFeature?.properties?.municipality ?? municipalityFeature?.properties?.name ?? observation.stationName,
+      observation.prefecture,
+    );
+    const stationDisplayName = municipalityName;
     const syntheticMunicipalityKey = explicitCoordinates
       ? `coord:${coordinatesKey(explicitCoordinates)}`
       : `${observation.prefecture ?? ""}|${municipalityName}`;
@@ -10822,8 +10728,8 @@ function buildOldScaleSyntheticStationFeatures(preset, existingFeatures) {
       type: "Feature",
       properties: {
         id: `${preset.id}-synthetic-${index}`,
-        displaySortStableKey: `${preset.id}|${observation.stationName}|${coordinates[0].toFixed(4)}|${coordinates[1].toFixed(4)}`,
-        name: observation.stationName,
+        displaySortStableKey: `${preset.id}|${stationDisplayName}|${coordinates[0].toFixed(4)}|${coordinates[1].toFixed(4)}`,
+        name: stationDisplayName,
         areaName: municipalityName,
         address: `${observation.prefecture ?? ""}${municipalityName}`,
         predictedIntensityValue: Number(intensityValue.toFixed(2)),
@@ -10834,7 +10740,7 @@ function buildOldScaleSyntheticStationFeatures(preset, existingFeatures) {
         actualObserved: true,
         oldJmaScale: Boolean(observation.oldJmaScale),
         sourceObservationName: observation.stationName,
-        observationStatus: `${preset.label} 観測点`,
+        observationStatus: "実観測",
         measuredIntensity: null,
         intensityValue: Number(intensityValue.toFixed(2)),
         intensityLabel,
@@ -10844,7 +10750,7 @@ function buildOldScaleSyntheticStationFeatures(preset, existingFeatures) {
         intensityTextColor: intensityClass.textColor,
         stationDisplaySortKey: getStationDisplaySortKey(
           intensityClass.rank,
-          `${preset.id}|${observation.stationName}|${coordinates[0].toFixed(4)}|${coordinates[1].toFixed(4)}`,
+          `${preset.id}|${stationDisplayName}|${coordinates[0].toFixed(4)}|${coordinates[1].toFixed(4)}`,
         ),
         groundCode: ground?.code ?? "",
         groundArv: ground?.arv ?? null,
@@ -10877,9 +10783,8 @@ function buildOldScaleSyntheticStationFeatures(preset, existingFeatures) {
 }
 
 const HYOGO_NANBU_MUNICIPALITY_HINTS = [];
-function findOldScaleSyntheticMunicipalityFeature(observation) {
+function findOldScaleSyntheticMunicipalityFeature(observation, allMunicipalityFeatures = municipalityDisplayData?.features ?? []) {
   const stationName = normalizeStationNameForMatch(observation.stationName);
-  const allMunicipalityFeatures = municipalityDisplayData.features;
   const municipalityFeatures = allMunicipalityFeatures.filter(
     (feature) => feature.properties.prefecture === observation.prefecture,
   );

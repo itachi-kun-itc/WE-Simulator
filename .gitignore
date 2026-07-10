@@ -9,6 +9,7 @@ __pycache__/
 
 data/raw/*
 !data/raw/.gitkeep
+!data/raw/ja_municipality_area_with_pref_boundary.topojson
 N03-180101_GML/
 
 *.log

@@ -332,6 +332,24 @@ async function handleMaintenanceAction(body, env) {
   }
 
   if (action === "releaseParent") {
+    const shouldReleaseMaintenance = parseBoolean(body?.releaseMaintenance);
+    if (shouldReleaseMaintenance) {
+      const currentStatus = await readMaintenanceStatus(env);
+      if (currentStatus.maintenance) {
+        await writeMaintenanceStatus(env, false, "");
+        await logMaintenanceAction(env, {
+          ...body,
+          action: "setMaintenance",
+          maintenance: false,
+          parentRelease: true,
+          releaseMaintenanceWithParent: true,
+          reason: "",
+          maintenanceReason: "",
+          maintenanceDetail: "",
+          details: "",
+        });
+      }
+    }
     await deleteParentToken(env, token);
     await logMaintenanceAction(env, body);
     return { ok: true };
@@ -453,13 +471,24 @@ function normalizeMaintenanceReason(body) {
   ];
 
   for (const candidate of candidates) {
-    const reason = String(candidate || "").trim();
+    const reason = normalizeMultilineText(candidate);
     if (reason) {
-      return reason.slice(0, 500);
+      return reason;
     }
   }
 
   return "";
+}
+
+function normalizeMultilineText(value) {
+  return String(value || "")
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+    .slice(0, 500);
 }
 
 function parseJsonObject(text) {
