@@ -9,6 +9,7 @@ const NOTIFICATION_HISTORY_KEY = "notification-history";
 const NOTIFICATION_HISTORY_LIMIT = 80;
 const NOTIFICATION_HISTORY_RETENTION_DAYS = 30;
 const SUBSCRIPTION_PREFIX = "subscription:";
+const MAINTENANCE_STATE_ID = "global";
 const EARTHQUAKE_PRESET_DETAIL_COLUMNS = `
   id,
   label,
@@ -46,6 +47,17 @@ export default {
       if (request.method === "GET" && url.pathname === "/notification-history") {
         const notifications = await readNotificationHistory(env);
         return json({ notifications });
+      }
+
+      if (request.method === "GET" && url.pathname === "/maintenance-status") {
+        const status = await readMaintenanceStatus(env);
+        return json({ ok: true, ...status });
+      }
+
+      if (request.method === "POST" && url.pathname === "/maintenance-action") {
+        const body = await readRequestBody(request);
+        const result = await handleMaintenanceAction(body, env);
+        return json(result);
       }
 
       if (request.method === "GET" && url.pathname === "/earthquake-presets") {
@@ -239,6 +251,226 @@ async function appendNotificationHistory(env, notification) {
   await env.PUSH_SUBSCRIPTIONS.put(NOTIFICATION_HISTORY_KEY, JSON.stringify(nextNotifications));
 }
 
+async function readMaintenanceStatus(env) {
+  const db = getAppDb(env);
+  const row = await db.prepare(`
+    SELECT maintenance, reason
+    FROM maintenance_state
+    WHERE id = ?
+  `).bind(MAINTENANCE_STATE_ID).first();
+
+  if (!row) {
+    await writeMaintenanceStatus(env, false, "");
+    return { maintenance: false, reason: "" };
+  }
+
+  return {
+    maintenance: Boolean(Number(row.maintenance || 0)),
+    reason: String(row.reason || ""),
+  };
+}
+
+async function writeMaintenanceStatus(env, maintenance, reason) {
+  const db = getAppDb(env);
+  await db.prepare(`
+    INSERT INTO maintenance_state (
+      id,
+      maintenance,
+      reason,
+      updated_at
+    ) VALUES (?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      maintenance = excluded.maintenance,
+      reason = excluded.reason,
+      updated_at = excluded.updated_at
+  `).bind(
+    MAINTENANCE_STATE_ID,
+    maintenance ? 1 : 0,
+    reason || "",
+    new Date().toISOString(),
+  ).run();
+}
+
+async function handleMaintenanceAction(body, env) {
+  const action = String(body?.action || "").trim();
+  if (!action) {
+    return { ok: false, message: "action is required" };
+  }
+
+  if (action === "adminLogin") {
+    const result = await forwardToAppsScript(env, body);
+    const token = String(result?.token || result?.parentToken || "").trim();
+    if (result?.ok !== false && token) {
+      await storeParentToken(env, token);
+    }
+    return { ok: result?.ok !== false, ...result };
+  }
+
+  if (action === "forceReleaseInvalidParent") {
+    const token = String(body?.token || "").trim();
+    await deleteParentToken(env, token);
+    await logMaintenanceAction(env, body);
+    return { ok: true };
+  }
+
+  const token = String(body?.token || "").trim();
+  const hasValidToken = await isValidParentToken(env, token);
+  if (!hasValidToken) {
+    return {
+      ok: false,
+      invalidParentToken: true,
+      message: "親端末の認証が無効です。もう一度ログインしてください。",
+    };
+  }
+
+  if (action === "setMaintenance") {
+    const maintenance = parseBoolean(body?.maintenance);
+    const reason = maintenance ? normalizeMaintenanceReason(body) : "";
+    await writeMaintenanceStatus(env, maintenance, reason);
+    await logMaintenanceAction(env, body);
+    return { ok: true, maintenance, reason };
+  }
+
+  if (action === "releaseParent") {
+    await deleteParentToken(env, token);
+    await logMaintenanceAction(env, body);
+    return { ok: true };
+  }
+
+  return { ok: false, message: "unsupported maintenance action" };
+}
+
+async function storeParentToken(env, token) {
+  const now = new Date().toISOString();
+  await getAppDb(env).prepare(`
+    INSERT INTO admin_parent_tokens (
+      token,
+      created_at,
+      last_seen_at
+    ) VALUES (?, ?, ?)
+    ON CONFLICT(token) DO UPDATE SET
+      last_seen_at = excluded.last_seen_at
+  `).bind(token, now, now).run();
+}
+
+async function isValidParentToken(env, token) {
+  if (!token) {
+    return false;
+  }
+
+  const row = await getAppDb(env).prepare(`
+    SELECT token
+    FROM admin_parent_tokens
+    WHERE token = ?
+  `).bind(token).first();
+
+  if (!row) {
+    return false;
+  }
+
+  await getAppDb(env).prepare(`
+    UPDATE admin_parent_tokens
+    SET last_seen_at = ?
+    WHERE token = ?
+  `).bind(new Date().toISOString(), token).run();
+
+  return true;
+}
+
+async function deleteParentToken(env, token) {
+  if (!token) {
+    return;
+  }
+  await getAppDb(env).prepare(`
+    DELETE FROM admin_parent_tokens
+    WHERE token = ?
+  `).bind(token).run();
+}
+
+async function logMaintenanceAction(env, body) {
+  try {
+    await forwardToAppsScript(env, body);
+  } catch (error) {
+    console.warn("maintenance log failed", error);
+  }
+}
+
+async function forwardToAppsScript(env, body) {
+  if (!env.APPS_SCRIPT_ENDPOINT_URL) {
+    return { ok: false, message: "Apps Script endpoint is not configured" };
+  }
+
+  const response = await fetch(env.APPS_SCRIPT_ENDPOINT_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify({
+      ...body,
+      createdAt: body?.createdAt || new Date().toISOString(),
+      source: "cloudflare-worker",
+    }),
+  });
+  const text = await response.text();
+  const data = parseJsonObject(text);
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      message: data?.message || data?.error || `Apps Script error: ${response.status}`,
+    };
+  }
+
+  return data || { ok: true };
+}
+
+async function readRequestBody(request) {
+  const contentType = request.headers.get("Content-Type") || "";
+  if (contentType.includes("application/json") || contentType.includes("text/plain")) {
+    return request.json().catch(() => ({}));
+  }
+
+  if (contentType.includes("form")) {
+    const formData = await request.formData();
+    return Object.fromEntries(formData.entries());
+  }
+
+  return {};
+}
+
+function parseBoolean(value) {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  return ["1", "true", "yes", "on"].includes(String(value || "").toLowerCase());
+}
+
+function normalizeMaintenanceReason(body) {
+  const candidates = [
+    body?.reason,
+    body?.maintenanceReason,
+    body?.maintenanceDetail,
+    body?.maintenanceDetails,
+    body?.details,
+  ];
+
+  for (const candidate of candidates) {
+    const reason = String(candidate || "").trim();
+    if (reason) {
+      return reason.slice(0, 500);
+    }
+  }
+
+  return "";
+}
+
+function parseJsonObject(text) {
+  try {
+    const data = JSON.parse(text || "{}");
+    return data && typeof data === "object" ? data : null;
+  } catch {
+    return null;
+  }
+}
+
 async function listEarthquakePresetSummaries(env) {
   const db = getEarthquakePresetDb(env);
   const result = await db.prepare(`
@@ -339,6 +571,10 @@ async function upsertEarthquakePreset(env, preset) {
 }
 
 function getEarthquakePresetDb(env) {
+  return getAppDb(env);
+}
+
+function getAppDb(env) {
   if (!env.EARTHQUAKE_PRESETS_DB) {
     throw httpError("EARTHQUAKE_PRESETS_DB is not configured", 500);
   }

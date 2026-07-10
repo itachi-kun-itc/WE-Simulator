@@ -2,6 +2,9 @@ name = "we-simulator-push"
 main = "push-worker.js"
 compatibility_date = "2026-07-08"
 
+[vars]
+APPS_SCRIPT_ENDPOINT_URL = "https://script.google.com/macros/s/AKfycbztrmCH_ukdLtY6xUKNSZQWShY0ziCT_8HMm7QI-qtSFRviETHw_APJJhyV50hSRvMy3A/exec"
+
 [[kv_namespaces]]
 binding = "PUSH_SUBSCRIPTIONS"
 id = "d43244c9755544cfa6e1e4feee7b16d3"
@@ -9,4 +12,8 @@ id = "d43244c9755544cfa6e1e4feee7b16d3"
 [[d1_databases]]
 binding = "EARTHQUAKE_PRESETS_DB"
 database_name = "we-simulator-presets"
-database_id = "replace-with-d1-database-id"
+database_id = "6d25bdf9-755a-4d08-96e6-378580d79898"
+
+[[r2_buckets]]
+binding = "WE_SIMULATOR_DATA"
+bucket_name = "we-simulator-data"

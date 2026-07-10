@@ -8,6 +8,7 @@
     "build:jma-epicenter-areas": "node scripts/build_epicenter_areas.js",
     "build:jma-eew-forecast-areas": "node scripts/fetch_jma_eew_forecast_areas.js",
     "build:jma-shindo-stations": "node scripts/fetch_jma_shindo_stations.js",
+    "build:earthquake-presets": "node scripts/build_earthquake_presets_from_csv.js",
     "build:municipalities": "node scripts/convert_n03_municipalities.js",
     "build:surrounding-land": "node scripts/convert_surrounding_land.js",
     "build:world-coastline": "node scripts/convert_world_coastline.js",

@@ -4,7 +4,7 @@ const path = require("path");
 const root = path.resolve(__dirname, "..");
 const sourceDir = "C:\\開発\\ソース\\気象・地震シミュレーション\\主要地震";
 const eewSourceDir = "C:\\開発\\ソース\\気象・地震シミュレーション\\緊急地震速報（警報）";
-const outputPath = path.join(root, "web", "data", "earthquake_presets.json");
+const outputPath = path.join(root, "data", "processed", "earthquake_presets.json");
 
 const presetFiles = [
   "関東大震災（1923）.csv",
