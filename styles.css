@@ -498,6 +498,10 @@ h1 {
   z-index: 5200;
 }
 
+.feedback-overlay.from-source {
+  z-index: 3200;
+}
+
 .speech-confirm-overlay.hidden,
 .push-confirm-overlay.hidden {
   display: none;
@@ -2565,7 +2569,7 @@ body.app-loading .epicenter-marker-shell {
   position: absolute;
   right: 52px;
   bottom: 8px;
-  z-index: 421;
+  z-index: 460;
   width: min(300px, calc(100vw - 340px));
   min-width: 252px;
   max-height: min(320px, 48vh);

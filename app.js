@@ -14,12 +14,10 @@ const GEOSHAPE_MUNICIPALITY_TILE_URL = "https://geoshape.ex.nii.ac.jp/vector-adm
 const GEOSHAPE_MUNICIPALITY_SOURCE_LAYER = "city";
 const GROUND_MODEL_URL = "./data/ground_model.json";
 const SHINDO_STATIONS_URL = "./data/jma_shindo_stations.json";
-const EARTHQUAKE_PRESETS_FALLBACK_URL = "./data/earthquake_presets.json";
 const FEEDBACK_SHEET_URL =
   "https://docs.google.com/spreadsheets/d/1cmR_OGml5ngLuq0zAi_gAs_qgrBNqTSlWZ5-H7tLWV0/edit?usp=sharing";
 const FEEDBACK_ENDPOINT_URL =
   "https://script.google.com/macros/s/AKfycbztrmCH_ukdLtY6xUKNSZQWShY0ziCT_8HMm7QI-qtSFRviETHw_APJJhyV50hSRvMy3A/exec";
-const MAINTENANCE_ENDPOINT_URL = FEEDBACK_ENDPOINT_URL;
 const PUSH_CONFIG_URL = "./push-config.json";
 const ADMIN_PARENT_TOKEN_KEY = "weather-earthquake-admin-parent-token";
 const NOTIFICATION_HISTORY_READ_IDS_KEY = "weather-earthquake-notification-history-read-ids";
@@ -508,6 +506,10 @@ let simulationEpicenter = [state.longitude, state.latitude];
 let simulationRenderBucket = -1;
 let simulationStationRenderBucket = -1;
 let maxStationListRenderBucket = null;
+let maxStationListRenderSignature = "";
+let maxStationListRenderHandle = 0;
+let maxStationListRenderHandleType = "";
+let pendingMaxStationListRender = null;
 let simulationTimeTextCache = "";
 let eewForecastPanelRenderSignature = "";
 let waveRenderRadiusCache = { p: null, s: null };
@@ -725,8 +727,8 @@ function renderEarthquakePresetPicker() {
         <td><span class="preset-intensity-pill" style="--preset-intensity-color: ${escapeHtml(intensityClass?.color ?? "#d7d5e3")}; --preset-intensity-text: ${escapeHtml(intensityClass?.textColor ?? "#22242b")};">${escapeHtml(formatPresetMaxIntensity(preset))}</span></td>
       `;
       row.addEventListener("click", () => {
-        applyEarthquakePreset(preset.id);
         closeEarthquakePresetPicker();
+        applyEarthquakePreset(preset.id);
       });
       return row;
     });
@@ -1072,21 +1074,10 @@ async function loadEarthquakePresetSummaries() {
       }
     }
   } catch (error) {
-    console.warn("D1 earthquake presets unavailable; falling back to bundled JSON", error);
+    console.warn("D1 earthquake presets unavailable", error);
   }
 
-  const response = await fetch(`${EARTHQUAKE_PRESETS_FALLBACK_URL}?v=${Date.now()}`, { cache: "no-store" });
-  if (!response.ok) {
-    throw new Error(`Failed to load earthquake preset fallback: ${response.status}`);
-  }
-
-  const data = await response.json();
-  if (!Array.isArray(data.presets)) {
-    throw new Error("earthquake_presets.json does not contain presets");
-  }
-
-  data.presets.forEach((preset) => earthquakePresetDetailCache.set(preset.id, preset));
-  return data.presets;
+  return [];
 }
 
 function normalizeEarthquakePresetSummary(preset) {
@@ -1119,13 +1110,7 @@ async function ensureEarthquakePresetDetail(presetId) {
   presetDetailLoadingId = presetId;
   updateSimulationAvailability();
   try {
-    let detail = null;
-    try {
-      detail = await fetchEarthquakePresetDetailFromWorker(presetId);
-    } catch (error) {
-      console.warn("D1 earthquake preset detail unavailable; falling back to bundled JSON", error);
-      detail = await loadEarthquakePresetDetailFromFallback(presetId);
-    }
+    const detail = await fetchEarthquakePresetDetailFromWorker(presetId);
     const preset = detail || earthquakePresetDetailCache.get(presetId) || existingPreset;
     if (!preset?.observedStations) {
       throw new Error(`Earthquake preset detail is unavailable: ${presetId}`);
@@ -1143,24 +1128,6 @@ async function ensureEarthquakePresetDetail(presetId) {
       updateSimulationAvailability();
     }
   }
-}
-
-async function loadEarthquakePresetDetailFromFallback(presetId) {
-  const cached = earthquakePresetDetailCache.get(presetId);
-  if (cached?.observedStations) {
-    return cached;
-  }
-
-  const response = await fetch(`${EARTHQUAKE_PRESETS_FALLBACK_URL}?v=${Date.now()}`, { cache: "no-store" });
-  if (!response.ok) {
-    throw new Error(`Failed to load earthquake preset fallback detail: ${response.status}`);
-  }
-
-  const data = await response.json();
-  for (const preset of data.presets ?? []) {
-    earthquakePresetDetailCache.set(preset.id, preset);
-  }
-  return earthquakePresetDetailCache.get(presetId) || null;
 }
 
 async function fetchEarthquakePresetDetailFromWorker(presetId) {
@@ -1278,6 +1245,7 @@ function resetEpicenterToInitialState(options = {}) {
   state.magnitude = 3.5;
   state.selectedPresetId = "";
   resetCheckboxesToDefaults();
+  updateEarthquakePresetButtonLabel();
   state.epicenterName = "未選択";
   state.municipalityName = "未選択";
   invalidateIntensityEstimateCache();
@@ -1347,6 +1315,11 @@ async function loadPushConfig() {
     console.warn("push config load failed", error);
     return {};
   }
+}
+
+async function getWorkerBaseUrl() {
+  const config = await loadPushConfig();
+  return String(config.workerUrl || "").replace(/\/+$/, "");
 }
 
 function setPushNotificationStatus(message, options = {}) {
@@ -1485,7 +1458,6 @@ async function applyEarthquakePreset(presetId) {
   state.selectedPresetId = presetId;
   let preset = EARTHQUAKE_PRESETS.find((item) => item.id === presetId);
   updateEarthquakePresetButtonLabel();
-  renderEarthquakePresetPicker();
 
   if (!preset) {
     updateLegendColors();
@@ -1551,7 +1523,6 @@ function clearSelectedPreset() {
   oldScaleSyntheticMunicipalityChunkDataList = [];
   updateEarthquakePresetButtonLabel();
   updateLegendColors();
-  renderEarthquakePresetPicker();
 }
 
 function getPresetStationObservation(station) {
@@ -3070,6 +3041,7 @@ function normalizeSpeechAnnouncementText(message) {
     .replace(/北海道道南/g, "ほっかいどうどうなん")
     .replace(/北海道道北/g, "ほっかいどうどうほく")
     .replace(/北海道道東/g, "ほっかいどうどうとう")
+    .replace(/愛媛県南予/g, "えひめけんなんよ")
     .replace(/四国/g, "しこく")
     .replace(/礼北/g, "れいほく")
     .replace(/礼南/g, "れいなん")
@@ -3617,6 +3589,8 @@ function createSourceInfoOverlay(adminOverlay, feedbackOverlay) {
   });
   overlay.querySelector("[data-feedback-link]")?.addEventListener("click", (event) => {
     event.preventDefault();
+    feedbackOverlay?.classList.add("from-source");
+    feedbackOverlay.dataset.returnToSource = "true";
     feedbackOverlay?.classList.remove("hidden");
     document.body.classList.add("source-overlay-open");
     document.querySelector(".feedback-info-button")?.setAttribute("aria-expanded", "true");
@@ -4665,7 +4639,11 @@ async function fetchMaintenanceStatus() {
   }
 
   try {
-    const url = `${MAINTENANCE_ENDPOINT_URL}?action=maintenanceStatus&includeReason=1&ts=${Date.now()}`;
+    const workerUrl = await getWorkerBaseUrl();
+    if (!workerUrl) {
+      return { maintenance: false };
+    }
+    const url = `${workerUrl}/maintenance-status?ts=${Date.now()}`;
     const response = await fetch(url, { cache: "no-store" });
     if (!response.ok) {
       return { maintenance: false };
@@ -4693,9 +4671,14 @@ function isLocalDevelopmentHost() {
 
 async function postMaintenanceAction(action, payload = {}) {
   try {
-    const response = await fetch(MAINTENANCE_ENDPOINT_URL, {
+    const workerUrl = await getWorkerBaseUrl();
+    if (!workerUrl) {
+      return { ok: false, message: "Cloudflare Worker URLが未設定です。" };
+    }
+
+    const response = await fetch(`${workerUrl}/maintenance-action`, {
       method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      headers: { "Content-Type": "application/json; charset=utf-8" },
       body: JSON.stringify({
         action,
         ...payload,
@@ -4705,10 +4688,11 @@ async function postMaintenanceAction(action, payload = {}) {
         sheet: FEEDBACK_SHEET_URL,
       }),
     });
-    if (!response.ok) {
-      return { ok: false };
-    }
-    return await response.json();
+    const data = await response.json().catch(() => ({}));
+    return {
+      ok: response.ok && data.ok !== false,
+      ...data,
+    };
   } catch (error) {
     console.warn(error);
     return { ok: false };
@@ -4732,9 +4716,14 @@ function createFeedbackOverlay() {
   setupSourceInfoScrollBounds(overlay);
   const closeOverlay = () => {
     const shouldReturnToMaintenance = overlay.dataset.returnToMaintenance === "true";
+    const shouldReturnToSource = overlay.dataset.returnToSource === "true";
     delete overlay.dataset.returnToMaintenance;
+    delete overlay.dataset.returnToSource;
     overlay.classList.add("hidden");
-    document.body.classList.remove("source-overlay-open");
+    overlay.classList.remove("from-source");
+    if (!shouldReturnToSource) {
+      document.body.classList.remove("source-overlay-open");
+    }
     if (shouldReturnToMaintenance) {
       document.querySelector(".maintenance-mode-overlay")?.classList.remove("hidden");
     }
@@ -7260,6 +7249,8 @@ async function startSimulation() {
   simulationRenderBucket = -1;
   simulationStationRenderBucket = -1;
   maxStationListRenderBucket = null;
+  maxStationListRenderSignature = "";
+  cancelPendingMaxStationListRender();
   simulationTimeTextCache = "";
   state.simulationRunning = true;
   state.simulationPaused = false;
@@ -7432,8 +7423,10 @@ function tickSimulation(now) {
     simulationFrame = null;
     simulationCompleteAtSec = null;
     simulationPausedAt = null;
-    maxStationListRenderBucket = null;
-    clearCurrentLocationLink({ updateForecast: false });
+  maxStationListRenderBucket = null;
+  maxStationListRenderSignature = "";
+  cancelPendingMaxStationListRender();
+  clearCurrentLocationLink({ updateForecast: false });
     resetWaveRenderCache();
     setWaveRadiusData(0, 0);
     if (map?.getSource("jma-local-areas") && localAreaData) {
@@ -7496,7 +7489,7 @@ function updateSimulationSummary(elapsedSec = getSimulationStationElapsedSec()) 
   setTextContentIfChanged(els.simulationEpicenter, `${state.latitude.toFixed(3)}, ${state.longitude.toFixed(3)}`);
   setTextContentIfChanged(els.simulationRegionName, state.epicenterName);
   setTextContentIfChanged(els.simulationDepth, formatDepth(state.depthKm));
-  setTextContentIfChanged(els.maxIntensityOutput, state.maxIntensityLabel);
+  setTextContentIfChanged(els.maxIntensityOutput, formatSetupMaxIntensityLabel(state.maxIntensityLabel));
   updateCurrentLocationForecast(elapsedSec);
   updateMaxStationList(stationFeatures, elapsedSec);
   announceSimulationUpdates(elapsedSec);
@@ -7549,6 +7542,80 @@ function updateMaxStationList(stationFeatures, elapsedSec) {
   const observedStations = [...stationFeatures].sort(
     (a, b) => b.properties.currentIntensityValue - a.properties.currentIntensityValue,
   );
+  const signature = buildMaxStationListSignature(observedStations);
+  if (signature === maxStationListRenderSignature) {
+    return;
+  }
+
+  pendingMaxStationListRender = { observedStations, signature };
+  scheduleMaxStationListRender();
+}
+
+function buildMaxStationListSignature(observedStations) {
+  if (observedStations.length === 0) {
+    return "empty";
+  }
+
+  return observedStations
+    .map((feature) => {
+      const properties = feature.properties;
+      return [
+        properties.id,
+        properties.name,
+        properties.intensityLabel,
+        getMeasuredIntensityListSuffix(properties, properties.currentIntensityValue),
+      ].join(":");
+    })
+    .join("|");
+}
+
+function scheduleMaxStationListRender() {
+  if (maxStationListRenderHandle) {
+    return;
+  }
+
+  const render = () => {
+    maxStationListRenderHandle = 0;
+    maxStationListRenderHandleType = "";
+    renderPendingMaxStationList();
+  };
+
+  if ("requestIdleCallback" in window) {
+    maxStationListRenderHandleType = "idle";
+    maxStationListRenderHandle = window.requestIdleCallback(render, { timeout: 120 });
+    return;
+  }
+
+  maxStationListRenderHandleType = "timeout";
+  maxStationListRenderHandle = window.setTimeout(render, 0);
+}
+
+function cancelPendingMaxStationListRender() {
+  if (!maxStationListRenderHandle) {
+    pendingMaxStationListRender = null;
+    return;
+  }
+
+  if (maxStationListRenderHandleType === "idle" && "cancelIdleCallback" in window) {
+    window.cancelIdleCallback(maxStationListRenderHandle);
+  } else {
+    window.clearTimeout(maxStationListRenderHandle);
+  }
+
+  maxStationListRenderHandle = 0;
+  maxStationListRenderHandleType = "";
+  pendingMaxStationListRender = null;
+}
+
+function renderPendingMaxStationList() {
+  const renderState = pendingMaxStationListRender;
+  if (!renderState) {
+    return;
+  }
+
+  pendingMaxStationListRender = null;
+  maxStationListRenderSignature = renderState.signature;
+  const { observedStations } = renderState;
   els.maxStationList.replaceChildren(
     ...(observedStations.length > 0
       ? observedStations.map((feature, index) => {
@@ -8509,9 +8576,12 @@ function invalidateIntensityEstimateCache() {
   localAreaStationSnapshotCache = null;
   stationCanvasFeatureCache = { data: null, features: [] };
   submarineStationCanvasFeatureCache = { data: null, features: [] };
-  simulationRenderBucket = -1;
-  simulationStationRenderBucket = -1;
-}
+    simulationRenderBucket = -1;
+    simulationStationRenderBucket = -1;
+    maxStationListRenderBucket = null;
+    maxStationListRenderSignature = "";
+    cancelPendingMaxStationListRender();
+  }
 
 function syncInputs() {
   if (els.magnitude && els.magnitude.options.length === 0) {
@@ -8631,8 +8701,12 @@ function updateSetupResultOutputs() {
   }
 
   if (els.maxIntensityOutput) {
-    setTextContentIfChanged(els.maxIntensityOutput, state.maxIntensityLabel);
+    setTextContentIfChanged(els.maxIntensityOutput, formatSetupMaxIntensityLabel(state.maxIntensityLabel));
   }
+}
+
+function formatSetupMaxIntensityLabel(label) {
+  return String(label ?? "").trim() === "0" ? "-" : (label || "-");
 }
 
 function isSimulationMapDataLoading() {
