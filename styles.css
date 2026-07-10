@@ -1604,7 +1604,7 @@ body.app-loading #map {
 }
 
 body.map-core-loading .map-wrap::after {
-  opacity: 1;
+  opacity: 0;
 }
 
 body.map-core-loading .maplibregl-marker {
@@ -2670,7 +2670,7 @@ body.app-loading .epicenter-marker-shell {
 }
 
 .station-popup {
-  z-index: 930;
+  z-index: 430;
 }
 
 .station-popup .maplibregl-popup-content {
