@@ -5,3 +5,8 @@ compatibility_date = "2026-07-08"
 [[kv_namespaces]]
 binding = "PUSH_SUBSCRIPTIONS"
 id = "d43244c9755544cfa6e1e4feee7b16d3"
+
+[[d1_databases]]
+binding = "EARTHQUAKE_PRESETS_DB"
+database_name = "we-simulator-presets"
+database_id = "replace-with-d1-database-id"

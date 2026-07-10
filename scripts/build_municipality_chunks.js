@@ -4,7 +4,7 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const inputPath = process.env.MUNICIPALITY_CHUNKS_INPUT_PATH
   ? path.resolve(root, process.env.MUNICIPALITY_CHUNKS_INPUT_PATH)
-  : path.join(root, "web", "data", "municipalities.geojson");
+  : path.join(root, "data", "processed", "municipalities.geojson");
 const outputDir = process.env.MUNICIPALITY_CHUNKS_OUTPUT_DIR
   ? path.resolve(root, process.env.MUNICIPALITY_CHUNKS_OUTPUT_DIR)
   : path.join(root, "web", "data", "municipality_chunks");
@@ -26,7 +26,11 @@ for (const feature of source.features ?? []) {
   }
 
   const chunk = chunks.get(id);
-  chunk.features.push(feature);
+  chunk.features.push({
+    type: "Feature",
+    properties: compactMunicipalityProperties(properties),
+    geometry: feature.geometry,
+  });
   expandBounds(chunk.bounds, geometryBounds(feature.geometry));
 }
 
@@ -133,4 +137,13 @@ function roundBounds(bounds) {
 
 function roundCoordinate(value) {
   return Number(value.toFixed(5));
+}
+
+function compactMunicipalityProperties(properties) {
+  return {
+    code: properties.code,
+    prefecture: properties.prefecture,
+    municipality: properties.municipality,
+    name: properties.name,
+  };
 }

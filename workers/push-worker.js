@@ -9,6 +9,21 @@ const NOTIFICATION_HISTORY_KEY = "notification-history";
 const NOTIFICATION_HISTORY_LIMIT = 80;
 const NOTIFICATION_HISTORY_RETENTION_DAYS = 30;
 const SUBSCRIPTION_PREFIX = "subscription:";
+const EARTHQUAKE_PRESET_DETAIL_COLUMNS = `
+  id,
+  label,
+  date,
+  time,
+  epicenter_name AS epicenterName,
+  latitude,
+  longitude,
+  depth_km AS depthKm,
+  magnitude,
+  max_intensity AS maxIntensity,
+  observed_stations_json AS observedStationsJson,
+  eew_forecast_areas_json AS eewForecastAreasJson,
+  eew_reports_json AS eewReportsJson
+`;
 
 export default {
   async fetch(request, env) {
@@ -31,6 +46,20 @@ export default {
       if (request.method === "GET" && url.pathname === "/notification-history") {
         const notifications = await readNotificationHistory(env);
         return json({ notifications });
+      }
+
+      if (request.method === "GET" && url.pathname === "/earthquake-presets") {
+        const presets = await listEarthquakePresetSummaries(env);
+        return json({ presets });
+      }
+
+      if (request.method === "GET" && url.pathname.startsWith("/earthquake-presets/")) {
+        const id = decodeURIComponent(url.pathname.slice("/earthquake-presets/".length));
+        const preset = await readEarthquakePreset(env, id);
+        if (!preset) {
+          return json({ error: "not found" }, 404);
+        }
+        return json({ preset });
       }
 
       if (request.method === "POST" && url.pathname === "/subscriptions") {
@@ -60,6 +89,13 @@ export default {
         await appendNotificationHistory(env, notification);
         const result = await sendNotificationToAll(request.url, env);
         return json({ ok: true, notification, ...result });
+      }
+
+      if (request.method === "POST" && url.pathname === "/admin/earthquake-presets") {
+        requireAdmin(request, env);
+        const preset = await request.json();
+        await upsertEarthquakePreset(env, preset);
+        return json({ ok: true, id: String(preset.id || "") });
       }
 
       return json({ error: "not found" }, 404);
@@ -201,6 +237,162 @@ async function appendNotificationHistory(env, notification) {
     ...notifications.filter((item) => item?.id !== notification.id),
   ]);
   await env.PUSH_SUBSCRIPTIONS.put(NOTIFICATION_HISTORY_KEY, JSON.stringify(nextNotifications));
+}
+
+async function listEarthquakePresetSummaries(env) {
+  const db = getEarthquakePresetDb(env);
+  const result = await db.prepare(`
+    SELECT
+      id,
+      label,
+      date,
+      time,
+      epicenter_name AS epicenterName,
+      latitude,
+      longitude,
+      depth_km AS depthKm,
+      magnitude,
+      max_intensity AS maxIntensity
+    FROM earthquake_presets
+    ORDER BY date DESC, time DESC, id ASC
+  `).all();
+
+  return (result.results || []).map((row) => ({
+    id: String(row.id),
+    label: String(row.label || ""),
+    date: String(row.date || ""),
+    time: String(row.time || ""),
+    epicenterName: String(row.epicenterName || ""),
+    latitude: Number(row.latitude),
+    longitude: Number(row.longitude),
+    depthKm: Number(row.depthKm),
+    magnitude: Number(row.magnitude),
+    maxIntensity: String(row.maxIntensity || ""),
+  }));
+}
+
+async function readEarthquakePreset(env, id) {
+  if (!id) {
+    return null;
+  }
+
+  const db = getEarthquakePresetDb(env);
+  const row = await db.prepare(`
+    SELECT ${EARTHQUAKE_PRESET_DETAIL_COLUMNS}
+    FROM earthquake_presets
+    WHERE id = ?
+  `).bind(id).first();
+
+  return row ? normalizeEarthquakePresetRow(row) : null;
+}
+
+async function upsertEarthquakePreset(env, preset) {
+  const db = getEarthquakePresetDb(env);
+  const normalized = normalizeEarthquakePresetForStorage(preset);
+  await db.prepare(`
+    INSERT INTO earthquake_presets (
+      id,
+      label,
+      date,
+      time,
+      epicenter_name,
+      latitude,
+      longitude,
+      depth_km,
+      magnitude,
+      max_intensity,
+      observed_stations_json,
+      eew_forecast_areas_json,
+      eew_reports_json,
+      updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      label = excluded.label,
+      date = excluded.date,
+      time = excluded.time,
+      epicenter_name = excluded.epicenter_name,
+      latitude = excluded.latitude,
+      longitude = excluded.longitude,
+      depth_km = excluded.depth_km,
+      magnitude = excluded.magnitude,
+      max_intensity = excluded.max_intensity,
+      observed_stations_json = excluded.observed_stations_json,
+      eew_forecast_areas_json = excluded.eew_forecast_areas_json,
+      eew_reports_json = excluded.eew_reports_json,
+      updated_at = excluded.updated_at
+  `).bind(
+    normalized.id,
+    normalized.label,
+    normalized.date,
+    normalized.time,
+    normalized.epicenterName,
+    normalized.latitude,
+    normalized.longitude,
+    normalized.depthKm,
+    normalized.magnitude,
+    normalized.maxIntensity,
+    JSON.stringify(normalized.observedStations),
+    JSON.stringify(normalized.eewForecastAreas),
+    JSON.stringify(normalized.eewReports),
+    new Date().toISOString(),
+  ).run();
+}
+
+function getEarthquakePresetDb(env) {
+  if (!env.EARTHQUAKE_PRESETS_DB) {
+    throw httpError("EARTHQUAKE_PRESETS_DB is not configured", 500);
+  }
+  return env.EARTHQUAKE_PRESETS_DB;
+}
+
+function normalizeEarthquakePresetRow(row) {
+  return {
+    id: String(row.id),
+    label: String(row.label || ""),
+    date: String(row.date || ""),
+    time: String(row.time || ""),
+    epicenterName: String(row.epicenterName || ""),
+    latitude: Number(row.latitude),
+    longitude: Number(row.longitude),
+    depthKm: Number(row.depthKm),
+    magnitude: Number(row.magnitude),
+    maxIntensity: String(row.maxIntensity || ""),
+    observedStations: parseJsonArray(row.observedStationsJson),
+    eewForecastAreas: parseJsonArray(row.eewForecastAreasJson),
+    eewReports: parseJsonArray(row.eewReportsJson),
+  };
+}
+
+function normalizeEarthquakePresetForStorage(preset) {
+  const id = String(preset?.id || "").trim();
+  if (!id) {
+    throw httpError("preset.id is required", 400);
+  }
+
+  return {
+    id,
+    label: String(preset.label || ""),
+    date: String(preset.date || ""),
+    time: String(preset.time || ""),
+    epicenterName: String(preset.epicenterName || ""),
+    latitude: Number(preset.latitude),
+    longitude: Number(preset.longitude),
+    depthKm: Number(preset.depthKm),
+    magnitude: Number(preset.magnitude),
+    maxIntensity: String(preset.maxIntensity || ""),
+    observedStations: Array.isArray(preset.observedStations) ? preset.observedStations : [],
+    eewForecastAreas: Array.isArray(preset.eewForecastAreas) ? preset.eewForecastAreas : [],
+    eewReports: Array.isArray(preset.eewReports) ? preset.eewReports : [],
+  };
+}
+
+function parseJsonArray(value) {
+  try {
+    const parsed = JSON.parse(value || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }
 
 function pruneNotificationHistory(notifications, now = Date.now()) {

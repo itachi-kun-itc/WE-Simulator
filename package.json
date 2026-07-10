@@ -17,6 +17,7 @@
     "build:municipality-chunks": "node scripts/build_municipality_chunks.js",
     "build:ground": "node --max-old-space-size=8192 scripts/build_ground_model.js",
     "build:boundaries": "node --max-old-space-size=8192 scripts/build_boundary_layers.js",
+    "upload:earthquake-presets": "node scripts/upload_earthquake_presets_to_worker.js",
     "check:encoding": "node scripts/check_text_encoding.js",
     "check:app": "npm run check:encoding && node --check web/app.js",
     "web": "node web/dev-server.js",

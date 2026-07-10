@@ -4,7 +4,7 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const inputPath = process.env.JAPAN_LAND_OVERVIEW_INPUT_PATH
   ? path.resolve(root, process.env.JAPAN_LAND_OVERVIEW_INPUT_PATH)
-  : path.join(root, "web", "data", "municipalities.geojson");
+  : path.join(root, "data", "processed", "municipalities.geojson");
 const outputPath = process.env.JAPAN_LAND_OVERVIEW_OUTPUT_PATH
   ? path.resolve(root, process.env.JAPAN_LAND_OVERVIEW_OUTPUT_PATH)
   : path.join(root, "web", "data", "japan_land_overview.geojson");

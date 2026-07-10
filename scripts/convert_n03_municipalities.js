@@ -10,7 +10,7 @@ const inputDir = process.env.MUNICIPALITIES_INPUT_DIR
   : firstExistingDirectory([defaultJmaInputDir, defaultN03InputDir, legacyN03InputDir]);
 const outputPath = process.env.MUNICIPALITIES_OUTPUT_PATH
   ? path.resolve(root, process.env.MUNICIPALITIES_OUTPUT_PATH)
-  : path.join(root, "web", "data", "municipalities.geojson");
+  : path.join(root, "data", "processed", "municipalities.geojson");
 const namesOutputSetting = process.env.MUNICIPALITY_NAMES_OUTPUT_PATH;
 const shouldWriteMunicipalityNames = !isDisabledOutputPath(namesOutputSetting);
 const namesOutputPath = namesOutputSetting && shouldWriteMunicipalityNames
