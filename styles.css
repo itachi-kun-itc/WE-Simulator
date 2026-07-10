@@ -1607,6 +1607,10 @@ body.map-core-loading .maplibregl-marker {
   visibility: hidden;
 }
 
+body.app-loading .epicenter-marker-shell {
+  visibility: hidden;
+}
+
 .sim-panel {
   position: absolute;
   left: 14px;
