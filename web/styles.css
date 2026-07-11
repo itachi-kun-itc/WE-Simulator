@@ -542,6 +542,242 @@ body.simulation-running #simulation-start::before {
   }
 }
 
+/* Absolute final settings pass: detail pages fill to bottom tab and never overflow sideways. */
+.settings-menu-sheet {
+  position: fixed !important;
+  inset: 0 0 calc(var(--bottom-nav-height) + env(safe-area-inset-bottom)) 0 !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: hidden !important;
+}
+
+.settings-menu-list {
+  height: calc(100% - 66px) !important;
+  max-height: none !important;
+  min-height: 0 !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+.settings-inline-panel.settings-detail-panel {
+  inset: 0 !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  box-sizing: border-box !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  padding-bottom: 28px !important;
+  overscroll-behavior: contain !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+.settings-detail-panel .source-info-overlay-content,
+.settings-detail-panel .source-info-tab-panel,
+.settings-detail-panel .source-info-sections,
+.settings-detail-panel .source-info-section,
+.settings-detail-panel .source-link-card,
+.settings-detail-panel .settings-feedback-form,
+.settings-detail-panel .push-confirm-panel,
+.settings-detail-panel .push-history-list,
+.settings-detail-panel .push-history-item,
+.settings-detail-panel .admin-mode-dialog,
+.settings-detail-panel .admin-mode-field,
+.settings-detail-panel .admin-notification-panel {
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow-x: hidden !important;
+  box-sizing: border-box !important;
+}
+
+.settings-detail-panel .source-info-section,
+.settings-detail-panel .source-info-section *,
+.settings-detail-panel .source-link-card,
+.settings-detail-panel .source-link-card *,
+.settings-detail-panel .push-history-item,
+.settings-detail-panel .push-history-item *,
+.settings-detail-panel .admin-mode-dialog,
+.settings-detail-panel .admin-mode-dialog *,
+.settings-detail-panel .settings-feedback-form,
+.settings-detail-panel .settings-feedback-form * {
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+}
+
+#settings-push-button { order: 2 !important; }
+#settings-push-history-button { order: 3 !important; }
+#settings-source-button { order: 4 !important; }
+#settings-privacy-button { order: 5 !important; }
+#settings-feedback-button { order: 6 !important; }
+#settings-admin-button { order: 7 !important; }
+#settings-push-panel { order: 8 !important; }
+#settings-push-history-panel { order: 9 !important; }
+#settings-source-panel { order: 10 !important; }
+#settings-privacy-panel { order: 11 !important; }
+#settings-feedback-panel { order: 12 !important; }
+#settings-admin-panel { order: 13 !important; }
+
+.settings-admin-embedded {
+  position: static !important;
+  inset: auto !important;
+  display: block !important;
+  width: 100% !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  backdrop-filter: none !important;
+}
+
+.settings-admin-embedded .admin-mode-dialog {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.settings-admin-embedded .admin-mode-dialog h2 {
+  display: none !important;
+}
+
+#setup-panel.sim-panel {
+  position: fixed !important;
+  bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom)) !important;
+  margin-bottom: 0 !important;
+}
+
+#setup-panel.sim-panel:focus-within {
+  bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom)) !important;
+}
+
+#setup-panel.setup-menu-open,
+#setup-panel.sim-panel[data-sheet-state="open"] {
+  transform: translate(-50%, 0) !important;
+}
+
+#setup-panel.setup-menu-closed,
+#setup-panel.sim-panel[data-sheet-state="collapsed"] {
+  transform: translate(-50%, calc(100% - 72px)) !important;
+}
+
+/* Final settings/detail sizing: bottom tab is the hard floor. */
+.settings-menu-sheet {
+  position: fixed !important;
+  inset: 0 0 calc(var(--bottom-nav-height) + env(safe-area-inset-bottom)) 0 !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: hidden !important;
+}
+
+.settings-menu-list {
+  height: calc(100% - 66px) !important;
+  max-height: none !important;
+  min-height: 0 !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+.settings-inline-panel.settings-detail-panel {
+  inset: 0 !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  box-sizing: border-box !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  padding-bottom: 28px !important;
+  overscroll-behavior: contain !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+.settings-detail-panel .source-info-overlay-content,
+.settings-detail-panel .source-info-tab-panel,
+.settings-detail-panel .source-info-sections,
+.settings-detail-panel .source-info-section,
+.settings-detail-panel .source-link-card,
+.settings-detail-panel .settings-feedback-form,
+.settings-detail-panel .push-confirm-panel,
+.settings-detail-panel .push-history-list,
+.settings-detail-panel .push-history-item,
+.settings-detail-panel .admin-mode-dialog,
+.settings-detail-panel .admin-mode-field,
+.settings-detail-panel .admin-notification-panel {
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow-x: hidden !important;
+  box-sizing: border-box !important;
+}
+
+.settings-detail-panel .source-info-section,
+.settings-detail-panel .source-info-section *,
+.settings-detail-panel .source-link-card,
+.settings-detail-panel .source-link-card *,
+.settings-detail-panel .push-history-item,
+.settings-detail-panel .push-history-item *,
+.settings-detail-panel .admin-mode-dialog,
+.settings-detail-panel .admin-mode-dialog *,
+.settings-detail-panel .settings-feedback-form,
+.settings-detail-panel .settings-feedback-form * {
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+}
+
+#settings-admin-button { order: 7 !important; }
+#settings-push-panel { order: 8 !important; }
+#settings-push-history-panel { order: 9 !important; }
+#settings-source-panel { order: 10 !important; }
+#settings-privacy-panel { order: 11 !important; }
+#settings-feedback-panel { order: 12 !important; }
+#settings-admin-panel { order: 13 !important; }
+
+.settings-admin-embedded {
+  position: static !important;
+  inset: auto !important;
+  display: block !important;
+  width: 100% !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  backdrop-filter: none !important;
+}
+
+.settings-admin-embedded .admin-mode-dialog {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.settings-admin-embedded .admin-mode-dialog h2 {
+  display: none !important;
+}
+
+#setup-panel.sim-panel {
+  position: fixed !important;
+  bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom)) !important;
+  margin-bottom: 0 !important;
+  will-change: transform !important;
+}
+
+#setup-panel.sim-panel:focus-within {
+  bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom)) !important;
+}
+
+#setup-panel.setup-menu-open,
+#setup-panel.sim-panel[data-sheet-state="open"] {
+  transform: translate(-50%, 0) !important;
+}
+
+#setup-panel.setup-menu-closed,
+#setup-panel.sim-panel[data-sheet-state="collapsed"] {
+  transform: translate(-50%, calc(100% - 72px)) !important;
+}
+
 /* Final layout alignment: settings order, vertical legend on tablet/PC, attached sheet. */
 #settings-push-button { order: 2 !important; }
 #settings-push-history-button { order: 3 !important; }
@@ -8420,4 +8656,88 @@ body #simulation-start::before {
   .sim-panel {
     width: calc(100vw - 10px) !important;
   }
+}
+
+/* Absolute final settings pass EOF: detail pages fill to bottom tab and never overflow sideways. */
+.settings-menu-sheet { position: fixed !important; inset: 0 0 calc(var(--bottom-nav-height) + env(safe-area-inset-bottom)) 0 !important; height: auto !important; max-height: none !important; overflow: hidden !important; }
+.settings-menu-list { height: calc(100% - 66px) !important; max-height: none !important; min-height: 0 !important; overflow-x: hidden !important; overflow-y: auto !important; }
+.settings-inline-panel.settings-detail-panel { inset: 0 !important; height: 100% !important; max-height: 100% !important; box-sizing: border-box !important; overflow-x: hidden !important; overflow-y: auto !important; padding-bottom: 28px !important; overscroll-behavior: contain !important; -webkit-overflow-scrolling: touch !important; }
+.settings-detail-panel .source-info-overlay-content, .settings-detail-panel .source-info-tab-panel, .settings-detail-panel .source-info-sections, .settings-detail-panel .source-info-section, .settings-detail-panel .source-link-card, .settings-detail-panel .settings-feedback-form, .settings-detail-panel .push-confirm-panel, .settings-detail-panel .push-history-list, .settings-detail-panel .push-history-item, .settings-detail-panel .admin-mode-dialog, .settings-detail-panel .admin-mode-field, .settings-detail-panel .admin-notification-panel { width: auto !important; min-width: 0 !important; max-width: 100% !important; overflow-x: hidden !important; box-sizing: border-box !important; }
+.settings-detail-panel .source-info-section, .settings-detail-panel .source-info-section *, .settings-detail-panel .source-link-card, .settings-detail-panel .source-link-card *, .settings-detail-panel .push-history-item, .settings-detail-panel .push-history-item *, .settings-detail-panel .admin-mode-dialog, .settings-detail-panel .admin-mode-dialog *, .settings-detail-panel .settings-feedback-form, .settings-detail-panel .settings-feedback-form * { overflow-wrap: anywhere !important; word-break: break-word !important; }
+#settings-push-button { order: 2 !important; } #settings-push-history-button { order: 3 !important; } #settings-source-button { order: 4 !important; } #settings-privacy-button { order: 5 !important; } #settings-feedback-button { order: 6 !important; } #settings-admin-button { order: 7 !important; } #settings-push-panel { order: 8 !important; } #settings-push-history-panel { order: 9 !important; } #settings-source-panel { order: 10 !important; } #settings-privacy-panel { order: 11 !important; } #settings-feedback-panel { order: 12 !important; } #settings-admin-panel { order: 13 !important; }
+.settings-admin-embedded { position: static !important; inset: auto !important; display: block !important; width: 100% !important; min-height: 0 !important; padding: 0 !important; background: transparent !important; backdrop-filter: none !important; }
+.settings-admin-embedded .admin-mode-dialog { width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; border: 0 !important; background: transparent !important; box-shadow: none !important; }
+.settings-admin-embedded .admin-mode-dialog h2 { display: none !important; }
+#setup-panel.sim-panel { position: fixed !important; bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom)) !important; margin-bottom: 0 !important; }
+#setup-panel.sim-panel:focus-within { bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom)) !important; }
+#setup-panel.setup-menu-open, #setup-panel.sim-panel[data-sheet-state="open"] { transform: translate(-50%, 0) !important; }
+#setup-panel.setup-menu-closed, #setup-panel.sim-panel[data-sheet-state="collapsed"] { transform: translate(-50%, calc(100% - 72px)) !important; }
+
+/* Absolute final settings overflow/scrollbar pass EOF. */
+.settings-inline-panel.settings-detail-panel,
+.settings-inline-panel.settings-detail-panel * {
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.settings-inline-panel.settings-detail-panel input,
+.settings-inline-panel.settings-detail-panel textarea,
+.settings-inline-panel.settings-detail-panel select,
+.settings-inline-panel.settings-detail-panel button {
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+
+.settings-inline-panel.settings-detail-panel .push-confirm-actions,
+.settings-inline-panel.settings-detail-panel .admin-mode-actions {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 10px !important;
+}
+
+.settings-inline-panel.settings-detail-panel .push-confirm-actions button,
+.settings-inline-panel.settings-detail-panel .admin-mode-actions button,
+.settings-inline-panel.settings-detail-panel .admin-notification-send,
+.settings-inline-panel.settings-detail-panel .feedback-submit {
+  width: 100% !important;
+}
+
+.settings-detail-panel .push-confirm-panel p,
+.settings-detail-panel .push-confirm-status,
+.settings-detail-panel .admin-mode-status,
+.settings-detail-panel .admin-notification-status {
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+}
+
+.settings-admin-embedded .admin-notification-panel {
+  padding: 12px !important;
+}
+
+.settings-menu-list,
+.settings-inline-panel.settings-detail-panel {
+  scrollbar-width: thin !important;
+  scrollbar-color: transparent transparent !important;
+}
+
+.settings-menu-list.is-scrolling,
+.settings-inline-panel.settings-detail-panel.is-scrolling {
+  scrollbar-color: rgba(255, 255, 255, 0.45) transparent !important;
+}
+
+.settings-menu-list::-webkit-scrollbar,
+.settings-inline-panel.settings-detail-panel::-webkit-scrollbar {
+  width: 4px !important;
+  height: 4px !important;
+}
+
+.settings-menu-list::-webkit-scrollbar-thumb,
+.settings-inline-panel.settings-detail-panel::-webkit-scrollbar-thumb {
+  background: transparent !important;
+  border-radius: 999px !important;
+}
+
+.settings-menu-list.is-scrolling::-webkit-scrollbar-thumb,
+.settings-inline-panel.settings-detail-panel.is-scrolling::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.45) !important;
 }

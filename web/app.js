@@ -862,6 +862,21 @@ function setupTabs() {
       els.settingsPrivacyPanel.setAttribute("aria-label", "プライバシーポリシー");
       els.settingsSourcePanel.insertAdjacentElement("afterend", els.settingsPrivacyPanel);
     }
+    if (!els.settingsAdminButton && els.settingsFeedbackButton) {
+      els.settingsAdminButton = document.createElement("button");
+      els.settingsAdminButton.className = "settings-menu-row";
+      els.settingsAdminButton.id = "settings-admin-button";
+      els.settingsAdminButton.type = "button";
+      els.settingsAdminButton.innerHTML = `<span>管理者モード</span><span aria-hidden="true">›</span>`;
+      els.settingsFeedbackButton.insertAdjacentElement("afterend", els.settingsAdminButton);
+    }
+    if (!els.settingsAdminPanel && els.settingsFeedbackPanel) {
+      els.settingsAdminPanel = document.createElement("section");
+      els.settingsAdminPanel.className = "settings-inline-panel hidden";
+      els.settingsAdminPanel.id = "settings-admin-panel";
+      els.settingsAdminPanel.setAttribute("aria-label", "管理者モード");
+      els.settingsFeedbackPanel.insertAdjacentElement("afterend", els.settingsAdminPanel);
+    }
     if (els.settingsSourceButton?.firstElementChild) {
       els.settingsSourceButton.firstElementChild.textContent = "出典";
       els.settingsSourceButton.lastElementChild.textContent = "›";
@@ -873,6 +888,12 @@ function setupTabs() {
       els.settingsPrivacyButton.lastElementChild.textContent = "›";
       els.settingsPrivacyButton.setAttribute("aria-controls", "settings-privacy-panel");
       els.settingsPrivacyButton.setAttribute("aria-expanded", "false");
+    }
+    if (els.settingsAdminButton?.firstElementChild) {
+      els.settingsAdminButton.firstElementChild.textContent = "管理者モード";
+      els.settingsAdminButton.lastElementChild.textContent = "›";
+      els.settingsAdminButton.setAttribute("aria-controls", "settings-admin-panel");
+      els.settingsAdminButton.setAttribute("aria-expanded", "false");
     }
     if (els.settingsFeedbackButton?.firstElementChild) {
       els.settingsFeedbackButton.firstElementChild.textContent = "フィードバック";
@@ -895,6 +916,7 @@ function setupTabs() {
       [els.settingsSourceButton, els.settingsSourcePanel],
       [els.settingsPrivacyButton, els.settingsPrivacyPanel],
       [els.settingsFeedbackButton, els.settingsFeedbackPanel],
+      [els.settingsAdminButton, els.settingsAdminPanel],
       [els.settingsPushButton, els.settingsPushPanel],
       [els.settingsPushHistoryButton, els.settingsPushHistoryPanel],
     ].forEach(([button, panel]) => {
@@ -1083,6 +1105,19 @@ function setupTabs() {
     els.settingsFeedbackPanel.dataset.ready = "true";
   };
 
+  const ensureSettingsAdminPanel = () => {
+    if (!els.settingsAdminPanel || els.settingsAdminPanel.dataset.ready === "true") {
+      return;
+    }
+    const adminPanel = createAdminModeOverlay();
+    adminPanel.classList.remove("hidden");
+    adminPanel.classList.add("settings-admin-embedded");
+    adminPanel.querySelector(".source-info-close")?.remove();
+    els.settingsAdminPanel.replaceChildren(adminPanel);
+    els.settingsAdminPanel.dataset.ready = "true";
+    updateAdminModeControls(adminPanel);
+  };
+
   const toggleSettingsInlinePanel = (button, panel, ensurePanel) => {
     ensurePanel();
     const willOpen = panel?.classList.contains("hidden");
@@ -1115,6 +1150,7 @@ function setupTabs() {
       els.settingsSourceButton,
       els.settingsPrivacyButton,
       els.settingsFeedbackButton,
+      els.settingsAdminButton,
       els.settingsPushButton,
       els.settingsPushHistoryButton,
     ].forEach((button) => button?.setAttribute("aria-expanded", "false"));
@@ -1255,6 +1291,9 @@ function setupTabs() {
   });
   els.settingsFeedbackButton?.addEventListener("click", () => {
     openSettingsDetailPanel(els.settingsFeedbackButton, els.settingsFeedbackPanel, ensureSettingsFeedbackPanel, "フィードバック");
+  });
+  els.settingsAdminButton?.addEventListener("click", () => {
+    openSettingsDetailPanel(els.settingsAdminButton, els.settingsAdminPanel, ensureSettingsAdminPanel, "管理者モード");
   });
   els.settingsPushButton?.addEventListener("click", () => {
     openSettingsDetailPanel(els.settingsPushButton, els.settingsPushPanel, ensureSettingsPushPanel, "通知設定");
@@ -2582,7 +2621,7 @@ function setupMobileSheets() {
 function setupTransientPanelScrollbars() {
   const scrollTimers = new WeakMap();
   const scrollContainers = document.querySelectorAll(
-    "#setup-panel .sim-panel-scroll, #simulation-panel .sim-panel-scroll",
+    "#setup-panel .sim-panel-scroll, #simulation-panel .sim-panel-scroll, .settings-menu-list, .settings-inline-panel.settings-detail-panel",
   );
 
   scrollContainers.forEach((element) => {
