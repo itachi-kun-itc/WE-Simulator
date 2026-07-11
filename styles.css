@@ -2630,7 +2630,7 @@ body.app-loading .epicenter-marker-shell {
 .epicenter-marker-shell {
   display: grid;
   position: relative;
-  z-index: 410;
+  z-index: 600 !important;
   width: 38px;
   height: 38px;
   place-items: center;
