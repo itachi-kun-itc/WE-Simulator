@@ -333,6 +333,1134 @@ body.simulation-running #simulation-start::before {
   }
 }
 
+/* NERV pass 3: draggable sheet, inline settings pages, cleaner icons. */
+.sim-panel {
+  width: min(840px, calc(100vw - 16px)) !important;
+}
+
+#setup-panel.setup-menu-closed,
+.sim-panel[data-sheet-state="collapsed"] {
+  transform: translate(-50%, 52%) !important;
+}
+
+.sim-panel.is-dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.sheet-handle {
+  width: 92px !important;
+  height: 22px !important;
+  cursor: grab;
+}
+
+.sheet-handle::after {
+  top: 6px !important;
+  width: 62px !important;
+}
+
+#setup-panel .settings-section[data-settings-section="display"] {
+  order: 1;
+}
+
+#setup-panel .settings-section[data-settings-section="source"] {
+  order: 2;
+}
+
+#setup-panel .settings-section[data-settings-section="source"] h3 {
+  display: block !important;
+}
+
+#setup-panel .settings-section[data-settings-section="source"] .field,
+#setup-panel .settings-section[data-settings-section="source"] .field-grid {
+  display: grid !important;
+}
+
+#setup-panel .settings-section[data-settings-section="source"] {
+  margin-top: 8px !important;
+  padding-top: 10px !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.settings-menu-list {
+  display: flex !important;
+  flex-direction: column !important;
+  height: calc(100svh - var(--bottom-nav-height) - env(safe-area-inset-bottom) - 20px);
+  overflow-y: auto;
+}
+
+.settings-notification-card {
+  order: 1;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px 14px;
+  align-items: center;
+  padding: 12px 18px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.settings-notification-row {
+  display: contents;
+}
+
+.settings-notification-row span {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.92rem;
+}
+
+.settings-notification-row strong {
+  color: #f5f5f5;
+  font-size: 0.95rem;
+  letter-spacing: 0.08em;
+}
+
+.settings-switch {
+  grid-column: 2;
+  justify-self: end;
+  min-width: 74px;
+  min-height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  padding: 0 14px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.78);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.settings-switch.is-on {
+  border-color: rgba(21, 214, 237, 0.58);
+  background: rgba(21, 214, 237, 0.22);
+  color: #23e1f5;
+}
+
+#settings-push-button {
+  order: 2;
+}
+
+#settings-source-button {
+  order: 3;
+  margin-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+#settings-source-panel {
+  order: 4;
+}
+
+#settings-feedback-button {
+  order: 5;
+}
+
+#settings-feedback-panel {
+  order: 6;
+}
+
+.settings-inline-panel {
+  padding: 12px 18px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.settings-inline-panel.hidden {
+  display: none !important;
+}
+
+.settings-inline-panel .source-info-overlay-content {
+  width: 100%;
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  overflow: visible;
+}
+
+.settings-inline-panel .source-info-header,
+.settings-inline-panel .source-info-footer {
+  display: none;
+}
+
+.settings-inline-panel .source-info-tabs {
+  margin: 0 0 12px;
+}
+
+.settings-inline-panel .source-info-sections {
+  display: grid;
+  gap: 12px;
+}
+
+.settings-inline-panel .source-info-section,
+.settings-inline-panel .source-link-card {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.settings-feedback-form {
+  display: grid;
+  gap: 12px;
+}
+
+.settings-feedback-form .feedback-submit {
+  justify-self: end;
+  min-width: 96px;
+  min-height: 40px;
+}
+
+#earthquake-tab .bottom-tab-icon::before {
+  left: 3px !important;
+  top: 4px !important;
+  width: 19px !important;
+  height: 16px !important;
+  border: 2px solid currentColor !important;
+  border-radius: 3px !important;
+  background: transparent !important;
+  background-image: none !important;
+}
+
+#earthquake-tab .bottom-tab-icon::after {
+  content: "" !important;
+  left: 6px !important;
+  top: 8px !important;
+  width: 13px !important;
+  height: 8px !important;
+  border: 0 !important;
+  background: none !important;
+  background-image: linear-gradient(
+    135deg,
+    transparent 0 18%,
+    currentColor 18% 26%,
+    transparent 26% 38%,
+    currentColor 38% 46%,
+    transparent 46% 58%,
+    currentColor 58% 66%,
+    transparent 66% 100%
+  ) !important;
+  box-shadow: none !important;
+}
+
+@media (max-width: 720px) {
+  .sim-panel {
+    width: calc(100vw - 10px) !important;
+  }
+}
+
+/* Absolute final UI stabilization: visible legend, smooth sheet, compact forms/tables. */
+.intensity-legend {
+  position: fixed !important;
+  top: calc(env(safe-area-inset-top) + 8px) !important;
+  left: max(8px, env(safe-area-inset-left)) !important;
+  right: max(8px, env(safe-area-inset-right)) !important;
+  bottom: auto !important;
+  z-index: 10020 !important;
+  display: flex !important;
+  justify-content: center !important;
+  width: auto !important;
+  max-width: none !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+  transform: none !important;
+}
+
+#simulation-start {
+  position: fixed !important;
+  top: calc(env(safe-area-inset-top) + 48px) !important;
+  right: max(10px, env(safe-area-inset-right)) !important;
+  z-index: 10021 !important;
+  display: grid !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+  transform: none !important;
+}
+
+body:not([data-active-bottom-tab="earthquake-tab"]) .intensity-legend,
+body:not([data-active-bottom-tab="earthquake-tab"]) #simulation-start {
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
+.sim-panel {
+  left: 50% !important;
+  right: auto !important;
+  bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom)) !important;
+  width: 100vw !important;
+  max-width: 100vw !important;
+  border-radius: 28px 28px 0 0 !important;
+  transform: translate(-50%, 0) !important;
+  transition:
+    height 240ms cubic-bezier(0.2, 0.85, 0.2, 1),
+    max-height 240ms cubic-bezier(0.2, 0.85, 0.2, 1),
+    box-shadow 180ms ease !important;
+}
+
+#setup-panel.setup-menu-closed,
+.sim-panel[data-sheet-state="collapsed"] {
+  height: min(46svh, 440px) !important;
+  max-height: min(46svh, 440px) !important;
+  transform: translate(-50%, 0) !important;
+}
+
+#setup-panel.setup-menu-open,
+.sim-panel[data-sheet-state="open"] {
+  height: min(70svh, 680px) !important;
+  max-height: min(70svh, 680px) !important;
+  transform: translate(-50%, 0) !important;
+}
+
+.sim-panel.is-dragging {
+  height: var(--sheet-drag-height, min(46svh, 440px)) !important;
+  max-height: var(--sheet-drag-height, min(46svh, 440px)) !important;
+  transition: none !important;
+  transform: translate(-50%, 0) !important;
+}
+
+#setup-panel .field-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 10px 12px !important;
+  align-items: stretch !important;
+  width: 100% !important;
+}
+
+#setup-panel .field {
+  min-width: 0 !important;
+  width: 100% !important;
+}
+
+#setup-panel .field input,
+#setup-panel .field select {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+.preset-picker-head,
+.preset-picker-close,
+.preset-picker-description {
+  display: none !important;
+}
+
+.preset-picker-dialog {
+  padding: 0 !important;
+}
+
+.preset-picker-table-wrap {
+  height: calc(100svh - var(--bottom-nav-height) - env(safe-area-inset-bottom)) !important;
+  max-height: calc(100svh - var(--bottom-nav-height) - env(safe-area-inset-bottom)) !important;
+  padding: 0 !important;
+  overflow-x: hidden !important;
+}
+
+.preset-picker-table,
+.preset-picker-table tbody {
+  display: block !important;
+  width: 100% !important;
+}
+
+.preset-picker-table thead {
+  display: none !important;
+}
+
+.preset-picker-table tr {
+  display: grid !important;
+  grid-template-columns: 40px 92px minmax(100px, 1fr) 52px 48px !important;
+  column-gap: 4px !important;
+  align-items: center !important;
+  width: 100% !important;
+}
+
+.preset-picker-table td {
+  display: block !important;
+  min-width: 0 !important;
+  width: auto !important;
+  padding: 12px 4px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.preset-picker-table td:first-child {
+  padding-left: 8px !important;
+  text-align: center !important;
+}
+
+.preset-picker-table td:nth-child(3) {
+  white-space: normal !important;
+  line-height: 1.35 !important;
+}
+
+.preset-picker-table td:nth-child(4),
+.preset-picker-table td:nth-child(5) {
+  text-align: center !important;
+}
+
+.settings-notification-card {
+  grid-template-columns: 1fr auto !important;
+  padding: 14px 18px !important;
+}
+
+.settings-notification-row span {
+  align-self: center !important;
+}
+
+.settings-notification-row strong,
+#settings-push-status {
+  display: inline-grid !important;
+  min-width: 82px !important;
+  min-height: 32px !important;
+  place-items: center !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  border-radius: 8px !important;
+  padding: 0 16px !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+  letter-spacing: 0.08em !important;
+}
+
+#bottom-learning-tab .bottom-tab-icon::before {
+  left: 3px !important;
+  top: 6px !important;
+  width: 14px !important;
+  height: 15px !important;
+  border: 2px solid currentColor !important;
+  border-radius: 2px 5px 5px 2px !important;
+  background: transparent !important;
+}
+
+#bottom-learning-tab .bottom-tab-icon::after {
+  content: "" !important;
+  left: 15px !important;
+  top: 3px !important;
+  width: 5px !important;
+  height: 20px !important;
+  border-radius: 2px !important;
+  background: currentColor !important;
+  transform: rotate(28deg) !important;
+  clip-path: polygon(50% 0, 100% 14%, 72% 88%, 50% 100%, 28% 88%, 0 14%) !important;
+  box-shadow: none !important;
+}
+
+#earthquake-tab .bottom-tab-icon::before {
+  left: 3px !important;
+  top: 5px !important;
+  width: 19px !important;
+  height: 15px !important;
+  border: 2px solid currentColor !important;
+  border-radius: 3px !important;
+  background: transparent !important;
+}
+
+#earthquake-tab .bottom-tab-icon::after {
+  content: "" !important;
+  left: 6px !important;
+  top: 8px !important;
+  width: 14px !important;
+  height: 10px !important;
+  border: 0 !important;
+  background: currentColor !important;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 16'%3E%3Cpath d='M1 8 H4 L6 3 L9 13 L12 5 L15 11 L18 2 L21 14 L24 8 H27' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat !important;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 16'%3E%3Cpath d='M1 8 H4 L6 3 L9 13 L12 5 L15 11 L18 2 L21 14 L24 8 H27' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat !important;
+  box-shadow: none !important;
+}
+
+@media (max-width: 720px) {
+  .intensity-scale span {
+    width: clamp(27px, 8.7vw, 33px) !important;
+  }
+
+  .preset-picker-table tr {
+    grid-template-columns: 36px 76px minmax(76px, 1fr) 44px 42px !important;
+  }
+
+  .sim-panel {
+    width: 100vw !important;
+  }
+}
+
+/* Final pass 2: NERV sheet motion, top legend row, compact preset table. */
+.zoom-only-control {
+  display: none !important;
+}
+
+.intensity-legend {
+  top: calc(env(safe-area-inset-top) + 6px) !important;
+  left: max(8px, env(safe-area-inset-left)) !important;
+  right: max(8px, env(safe-area-inset-right)) !important;
+  width: auto !important;
+  max-width: none !important;
+  justify-content: center !important;
+  z-index: 920 !important;
+}
+
+.intensity-legend h2 {
+  flex: 0 0 40px !important;
+  min-width: 40px !important;
+  height: 32px !important;
+}
+
+.intensity-scale span {
+  width: clamp(30px, 4.6vw, 42px) !important;
+  height: 32px !important;
+}
+
+#simulation-start {
+  top: calc(env(safe-area-inset-top) + 46px) !important;
+  right: max(10px, env(safe-area-inset-right)) !important;
+  width: 44px !important;
+  height: 34px !important;
+  z-index: 930 !important;
+}
+
+.sim-panel {
+  width: min(820px, calc(100vw - 18px)) !important;
+  max-height: min(64svh, 620px) !important;
+  overflow: hidden !important;
+}
+
+#setup-panel.setup-menu-closed,
+.sim-panel[data-sheet-state="collapsed"] {
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+  transform: translate(-50%, 48%) !important;
+}
+
+#setup-panel.setup-menu-open,
+.sim-panel[data-sheet-state="open"] {
+  transform: translate(-50%, 0) !important;
+}
+
+.sim-panel.is-dragging {
+  transition: none !important;
+  cursor: grabbing !important;
+}
+
+.sim-panel.is-dragging[data-sheet-state="collapsed"] {
+  transform: translate(-50%, calc(48% + var(--sheet-drag-y, 0px))) !important;
+}
+
+.sim-panel.is-dragging[data-sheet-state="open"] {
+  transform: translate(-50%, var(--sheet-drag-y, 0px)) !important;
+}
+
+.sheet-handle {
+  width: 100px !important;
+  height: 26px !important;
+  cursor: grab !important;
+}
+
+.sheet-handle::after {
+  top: 8px !important;
+  width: 70px !important;
+  height: 5px !important;
+}
+
+.preset-picker-head,
+.preset-picker-description {
+  display: none !important;
+}
+
+.preset-picker-dialog {
+  padding: 0 !important;
+}
+
+.preset-picker-table-wrap {
+  height: calc(100svh - var(--bottom-nav-height) - env(safe-area-inset-bottom)) !important;
+  max-height: calc(100svh - var(--bottom-nav-height) - env(safe-area-inset-bottom)) !important;
+  padding-top: 0 !important;
+  overflow-x: hidden !important;
+}
+
+.preset-picker-table {
+  width: 100% !important;
+  table-layout: fixed !important;
+}
+
+.preset-picker-table thead {
+  display: none !important;
+}
+
+.preset-picker-table td {
+  padding: 12px 8px !important;
+}
+
+.preset-picker-table td:first-child {
+  width: 44px !important;
+  min-width: 44px !important;
+  padding-left: 10px !important;
+  padding-right: 4px !important;
+}
+
+.preset-picker-table td:nth-child(2) {
+  width: 116px !important;
+  min-width: 116px !important;
+  white-space: normal !important;
+}
+
+.preset-picker-table td:nth-child(3) {
+  width: auto !important;
+  min-width: 0 !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+}
+
+.preset-picker-table td:nth-child(4) {
+  width: 58px !important;
+  min-width: 58px !important;
+  padding-left: 4px !important;
+  padding-right: 4px !important;
+  text-align: center !important;
+}
+
+.preset-picker-table td:nth-child(5) {
+  width: 54px !important;
+  min-width: 54px !important;
+  padding-left: 4px !important;
+  padding-right: 8px !important;
+  text-align: center !important;
+}
+
+.preset-intensity-badge {
+  width: 30px !important;
+  height: 30px !important;
+  min-width: 30px !important;
+  border-radius: 6px !important;
+}
+
+.bottom-tab-icon {
+  font-size: 0 !important;
+}
+
+#bottom-info-tab .bottom-tab-icon::before {
+  inset: 3px !important;
+  width: auto !important;
+  height: auto !important;
+  border: 2.4px solid currentColor !important;
+  border-radius: 999px !important;
+  background: transparent !important;
+}
+
+#bottom-info-tab .bottom-tab-icon::after {
+  content: "i" !important;
+  left: 0 !important;
+  top: 1px !important;
+  width: 100% !important;
+  height: 100% !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: currentColor !important;
+  box-shadow: none !important;
+  font-size: 17px !important;
+  font-weight: 900 !important;
+  line-height: 24px !important;
+  text-align: center !important;
+}
+
+#bottom-learning-tab .bottom-tab-icon::before {
+  left: 3px !important;
+  top: 6px !important;
+  width: 15px !important;
+  height: 14px !important;
+  border: 2px solid currentColor !important;
+  border-radius: 2px 5px 5px 2px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+#bottom-learning-tab .bottom-tab-icon::after {
+  content: "" !important;
+  left: 13px !important;
+  top: 4px !important;
+  width: 9px !important;
+  height: 18px !important;
+  border: 0 !important;
+  border-radius: 1px !important;
+  background: currentColor !important;
+  box-shadow: none !important;
+  transform: rotate(25deg) !important;
+  clip-path: polygon(45% 0, 70% 0, 80% 82%, 58% 100%, 36% 82%) !important;
+}
+
+#bottom-settings-tab .bottom-tab-icon::before {
+  content: "⚙" !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: currentColor !important;
+  font-size: 22px !important;
+  line-height: 24px !important;
+  text-align: center !important;
+}
+
+#bottom-settings-tab .bottom-tab-icon::after {
+  content: none !important;
+}
+
+@media (max-width: 720px) {
+  .intensity-legend {
+    top: calc(env(safe-area-inset-top) + 5px) !important;
+  }
+
+  .intensity-legend h2 {
+    flex-basis: 36px !important;
+    min-width: 36px !important;
+  }
+
+  .intensity-scale span {
+    width: clamp(27px, 9vw, 34px) !important;
+    height: 30px !important;
+  }
+
+  #simulation-start {
+    top: calc(env(safe-area-inset-top) + 42px) !important;
+    width: 40px !important;
+    height: 32px !important;
+  }
+
+  .preset-picker-table td:nth-child(2) {
+    width: 96px !important;
+    min-width: 96px !important;
+  }
+
+  .preset-picker-table td:nth-child(4) {
+    width: 50px !important;
+    min-width: 50px !important;
+  }
+
+  .preset-picker-table td:nth-child(5) {
+    width: 46px !important;
+    min-width: 46px !important;
+  }
+}
+
+.sim-panel[data-sheet-state="collapsed"] > :not(.sheet-handle),
+#setup-panel.setup-menu-closed > :not(.sheet-handle) {
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
+.sim-panel[data-sheet-state="collapsed"] .sim-panel-head,
+.sim-panel[data-sheet-state="collapsed"] .sim-panel-scroll,
+#setup-panel.setup-menu-closed .sim-panel-head,
+#setup-panel.setup-menu-closed .sim-panel-scroll {
+  display: flex !important;
+}
+
+#setup-panel.setup-menu-closed .sim-panel-scroll,
+.sim-panel[data-sheet-state="collapsed"] .sim-panel-scroll {
+  display: block !important;
+}
+
+/* Final pass 3: no title bars, bottom-attached sheet, notification rows. */
+.preset-picker-head,
+.preset-picker-close,
+.settings-menu-head,
+.settings-menu-close {
+  display: none !important;
+}
+
+.preset-picker-dialog,
+.settings-menu-sheet,
+.nerv-full-panel {
+  padding-top: 0 !important;
+}
+
+.preset-picker-table-wrap {
+  height: calc(100svh - var(--bottom-nav-height) - env(safe-area-inset-bottom)) !important;
+  max-height: calc(100svh - var(--bottom-nav-height) - env(safe-area-inset-bottom)) !important;
+}
+
+.sim-panel {
+  bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom)) !important;
+  height: min(68svh, 660px) !important;
+  max-height: min(68svh, 660px) !important;
+  transform: translate(-50%, 0) !important;
+}
+
+#setup-panel.setup-menu-closed,
+.sim-panel[data-sheet-state="collapsed"] {
+  height: min(44svh, 430px) !important;
+  max-height: min(44svh, 430px) !important;
+  transform: translate(-50%, 0) !important;
+}
+
+#setup-panel.setup-menu-open,
+.sim-panel[data-sheet-state="open"] {
+  height: min(68svh, 660px) !important;
+  max-height: min(68svh, 660px) !important;
+  transform: translate(-50%, 0) !important;
+}
+
+.sim-panel.is-dragging {
+  height: var(--sheet-drag-height, min(44svh, 430px)) !important;
+  max-height: var(--sheet-drag-height, min(44svh, 430px)) !important;
+  transform: translate(-50%, 0) !important;
+}
+
+.sim-panel.is-dragging[data-sheet-state="collapsed"],
+.sim-panel.is-dragging[data-sheet-state="open"] {
+  transform: translate(-50%, 0) !important;
+}
+
+.sim-panel-scroll {
+  min-height: 0 !important;
+}
+
+.settings-switch {
+  display: none !important;
+}
+
+.settings-notification-card {
+  order: 1 !important;
+  grid-template-columns: 1fr auto !important;
+  padding-block: 14px !important;
+}
+
+#settings-push-button {
+  order: 2 !important;
+}
+
+#settings-push-history-button {
+  order: 3 !important;
+}
+
+#settings-source-button {
+  order: 4 !important;
+}
+
+#settings-source-panel {
+  order: 5 !important;
+}
+
+#settings-feedback-button {
+  order: 6 !important;
+}
+
+#settings-feedback-panel {
+  order: 7 !important;
+}
+
+.preset-picker-table td:nth-child(2) {
+  width: 104px !important;
+  min-width: 104px !important;
+}
+
+.preset-picker-table td:nth-child(4) {
+  width: 50px !important;
+  min-width: 50px !important;
+}
+
+.preset-picker-table td:nth-child(5) {
+  width: 48px !important;
+  min-width: 48px !important;
+}
+
+@media (max-width: 720px) {
+  .sim-panel {
+    height: min(68svh, 620px) !important;
+    max-height: min(68svh, 620px) !important;
+  }
+
+  #setup-panel.setup-menu-closed,
+  .sim-panel[data-sheet-state="collapsed"] {
+    height: min(44svh, 390px) !important;
+    max-height: min(44svh, 390px) !important;
+  }
+
+  .preset-picker-table td:nth-child(2) {
+    width: 88px !important;
+    min-width: 88px !important;
+  }
+}
+
+/* Final pass 5: notification settings live inside Settings menu. */
+.settings-notification-row strong,
+#settings-push-status {
+  display: inline-grid !important;
+  min-width: 54px !important;
+  min-height: 30px !important;
+  place-items: center !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 999px !important;
+  padding: 0 14px !important;
+  background: rgba(255, 255, 255, 0.075) !important;
+  color: rgba(255, 255, 255, 0.88) !important;
+  font-size: 0.86rem !important;
+  font-weight: 900 !important;
+}
+
+.settings-switch,
+#settings-push-toggle {
+  display: none !important;
+}
+
+#settings-push-button {
+  order: 2 !important;
+}
+
+#settings-push-panel {
+  order: 3 !important;
+}
+
+#settings-push-history-button {
+  order: 4 !important;
+}
+
+#settings-push-history-panel {
+  order: 5 !important;
+}
+
+#settings-source-button {
+  order: 6 !important;
+}
+
+#settings-source-panel {
+  order: 7 !important;
+}
+
+#settings-feedback-button {
+  order: 8 !important;
+}
+
+#settings-feedback-panel {
+  order: 9 !important;
+}
+
+.settings-push-inline-panel .push-confirm-panel,
+.settings-push-history-inline-panel .push-confirm-panel {
+  display: grid !important;
+  gap: 12px !important;
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+.settings-push-inline-panel .push-confirm-panel h2,
+.settings-push-history-inline-panel .push-history-head {
+  display: none !important;
+}
+
+.settings-push-inline-panel .push-confirm-panel p {
+  margin: 0 !important;
+  color: rgba(255, 255, 255, 0.7) !important;
+  font-size: 0.9rem !important;
+  line-height: 1.65 !important;
+}
+
+.settings-push-inline-panel .push-confirm-actions {
+  justify-content: flex-end !important;
+}
+
+.settings-push-history-inline-panel .push-history-list {
+  max-height: 42svh !important;
+  overflow-y: auto !important;
+}
+
+#setup-panel #settings-push-history-button {
+  display: none !important;
+}
+
+/* Deploy fix: legend and simulation trigger must always be visible above map UI. */
+.intensity-legend,
+body .intensity-legend,
+body:not([data-active-bottom-tab="earthquake-tab"]) .intensity-legend {
+  position: fixed !important;
+  top: calc(env(safe-area-inset-top) + 8px) !important;
+  left: max(8px, env(safe-area-inset-left)) !important;
+  right: max(8px, env(safe-area-inset-right)) !important;
+  bottom: auto !important;
+  z-index: 2147483000 !important;
+  display: flex !important;
+  width: auto !important;
+  max-width: none !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+  transform: none !important;
+}
+
+#simulation-start,
+body #simulation-start,
+body:not([data-active-bottom-tab="earthquake-tab"]) #simulation-start {
+  position: fixed !important;
+  top: calc(env(safe-area-inset-top) + 48px) !important;
+  right: max(10px, env(safe-area-inset-right)) !important;
+  z-index: 2147483001 !important;
+  display: grid !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+  transform: none !important;
+}
+
+/* Final pass 4: keep legend/start visible and refine bottom icons. */
+.intensity-legend {
+  top: calc(env(safe-area-inset-top) + 8px) !important;
+  left: max(8px, env(safe-area-inset-left)) !important;
+  right: max(8px, env(safe-area-inset-right)) !important;
+  z-index: 3600 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
+#simulation-start {
+  top: calc(env(safe-area-inset-top) + 48px) !important;
+  right: max(10px, env(safe-area-inset-right)) !important;
+  z-index: 3610 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
+body:not([data-active-bottom-tab="earthquake-tab"]) .intensity-legend,
+body:not([data-active-bottom-tab="earthquake-tab"]) #simulation-start {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+#earthquake-tab .bottom-tab-icon::before {
+  left: 3px !important;
+  top: 4px !important;
+  width: 19px !important;
+  height: 16px !important;
+  border: 2px solid currentColor !important;
+  border-radius: 3px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+#earthquake-tab .bottom-tab-icon::after {
+  content: "" !important;
+  left: 6px !important;
+  top: 9px !important;
+  width: 13px !important;
+  height: 6px !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow:
+    0 0 0 1.5px transparent,
+    0 -3px 0 -1px currentColor,
+    2px 2px 0 -1px currentColor,
+    4px -4px 0 -1px currentColor,
+    6px 3px 0 -1px currentColor,
+    8px -3px 0 -1px currentColor,
+    10px 2px 0 -1px currentColor,
+    12px -2px 0 -1px currentColor !important;
+  clip-path: none !important;
+}
+
+#bottom-info-tab .bottom-tab-icon::before {
+  inset: 2px !important;
+  width: auto !important;
+  height: auto !important;
+  border: 2.4px solid currentColor !important;
+  border-radius: 999px !important;
+  background: transparent !important;
+}
+
+#bottom-info-tab .bottom-tab-icon::after {
+  content: "i" !important;
+  left: 0 !important;
+  top: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  display: grid !important;
+  place-items: center !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: currentColor !important;
+  box-shadow: none !important;
+  font-size: 17px !important;
+  font-weight: 950 !important;
+  line-height: 1 !important;
+  text-align: center !important;
+}
+
+/* Final final: notification rows stay in the settings page, not overlays. */
+.settings-notification-row strong,
+#settings-push-status {
+  display: inline-grid !important;
+  min-width: 54px !important;
+  min-height: 30px !important;
+  place-items: center !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 999px !important;
+  padding: 0 14px !important;
+  background: rgba(255, 255, 255, 0.075) !important;
+  color: rgba(255, 255, 255, 0.88) !important;
+  font-size: 0.86rem !important;
+  font-weight: 900 !important;
+}
+
+.settings-switch,
+#settings-push-toggle {
+  display: none !important;
+}
+
+#settings-push-button {
+  order: 2 !important;
+}
+
+#settings-push-panel {
+  order: 3 !important;
+}
+
+#settings-push-history-button {
+  order: 4 !important;
+}
+
+#settings-push-history-panel {
+  order: 5 !important;
+}
+
+#settings-source-button {
+  order: 6 !important;
+}
+
+#settings-source-panel {
+  order: 7 !important;
+}
+
+#settings-feedback-button {
+  order: 8 !important;
+}
+
+#settings-feedback-panel {
+  order: 9 !important;
+}
+
+.settings-push-inline-panel .push-confirm-panel,
+.settings-push-history-inline-panel .push-confirm-panel {
+  display: grid !important;
+  gap: 12px !important;
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+.settings-push-inline-panel .push-confirm-panel h2,
+.settings-push-history-inline-panel .push-history-head {
+  display: none !important;
+}
+
+.settings-push-inline-panel .push-confirm-panel p {
+  margin: 0 !important;
+  color: rgba(255, 255, 255, 0.7) !important;
+  font-size: 0.9rem !important;
+  line-height: 1.65 !important;
+}
+
+.settings-push-inline-panel .push-confirm-actions {
+  justify-content: flex-end !important;
+}
+
+.settings-push-history-inline-panel .push-history-list {
+  max-height: 42svh !important;
+  overflow-y: auto !important;
+}
+
 button {
   font: inherit;
 }
@@ -5573,5 +6701,205 @@ body:not([data-active-bottom-tab="earthquake-tab"]) #simulation-start {
     min-width: 40px !important;
     height: 32px !important;
     min-height: 32px !important;
+  }
+}
+
+/* Final pass: make the current UI decisions win over earlier experimental layers. */
+.sim-panel {
+  width: min(840px, calc(100vw - 16px)) !important;
+}
+
+#setup-panel.setup-menu-closed,
+.sim-panel[data-sheet-state="collapsed"] {
+  transform: translate(-50%, 52%) !important;
+}
+
+.sim-panel.is-dragging[data-sheet-state="collapsed"] {
+  transform: translate(-50%, calc(52% + var(--sheet-drag-y, 0px))) !important;
+}
+
+.sheet-handle {
+  width: 92px !important;
+  height: 22px !important;
+  cursor: grab !important;
+  touch-action: none !important;
+}
+
+.sheet-handle::after {
+  top: 6px !important;
+  width: 62px !important;
+  height: 5px !important;
+}
+
+#setup-panel .settings-section[data-settings-section="display"] {
+  order: 1 !important;
+}
+
+#setup-panel .settings-section[data-settings-section="source"] {
+  order: 2 !important;
+  display: grid !important;
+  margin-top: 8px !important;
+  padding-top: 10px !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+#setup-panel .settings-section[data-settings-section="source"] h3,
+#setup-panel .settings-section[data-settings-section="source"] .field,
+#setup-panel .settings-section[data-settings-section="source"] .field-grid {
+  display: grid !important;
+}
+
+.settings-menu-list {
+  display: flex !important;
+  flex-direction: column !important;
+  height: calc(100svh - var(--bottom-nav-height) - env(safe-area-inset-bottom) - 20px) !important;
+  overflow-y: auto !important;
+}
+
+.settings-notification-card {
+  order: 1 !important;
+  display: grid !important;
+  grid-template-columns: 1fr auto !important;
+  gap: 10px 14px !important;
+  align-items: center !important;
+  padding: 12px 18px 16px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.16) !important;
+}
+
+.settings-notification-row {
+  display: contents !important;
+}
+
+.settings-notification-row span {
+  color: rgba(255, 255, 255, 0.78) !important;
+  font-size: 0.92rem !important;
+}
+
+.settings-notification-row strong {
+  color: #f5f5f5 !important;
+  font-size: 0.95rem !important;
+  letter-spacing: 0.08em !important;
+}
+
+.settings-switch {
+  grid-column: 2 !important;
+  justify-self: end !important;
+  min-width: 74px !important;
+  min-height: 34px !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  border-radius: 999px !important;
+  padding: 0 14px !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: rgba(255, 255, 255, 0.78) !important;
+  font-weight: 800 !important;
+}
+
+.settings-switch.is-on {
+  border-color: rgba(21, 214, 237, 0.58) !important;
+  background: rgba(21, 214, 237, 0.22) !important;
+  color: #23e1f5 !important;
+}
+
+#settings-push-button {
+  order: 2 !important;
+}
+
+#settings-source-button {
+  order: 3 !important;
+  margin-top: 10px !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.16) !important;
+}
+
+#settings-source-panel {
+  order: 4 !important;
+}
+
+#settings-feedback-button {
+  order: 5 !important;
+}
+
+#settings-feedback-panel {
+  order: 6 !important;
+}
+
+.settings-inline-panel {
+  padding: 12px 18px 18px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: rgba(255, 255, 255, 0.018) !important;
+}
+
+.settings-inline-panel.hidden {
+  display: none !important;
+}
+
+.settings-inline-panel .source-info-overlay-content {
+  width: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  padding: 0 !important;
+  overflow: visible !important;
+}
+
+.settings-inline-panel .source-info-header,
+.settings-inline-panel .source-info-footer {
+  display: none !important;
+}
+
+.settings-inline-panel .source-info-tabs {
+  margin: 0 0 12px !important;
+}
+
+.settings-inline-panel .source-info-section,
+.settings-inline-panel .source-link-card {
+  background: rgba(255, 255, 255, 0.035) !important;
+}
+
+.settings-feedback-form {
+  display: grid !important;
+  gap: 12px !important;
+}
+
+.settings-feedback-form .feedback-submit {
+  justify-self: end !important;
+  min-width: 96px !important;
+  min-height: 40px !important;
+}
+
+#earthquake-tab .bottom-tab-icon::before {
+  left: 3px !important;
+  top: 4px !important;
+  width: 19px !important;
+  height: 16px !important;
+  border: 2px solid currentColor !important;
+  border-radius: 3px !important;
+  background: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+#earthquake-tab .bottom-tab-icon::after {
+  content: "" !important;
+  left: 6px !important;
+  top: 8px !important;
+  width: 13px !important;
+  height: 8px !important;
+  border: 0 !important;
+  background: none !important;
+  background-image: linear-gradient(
+    135deg,
+    transparent 0 18%,
+    currentColor 18% 26%,
+    transparent 26% 38%,
+    currentColor 38% 46%,
+    transparent 46% 58%,
+    currentColor 58% 66%,
+    transparent 66% 100%
+  ) !important;
+  box-shadow: none !important;
+}
+
+@media (max-width: 720px) {
+  .sim-panel {
+    width: calc(100vw - 10px) !important;
   }
 }

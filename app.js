@@ -394,7 +394,14 @@ const els = {
   settingsMenuClose: document.querySelector("#settings-menu-close"),
   settingsSourceButton: document.querySelector("#settings-source-button"),
   settingsFeedbackButton: document.querySelector("#settings-feedback-button"),
-  settingsPushButton: document.querySelector("#settings-push-button"),
+  settingsPushButton: document.querySelector("#settings-menu-sheet #settings-push-button"),
+  settingsPushHistoryButton: document.querySelector("#settings-menu-sheet #settings-push-history-button"),
+  settingsPushStatus: document.querySelector("#settings-push-status"),
+  settingsPushToggle: document.querySelector("#settings-push-toggle"),
+  settingsSourcePanel: document.querySelector("#settings-source-panel"),
+  settingsFeedbackPanel: document.querySelector("#settings-feedback-panel"),
+  settingsPushPanel: document.querySelector("#settings-push-panel"),
+  settingsPushHistoryPanel: document.querySelector("#settings-push-history-panel"),
   infoFullPanel: document.querySelector("#info-full-panel"),
   learningFullPanel: document.querySelector("#learning-full-panel"),
   intensityColorScheme: document.querySelector("#intensity-color-scheme"),
@@ -805,6 +812,7 @@ function setupTabs() {
     closeEarthquakePresetPicker({ restoreTab: false, skipFocus: true });
     setSetupMenuOpen(false);
     els.settingsMenuSheet?.classList.remove("hidden");
+    updateSettingsScreenNotificationState();
   };
 
   const closeSettingsMenuSheet = () => {
@@ -831,6 +839,216 @@ function setupTabs() {
     els.infoFullPanel?.classList.add("hidden");
     els.learningFullPanel?.classList.remove("hidden");
   };
+
+  const setSettingsRowLabels = () => {
+    if (els.settingsSourceButton?.firstElementChild) {
+      els.settingsSourceButton.firstElementChild.textContent = "出典";
+      els.settingsSourceButton.lastElementChild.textContent = "›";
+      els.settingsSourceButton.setAttribute("aria-controls", "settings-source-panel");
+      els.settingsSourceButton.setAttribute("aria-expanded", "false");
+    }
+    if (els.settingsFeedbackButton?.firstElementChild) {
+      els.settingsFeedbackButton.firstElementChild.textContent = "フィードバック";
+      els.settingsFeedbackButton.lastElementChild.textContent = "›";
+      els.settingsFeedbackButton.setAttribute("aria-controls", "settings-feedback-panel");
+      els.settingsFeedbackButton.setAttribute("aria-expanded", "false");
+    }
+    if (els.settingsPushButton?.firstElementChild) {
+      els.settingsPushButton.firstElementChild.textContent = "通知の設定";
+      els.settingsPushButton.lastElementChild.textContent = "›";
+    }
+    if (els.settingsPushHistoryButton?.firstElementChild) {
+      els.settingsPushHistoryButton.firstElementChild.textContent = "通知履歴";
+      els.settingsPushHistoryButton.lastElementChild.textContent = "›";
+    }
+  };
+
+  const closeSettingsInlinePanels = (exceptPanel = null) => {
+    [
+      [els.settingsSourceButton, els.settingsSourcePanel],
+      [els.settingsFeedbackButton, els.settingsFeedbackPanel],
+      [els.settingsPushButton, els.settingsPushPanel],
+      [els.settingsPushHistoryButton, els.settingsPushHistoryPanel],
+    ].forEach(([button, panel]) => {
+      if (panel && panel !== exceptPanel) {
+        panel.classList.add("hidden");
+      }
+      if (button && panel !== exceptPanel) {
+        button.setAttribute("aria-expanded", "false");
+      }
+    });
+  };
+
+  const ensureSettingsPushPanel = () => {
+    if (!els.settingsMenuSheet) {
+      return;
+    }
+    if (!els.settingsPushPanel) {
+      els.settingsPushPanel = document.createElement("section");
+      els.settingsPushPanel.id = "settings-push-panel";
+      els.settingsPushPanel.className = "settings-inline-panel hidden settings-push-inline-panel";
+      els.settingsPushPanel.setAttribute("aria-label", "通知の設定");
+      els.settingsMenuSheet.querySelector(".settings-menu-list")?.append(els.settingsPushPanel);
+    }
+    if (els.settingsPushPanel.dataset.ready === "true") {
+      updateSettingsPushPanelState();
+      return;
+    }
+    els.settingsPushPanel.innerHTML = `
+      <section class="push-confirm-panel" data-push-panel="settings">
+        <h2>通知の設定</h2>
+        <p>アプリを閉じていても、重要なお知らせを通知として受け取れるようにします。</p>
+        <div class="push-confirm-actions">
+          <button class="push-confirm-yes" type="button">通知を設定</button>
+        </div>
+        <p class="push-confirm-status" role="status" aria-live="polite"></p>
+      </section>
+    `;
+    const yesButton = els.settingsPushPanel.querySelector(".push-confirm-yes");
+    const status = els.settingsPushPanel.querySelector(".push-confirm-status");
+    yesButton?.addEventListener("click", async () => {
+      yesButton.disabled = true;
+      const shouldUnsubscribe = state.pushSubscribed;
+      yesButton.textContent = shouldUnsubscribe ? "通知解除中..." : "通知設定中...";
+      setPushPermissionStatus(status, shouldUnsubscribe ? "通知を解除しています..." : "通知を設定しています...");
+      const ok = shouldUnsubscribe
+        ? await disablePushNotificationsFromOverlay(status)
+        : await enablePushNotificationsFromOverlay(status);
+      updateSettingsScreenNotificationState();
+      updateSettingsPushPanelState();
+      yesButton.disabled = false;
+      if (ok) {
+        dispatchNotificationHistoryChange({ source: "settings" });
+      }
+    });
+    els.settingsPushPanel.dataset.ready = "true";
+    updateSettingsPushPanelState();
+  };
+
+  const updateSettingsPushPanelState = () => {
+    const button = els.settingsPushPanel?.querySelector(".push-confirm-yes");
+    if (!button) {
+      return;
+    }
+    button.textContent = state.pushSubscribed ? "通知を解除" : "通知を設定";
+  };
+
+  const ensureSettingsPushHistoryPanel = () => {
+    if (!els.settingsMenuSheet) {
+      return;
+    }
+    if (!els.settingsPushHistoryPanel) {
+      els.settingsPushHistoryPanel = document.createElement("section");
+      els.settingsPushHistoryPanel.id = "settings-push-history-panel";
+      els.settingsPushHistoryPanel.className = "settings-inline-panel hidden settings-push-history-inline-panel";
+      els.settingsPushHistoryPanel.setAttribute("aria-label", "通知履歴");
+      els.settingsMenuSheet.querySelector(".settings-menu-list")?.append(els.settingsPushHistoryPanel);
+    }
+    if (els.settingsPushHistoryPanel.dataset.ready !== "true") {
+      els.settingsPushHistoryPanel.innerHTML = `
+        <section class="push-confirm-panel" data-push-panel="history">
+          <div class="push-history-list" role="list"></div>
+          <p class="push-history-status" role="status" aria-live="polite"></p>
+        </section>
+      `;
+      els.settingsPushHistoryPanel.querySelector(".push-history-list")?.addEventListener("click", async (event) => {
+        const readButton = event.target?.closest?.("[data-read-notification-history]");
+        if (readButton) {
+          await markNotificationHistoryItemRead(readButton.dataset.readNotificationHistory);
+          await renderNotificationHistory(els.settingsPushHistoryPanel);
+          return;
+        }
+
+        const deleteButton = event.target?.closest?.("[data-delete-notification-history]");
+        if (deleteButton) {
+          await deleteNotificationHistoryItem(deleteButton.dataset.deleteNotificationHistory);
+          await renderNotificationHistory(els.settingsPushHistoryPanel);
+          return;
+        }
+
+        const item = event.target?.closest?.("[data-read-notification-history-item]");
+        if (item) {
+          await markNotificationHistoryItemRead(item.dataset.readNotificationHistoryItem);
+          await renderNotificationHistory(els.settingsPushHistoryPanel);
+        }
+      });
+      window.addEventListener("notification-history-change", () => {
+        if (!els.settingsPushHistoryPanel?.classList.contains("hidden")) {
+          renderNotificationHistory(els.settingsPushHistoryPanel);
+        }
+      });
+      els.settingsPushHistoryPanel.dataset.ready = "true";
+    }
+    renderNotificationHistory(els.settingsPushHistoryPanel);
+  };
+
+  const ensureSettingsSourcePanel = () => {
+    if (!els.settingsSourcePanel || els.settingsSourcePanel.dataset.ready === "true") {
+      return;
+    }
+    els.settingsSourcePanel.innerHTML = buildSourceInfoOverlayHtml();
+    els.settingsSourcePanel.querySelector(".source-info-close")?.remove();
+    els.settingsSourcePanel.querySelector(".source-admin-mode-button")?.remove();
+    setupSourceInfoTabs(els.settingsSourcePanel);
+    els.settingsSourcePanel.dataset.ready = "true";
+  };
+
+  const ensureSettingsFeedbackPanel = () => {
+    if (!els.settingsFeedbackPanel || els.settingsFeedbackPanel.dataset.ready === "true") {
+      return;
+    }
+    els.settingsFeedbackPanel.innerHTML = `
+      <form class="settings-feedback-form">
+        <label class="feedback-field" for="settings-feedback-message">
+          <span>気づいた点・改善してほしい点</span>
+          <textarea id="settings-feedback-message" rows="8" maxlength="4000"></textarea>
+        </label>
+        <p class="feedback-status" role="status" aria-live="polite"></p>
+        <button class="feedback-submit" type="submit">送信</button>
+      </form>
+    `;
+    const form = els.settingsFeedbackPanel.querySelector(".settings-feedback-form");
+    const textarea = els.settingsFeedbackPanel.querySelector("#settings-feedback-message");
+    const status = els.settingsFeedbackPanel.querySelector(".feedback-status");
+    const submitButton = els.settingsFeedbackPanel.querySelector(".feedback-submit");
+    applyFeedbackPlaceholder(textarea);
+    form?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const message = textarea?.value.trim() ?? "";
+      if (!message) {
+        setFeedbackStatus(status, "内容を入力してください。", true);
+        textarea?.focus();
+        return;
+      }
+      if (!FEEDBACK_ENDPOINT_URL) {
+        setFeedbackStatus(status, "送信用URLが未設定です。", true);
+        return;
+      }
+      submitButton.disabled = true;
+      setFeedbackStatus(status, "送信中...", false);
+      try {
+        await sendFeedbackMessage(message);
+        textarea.value = "";
+        setFeedbackStatus(status, "送信しました。ありがとうございます。", false);
+      } catch (error) {
+        console.warn(error);
+        setFeedbackStatus(status, "送信に失敗しました。時間をおいて再度お試しください。", true);
+      } finally {
+        submitButton.disabled = false;
+      }
+    });
+    els.settingsFeedbackPanel.dataset.ready = "true";
+  };
+
+  const toggleSettingsInlinePanel = (button, panel, ensurePanel) => {
+    ensurePanel();
+    const willOpen = panel?.classList.contains("hidden");
+    closeSettingsInlinePanels(willOpen ? panel : null);
+    panel?.classList.toggle("hidden", !willOpen);
+    button?.setAttribute("aria-expanded", willOpen ? "true" : "false");
+  };
+
+  setSettingsRowLabels();
 
   document.querySelectorAll(".tab").forEach((tab) => {
     tab.addEventListener("click", () => {
@@ -893,16 +1111,18 @@ function setupTabs() {
     closeSettingsMenuSheet();
   });
   els.settingsSourceButton?.addEventListener("click", () => {
-    closeSettingsMenuSheet();
-    openInfoOverlay();
+    toggleSettingsInlinePanel(els.settingsSourceButton, els.settingsSourcePanel, ensureSettingsSourcePanel);
   });
   els.settingsFeedbackButton?.addEventListener("click", () => {
-    closeSettingsMenuSheet();
-    openFeedbackOverlay();
+    toggleSettingsInlinePanel(els.settingsFeedbackButton, els.settingsFeedbackPanel, ensureSettingsFeedbackPanel);
   });
   els.settingsPushButton?.addEventListener("click", () => {
-    closeSettingsMenuSheet();
-    openPushSettingsOverlay();
+    ensureSettingsPushPanel();
+    toggleSettingsInlinePanel(els.settingsPushButton, els.settingsPushPanel, () => {});
+  });
+  els.settingsPushHistoryButton?.addEventListener("click", () => {
+    ensureSettingsPushHistoryPanel();
+    toggleSettingsInlinePanel(els.settingsPushHistoryButton, els.settingsPushHistoryPanel, () => {});
   });
 }
 
@@ -1595,6 +1815,8 @@ function setSetupMenuOpen(open) {
   }
   if (nextOpen) {
     setSheetState(els.setupPanel, "open");
+  } else {
+    setSheetState(els.setupPanel, "collapsed");
   }
 }
 
@@ -1713,6 +1935,16 @@ function setPushNotificationStatus(message, options = {}) {
   if (els.notificationEnable) {
     els.notificationEnable.disabled = Boolean(options.disabled);
     els.notificationEnable.textContent = state.pushSubscribed ? "通知は有効です" : "通知を有効にする";
+  }
+}
+
+function updateSettingsScreenNotificationState() {
+  if (els.settingsPushStatus) {
+    els.settingsPushStatus.textContent = state.pushSubscribed ? "ON" : "OFF";
+  }
+  if (els.settingsPushToggle) {
+    els.settingsPushToggle.classList.toggle("is-on", state.pushSubscribed);
+    els.settingsPushToggle.setAttribute("aria-pressed", String(state.pushSubscribed));
   }
 }
 
@@ -1993,7 +2225,7 @@ function setupMobileSheets() {
       return;
     }
 
-    setSheetState(panel, "open");
+    setSheetState(panel, "collapsed");
     const handle = panel.querySelector(".sheet-handle");
     const toggleButtons = [els.setupSheetToggle, els.simulationSheetToggle].filter(Boolean);
 
@@ -2012,6 +2244,7 @@ function setupMobileSheets() {
     let dragging = false;
     let suppressHandleClick = false;
     let dragStartCollapsed = false;
+    let dragStartHeight = 0;
 
     if (handle) {
       handle.addEventListener("click", (event) => {
@@ -2026,16 +2259,22 @@ function setupMobileSheets() {
     }
 
     const beginDrag = (event) => {
-      if (!handle) {
+      const panelRect = panel.getBoundingClientRect();
+      const startedOnHandle = Boolean(event.target?.closest?.(".sheet-handle"));
+      const startedOnTopGrabZone = event.clientY - panelRect.top <= 78;
+      const startedOnInteractive = Boolean(event.target?.closest?.("button:not(.sheet-handle), input, select, textarea, a, label"));
+      if (!startedOnHandle && (!startedOnTopGrabZone || startedOnInteractive)) {
         return;
       }
 
+      event.preventDefault();
       dragging = true;
       dragStartY = event.clientY;
       dragCurrentY = event.clientY;
       dragStartCollapsed = panel.dataset.sheetState === "collapsed";
+      dragStartHeight = panelRect.height;
       panel.classList.add("is-dragging");
-      handle.setPointerCapture?.(event.pointerId);
+      panel.setPointerCapture?.(event.pointerId);
     };
 
     const updateDrag = (event) => {
@@ -2045,8 +2284,11 @@ function setupMobileSheets() {
 
       dragCurrentY = event.clientY;
       const deltaY = dragCurrentY - dragStartY;
-      const dragY = dragStartCollapsed ? Math.min(deltaY, 0) : Math.max(deltaY, 0);
-      panel.style.setProperty("--sheet-drag-y", `${dragY}px`);
+      const viewportHeight = window.visualViewport?.height || window.innerHeight || 720;
+      const minHeight = Math.min(viewportHeight * 0.42, 420);
+      const maxHeight = Math.min(viewportHeight * 0.68, 660);
+      const nextHeight = clamp(dragStartHeight - deltaY, minHeight, maxHeight);
+      panel.style.setProperty("--sheet-drag-height", `${nextHeight}px`);
     };
 
     const finishDrag = (event) => {
@@ -2055,9 +2297,9 @@ function setupMobileSheets() {
       }
 
       dragging = false;
-      handle?.releasePointerCapture?.(event.pointerId);
+      panel.releasePointerCapture?.(event.pointerId);
       panel.classList.remove("is-dragging");
-      panel.style.removeProperty("--sheet-drag-y");
+      panel.style.removeProperty("--sheet-drag-height");
       const deltaY = dragCurrentY - dragStartY;
       suppressHandleClick = Math.abs(deltaY) > 8;
       setSheetState(panel, dragStartCollapsed
@@ -2065,10 +2307,10 @@ function setupMobileSheets() {
         : (deltaY > 60 ? "collapsed" : "open"));
     };
 
-    handle?.addEventListener("pointerdown", beginDrag);
-    handle?.addEventListener("pointermove", updateDrag);
-    handle?.addEventListener("pointerup", finishDrag);
-    handle?.addEventListener("pointercancel", finishDrag);
+    panel.addEventListener("pointerdown", beginDrag);
+    panel.addEventListener("pointermove", updateDrag);
+    panel.addEventListener("pointerup", finishDrag);
+    panel.addEventListener("pointercancel", finishDrag);
   });
 }
 
@@ -2492,6 +2734,8 @@ function onceMapLoaded() {
 }
 
 function addZoomOnlyControl() {
+  return;
+
   const zoomControl = {
     onAdd(targetMap) {
       const container = document.createElement("div");

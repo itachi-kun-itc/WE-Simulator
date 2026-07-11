@@ -261,6 +261,10 @@
             </div>
             </section>
 
+              <button class="settings-menu-row" id="settings-push-history-button" type="button">
+                <span>通知履歴</span>
+                <span aria-hidden="true">›</span>
+              </button>
             </div>
           </section>
 
@@ -324,6 +328,21 @@
               <button class="settings-menu-close" id="settings-menu-close" type="button" aria-label="設定メニューを閉じる">×</button>
             </header>
             <div class="settings-menu-list">
+              <button class="settings-menu-row" id="settings-push-history-button" type="button">
+                <span>通知履歴</span>
+                <span aria-hidden="true">›</span>
+              </button>
+              <section class="settings-notification-card" aria-label="通知設定">
+                <div class="settings-notification-row">
+                  <span>現在の通知</span>
+                  <strong id="settings-push-status">OFF</strong>
+                </div>
+                <button class="settings-switch" id="settings-push-toggle" type="button" aria-pressed="false">
+                  <span>ON/OFF</span>
+                </button>
+              </section>
+              <section class="settings-inline-panel hidden" id="settings-source-panel" aria-label="出典"></section>
+              <section class="settings-inline-panel hidden" id="settings-feedback-panel" aria-label="フィードバック"></section>
               <button class="settings-menu-row" id="settings-source-button" type="button">
                 <span>出典</span>
                 <span aria-hidden="true">›</span>
