@@ -35,6 +35,24 @@ export default {
     const url = new URL(request.url);
 
     try {
+      if (
+        (request.method === "GET" || request.method === "HEAD") &&
+        url.pathname === "/map/japan.pmtiles"
+      ) {
+        return serveR2Object(request, env, "map/japan.pmtiles");
+      }
+
+      if (
+        (request.method === "GET" || request.method === "HEAD") &&
+        url.pathname.startsWith("/data/municipalities/")
+      ) {
+        const file = url.pathname.slice("/data/municipalities/".length);
+        if (file !== "index.json" && !/^\d{2}\.geojson$/.test(file)) {
+          return json({ error: "not found" }, 404);
+        }
+        return serveR2Object(request, env, `municipalities/${file}`, "application/geo+json; charset=utf-8");
+      }
+
       if (request.method === "GET" && url.pathname === "/vapid-public-key") {
         return json({ publicKey: env.VAPID_PUBLIC_KEY || "" });
       }
@@ -117,6 +135,40 @@ export default {
     }
   },
 };
+
+async function serveR2Object(request, env, key, contentType = "application/vnd.pmtiles") {
+  if (!env.WE_SIMULATOR_DATA) {
+    return json({ error: "R2 bucket is not configured" }, 503);
+  }
+
+  const requestedRange = request.headers.has("range");
+  const object = await env.WE_SIMULATOR_DATA.get(key, {
+    range: request.headers,
+  });
+  if (!object) {
+    return json({ error: "not found" }, 404);
+  }
+
+  const headers = new Headers(CORS_HEADERS);
+  object.writeHttpMetadata(headers);
+  headers.set("Accept-Ranges", "bytes");
+  headers.set("Cache-Control", "public, max-age=86400, s-maxage=604800, immutable");
+  headers.set("Content-Type", contentType);
+  headers.set("ETag", object.httpEtag);
+
+  let status = 200;
+  if (requestedRange && object.range) {
+    const offset = object.range.offset ?? 0;
+    const length = object.range.length ?? object.size;
+    headers.set("Content-Range", `bytes ${offset}-${offset + length - 1}/${object.size}`);
+    headers.set("Content-Length", String(length));
+    status = 206;
+  } else {
+    headers.set("Content-Length", String(object.size));
+  }
+
+  return new Response(request.method === "HEAD" ? null : object.body, { status, headers });
+}
 
 async function sendNotificationToAll(workerUrl, env) {
   const subscriptions = await listSubscriptions(env);
