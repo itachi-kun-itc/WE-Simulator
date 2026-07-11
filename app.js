@@ -121,10 +121,11 @@ const GEOLOCATION_IPAD_CACHED_MAX_AGE_MS = 300000;
 const WAVE_RENDER_RADIUS_STEP_KM = 1.5;
 const WAVE_CIRCLE_STEPS = 160;
 const RESET_VIEW_ANIMATION_MS = 1200;
-const LIGHT_DEFERRED_DATA_DELAY_MS = 180;
-const STATION_DEFERRED_DATA_DELAY_MS = 450;
-const PRESET_DEFERRED_DATA_DELAY_MS = 900;
-const HEAVY_DEFERRED_DATA_DELAY_MS = 6000;
+const LIGHT_DEFERRED_DATA_DELAY_MS = 700;
+const SIMULATION_DEFERRED_DATA_DELAY_MS = 2400;
+const STATION_DEFERRED_DATA_DELAY_MS = 3200;
+const PRESET_DEFERRED_DATA_DELAY_MS = 3800;
+const HEAVY_DEFERRED_DATA_DELAY_MS = 9000;
 const EARTHQUAKE_PRESETS = [];
 
 const INTENSITY_CLASSES = [
@@ -485,6 +486,7 @@ let startupMapVisualReady = false;
 let municipalityBoundaryVisible = false;
 let startupLocationResolved = false;
 let startupOverlayReleasePending = false;
+let startupBackgroundDataScheduled = false;
 let maintenanceStatusReady = false;
 let simulationStartedAt;
 let simulationPausedAt;
@@ -5134,13 +5136,24 @@ async function showMapLayers() {
   municipalityBoundaryVisible = true;
   scheduleStartupReadyAfterIntensityPaint();
   watchJapanPmtilesStartup();
-  scheduleDeferredTask(hydrateDeferredMapData, LIGHT_DEFERRED_DATA_DELAY_MS, 1800);
 }
 
-async function hydrateDeferredMapData() {
-  hydrateDeferredSupplementaryMapData().catch((error) => console.warn(error));
-  hydrateDeferredSimulationMapData().catch((error) => console.warn(error));
-  scheduleDeferredTask(() => scheduleLocationResolve(), 900, 2400);
+function scheduleStartupBackgroundData() {
+  if (startupBackgroundDataScheduled) {
+    return;
+  }
+  startupBackgroundDataScheduled = true;
+  scheduleDeferredTask(
+    hydrateDeferredSupplementaryMapData,
+    LIGHT_DEFERRED_DATA_DELAY_MS,
+    3000,
+  ).catch((error) => console.warn(error));
+  scheduleDeferredTask(
+    hydrateDeferredSimulationMapData,
+    SIMULATION_DEFERRED_DATA_DELAY_MS,
+    8000,
+  ).catch((error) => console.warn(error));
+  scheduleDeferredTask(() => scheduleLocationResolve(), 1200, 3200);
   updateSimulationAvailability();
   schedulePostMunicipalityDataHydration();
 }
@@ -5335,6 +5348,7 @@ function releaseStartupMapOverlay() {
   window.requestAnimationFrame(() => renderStationCanvasOverlay());
   document.body.classList.remove("map-core-loading");
   updateSimulationAvailability();
+  scheduleStartupBackgroundData();
 }
 
 function schedulePostMunicipalityDataHydration() {
