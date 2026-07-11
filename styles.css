@@ -1619,7 +1619,7 @@ body.app-loading .epicenter-marker-shell {
   position: absolute;
   left: 14px;
   top: 10px;
-  z-index: 500;
+  z-index: 760;
   width: min(360px, calc(100% - 28px));
   max-height: calc(var(--app-height, 100vh) - 20px);
   border: 1px solid var(--line);
@@ -2514,7 +2514,7 @@ body.app-loading .epicenter-marker-shell {
   position: absolute;
   right: 14.8px;
   bottom: 8px;
-  z-index: 499;
+  z-index: 740;
   width: 34px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.28);
@@ -2572,7 +2572,7 @@ body.app-loading .epicenter-marker-shell {
   position: absolute;
   right: 52px;
   bottom: 8px;
-  z-index: 460;
+  z-index: 730;
   width: min(300px, calc(100vw - 340px));
   min-width: 252px;
   max-height: min(320px, 48vh);
@@ -3247,7 +3247,7 @@ body.app-loading .epicenter-marker-shell {
     right: calc(env(safe-area-inset-right) + 59px);
     top: calc(env(safe-area-inset-top) + 9.8px);
     bottom: auto;
-    z-index: 499;
+    z-index: 740;
     display: flex;
     width: 304px;
     max-width: none;
