@@ -51,6 +51,7 @@ const server = http.createServer((request, response) => {
     if (range === null) {
       response.writeHead(200, {
         "Accept-Ranges": "bytes",
+        "Cache-Control": "no-store, max-age=0",
         "Content-Length": stat.size,
         "Content-Type": contentType,
       });
@@ -68,6 +69,7 @@ const server = http.createServer((request, response) => {
 
     response.writeHead(206, {
       "Accept-Ranges": "bytes",
+      "Cache-Control": "no-store, max-age=0",
       "Content-Length": range.end - range.start + 1,
       "Content-Range": `bytes ${range.start}-${range.end}/${stat.size}`,
       "Content-Type": contentType,

@@ -62,6 +62,8 @@
             </div>
 
             <div class="sim-panel-scroll">
+            <section class="settings-section settings-section-primary" aria-labelledby="setup-primary-title">
+              <h3 id="setup-primary-title">基本操作</h3>
             <div class="toggle-grid setup-primary-toggles">
               <label class="toggle-row layer-toggle-full">
                 <input id="epicenter-edit-toggle" type="checkbox" />
@@ -76,8 +78,11 @@
                 <span>断層</span>
               </label>
             </div>
+            </section>
             <div class="control-separator" aria-hidden="true"></div>
 
+            <section class="settings-section" aria-labelledby="setup-display-title">
+              <h3 id="setup-display-title">表示レイヤー</h3>
             <div class="toggle-grid" aria-label="震度表示切り替え">
               <label class="toggle-row">
                 <input id="station-layer-toggle" type="checkbox" />
@@ -96,7 +101,10 @@
                 <span>緊急地震速報（警報）</span>
               </label>
             </div>
+            </section>
 
+            <section class="settings-section" aria-labelledby="setup-source-title">
+              <h3 id="setup-source-title">震源パラメータ</h3>
             <label class="field">
               <span>地震プリセット</span>
               <button class="preset-picker-button" id="historical-earthquake-button" type="button">
@@ -143,7 +151,10 @@
                 <option value="a">A型色覚</option>
               </select>
             </label>
+            </section>
 
+            <section class="settings-section setup-result-section" aria-labelledby="setup-result-title">
+              <h3 id="setup-result-title">計算結果</h3>
             <dl class="result-list">
               <div>
                 <dt>震央市町村</dt>
@@ -154,6 +165,7 @@
                 <dd id="max-intensity-output">未計算</dd>
               </div>
             </dl>
+            </section>
 
             </div>
 
@@ -270,10 +282,12 @@
               </label>
             </div>
 
-            <section class="max-stations-block">
-              <h2>地震観測点一覧</h2>
+            <details class="max-stations-block">
+              <summary>
+                <span>地震観測点一覧</span>
+              </summary>
               <ol id="max-station-list"></ol>
-            </section>
+            </details>
 
             </div>
 
