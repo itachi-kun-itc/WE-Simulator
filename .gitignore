@@ -13,6 +13,8 @@ data/raw/*
 N03-180101_GML/
 
 *.log
+tmp/pmtiles/
+tmp/pmtiles-source/
 
 # Local Netlify folder
 .netlify

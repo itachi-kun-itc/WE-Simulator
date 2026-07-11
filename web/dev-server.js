@@ -10,6 +10,7 @@ const mimeTypes = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
+  ".pmtiles": "application/octet-stream",
   ".webmanifest": "application/manifest+json; charset=utf-8",
 };
 
@@ -31,17 +32,47 @@ const server = http.createServer((request, response) => {
     return;
   }
 
-  fs.readFile(filePath, (error, content) => {
+  fs.stat(filePath, (error, stat) => {
     if (error) {
       response.writeHead(error.code === "ENOENT" ? 404 : 500);
       response.end(error.code === "ENOENT" ? "Not found" : "Server error");
       return;
     }
 
-    response.writeHead(200, {
-      "Content-Type": mimeTypes[path.extname(filePath)] || "application/octet-stream",
+    if (!stat.isFile()) {
+      response.writeHead(404);
+      response.end("Not found");
+      return;
+    }
+
+    const contentType = mimeTypes[path.extname(filePath)] || "application/octet-stream";
+    const range = parseRangeHeader(request.headers.range, stat.size);
+
+    if (range === null) {
+      response.writeHead(200, {
+        "Accept-Ranges": "bytes",
+        "Content-Length": stat.size,
+        "Content-Type": contentType,
+      });
+      fs.createReadStream(filePath).pipe(response);
+      return;
+    }
+
+    if (range === false) {
+      response.writeHead(416, {
+        "Content-Range": `bytes */${stat.size}`,
+      });
+      response.end();
+      return;
+    }
+
+    response.writeHead(206, {
+      "Accept-Ranges": "bytes",
+      "Content-Length": range.end - range.start + 1,
+      "Content-Range": `bytes ${range.start}-${range.end}/${stat.size}`,
+      "Content-Type": contentType,
     });
-    response.end(content);
+    fs.createReadStream(filePath, range).pipe(response);
   });
 });
 
@@ -126,6 +157,37 @@ function sendJson(response, status, body) {
     "Content-Type": "application/json; charset=utf-8",
   });
   response.end(JSON.stringify(body));
+}
+
+function parseRangeHeader(header, size) {
+  if (!header) {
+    return null;
+  }
+
+  const match = /^bytes=(\d*)-(\d*)$/.exec(header);
+  if (!match) {
+    return false;
+  }
+
+  let start = match[1] === "" ? null : Number(match[1]);
+  let end = match[2] === "" ? null : Number(match[2]);
+
+  if (start === null && end === null) {
+    return false;
+  }
+
+  if (start === null) {
+    start = Math.max(size - end, 0);
+    end = size - 1;
+  } else if (end === null) {
+    end = size - 1;
+  }
+
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start || start >= size) {
+    return false;
+  }
+
+  return { start, end: Math.min(end, size - 1) };
 }
 
 function readRequestBody(request) {

@@ -1,4 +1,4 @@
-const CACHE_NAME = "we-simulator-pwa-v2";
+const CACHE_NAME = "we-simulator-pwa-v3";
 const NOTIFICATION_HISTORY_DB_NAME = "we-simulator-notification-history";
 const NOTIFICATION_HISTORY_DB_VERSION = 1;
 const NOTIFICATION_HISTORY_STORE_NAME = "notifications";
@@ -41,11 +41,15 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  if (event.request.headers.has("range") || requestUrl.pathname.endsWith(".pmtiles")) {
+    return;
+  }
+
   event.respondWith(
     fetch(event.request)
       .then((response) => {
         const copy = response.clone();
-        if (response.ok) {
+        if (response.status === 200) {
           caches.open(CACHE_NAME)
             .then((cache) => cache.put(event.request, copy))
             .catch((error) => console.warn("cache put failed", error));
