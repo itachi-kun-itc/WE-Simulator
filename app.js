@@ -390,6 +390,13 @@ const els = {
   presetPickerClose: document.querySelector("#preset-picker-close"),
   presetPickerTableWrap: document.querySelector(".preset-picker-table-wrap"),
   presetPickerList: document.querySelector("#preset-picker-list"),
+  settingsMenuSheet: document.querySelector("#settings-menu-sheet"),
+  settingsMenuClose: document.querySelector("#settings-menu-close"),
+  settingsSourceButton: document.querySelector("#settings-source-button"),
+  settingsFeedbackButton: document.querySelector("#settings-feedback-button"),
+  settingsPushButton: document.querySelector("#settings-push-button"),
+  infoFullPanel: document.querySelector("#info-full-panel"),
+  learningFullPanel: document.querySelector("#learning-full-panel"),
   intensityColorScheme: document.querySelector("#intensity-color-scheme"),
   municipalityOutput: document.querySelector("#municipality-output"),
   maxIntensityOutput: document.querySelector("#max-intensity-output"),
@@ -407,6 +414,7 @@ const els = {
   simulationPlateBoundaryLayerToggle: document.querySelector("#simulation-plate-boundary-layer-toggle"),
   simulationFaultLayerToggle: document.querySelector("#simulation-fault-layer-toggle"),
   resetEpicenter: document.querySelector("#reset-epicenter"),
+  settingsMenuButton: document.querySelector("#settings-menu-button"),
   setupSheetToggle: document.querySelector("#setup-sheet-toggle"),
   simulationSheetToggle: document.querySelector("#simulation-sheet-toggle"),
   setupPanel: document.querySelector("#setup-panel"),
@@ -760,18 +768,141 @@ function setInitialSimulationStartLoadingState() {
 }
 
 function setupTabs() {
+  const activateEarthquakePanel = () => {
+    document.querySelectorAll(".panel").forEach((panel) => panel.classList.remove("panel-active"));
+    document.querySelector("#earthquake-panel")?.classList.add("panel-active");
+    requestAnimationFrame(() => safelyResizeMap());
+  };
+
+  const setActiveBottomTab = (selector) => {
+    document.querySelectorAll(".tab").forEach((item) => item.classList.remove("active"));
+    const activeTab = document.querySelector(selector);
+    activeTab?.classList.add("active");
+    document.body.dataset.activeBottomTab = activeTab?.id || "";
+  };
+
+  document.body.dataset.activeBottomTab = document.querySelector(".tab.active")?.id || "earthquake-tab";
+
+  const openInfoOverlay = () => {
+    const { sourceOverlay } = setupGlobalOverlays();
+    sourceOverlay.classList.remove("hidden");
+    document.body.classList.add("source-overlay-open");
+    resetSourceInfoScroll(sourceOverlay);
+  };
+
+  const openFeedbackOverlay = () => {
+    const { feedbackOverlay } = setupGlobalOverlays();
+    feedbackOverlay.classList.remove("hidden");
+    document.body.classList.add("source-overlay-open");
+  };
+
+  const openPushSettingsOverlay = () => {
+    const { pushConfirmOverlay } = setupGlobalOverlays();
+    showPushConfirmOverlay(pushConfirmOverlay);
+  };
+
+  const openSettingsMenuSheet = () => {
+    closeEarthquakePresetPicker({ restoreTab: false, skipFocus: true });
+    setSetupMenuOpen(false);
+    els.settingsMenuSheet?.classList.remove("hidden");
+  };
+
+  const closeSettingsMenuSheet = () => {
+    els.settingsMenuSheet?.classList.add("hidden");
+  };
+
+  const closeFullPanels = () => {
+    els.infoFullPanel?.classList.add("hidden");
+    els.learningFullPanel?.classList.add("hidden");
+  };
+
+  const openInfoFullPanel = () => {
+    closeEarthquakePresetPicker({ restoreTab: false, skipFocus: true });
+    closeSettingsMenuSheet();
+    setSetupMenuOpen(false);
+    els.learningFullPanel?.classList.add("hidden");
+    els.infoFullPanel?.classList.remove("hidden");
+  };
+
+  const openLearningFullPanel = () => {
+    closeEarthquakePresetPicker({ restoreTab: false, skipFocus: true });
+    closeSettingsMenuSheet();
+    setSetupMenuOpen(false);
+    els.infoFullPanel?.classList.add("hidden");
+    els.learningFullPanel?.classList.remove("hidden");
+  };
+
   document.querySelectorAll(".tab").forEach((tab) => {
     tab.addEventListener("click", () => {
+      if (!tab.dataset.panel) {
+        return;
+      }
+
       document.querySelectorAll(".tab").forEach((item) => item.classList.remove("active"));
       document.querySelectorAll(".panel").forEach((panel) => panel.classList.remove("panel-active"));
 
       tab.classList.add("active");
+      document.body.dataset.activeBottomTab = tab.id || "";
       document.querySelector(`#${tab.dataset.panel}`).classList.add("panel-active");
 
       if (tab.dataset.panel === "earthquake-panel" && map) {
+        closeEarthquakePresetPicker({ restoreTab: false, skipFocus: true });
+        els.settingsMenuSheet?.classList.add("hidden");
+        closeFullPanels();
+        activateSettingsTab("primary");
+        if (els.setupPanel?.classList.contains("setup-menu-open") && els.setupPanel?.dataset.sheetState === "open") {
+          setSheetState(els.setupPanel, "collapsed");
+        } else {
+          setSetupMenuOpen(true);
+          setSheetState(els.setupPanel, "open");
+        }
         requestAnimationFrame(() => safelyResizeMap());
       }
     });
+  });
+
+  document.querySelector("#bottom-history-tab")?.addEventListener("click", () => {
+    setActiveBottomTab("#bottom-history-tab");
+    activateEarthquakePanel();
+    closeSettingsMenuSheet();
+    closeFullPanels();
+    setSetupMenuOpen(false);
+    openEarthquakePresetPicker();
+  });
+
+  document.querySelector("#bottom-info-tab")?.addEventListener("click", () => {
+    setActiveBottomTab("#bottom-info-tab");
+    activateEarthquakePanel();
+    openInfoFullPanel();
+  });
+
+  document.querySelector("#bottom-learning-tab")?.addEventListener("click", () => {
+    setActiveBottomTab("#bottom-learning-tab");
+    activateEarthquakePanel();
+    openLearningFullPanel();
+  });
+
+  document.querySelector("#bottom-settings-tab")?.addEventListener("click", () => {
+    setActiveBottomTab("#bottom-settings-tab");
+    activateEarthquakePanel();
+    closeFullPanels();
+    openSettingsMenuSheet();
+  });
+
+  els.settingsMenuClose?.addEventListener("click", () => {
+    closeSettingsMenuSheet();
+  });
+  els.settingsSourceButton?.addEventListener("click", () => {
+    closeSettingsMenuSheet();
+    openInfoOverlay();
+  });
+  els.settingsFeedbackButton?.addEventListener("click", () => {
+    closeSettingsMenuSheet();
+    openFeedbackOverlay();
+  });
+  els.settingsPushButton?.addEventListener("click", () => {
+    closeSettingsMenuSheet();
+    openPushSettingsOverlay();
   });
 }
 
@@ -861,13 +992,14 @@ function renderEarthquakePresetPicker() {
     .map((preset) => {
       const row = document.createElement("tr");
       const intensityClass = getPresetMaxIntensityClass(preset);
+      const intensityBadgeLabel = normalizeIntensityLabelToken(formatPresetMaxIntensity(preset)) || "-";
       row.className = preset.id === state.selectedPresetId ? "selected" : "";
       row.innerHTML = `
+        <td><span class="preset-intensity-badge" style="--preset-intensity-color: ${escapeHtml(intensityClass?.color ?? "#d7d5e3")}; --preset-intensity-text: ${escapeHtml(intensityClass?.textColor ?? "#22242b")};">${escapeHtml(intensityBadgeLabel)}</span></td>
         <td>${escapeHtml(formatPresetDateTime(preset))}</td>
         <td>${escapeHtml(preset.epicenterName ?? preset.label ?? "-")}</td>
         <td>${escapeHtml(formatPresetDepth(preset))}</td>
         <td>${escapeHtml(formatPresetMagnitude(preset))}</td>
-        <td><span class="preset-intensity-pill" style="--preset-intensity-color: ${escapeHtml(intensityClass?.color ?? "#d7d5e3")}; --preset-intensity-text: ${escapeHtml(intensityClass?.textColor ?? "#22242b")};">${escapeHtml(formatPresetMaxIntensity(preset))}</span></td>
       `;
       row.addEventListener("click", () => {
         closeEarthquakePresetPicker();
@@ -1132,9 +1264,15 @@ function openEarthquakePresetPicker() {
   els.presetPickerClose?.focus();
 }
 
-function closeEarthquakePresetPicker() {
+function closeEarthquakePresetPicker(options = {}) {
   els.presetPickerOverlay?.classList.add("hidden");
-  els.historicalEarthquakeButton?.focus();
+  if (options.restoreTab !== false) {
+    document.querySelectorAll(".tab").forEach((item) => item.classList.remove("active"));
+    document.querySelector("#earthquake-tab")?.classList.add("active");
+  }
+  if (!options.skipFocus) {
+    els.historicalEarthquakeButton?.focus();
+  }
 }
 
 function resetPresetPickerScroll() {
@@ -1321,6 +1459,18 @@ async function fetchEarthquakePresetDetailFromWorker(presetId) {
 }
 
 function bindSimulationControls() {
+  els.settingsMenuButton?.addEventListener("click", () => toggleSetupMenu());
+
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest?.("[data-settings-tab]");
+    if (!button) {
+      return;
+    }
+
+    event.preventDefault();
+    activateSettingsTab(button.dataset.settingsTab || "primary");
+  });
+
   [els.latitude, els.longitude].forEach((input) => {
     input.addEventListener("input", () => {
       validateCoordinateInput(input, { report: true });
@@ -1360,6 +1510,13 @@ function bindSimulationControls() {
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !els.presetPickerOverlay?.classList.contains("hidden")) {
       closeEarthquakePresetPicker();
+    }
+    if (
+      event.key === "Escape"
+      && !els.setupPanel?.classList.contains("setup-menu-closed")
+      && els.simulationPanel?.classList.contains("hidden")
+    ) {
+      setSetupMenuOpen(false);
     }
   });
   els.intensityColorScheme?.addEventListener("change", () => {
@@ -1407,6 +1564,50 @@ function bindSimulationControls() {
   syncInputs();
   updateDisplayMode();
   updateSimulationAvailability();
+  setSetupMenuOpen(false);
+  updateSettingsMenuButtonVisibility();
+}
+
+function activateSettingsTab(tabId) {
+  const nextTabId = String(tabId || "primary");
+  document.querySelectorAll("[data-settings-tab]").forEach((button) => {
+    const selected = button.dataset.settingsTab === nextTabId;
+    button.classList.toggle("is-active", selected);
+    button.setAttribute("aria-selected", selected ? "true" : "false");
+  });
+  document.querySelectorAll("[data-settings-section]").forEach((section) => {
+    section.hidden = section.dataset.settingsSection !== nextTabId;
+  });
+}
+
+function setSetupMenuOpen(open) {
+  if (!els.setupPanel) {
+    return;
+  }
+
+  const nextOpen = Boolean(open);
+  els.setupPanel.classList.toggle("setup-menu-closed", !nextOpen);
+  els.setupPanel.classList.toggle("setup-menu-open", nextOpen);
+  if (els.settingsMenuButton) {
+    els.settingsMenuButton.classList.toggle("is-active", nextOpen);
+    els.settingsMenuButton.setAttribute("aria-expanded", nextOpen ? "true" : "false");
+    els.settingsMenuButton.setAttribute("aria-label", nextOpen ? "設定メニューを閉じる" : "設定メニューを開く");
+  }
+  if (nextOpen) {
+    setSheetState(els.setupPanel, "open");
+  }
+}
+
+function toggleSetupMenu() {
+  setSetupMenuOpen(els.setupPanel?.classList.contains("setup-menu-closed"));
+}
+
+function updateSettingsMenuButtonVisibility() {
+  if (!els.settingsMenuButton) {
+    return;
+  }
+
+  els.settingsMenuButton.classList.toggle("is-hidden", state.simulationRunning);
 }
 
 function resetEpicenterToInitialState(options = {}) {
@@ -1788,10 +1989,13 @@ function normalizeStationNameForMatch(name) {
 
 function setupMobileSheets() {
   document.querySelectorAll(".sim-panel").forEach((panel) => {
-    setSheetState(panel, isCompactViewport() && panel.id === "simulation-panel" ? "collapsed" : "open");
+    if (panel.id === "simulation-panel") {
+      return;
+    }
+
+    setSheetState(panel, "open");
     const handle = panel.querySelector(".sheet-handle");
-    const toggleButton =
-      panel.id === "simulation-panel" ? els.simulationSheetToggle : els.setupSheetToggle;
+    const toggleButtons = [els.setupSheetToggle, els.simulationSheetToggle].filter(Boolean);
 
     const toggleSheet = (event) => {
       event?.preventDefault();
@@ -1799,11 +2003,72 @@ function setupMobileSheets() {
       setSheetState(panel, panel.dataset.sheetState === "collapsed" ? "open" : "collapsed");
     };
 
-    toggleButton?.addEventListener("click", toggleSheet);
+    toggleButtons.forEach((toggleButton) => {
+      toggleButton.addEventListener("click", toggleSheet);
+    });
+
+    let dragStartY = 0;
+    let dragCurrentY = 0;
+    let dragging = false;
+    let suppressHandleClick = false;
+    let dragStartCollapsed = false;
 
     if (handle) {
-      handle.addEventListener("click", toggleSheet);
+      handle.addEventListener("click", (event) => {
+        if (suppressHandleClick) {
+          event.preventDefault();
+          event.stopPropagation();
+          suppressHandleClick = false;
+          return;
+        }
+        toggleSheet(event);
+      });
     }
+
+    const beginDrag = (event) => {
+      if (!handle) {
+        return;
+      }
+
+      dragging = true;
+      dragStartY = event.clientY;
+      dragCurrentY = event.clientY;
+      dragStartCollapsed = panel.dataset.sheetState === "collapsed";
+      panel.classList.add("is-dragging");
+      handle.setPointerCapture?.(event.pointerId);
+    };
+
+    const updateDrag = (event) => {
+      if (!dragging) {
+        return;
+      }
+
+      dragCurrentY = event.clientY;
+      const deltaY = dragCurrentY - dragStartY;
+      const dragY = dragStartCollapsed ? Math.min(deltaY, 0) : Math.max(deltaY, 0);
+      panel.style.setProperty("--sheet-drag-y", `${dragY}px`);
+    };
+
+    const finishDrag = (event) => {
+      if (!dragging) {
+        return;
+      }
+
+      dragging = false;
+      handle?.releasePointerCapture?.(event.pointerId);
+      panel.classList.remove("is-dragging");
+      panel.style.removeProperty("--sheet-drag-y");
+      const deltaY = dragCurrentY - dragStartY;
+      suppressHandleClick = Math.abs(deltaY) > 8;
+      setSheetState(panel, dragStartCollapsed
+        ? (deltaY < -40 ? "open" : "collapsed")
+        : (deltaY > 60 ? "collapsed" : "open"));
+    };
+
+    handle?.addEventListener("pointerdown", beginDrag);
+    handle?.addEventListener("pointermove", updateDrag);
+    handle?.addEventListener("pointerup", finishDrag);
+    handle?.addEventListener("pointercancel", finishDrag);
   });
 }
 
@@ -2122,7 +2387,7 @@ async function initEarthquakeMap() {
     center: getInitialMapView().center,
     zoom: getInitialMapView().zoom,
     minZoom: BASE_MAP_MIN_ZOOM,
-    maxZoom: 12,
+    maxZoom: 14,
     maxBounds: MAP_PAN_BOUNDS,
     renderWorldCopies: false,
     attributionControl: false,
@@ -2312,36 +2577,64 @@ function addSourceInfoControl() {
 
       const button = document.createElement("button");
       button.type = "button";
-      button.className = "source-info-button";
-      button.textContent = "i";
-      button.setAttribute("aria-label", "出典を表示");
+      button.className = "source-info-button source-menu-button";
+      button.setAttribute("aria-label", "情報メニューを開く");
       button.setAttribute("aria-expanded", "false");
 
-      button.addEventListener("click", () => {
+      const sourceMenu = document.createElement("div");
+      sourceMenu.className = "source-info-menu hidden";
+
+      const sourceMenuItem = document.createElement("button");
+      sourceMenuItem.type = "button";
+      sourceMenuItem.className = "source-info-menu-item";
+      sourceMenuItem.textContent = "出典";
+
+      const feedbackMenuItem = document.createElement("button");
+      feedbackMenuItem.type = "button";
+      feedbackMenuItem.className = "source-info-menu-item";
+      feedbackMenuItem.textContent = "フィードバック";
+
+      sourceMenu.append(sourceMenuItem, feedbackMenuItem);
+
+      const setSourceMenuOpen = (open) => {
+        sourceMenu.classList.toggle("hidden", !open);
+        button.classList.toggle("is-open", open);
+        button.setAttribute("aria-expanded", open ? "true" : "false");
+        button.setAttribute("aria-label", open ? "情報メニューを閉じる" : "情報メニューを開く");
+      };
+
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        setSourceMenuOpen(sourceMenu.classList.contains("hidden"));
+      });
+
+      sourceMenu.addEventListener("click", (event) => {
+        event.stopPropagation();
+      });
+
+      document.addEventListener("click", () => {
+        setSourceMenuOpen(false);
+      });
+
+      sourceMenuItem.addEventListener("click", () => {
+        setSourceMenuOpen(false);
         sourceOverlay.classList.remove("hidden");
         document.body.classList.add("source-overlay-open");
         resetSourceInfoScroll(sourceOverlay);
-        button.setAttribute("aria-expanded", "true");
       });
 
       sourceOverlay.addEventListener("source-overlay-close", () => {
-        button.setAttribute("aria-expanded", "false");
+        setSourceMenuOpen(false);
       });
 
-      const feedbackButton = document.createElement("button");
-      feedbackButton.type = "button";
-      feedbackButton.className = "source-info-button feedback-info-button";
-      feedbackButton.setAttribute("aria-label", "フィードバックを送信");
-      feedbackButton.setAttribute("aria-expanded", "false");
-
-      feedbackButton.addEventListener("click", () => {
+      feedbackMenuItem.addEventListener("click", () => {
+        setSourceMenuOpen(false);
         feedbackOverlay.classList.remove("hidden");
         document.body.classList.add("source-overlay-open");
-        feedbackButton.setAttribute("aria-expanded", "true");
       });
 
       feedbackOverlay.addEventListener("feedback-overlay-close", () => {
-        feedbackButton.setAttribute("aria-expanded", "false");
+        setSourceMenuOpen(false);
       });
 
       const speechButton = document.createElement("button");
@@ -2390,7 +2683,7 @@ function addSourceInfoControl() {
         }
       });
 
-      container.append(button, feedbackButton, speechButton, pushButton);
+      container.append(button, sourceMenu, speechButton, pushButton);
       return container;
     },
     onRemove() {},
@@ -4777,7 +5070,7 @@ function updateLocalServerBadge(badge) {
   }
 
   badge.textContent = "Localサーバー";
-  badge.classList.toggle("hidden", !isLocalDevelopmentHost());
+  badge.classList.add("hidden");
 }
 
 function updateParentTerminalBadge(badge, maintenanceStatus = latestMaintenanceStatus) {
@@ -5904,9 +6197,9 @@ function addMapLayers() {
       "line-join": "round",
     },
     paint: {
-      "line-color": "#d8dee7",
-      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.8, 7, 1.25, 10, 1.8],
-      "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.62, 7, 0.76, 10, 0.86],
+      "line-color": "#dce3ed",
+      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.75, 7, 1.12, 10, 1.42],
+      "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.66, 7, 0.8, 10, 0.88],
     },
   });
 
@@ -5936,8 +6229,8 @@ function addMapLayers() {
     },
     paint: {
       "line-color": "#f7fbff",
-      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 1.1, 7, 1.65, 10, 2.35],
-      "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.5, 7, 0.68, 10, 0.82],
+      "line-width": ["interpolate", ["linear"], ["zoom"], 3, 1.05, 5, 1.35, 6.5, 1.1, 7.4, 0.55],
+      "line-opacity": ["interpolate", ["linear"], ["zoom"], 3, 0.64, 5.5, 0.54, 6.6, 0.22, 7.4, 0],
     },
   });
 
@@ -6258,14 +6551,15 @@ function interpolateByZoom(zoom, stops) {
 function drawStationCanvasMarker(context, x, y, radius, fontSize, labelAlpha, properties) {
   const fillColor = properties.intensityColor || "#ffffff";
   const textColor = properties.intensityTextColor || "#111827";
+  const intensityRank = Number(properties.intensityRank ?? 0);
 
   context.save();
   context.beginPath();
   context.arc(x, y, radius, 0, Math.PI * 2);
   context.fillStyle = fillColor;
   context.fill();
-  context.lineWidth = 1.35;
-  context.strokeStyle = "rgba(248, 250, 252, 0.86)";
+  context.lineWidth = intensityRank <= 1 ? 1.45 : 1.35;
+  context.strokeStyle = intensityRank <= 1 ? "rgba(15, 23, 42, 0.86)" : "rgba(248, 250, 252, 0.86)";
   context.stroke();
   context.restore();
 
@@ -7458,9 +7752,12 @@ async function startSimulation() {
     els.simulationStop.textContent = "シミュレーション中止";
   }
   els.simulationStart.textContent = "シミュレーション中止";
-  els.setupPanel.classList.add("hidden");
-  els.simulationPanel.classList.remove("hidden");
-  setSheetState(els.simulationPanel, isCompactViewport() && !isPhonePortraitViewport() ? "collapsed" : "open");
+  els.setupPanel.classList.remove("hidden");
+  els.simulationPanel.classList.add("hidden");
+  activateSettingsTab("result");
+  setSetupMenuOpen(true);
+  updateSettingsMenuButtonVisibility();
+  setSheetState(els.setupPanel, "open");
   cancelAnimationFrame(simulationFrame);
   tickSimulation(simulationStartedAt);
 }
@@ -7502,7 +7799,9 @@ function stopSimulation() {
   }
   els.setupPanel.classList.remove("hidden");
   els.simulationPanel.classList.add("hidden");
-  setSheetState(els.setupPanel, "open");
+  activateSettingsTab("primary");
+  setSetupMenuOpen(false);
+  updateSettingsMenuButtonVisibility();
   clearCurrentLocationLink();
   resetWaveRenderCache();
   setWaveRadiusData(0, 0);
@@ -8635,6 +8934,7 @@ function updateSimulationAvailability() {
     return;
   }
 
+  document.body.classList.toggle("simulation-running", Boolean(state.simulationRunning));
   setStartupInteractionLocked(!maintenanceStatusReady || resetViewAnimating);
 
   if (state.simulationRunning) {

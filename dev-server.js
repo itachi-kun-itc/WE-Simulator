@@ -15,6 +15,13 @@ const mimeTypes = {
 };
 
 const server = http.createServer((request, response) => {
+  request.on("error", (error) => {
+    console.warn("request error", error);
+  });
+  response.on("error", (error) => {
+    console.warn("response error", error);
+  });
+
   const url = new URL(request.url, `http://${request.headers.host}`);
 
   if (url.pathname === "/api/notify") {
@@ -55,7 +62,7 @@ const server = http.createServer((request, response) => {
         "Content-Length": stat.size,
         "Content-Type": contentType,
       });
-      fs.createReadStream(filePath).pipe(response);
+      streamFile(filePath, response);
       return;
     }
 
@@ -74,8 +81,15 @@ const server = http.createServer((request, response) => {
       "Content-Range": `bytes ${range.start}-${range.end}/${stat.size}`,
       "Content-Type": contentType,
     });
-    fs.createReadStream(filePath, range).pipe(response);
+    streamFile(filePath, response, range);
   });
+});
+
+server.on("clientError", (error, socket) => {
+  console.warn("client error", error.message);
+  if (socket.writable) {
+    socket.end("HTTP/1.1 400 Bad Request\r\n\r\n");
+  }
 });
 
 listen(preferredPort);
@@ -99,6 +113,21 @@ function listen(port) {
   server.once("error", onError);
   server.once("listening", onListening);
   server.listen(port, "127.0.0.1");
+}
+
+function streamFile(filePath, response, range = null) {
+  const stream = range ? fs.createReadStream(filePath, range) : fs.createReadStream(filePath);
+  stream.on("error", (error) => {
+    console.warn("file stream error", error);
+    if (!response.headersSent) {
+      response.writeHead(500);
+    }
+    response.end("Server error");
+  });
+  response.on("close", () => {
+    stream.destroy();
+  });
+  stream.pipe(response);
 }
 
 async function handleNotificationProxy(request, response) {

@@ -1,4 +1,6 @@
-const CACHE_NAME = "we-simulator-pwa-v8";
+const CACHE_NAME = "we-simulator-pwa-v9";
+const LOCAL_DEV_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
+const IS_LOCAL_DEV = LOCAL_DEV_HOSTNAMES.has(new URL(self.location.href).hostname);
 const NOTIFICATION_HISTORY_DB_NAME = "we-simulator-notification-history";
 const NOTIFICATION_HISTORY_DB_VERSION = 1;
 const NOTIFICATION_HISTORY_STORE_NAME = "notifications";
@@ -14,12 +16,28 @@ const APP_SHELL = [
 ];
 
 self.addEventListener("install", (event) => {
+  if (IS_LOCAL_DEV) {
+    event.waitUntil(self.skipWaiting());
+    return;
+  }
+
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()),
   );
 });
 
 self.addEventListener("activate", (event) => {
+  if (IS_LOCAL_DEV) {
+    event.waitUntil(
+      caches
+        .keys()
+        .then((keys) => Promise.all(keys.map((key) => caches.delete(key))))
+        .then(() => self.registration.unregister())
+        .then(() => self.clients.claim()),
+    );
+    return;
+  }
+
   event.waitUntil(
     caches
       .keys()
@@ -32,6 +50,10 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
+  if (IS_LOCAL_DEV) {
+    return;
+  }
+
   if (event.request.method !== "GET") {
     return;
   }
@@ -56,7 +78,11 @@ self.addEventListener("fetch", (event) => {
         }
         return response;
       })
-      .catch(() => caches.match(event.request)),
+      .catch(() =>
+        caches.match(event.request).then((cachedResponse) =>
+          cachedResponse || new Response("Offline", { status: 503, statusText: "Service Unavailable" }),
+        ),
+      ),
   );
 });
 
