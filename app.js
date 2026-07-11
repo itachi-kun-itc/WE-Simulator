@@ -2035,7 +2035,7 @@ async function initEarthquakeMap() {
     center: getInitialMapView().center,
     zoom: getInitialMapView().zoom,
     minZoom: BASE_MAP_MIN_ZOOM,
-    maxZoom: 10.8,
+    maxZoom: 12,
     maxBounds: MAP_PAN_BOUNDS,
     renderWorldCopies: false,
     attributionControl: false,
@@ -5602,7 +5602,7 @@ function addMapLayers() {
     type: "fill",
     source: "surrounding-land",
     paint: {
-      "fill-antialias": false,
+      "fill-antialias": true,
       "fill-color": [
         "case",
         ["==", ["get", "territoryType"], "northern-territories"],
@@ -5655,7 +5655,7 @@ function addMapLayers() {
     source: "japan-pmtiles",
     "source-layer": JAPAN_PMTILES_SOURCE_LAYER_PREF,
     paint: {
-      "fill-antialias": false,
+      "fill-antialias": true,
       "fill-color": "#8c9298",
       "fill-outline-color": "rgba(140, 146, 152, 0)",
       "fill-opacity": 1,
@@ -5783,7 +5783,8 @@ function addMapLayers() {
     paint: {
       "line-color": "#ffffff",
       "line-opacity": 0.76,
-      "line-width": ["interpolate", ["linear"], ["zoom"], 7, 0.48, 9, 0.68, 10.8, 0.86],
+      "line-width": ["interpolate", ["linear"], ["zoom"], 7, 0.48, 9, 0.68, 10.8, 0.86, 12, 1.02],
+      "line-blur": ["interpolate", ["linear"], ["zoom"], 7, 0.18, 12, 0.08],
     },
   });
   updateLayerVisibility("municipality-boundaries", true);
