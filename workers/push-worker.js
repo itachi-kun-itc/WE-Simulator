@@ -42,17 +42,6 @@ export default {
         return serveR2Object(request, env, "map/japan.pmtiles");
       }
 
-      if (
-        (request.method === "GET" || request.method === "HEAD") &&
-        url.pathname.startsWith("/data/municipalities/")
-      ) {
-        const file = url.pathname.slice("/data/municipalities/".length);
-        if (file !== "index.json" && !/^\d{2}\.geojson$/.test(file)) {
-          return json({ error: "not found" }, 404);
-        }
-        return serveR2Object(request, env, `municipalities/${file}`, "application/geo+json; charset=utf-8");
-      }
-
       if (request.method === "GET" && url.pathname === "/vapid-public-key") {
         return json({ publicKey: env.VAPID_PUBLIC_KEY || "" });
       }
