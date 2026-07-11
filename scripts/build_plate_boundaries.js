@@ -2,117 +2,91 @@ const fs = require("fs");
 const path = require("path");
 
 const root = path.resolve(__dirname, "..");
-const inputRoot = path.join(root, "tmp", "plate_data");
+const inputPath = path.join(root, "tmp", "PB2002_boundaries.json");
 const outputPath = path.join(root, "web", "data", "plate_boundaries.geojson");
 
-const sourceUrl = "https://www.mri-jma.go.jp/Dep/sei/fhirose/plate/PlateData.html";
-const sourceArchiveUrl = "https://www.mri-jma.go.jp/Dep/sei/fhirose/data/plate_data.tar.gz";
+const sourceUrl = "https://github.com/fraxen/tectonicplates";
+const sourceDataUrl =
+  "https://raw.githubusercontent.com/fraxen/tectonicplates/master/GeoJSON/PB2002_boundaries.json";
+const sourcePaperUrl = "https://doi.org/10.1029/2001GC000252";
+const japanBounds = {
+  west: 120,
+  east: 160,
+  south: 20,
+  north: 55,
+};
 
-const lineSources = [
-  {
-    file: "mapdata/trench.dat",
-    name: "Japan trench and trough line",
-    kind: "trench",
-    coordinateOrder: "latlon",
-    citation:
-      "Hirose Fuyuki, Plate geometry numerical data; regional citations include Kita et al. (2010), Nakajima and Hasegawa (2006), Nakajima et al. (2009), Baba et al. (2002), Nakajima and Hasegawa (2007), Hirose et al. (2008).",
-  },
-];
-
-function readLineFile(source) {
-  const filePath = path.join(inputRoot, source.file);
-  const text = fs.readFileSync(filePath, "utf8");
-  const segments = [];
-  let current = [];
-
-  for (const rawLine of text.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#")) {
-      continue;
-    }
-
-    if (line.startsWith(">")) {
-      pushSegment(segments, current);
-      current = [];
-      continue;
-    }
-
-    const values = line.split(/\s+/).map(Number);
-    if (values.length < 2 || !Number.isFinite(values[0]) || !Number.isFinite(values[1])) {
-      pushSegment(segments, current);
-      current = [];
-      continue;
-    }
-
-    const coordinate =
-      source.coordinateOrder === "latlon" ? [values[1], values[0]] : [values[0], values[1]];
-
-    if (isAroundJapanSeaArea(coordinate)) {
-      current.push(coordinate.map((value) => Number(value.toFixed(4))));
-    } else {
-      pushSegment(segments, current);
-      current = [];
-    }
+function collectCoordinates(geometry) {
+  if (!geometry) {
+    return [];
   }
 
-  pushSegment(segments, current);
-  return segments;
-}
-
-function pushSegment(segments, segment) {
-  if (segment.length >= 2) {
-    segments.push(segment);
+  if (geometry.type === "LineString") {
+    return geometry.coordinates;
   }
+
+  if (geometry.type === "MultiLineString") {
+    return geometry.coordinates.flat();
+  }
+
+  if (geometry.type === "GeometryCollection") {
+    return geometry.geometries.flatMap(collectCoordinates);
+  }
+
+  return [];
 }
 
-function isAroundJapanSeaArea([longitude, latitude]) {
-  return longitude >= 122 && longitude <= 158 && latitude >= 22 && latitude <= 48.5;
+function isInJapanBounds([longitude, latitude]) {
+  return (
+    longitude >= japanBounds.west &&
+    longitude <= japanBounds.east &&
+    latitude >= japanBounds.south &&
+    latitude <= japanBounds.north
+  );
 }
 
-function buildFeature(source, coordinates, index) {
+function normalizeFeature(feature, index) {
+  const properties = feature.properties || {};
+  const kind = properties.Type === "subduction" ? "subduction" : "plate_boundary";
+
   return {
     type: "Feature",
     properties: {
-      name: source.name,
-      kind: source.kind,
-      citation: source.citation,
-      source_file: source.file,
-      segment: index + 1,
+      id: index + 1,
+      name: properties.Name || "",
+      kind,
+      plateA: properties.PlateA || "",
+      plateB: properties.PlateB || "",
+      source: properties.Source || "",
+      dataset: "PB2002",
     },
-    geometry: {
-      type: "LineString",
-      coordinates,
-    },
+    geometry: feature.geometry,
   };
 }
 
 function main() {
-  if (!fs.existsSync(inputRoot)) {
-    throw new Error(`Missing input directory: ${inputRoot}`);
+  if (!fs.existsSync(inputPath)) {
+    throw new Error(
+      [
+        `Missing input file: ${path.relative(root, inputPath)}`,
+        `Download it from ${sourceDataUrl}`,
+        "Then run this script and simplify the output with mapshaper if needed.",
+      ].join("\n")
+    );
   }
 
-  const features = [];
-  for (const source of lineSources) {
-    const segments = readLineFile(source);
-    segments.forEach((segment, index) => features.push(buildFeature(source, segment, index)));
-  }
+  const source = JSON.parse(fs.readFileSync(inputPath, "utf8"));
+  const features = (source.features || [])
+    .filter((feature) => collectCoordinates(feature.geometry).some(isInJapanBounds))
+    .map(normalizeFeature);
 
   const geojson = {
     type: "FeatureCollection",
-    name: "MRI/JMA plate boundary and shallow slab contours around Japan",
+    name: "PB2002 plate boundaries around Japan",
     source: sourceUrl,
-    source_archive: sourceArchiveUrl,
-    citation_note:
-      "When using these data, cite the relevant source papers for the region as instructed by Hirose Fuyuki's PlateData page.",
-    citations: [
-      "Kita et al. (2010, EPSL)",
-      "Nakajima and Hasegawa (2006, GRL)",
-      "Nakajima et al. (2009, JGR)",
-      "Baba et al. (2002, PEPI)",
-      "Nakajima and Hasegawa (2007, JGR)",
-      "Hirose et al. (2008, JGR)",
-      "弘瀬・他 (2008, 地震)",
-    ],
+    source_data: sourceDataUrl,
+    source_paper: sourcePaperUrl,
+    bounds: japanBounds,
     features,
   };
 

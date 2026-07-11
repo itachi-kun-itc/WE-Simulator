@@ -1,72 +1,69 @@
 # データ出典
 
+最終更新：2026-07-11
+
 このプロジェクトの地図・地震シミュレーション表示で利用している主なデータ出典です。
 
 ## 気象庁
 
-- 地震情報で用いる震央地名、震度観測点、緊急地震速報、震度階級の説明。
-- 参照URL:
-  - https://www.data.jma.go.jp/eqev/data/joho/region/index.html
+- 気象庁
+  - https://www.jma.go.jp/
+- 緊急地震速報や震度情報で用いる区域の名称
   - https://www.jma.go.jp/jma/kishou/know/jishin/joho/shindo-name.html
-  - https://www.data.jma.go.jp/eqev/data/kyoshin/jma-shindo.html
-  - https://www.jma.go.jp/jma/kishou/know/jishin/eew/shikumi/shikumi.html
-  - https://www.jma.go.jp/jma/kishou/know/shindo/index.html
-- 主な生成物:
-  - `web/data/jma_local_areas.geojson`
-  - `web/data/jma_shindo_stations.json`
-
-## JMA_Region 震央地名ポリゴン
-
-- 気象庁の「地震情報で用いる震央地名」をポリゴン化したGeoJSON。震源位置から震央地名を判定するために使用。
-- ライセンス: CC0 1.0 Universal
-- 参照URL:
-  - https://github.com/0Quake/JMA_Region
-- 主な生成物:
-  - `web/data/jma_epicenter_areas.geojson`
-
-## 国土数値情報・気象庁GIS区域データ
-
-- 市町村等の地図、都道府県境界、市町村名データ。
-- 参照URL:
-  - https://nlftp.mlit.go.jp/ksj/
+- 地震情報で用いる震央地名
+  - https://www.jma.go.jp/jma/kishou/know/jishin/joho/region/index.html
+- 震度観測点
+  - https://www.jma.go.jp/jma/kishou/know/jishin/intens-st/index.html
+- 予報区等GISデータの一覧
   - https://www.data.jma.go.jp/developer/gis.html
-- 主な生成物:
-  - `web/map/japan.pmtiles`
-  - `web/data/japan_municipalities_light.geojson`
-  - `data/processed/municipality_names.json`
 
-## J-SHIS 地震ハザードステーション
+主な生成物：
 
-- 表層地盤、深部地盤、揺れやすさ補正に使う地盤モデル。
-- 参照URL:
-  - https://www.j-shis.bosai.go.jp/map/JSHIS2/download.html?lang=jp
-- 主な生成物:
-  - `web/data/ground_model.json`
+- `web/data/jma_local_areas_simplified_10.geojson`
+- `web/data/jma_local_area_boundaries_lines.geojson`
+- `web/data/jma_shindo_stations.json`
+- `web/data/jma_eew_forecast_areas.json`
+- `web/data/jma_epicenter_areas.geojson`
 
-## Natural Earth
+## 行政区域・背景地図・地盤データ
 
-- 日本周辺の陸域表示に使う世界地図データ。
-- 参照URL:
+- 国土数値情報
+  - https://nlftp.mlit.go.jp/ksj/
+- Natural Earth
   - https://www.naturalearthdata.com/
-- 主な生成物:
-  - `web/data/surrounding_land.geojson`
+- J-SHIS 地震ハザードステーション
+  - https://www.j-shis.bosai.go.jp/
+- S-net 日本海溝海底地震津波観測網
+  - https://www.seafloor.bosai.go.jp/outline/
 
-## シミュレーション計算について
+主な生成物：
 
-現在の震度推定、P波/S波到達、緊急地震速報の表示判定は、上記資料を参考にした可視化用の簡易モデルです。防災判断や実際の発表判定には使用しません。
+- `web/data/japan_municipalities_simplified_50.geojson`
+- `web/data/municipality_boundaries_lines.geojson`
+- `web/data/prefecture_boundaries_lines.geojson`
+- `web/data/surrounding_land.geojson`
+- `web/data/world_coastline.geojson`
+- `web/data/ground_model.json`
+- `web/data/submarine_observation_points.geojson`
 
-## 若松・松岡(2020) 地形・地盤分類データ
+## プレート境界データ
 
-- 250mメッシュの地形・地盤分類コードとAVSを、揺れやすさ補正に使う地盤モデルへ集約。
-- 参考URL:
-  - https://www.j-shis.bosai.go.jp/map/JSHIS2/download.html?lang=jp
-- 主な生成物:
-  - `web/data/ground_model.json`
+- PB2002 Plate Boundaries / fraxen tectonicplates
+  - https://github.com/fraxen/tectonicplates
+- Bird (2003), An updated digital model of plate boundaries
+  - https://doi.org/10.1029/2001GC000252
 
-## Kunijiban（国土地盤情報）
+主な生成物：
 
-- 国土交通省の道路・河川・港湾事業等の地質・土質調査成果をまとめた地盤情報。現時点ではデータセットメタ情報を出典として記録。
-- 参考URL:
-  - http://www.kunijiban.pwri.go.jp/jp/
-- 参照ファイル:
-  - `dataset.json`
+- `web/data/plate_boundaries.geojson`
+
+## 表示ライブラリ
+
+- MeteoScope
+  - https://github.com/wvdtc7bjwn-bit/MeteoScope
+- MapLibre GL JS
+  - https://maplibre.org/maplibre-gl-js/docs/
+
+## 注意
+
+このアプリの震度推定、P波/S波到達、緊急地震速報風の表示は可視化用の簡易モデルです。防災判断や実際の発表判定には使用しません。

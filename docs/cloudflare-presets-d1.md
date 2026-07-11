@@ -73,3 +73,14 @@ npm run upload:earthquake-presets
 cd workers
 npx wrangler r2 bucket create we-simulator-data
 ```
+
+PMTiles は D1 ではなく R2 に保存します。D1 は検索可能な構造化データ向けで、Range request を使う大容量地図ファイルには R2 が適しています。
+
+```powershell
+cd ..
+npm run upload:japan-pmtiles
+cd workers
+npx wrangler deploy
+```
+
+Worker の `GET /map/japan.pmtiles` は Range request (`206 Partial Content`) に対応し、ブラウザは表示に必要なタイル部分だけを取得します。

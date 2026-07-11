@@ -2450,6 +2450,9 @@ body.app-loading .epicenter-marker-shell {
 
 #max-station-list li {
   display: grid;
+  contain: layout paint style;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 27px;
   grid-template-columns: minmax(3.5em, max-content) minmax(0, 1fr);
   column-gap: 1px;
   padding: 4px 0 4px 2px;
@@ -2627,7 +2630,7 @@ body.app-loading .epicenter-marker-shell {
 .epicenter-marker-shell {
   display: grid;
   position: relative;
-  z-index: 440;
+  z-index: 580;
   width: 38px;
   height: 38px;
   place-items: center;
@@ -2670,7 +2673,7 @@ body.app-loading .epicenter-marker-shell {
 }
 
 .station-popup {
-  z-index: 430;
+  z-index: 620;
 }
 
 .station-popup .maplibregl-popup-content {

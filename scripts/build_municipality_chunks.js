@@ -14,11 +14,14 @@ const chunks = new Map();
 
 for (const feature of source.features ?? []) {
   const properties = feature.properties ?? {};
-  const id = String(properties.prefectureCode || properties.prefecture || "unknown").padStart(2, "0");
+  if (!properties.code || (!properties.municipality && !properties.name)) {
+    continue;
+  }
+  const id = String(properties.prefectureCode || String(properties.code || "").slice(0, 2) || "unknown").padStart(2, "0");
   if (!chunks.has(id)) {
     chunks.set(id, {
       id,
-      prefectureCode: properties.prefectureCode || "",
+      prefectureCode: properties.prefectureCode || String(properties.code || "").slice(0, 2),
       prefecture: properties.prefecture || "",
       bounds: createEmptyBounds(),
       features: [],
@@ -34,6 +37,7 @@ for (const feature of source.features ?? []) {
   expandBounds(chunk.bounds, geometryBounds(feature.geometry));
 }
 
+fs.rmSync(outputDir, { recursive: true, force: true });
 fs.mkdirSync(outputDir, { recursive: true });
 
 const index = {

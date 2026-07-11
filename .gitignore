@@ -15,7 +15,18 @@ N03-180101_GML/
 *.log
 tmp/pmtiles/
 tmp/pmtiles-source/
+tmp/pmtiles-v2/
 tmp/chrome-profile/
+tmp/deploy-web/
+tmp/PB2002_boundaries.json
+tmp/japan-refined.pmtiles
+tmp/japan-test.pmtiles
+tmp/japan-test.pmtiles-journal
+tmp/jma_local_area_all_lines.geojson
+tmp/jma_local_area_hokkaido_okinawa_lines.geojson
+tmp/jma_local_area_innerlines.geojson
+tmp/plate_boundaries_japan_pb2002.geojson
+web/data/municipality_chunks/
 
 # Local Netlify folder
 .netlify

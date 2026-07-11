@@ -21,7 +21,7 @@ const outputPath = path.resolve(getArg("output", defaultOutput));
 const tippecanoeCommand = process.env.TIPPECANOE_CMD || "";
 
 const layers = [
-  { id: "pref", file: "pref.topo.json", minzoom: 0, maxzoom: 8 },
+  { id: "pref", file: "pref.topo.json", minzoom: 0, maxzoom: 10 },
   { id: "eq_area", file: "eq_area.topo.json", minzoom: 3, maxzoom: 11 },
   { id: "city", file: "city.topo.json", minzoom: 5, maxzoom: 14 },
 ];
