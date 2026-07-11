@@ -31,8 +31,8 @@
   - https://nlftp.mlit.go.jp/ksj/
   - https://www.data.jma.go.jp/developer/gis.html
 - 主な生成物:
-  - `web/data/municipalities.geojson`
-  - `web/data/boundary_layers.geojson`
+  - `web/map/japan.pmtiles`
+  - `web/data/japan_municipalities_light.geojson`
   - `data/processed/municipality_names.json`
 
 ## J-SHIS 地震ハザードステーション
