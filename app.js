@@ -352,6 +352,7 @@ const state = {
   showPlateBoundaryLayer: false,
   showFaultLayer: false,
   selectedPresetId: "",
+  presetFilterText: "",
   presetSortKey: null,
   presetSortDirection: "desc",
   intensityColorScheme: "normal",
@@ -811,6 +812,11 @@ function setupTabs() {
   const openSettingsMenuSheet = () => {
     closeEarthquakePresetPicker({ restoreTab: false, skipFocus: true });
     setSetupMenuOpen(false);
+    els.settingsMenuSheet?.classList.remove("settings-detail-open");
+    els.settingsMenuSheet?.querySelectorAll(".settings-inline-panel").forEach((panel) => {
+      panel.classList.add("hidden");
+      panel.classList.remove("settings-detail-panel", "is-active", "is-leaving");
+    });
     els.settingsMenuSheet?.classList.remove("hidden");
     updateSettingsScreenNotificationState();
   };
@@ -841,11 +847,32 @@ function setupTabs() {
   };
 
   const setSettingsRowLabels = () => {
+    if (!els.settingsPrivacyButton && els.settingsSourceButton) {
+      els.settingsPrivacyButton = document.createElement("button");
+      els.settingsPrivacyButton.className = "settings-menu-row";
+      els.settingsPrivacyButton.id = "settings-privacy-button";
+      els.settingsPrivacyButton.type = "button";
+      els.settingsPrivacyButton.innerHTML = `<span>プライバシーポリシー</span><span aria-hidden="true">›</span>`;
+      els.settingsSourceButton.insertAdjacentElement("afterend", els.settingsPrivacyButton);
+    }
+    if (!els.settingsPrivacyPanel && els.settingsSourcePanel) {
+      els.settingsPrivacyPanel = document.createElement("section");
+      els.settingsPrivacyPanel.className = "settings-inline-panel hidden";
+      els.settingsPrivacyPanel.id = "settings-privacy-panel";
+      els.settingsPrivacyPanel.setAttribute("aria-label", "プライバシーポリシー");
+      els.settingsSourcePanel.insertAdjacentElement("afterend", els.settingsPrivacyPanel);
+    }
     if (els.settingsSourceButton?.firstElementChild) {
       els.settingsSourceButton.firstElementChild.textContent = "出典";
       els.settingsSourceButton.lastElementChild.textContent = "›";
       els.settingsSourceButton.setAttribute("aria-controls", "settings-source-panel");
       els.settingsSourceButton.setAttribute("aria-expanded", "false");
+    }
+    if (els.settingsPrivacyButton?.firstElementChild) {
+      els.settingsPrivacyButton.firstElementChild.textContent = "プライバシーポリシー";
+      els.settingsPrivacyButton.lastElementChild.textContent = "›";
+      els.settingsPrivacyButton.setAttribute("aria-controls", "settings-privacy-panel");
+      els.settingsPrivacyButton.setAttribute("aria-expanded", "false");
     }
     if (els.settingsFeedbackButton?.firstElementChild) {
       els.settingsFeedbackButton.firstElementChild.textContent = "フィードバック";
@@ -866,6 +893,7 @@ function setupTabs() {
   const closeSettingsInlinePanels = (exceptPanel = null) => {
     [
       [els.settingsSourceButton, els.settingsSourcePanel],
+      [els.settingsPrivacyButton, els.settingsPrivacyPanel],
       [els.settingsFeedbackButton, els.settingsFeedbackPanel],
       [els.settingsPushButton, els.settingsPushPanel],
       [els.settingsPushHistoryButton, els.settingsPushHistoryPanel],
@@ -989,8 +1017,23 @@ function setupTabs() {
     els.settingsSourcePanel.innerHTML = buildSourceInfoOverlayHtml();
     els.settingsSourcePanel.querySelector(".source-info-close")?.remove();
     els.settingsSourcePanel.querySelector(".source-admin-mode-button")?.remove();
+    els.settingsSourcePanel.querySelector(".source-info-tabs")?.remove();
+    els.settingsSourcePanel.querySelector("#source-panel-privacy")?.remove();
+    els.settingsSourcePanel.querySelector("#source-panel-sources")?.classList.remove("hidden");
     setupSourceInfoTabs(els.settingsSourcePanel);
     els.settingsSourcePanel.dataset.ready = "true";
+  };
+
+  const ensureSettingsPrivacyPanel = () => {
+    if (!els.settingsPrivacyPanel || els.settingsPrivacyPanel.dataset.ready === "true") {
+      return;
+    }
+    els.settingsPrivacyPanel.innerHTML = `
+      <div class="source-info-overlay-content settings-privacy-content">
+        ${buildPrivacyPolicyHtml()}
+      </div>
+    `;
+    els.settingsPrivacyPanel.dataset.ready = "true";
   };
 
   const ensureSettingsFeedbackPanel = () => {
@@ -1047,6 +1090,99 @@ function setupTabs() {
     panel?.classList.toggle("hidden", !willOpen);
     button?.setAttribute("aria-expanded", willOpen ? "true" : "false");
   };
+
+  let activeSettingsDetailPanel = null;
+  let settingsDetailCloseTimer = 0;
+  let settingsDetailSwipeStart = null;
+
+  const hideSettingsDetailPanel = (panel) => {
+    if (!panel) {
+      return;
+    }
+    panel.classList.add("hidden");
+    panel.classList.remove("settings-detail-panel", "is-active", "is-leaving");
+  };
+
+  const closeSettingsDetailPanel = ({ immediate = false } = {}) => {
+    const panel = activeSettingsDetailPanel;
+    if (!panel) {
+      return;
+    }
+    window.clearTimeout(settingsDetailCloseTimer);
+    activeSettingsDetailPanel = null;
+    els.settingsMenuSheet?.classList.remove("settings-detail-open");
+    [
+      els.settingsSourceButton,
+      els.settingsPrivacyButton,
+      els.settingsFeedbackButton,
+      els.settingsPushButton,
+      els.settingsPushHistoryButton,
+    ].forEach((button) => button?.setAttribute("aria-expanded", "false"));
+
+    if (immediate) {
+      hideSettingsDetailPanel(panel);
+      return;
+    }
+    panel.classList.remove("is-active");
+    panel.classList.add("is-leaving");
+    settingsDetailCloseTimer = window.setTimeout(() => hideSettingsDetailPanel(panel), 220);
+  };
+
+  const prepareSettingsDetailPanel = (panel, title) => {
+    if (!panel) {
+      return;
+    }
+    if (!panel.querySelector(".settings-detail-head")) {
+      const header = document.createElement("header");
+      header.className = "settings-detail-head";
+      header.innerHTML = `
+        <button class="settings-detail-back" type="button" aria-label="戻る">‹</button>
+        <h3>${escapeHtml(title)}</h3>
+        <span aria-hidden="true"></span>
+      `;
+      panel.prepend(header);
+      header.querySelector(".settings-detail-back")?.addEventListener("click", () => closeSettingsDetailPanel());
+    }
+  };
+
+  const openSettingsDetailPanel = (button, panel, ensurePanel, title) => {
+    ensurePanel();
+    if (!panel) {
+      return;
+    }
+    window.clearTimeout(settingsDetailCloseTimer);
+    if (activeSettingsDetailPanel && activeSettingsDetailPanel !== panel) {
+      hideSettingsDetailPanel(activeSettingsDetailPanel);
+    }
+    prepareSettingsDetailPanel(panel, title);
+    closeSettingsInlinePanels(panel);
+    activeSettingsDetailPanel = panel;
+    els.settingsMenuSheet?.classList.add("settings-detail-open");
+    panel.classList.remove("hidden", "is-leaving");
+    panel.classList.add("settings-detail-panel");
+    requestAnimationFrame(() => panel.classList.add("is-active"));
+    button?.setAttribute("aria-expanded", "true");
+  };
+
+  els.settingsMenuSheet?.addEventListener("pointerdown", (event) => {
+    if (!activeSettingsDetailPanel) {
+      return;
+    }
+    settingsDetailSwipeStart = { x: event.clientX, y: event.clientY };
+  });
+
+  els.settingsMenuSheet?.addEventListener("pointerup", (event) => {
+    if (!settingsDetailSwipeStart || !activeSettingsDetailPanel) {
+      settingsDetailSwipeStart = null;
+      return;
+    }
+    const deltaX = event.clientX - settingsDetailSwipeStart.x;
+    const deltaY = event.clientY - settingsDetailSwipeStart.y;
+    settingsDetailSwipeStart = null;
+    if (deltaX > 68 && Math.abs(deltaY) < 76) {
+      closeSettingsDetailPanel();
+    }
+  });
 
   setSettingsRowLabels();
 
@@ -1108,21 +1244,23 @@ function setupTabs() {
   });
 
   els.settingsMenuClose?.addEventListener("click", () => {
+    closeSettingsDetailPanel({ immediate: true });
     closeSettingsMenuSheet();
   });
   els.settingsSourceButton?.addEventListener("click", () => {
-    toggleSettingsInlinePanel(els.settingsSourceButton, els.settingsSourcePanel, ensureSettingsSourcePanel);
+    openSettingsDetailPanel(els.settingsSourceButton, els.settingsSourcePanel, ensureSettingsSourcePanel, "出典");
+  });
+  els.settingsPrivacyButton?.addEventListener("click", () => {
+    openSettingsDetailPanel(els.settingsPrivacyButton, els.settingsPrivacyPanel, ensureSettingsPrivacyPanel, "プライバシーポリシー");
   });
   els.settingsFeedbackButton?.addEventListener("click", () => {
-    toggleSettingsInlinePanel(els.settingsFeedbackButton, els.settingsFeedbackPanel, ensureSettingsFeedbackPanel);
+    openSettingsDetailPanel(els.settingsFeedbackButton, els.settingsFeedbackPanel, ensureSettingsFeedbackPanel, "フィードバック");
   });
   els.settingsPushButton?.addEventListener("click", () => {
-    ensureSettingsPushPanel();
-    toggleSettingsInlinePanel(els.settingsPushButton, els.settingsPushPanel, () => {});
+    openSettingsDetailPanel(els.settingsPushButton, els.settingsPushPanel, ensureSettingsPushPanel, "通知設定");
   });
   els.settingsPushHistoryButton?.addEventListener("click", () => {
-    ensureSettingsPushHistoryPanel();
-    toggleSettingsInlinePanel(els.settingsPushHistoryButton, els.settingsPushHistoryPanel, () => {});
+    openSettingsDetailPanel(els.settingsPushHistoryButton, els.settingsPushHistoryPanel, ensureSettingsPushHistoryPanel, "通知履歴");
   });
 }
 
@@ -1205,7 +1343,9 @@ function renderEarthquakePresetPicker() {
     return;
   }
 
+  const filterText = normalizePresetFilterText(state.presetFilterText);
   const presets = [...EARTHQUAKE_PRESETS]
+    .filter((preset) => matchesPresetFilter(preset, filterText))
     .map((preset, index) => ({ preset, index }))
     .sort(comparePresetSortItems)
     .map(({ preset }) => preset)
@@ -1215,7 +1355,7 @@ function renderEarthquakePresetPicker() {
       const intensityBadgeLabel = normalizeIntensityLabelToken(formatPresetMaxIntensity(preset)) || "-";
       row.className = preset.id === state.selectedPresetId ? "selected" : "";
       row.innerHTML = `
-        <td><span class="preset-intensity-badge" style="--preset-intensity-color: ${escapeHtml(intensityClass?.color ?? "#d7d5e3")}; --preset-intensity-text: ${escapeHtml(intensityClass?.textColor ?? "#22242b")};">${escapeHtml(intensityBadgeLabel)}</span></td>
+        <td><span class="preset-intensity-stack"><span class="preset-depth-over">${escapeHtml(formatPresetDepth(preset))}</span><span class="preset-intensity-badge" style="--preset-intensity-color: ${escapeHtml(intensityClass?.color ?? "#d7d5e3")}; --preset-intensity-text: ${escapeHtml(intensityClass?.textColor ?? "#22242b")};">${escapeHtml(intensityBadgeLabel)}</span><span class="preset-magnitude-under">M${escapeHtml(formatPresetMagnitude(preset))}</span></span></td>
         <td>${escapeHtml(formatPresetDateTime(preset))}</td>
         <td>${escapeHtml(preset.epicenterName ?? preset.label ?? "-")}</td>
         <td>${escapeHtml(formatPresetDepth(preset))}</td>
@@ -1231,6 +1371,28 @@ function renderEarthquakePresetPicker() {
   els.presetPickerList.replaceChildren(...presets);
   updatePresetSortButtons();
   updateEarthquakePresetButtonLabel();
+}
+
+function normalizePresetFilterText(value) {
+  return String(value ?? "").normalize("NFKC").trim().toLowerCase();
+}
+
+function matchesPresetFilter(preset, filterText) {
+  if (!filterText) {
+    return true;
+  }
+
+  return [
+    preset?.label,
+    preset?.epicenterName,
+    preset?.date,
+    preset?.time,
+    formatPresetDepth(preset),
+    formatPresetMagnitude(preset),
+    formatPresetMaxIntensity(preset),
+  ]
+    .map((value) => normalizePresetFilterText(value))
+    .some((value) => value.includes(filterText));
 }
 
 function comparePresetSortItems(a, b) {
@@ -1365,6 +1527,106 @@ function updateEarthquakePresetButtonLabel() {
   updateSubmarineObservationToggleAvailability();
 }
 
+function setupPresetToolbar() {
+  const head = document.querySelector(".preset-picker-head");
+  if (!head || head.dataset.toolbarReady === "true") {
+    return;
+  }
+
+  head.dataset.toolbarReady = "true";
+  head.innerHTML = `
+    <input class="preset-filter-input" id="preset-filter-input" type="search" inputmode="search" autocomplete="off" placeholder="検索" aria-label="プリセット地震を検索" />
+    <select class="preset-sort-select" id="preset-sort-select" aria-label="並べ替え">
+      <option value="">新しい順</option>
+      <option value="date:asc">古い順</option>
+      <option value="intensity:desc">震度が大きい順</option>
+      <option value="magnitude:desc">Mが大きい順</option>
+      <option value="depth:asc">浅い順</option>
+      <option value="epicenter:asc">北から順</option>
+    </select>
+  `;
+
+  head.querySelector('[data-preset-sort="date:asc"]')?.replaceChildren("発生日時");
+  head.querySelector('[data-preset-sort="magnitude:asc"]')?.replaceChildren("マグニチュード");
+  head.querySelector('[data-preset-sort="depth:asc"]')?.replaceChildren("深さ");
+
+  const filterInput = head.querySelector("#preset-filter-input");
+  const sortSelect = head.querySelector("#preset-sort-select");
+  if (filterInput) {
+    filterInput.value = state.presetFilterText;
+  }
+  filterInput?.addEventListener("input", () => {
+    state.presetFilterText = filterInput.value;
+    renderEarthquakePresetPicker();
+    resetPresetPickerScroll();
+  });
+  sortSelect?.addEventListener("change", () => {
+    const [key, direction] = String(sortSelect.value || "").split(":");
+    state.presetSortKey = key || null;
+    state.presetSortDirection = direction || "desc";
+    renderEarthquakePresetPicker();
+    resetPresetPickerScroll();
+  });
+}
+
+function setupPresetToolbar() {
+  const head = document.querySelector(".preset-picker-head");
+  if (!head) {
+    return;
+  }
+
+  const previousFilter = head.querySelector("#preset-filter-input")?.value ?? state.presetFilterText;
+  head.dataset.toolbarReady = "true";
+  head.innerHTML = `
+    <input class="preset-filter-input" id="preset-filter-input" type="search" inputmode="search" autocomplete="off" placeholder="検索" aria-label="プリセット地震を検索" />
+    <div class="preset-sort-buttons" role="group" aria-label="並び替え">
+      <button class="preset-sort-choice" type="button" data-preset-sort="date:asc">発生順</button>
+      <button class="preset-sort-choice" type="button" data-preset-sort="magnitude:asc">マグニチュード順</button>
+      <button class="preset-sort-choice" type="button" data-preset-sort="depth:asc">深さ順</button>
+    </div>
+  `;
+
+  const filterInput = head.querySelector("#preset-filter-input");
+  if (filterInput) {
+    filterInput.value = previousFilter;
+    state.presetFilterText = previousFilter;
+  }
+  filterInput?.addEventListener("input", () => {
+    state.presetFilterText = filterInput.value;
+    renderEarthquakePresetPicker();
+    resetPresetPickerScroll();
+  });
+
+  const syncSortButtons = () => {
+    head.querySelectorAll("[data-preset-sort]").forEach((button) => {
+      const [key] = String(button.dataset.presetSort || "").split(":");
+      const isActive = key === state.presetSortKey;
+      button.classList.toggle("is-active", isActive);
+      button.dataset.sortState = isActive ? state.presetSortDirection : "none";
+      button.setAttribute("aria-pressed", String(isActive));
+    });
+  };
+
+  head.querySelectorAll("[data-preset-sort]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const [key] = String(button.dataset.presetSort || "date:asc").split(":");
+      if (state.presetSortKey !== key) {
+        state.presetSortKey = key || null;
+        state.presetSortDirection = "asc";
+      } else if (state.presetSortDirection === "asc") {
+        state.presetSortDirection = "desc";
+      } else {
+        state.presetSortKey = null;
+        state.presetSortDirection = "desc";
+      }
+      syncSortButtons();
+      renderEarthquakePresetPicker();
+      resetPresetPickerScroll();
+    });
+  });
+  syncSortButtons();
+}
+
 function formatEarthquakePresetButtonLabel(preset) {
   const label = String(preset?.label ?? "").trim();
   if (label) {
@@ -1476,8 +1738,11 @@ function getPresetSortTime(preset) {
 }
 
 function openEarthquakePresetPicker() {
-  state.presetSortKey = null;
-  state.presetSortDirection = "desc";
+  setupPresetToolbar();
+  const sortSelect = document.querySelector("#preset-sort-select");
+  if (sortSelect) {
+    sortSelect.value = `${state.presetSortKey}:${state.presetSortDirection}`;
+  }
   renderEarthquakePresetPicker();
   els.presetPickerOverlay?.classList.remove("hidden");
   resetPresetPickerScroll();
@@ -2285,8 +2550,8 @@ function setupMobileSheets() {
       dragCurrentY = event.clientY;
       const deltaY = dragCurrentY - dragStartY;
       const viewportHeight = window.visualViewport?.height || window.innerHeight || 720;
-      const minHeight = Math.min(viewportHeight * 0.42, 420);
-      const maxHeight = Math.min(viewportHeight * 0.68, 660);
+      const minHeight = Math.min(viewportHeight * 0.26, 260);
+      const maxHeight = Math.min(viewportHeight * 0.58, 560);
       const nextHeight = clamp(dragStartHeight - deltaY, minHeight, maxHeight);
       panel.style.setProperty("--sheet-drag-height", `${nextHeight}px`);
     };
