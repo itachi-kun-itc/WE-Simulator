@@ -1,8 +1,4 @@
-const MUNICIPALITY_CHUNKS_LOCAL_BASE_URL = "./data/municipality_chunks";
-const MUNICIPALITY_CHUNKS_R2_BASE_URL = "https://we-simulator-push.h6fgpg2zht.workers.dev/data/municipalities";
-const MUNICIPALITY_CHUNKS_BASE_URL = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname)
-  ? MUNICIPALITY_CHUNKS_LOCAL_BASE_URL
-  : MUNICIPALITY_CHUNKS_R2_BASE_URL;
+const JAPAN_LAND_OVERVIEW_URL = "./data/japan_municipalities_light.geojson";
 const JMA_LOCAL_AREAS_URL = "./data/jma_local_areas.geojson";
 const JMA_EEW_FORECAST_AREAS_URL = "./data/jma_eew_forecast_areas.json";
 const JMA_EPICENTER_AREAS_URL = "./data/jma_epicenter_areas.geojson";
@@ -11,11 +7,7 @@ const ACTIVE_FAULT_SEGMENTS_URL = "./data/activefault_japan_segments.geojson";
 const SUBMARINE_OBSERVATION_POINTS_URL = "./data/submarine_observation_points.geojson";
 const SURROUNDING_LAND_URL = "./data/surrounding_land.geojson";
 const WORLD_COASTLINE_URL = "./data/world_coastline.geojson";
-const JAPAN_PMTILES_LOCAL_URL = "./map/japan.pmtiles";
-const JAPAN_PMTILES_R2_URL = "https://we-simulator-push.h6fgpg2zht.workers.dev/map/japan.pmtiles";
-const JAPAN_PMTILES_URL = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname)
-  ? JAPAN_PMTILES_LOCAL_URL
-  : JAPAN_PMTILES_R2_URL;
+const JAPAN_PMTILES_URL = "./map/japan.pmtiles";
 const JAPAN_PMTILES_SOURCE_LAYER_PREF = "pref";
 const JAPAN_PMTILES_SOURCE_LAYER_EQ_AREA = "eq_area";
 const JAPAN_PMTILES_SOURCE_LAYER_CITY = "city";
@@ -427,10 +419,8 @@ const els = {
 let map;
 let epicenterMarker;
 let municipalityDisplayData;
-let municipalityChunkIndex;
-let municipalityChunkIndexLoadPromise;
-const municipalityChunkData = new Map();
-const municipalityChunkLoadPromises = new Map();
+let japanLandOverviewData;
+let japanLandOverviewLoadPromise;
 let oldScaleSyntheticMunicipalityHydrationPromise;
 let oldScaleSyntheticMunicipalityHydratingPresetId = "";
 let localAreaData;
@@ -5259,8 +5249,7 @@ async function hydrateOldScaleSyntheticMunicipalityData(preset) {
     return;
   }
 
-  const prefectures = [...new Set(preset.observedStations.map((station) => station.prefecture).filter(Boolean))];
-  applyMunicipalityLogicData(await loadMunicipalitiesForPrefectures(prefectures));
+  applyMunicipalityLogicData(await loadJapanLandOverview());
 }
 
 async function hydrateDeferredSupplementaryMapData() {
@@ -5786,14 +5775,14 @@ function addMapLayers() {
       "line-width": ["interpolate", ["linear"], ["zoom"], 8, 0.36, 10, 0.58],
     },
   });
-  updateLayerVisibility("municipality-boundaries", true);
+  updateLayerVisibility("municipality-boundaries", false);
 
   addLayerIfMissing({
     id: "prefecture-boundaries",
     type: "line",
     source: "japan-pmtiles",
     "source-layer": JAPAN_PMTILES_SOURCE_LAYER_PREF,
-    maxzoom: 11,
+    maxzoom: 8,
     paint: {
       "line-color": "#e4e9ef",
       "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.42, 7, 0.58, 10, 0.72],
@@ -7600,7 +7589,7 @@ function scheduleMaxStationListRender() {
 
   if ("requestIdleCallback" in window) {
     maxStationListRenderHandleType = "idle";
-    maxStationListRenderHandle = window.requestIdleCallback(render);
+    maxStationListRenderHandle = window.requestIdleCallback(render, { timeout: 900 });
     return;
   }
 
@@ -7689,17 +7678,7 @@ function renderMaxStationListItems(observedStations) {
     }
   });
   maxStationListEmptyItem = null;
-  // Keep existing nodes attached whenever their order has not changed. Replacing
-  // the entire list caused a layout/paint spike at the one-second update cadence.
-  items.forEach((item, index) => {
-    const currentItem = els.maxStationList.children[index] ?? null;
-    if (currentItem !== item) {
-      els.maxStationList.insertBefore(item, currentItem);
-    }
-  });
-  while (els.maxStationList.children.length > items.length) {
-    els.maxStationList.lastElementChild?.remove();
-  }
+  els.maxStationList.replaceChildren(...items);
 }
 
 function isSimulationComplete(elapsedSec) {
@@ -8003,61 +7982,30 @@ async function findMunicipalityAtPoint(longitude, latitude) {
   }
 
   try {
-    const loadedMatch = findFeatureAtPoint(municipalityDisplayData ?? emptyFeatureCollection(), longitude, latitude);
-    if (loadedMatch) {
-      return loadedMatch;
-    }
-    const index = await loadMunicipalityChunkIndex();
-    const candidates = index.chunks.filter((chunk) => pointIsInsideBounds(longitude, latitude, chunk.bounds));
-    const chunks = await Promise.all(candidates.map(loadMunicipalityChunk));
-    for (const chunk of chunks) {
-      const match = findFeatureAtPoint(chunk, longitude, latitude);
-      if (match) {
-        return match;
-      }
-    }
-    return null;
+    const municipalities = municipalityDisplayData ?? await loadJapanLandOverview();
+    return findFeatureAtPoint(municipalities, longitude, latitude) ?? null;
   } catch (error) {
     console.warn("Municipality lookup unavailable", error);
     return null;
   }
 }
 
-async function loadMunicipalityChunkIndex() {
-  if (!municipalityChunkIndexLoadPromise) {
-    municipalityChunkIndexLoadPromise = fetchJson(`${MUNICIPALITY_CHUNKS_BASE_URL}/index.json`, "Municipality chunk index");
+async function loadJapanLandOverview() {
+  if (japanLandOverviewData) {
+    return japanLandOverviewData;
   }
-  municipalityChunkIndex = await municipalityChunkIndexLoadPromise;
-  return municipalityChunkIndex;
-}
 
-async function loadMunicipalityChunk(chunk) {
-  if (municipalityChunkData.has(chunk.id)) {
-    return municipalityChunkData.get(chunk.id);
+  if (!japanLandOverviewLoadPromise) {
+    japanLandOverviewLoadPromise = fetchJson(JAPAN_LAND_OVERVIEW_URL, "Japan land overview GeoJSON")
+      .catch((error) => {
+        console.warn("Japan land overview unavailable", error);
+        return emptyFeatureCollection();
+      });
   }
-  if (!municipalityChunkLoadPromises.has(chunk.id)) {
-    municipalityChunkLoadPromises.set(
-      chunk.id,
-      fetchJson(`${MUNICIPALITY_CHUNKS_BASE_URL}/${chunk.file}`, `${chunk.prefecture} municipalities`),
-    );
-  }
-  const data = await municipalityChunkLoadPromises.get(chunk.id);
-  municipalityChunkData.set(chunk.id, data);
-  municipalityDisplayData = {
-    type: "FeatureCollection",
-    features: [...municipalityChunkData.values()].flatMap((item) => item.features ?? []),
-  };
-  return data;
-}
 
-async function loadMunicipalitiesForPrefectures(prefectures) {
-  const index = await loadMunicipalityChunkIndex();
-  await Promise.all(index.chunks.filter((chunk) => prefectures.includes(chunk.prefecture)).map(loadMunicipalityChunk));
-  return municipalityDisplayData ?? emptyFeatureCollection();
-}
-
-function pointIsInsideBounds(longitude, latitude, bounds) {
-  return Array.isArray(bounds) && longitude >= bounds[0] && longitude <= bounds[2] && latitude >= bounds[1] && latitude <= bounds[3];
+  japanLandOverviewData = await japanLandOverviewLoadPromise;
+  municipalityDisplayData = japanLandOverviewData;
+  return japanLandOverviewData;
 }
 
 async function loadLocalAreas() {
