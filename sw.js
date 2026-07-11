@@ -1,4 +1,4 @@
-const CACHE_NAME = "we-simulator-pwa-v5";
+const CACHE_NAME = "we-simulator-pwa-v6";
 const NOTIFICATION_HISTORY_DB_NAME = "we-simulator-notification-history";
 const NOTIFICATION_HISTORY_DB_VERSION = 1;
 const NOTIFICATION_HISTORY_STORE_NAME = "notifications";

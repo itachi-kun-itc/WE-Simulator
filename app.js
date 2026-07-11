@@ -1,8 +1,3 @@
-const MUNICIPALITY_CHUNKS_LOCAL_BASE_URL = "./data/municipality_chunks";
-const MUNICIPALITY_CHUNKS_R2_BASE_URL = "https://we-simulator-push.h6fgpg2zht.workers.dev/data/municipalities";
-const MUNICIPALITY_CHUNKS_BASE_URL = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname)
-  ? MUNICIPALITY_CHUNKS_LOCAL_BASE_URL
-  : MUNICIPALITY_CHUNKS_R2_BASE_URL;
 const JMA_LOCAL_AREAS_URL = "./data/jma_local_areas.geojson";
 const JMA_EEW_FORECAST_AREAS_URL = "./data/jma_eew_forecast_areas.json";
 const JMA_EPICENTER_AREAS_URL = "./data/jma_epicenter_areas.geojson";
@@ -92,7 +87,6 @@ const JAPAN_WORLD_COASTLINE_SUPPRESS_BOUNDS = [
   ...EXCLUDED_JAPAN_LAND_BOUNDS,
   ...NORTHERN_TERRITORIES_BOUNDS,
 ];
-const MUNICIPALITY_BOUNDARY_MIN_ZOOM = 7;
 const EPICENTER_DEFERRED_UPDATE_DELAY_MS = 220;
 const EPICENTER_DRAG_UPDATE_DELAY_MS = 320;
 const INTENSITY_DISTANCE_SIMPLIFY_TOLERANCE_DEGREES = 0.008;
@@ -427,10 +421,6 @@ const els = {
 let map;
 let epicenterMarker;
 let municipalityDisplayData;
-let municipalityChunkIndex;
-let municipalityChunkIndexLoadPromise;
-const municipalityChunkData = new Map();
-const municipalityChunkLoadPromises = new Map();
 let oldScaleSyntheticMunicipalityHydrationPromise;
 let oldScaleSyntheticMunicipalityHydratingPresetId = "";
 let localAreaData;
@@ -5258,9 +5248,6 @@ async function hydrateOldScaleSyntheticMunicipalityData(preset) {
   if (!preset?.observedStations?.length) {
     return;
   }
-
-  const prefectures = [...new Set(preset.observedStations.map((station) => station.prefecture).filter(Boolean))];
-  applyMunicipalityLogicData(await loadMunicipalitiesForPrefectures(prefectures));
 }
 
 async function hydrateDeferredSupplementaryMapData() {
@@ -5769,38 +5756,6 @@ function addMapLayers() {
     },
   });
   updateLayerVisibility("eew-warning-fill", state.showEewWarningLayer);
-
-  addLayerIfMissing({
-    id: "municipality-boundaries",
-    type: "line",
-    source: "japan-pmtiles",
-    "source-layer": JAPAN_PMTILES_SOURCE_LAYER_CITY,
-    minzoom: MUNICIPALITY_BOUNDARY_MIN_ZOOM,
-    layout: {
-      "line-cap": "round",
-      "line-join": "round",
-    },
-    paint: {
-      "line-color": "#ffffff",
-      "line-opacity": 0.76,
-      "line-width": ["interpolate", ["linear"], ["zoom"], 7, 0.48, 9, 0.68, 10.8, 0.86, 12, 1.02],
-      "line-blur": ["interpolate", ["linear"], ["zoom"], 7, 0.18, 12, 0.08],
-    },
-  });
-  updateLayerVisibility("municipality-boundaries", true);
-
-  addLayerIfMissing({
-    id: "prefecture-boundaries",
-    type: "line",
-    source: "japan-pmtiles",
-    "source-layer": JAPAN_PMTILES_SOURCE_LAYER_PREF,
-    maxzoom: 11,
-    paint: {
-      "line-color": "#e4e9ef",
-      "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.42, 7, 0.58, 10, 0.72],
-      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.5, 7, 0.85, 10, 1.2],
-    },
-  });
 
   addLayerIfMissing({
     id: "jma-region-boundaries",
@@ -8004,61 +7959,15 @@ async function findMunicipalityAtPoint(longitude, latitude) {
   }
 
   try {
-    const loadedMatch = findFeatureAtPoint(municipalityDisplayData ?? emptyFeatureCollection(), longitude, latitude);
-    if (loadedMatch) {
-      return loadedMatch;
+    if (!map?.getLayer("japan-city-land-fill")) {
+      return null;
     }
-    const index = await loadMunicipalityChunkIndex();
-    const candidates = index.chunks.filter((chunk) => pointIsInsideBounds(longitude, latitude, chunk.bounds));
-    const chunks = await Promise.all(candidates.map(loadMunicipalityChunk));
-    for (const chunk of chunks) {
-      const match = findFeatureAtPoint(chunk, longitude, latitude);
-      if (match) {
-        return match;
-      }
-    }
-    return null;
+    const point = map.project({ lng: longitude, lat: latitude });
+    return map.queryRenderedFeatures(point, { layers: ["japan-city-land-fill"] })[0] ?? null;
   } catch (error) {
     console.warn("Municipality lookup unavailable", error);
     return null;
   }
-}
-
-async function loadMunicipalityChunkIndex() {
-  if (!municipalityChunkIndexLoadPromise) {
-    municipalityChunkIndexLoadPromise = fetchJson(`${MUNICIPALITY_CHUNKS_BASE_URL}/index.json`, "Municipality chunk index");
-  }
-  municipalityChunkIndex = await municipalityChunkIndexLoadPromise;
-  return municipalityChunkIndex;
-}
-
-async function loadMunicipalityChunk(chunk) {
-  if (municipalityChunkData.has(chunk.id)) {
-    return municipalityChunkData.get(chunk.id);
-  }
-  if (!municipalityChunkLoadPromises.has(chunk.id)) {
-    municipalityChunkLoadPromises.set(
-      chunk.id,
-      fetchJson(`${MUNICIPALITY_CHUNKS_BASE_URL}/${chunk.file}`, `${chunk.prefecture} municipalities`),
-    );
-  }
-  const data = await municipalityChunkLoadPromises.get(chunk.id);
-  municipalityChunkData.set(chunk.id, data);
-  municipalityDisplayData = {
-    type: "FeatureCollection",
-    features: [...municipalityChunkData.values()].flatMap((item) => item.features ?? []),
-  };
-  return data;
-}
-
-async function loadMunicipalitiesForPrefectures(prefectures) {
-  const index = await loadMunicipalityChunkIndex();
-  await Promise.all(index.chunks.filter((chunk) => prefectures.includes(chunk.prefecture)).map(loadMunicipalityChunk));
-  return municipalityDisplayData ?? emptyFeatureCollection();
-}
-
-function pointIsInsideBounds(longitude, latitude, bounds) {
-  return Array.isArray(bounds) && longitude >= bounds[0] && longitude <= bounds[2] && latitude >= bounds[1] && latitude <= bounds[3];
 }
 
 async function loadLocalAreas() {
