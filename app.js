@@ -2825,6 +2825,7 @@ function setupSmartphoneLandscapeUnsupportedReset() {
 
   const applyResetIfNeeded = () => {
     document.body.classList.toggle("unsupported-screen-active", media.matches);
+    updateSimulationAvailability();
     if (!media.matches) {
       const shouldResetAfterReturn = smartphoneLandscapeResetApplied;
       smartphoneLandscapeResetApplied = false;
@@ -5639,6 +5640,10 @@ function updateMaintenanceStateIndicators(overlay, badge, status) {
   const isParentTerminal = Boolean(localStorage.getItem(ADMIN_PARENT_TOKEN_KEY));
   const isLocalServer = isLocalDevelopmentHost();
   const isMaintenanceExemptTerminal = isParentTerminal || isLocalServer;
+  document.body.classList.toggle(
+    "maintenance-screen-blocking",
+    Boolean(status.maintenance && !isMaintenanceExemptTerminal),
+  );
   const reason = latestMaintenanceStatus.reason;
   if (status.maintenance && !isMaintenanceExemptTerminal && state.simulationRunning) {
     stopSimulation();
@@ -5655,6 +5660,7 @@ function updateMaintenanceStateIndicators(overlay, badge, status) {
     const localBadge = document.querySelector(".local-server-badge");
     updateLocalServerBadge(localBadge);
   }
+  updateSimulationAvailability();
 }
 
 function updateMaintenanceOverlayMessage(overlay, reason = "") {
@@ -9484,6 +9490,12 @@ function updateSimulationAvailability() {
 
   document.body.classList.toggle("simulation-running", Boolean(state.simulationRunning));
   setStartupInteractionLocked(!maintenanceStatusReady || resetViewAnimating);
+
+  if (document.body.classList.contains("unsupported-screen-active") || document.body.classList.contains("maintenance-screen-blocking")) {
+    els.simulationStart.disabled = true;
+    els.simulationStart.title = "";
+    return;
+  }
 
   if (state.simulationRunning) {
     setStartupInteractionLocked(false);
