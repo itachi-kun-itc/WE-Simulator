@@ -2019,7 +2019,7 @@ async function initEarthquakeMap() {
           id: "sea-background",
           type: "background",
           paint: {
-            "background-color": "#061a3a",
+            "background-color": "#0c1326",
           },
         },
       ],
@@ -5607,14 +5607,14 @@ function addMapLayers() {
       "fill-color": [
         "case",
         ["==", ["get", "territoryType"], "northern-territories"],
-        "#8c9298",
-        "#5f676d",
+        "#3c3d40",
+        "#252a33",
       ],
       "fill-outline-color": [
         "case",
         ["==", ["get", "territoryType"], "northern-territories"],
-        "#8c9298",
-        "#5f676d",
+        "#3c3d40",
+        "#252a33",
       ],
       "fill-opacity": 1,
     },
@@ -5629,7 +5629,7 @@ function addMapLayers() {
       "line-join": "round",
     },
     paint: {
-      "line-color": "#5f676d",
+      "line-color": "#252a33",
       "line-opacity": 1,
       "line-width": ["interpolate", ["linear"], ["zoom"], 1, 1.8, 4, 2.5, 7, 1.7, 10, 0.9],
     },
@@ -5644,9 +5644,9 @@ function addMapLayers() {
       "line-join": "round",
     },
     paint: {
-      "line-color": "#b4bec6",
-      "line-opacity": ["interpolate", ["linear"], ["zoom"], 1, 0.38, 4, 0.52, 7, 0.66, 10, 0.76],
-      "line-width": ["interpolate", ["linear"], ["zoom"], 1, 0.45, 4, 0.7, 7, 1.05, 10, 1.45],
+      "line-color": "#5e6672",
+      "line-opacity": 0.42,
+      "line-width": ["interpolate", ["linear"], ["zoom"], 2, 0.35, 5, 0.65, 8, 1],
     },
   });
 
@@ -5657,8 +5657,8 @@ function addMapLayers() {
     "source-layer": JAPAN_PMTILES_SOURCE_LAYER_PREF,
     paint: {
       "fill-antialias": true,
-      "fill-color": "#8c9298",
-      "fill-outline-color": "rgba(140, 146, 152, 0)",
+      "fill-color": "#3c3d40",
+      "fill-outline-color": "rgba(60, 61, 64, 0)",
       "fill-opacity": 1,
     },
   });
@@ -5671,8 +5671,8 @@ function addMapLayers() {
     minzoom: 5,
     paint: {
       "fill-antialias": false,
-      "fill-color": "#8c9298",
-      "fill-outline-color": "rgba(140, 146, 152, 0)",
+      "fill-color": "#3c3d40",
+      "fill-outline-color": "rgba(60, 61, 64, 0)",
       "fill-opacity": 1,
     },
   });
@@ -5687,7 +5687,7 @@ function addMapLayers() {
       "line-join": "round",
     },
     paint: {
-      "line-color": "#8c9298",
+      "line-color": "#3c3d40",
       "line-opacity": 1,
       "line-width": ["interpolate", ["linear"], ["zoom"], 4, 2.1, 7, 1.45, 10, 0.8, 12, 0.55],
     },
@@ -5772,16 +5772,31 @@ function addMapLayers() {
   updateLayerVisibility("eew-warning-fill", state.showEewWarningLayer);
 
   addLayerIfMissing({
-    id: "jma-region-boundaries",
+    id: "municipality-boundaries",
     type: "line",
     source: "japan-pmtiles",
-    "source-layer": JAPAN_PMTILES_SOURCE_LAYER_EQ_AREA,
-    minzoom: 3,
-    maxzoom: 11,
+    "source-layer": JAPAN_PMTILES_SOURCE_LAYER_CITY,
+    minzoom: 4,
     paint: {
-      "line-color": "#d5dee8",
-      "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.62, 7, 0.78, 10, 0.9],
-      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 1.05, 7, 1.7, 10, 2.45],
+      "line-color": "#848a94",
+      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.45, 7, 0.85, 10, 1.25],
+      "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.55, 7, 0.82, 10, 0.95],
+    },
+  });
+
+  addLayerIfMissing({
+    id: "prefecture-boundaries",
+    type: "line",
+    source: "japan-pmtiles",
+    "source-layer": JAPAN_PMTILES_SOURCE_LAYER_PREF,
+    layout: {
+      "line-cap": "round",
+      "line-join": "round",
+    },
+    paint: {
+      "line-color": "#f7fbff",
+      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 1.45, 7, 2, 10, 2.8],
+      "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.72, 7, 0.82, 10, 0.9],
     },
   });
 
