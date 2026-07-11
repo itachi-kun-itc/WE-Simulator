@@ -1,6 +1,4 @@
 const JAPAN_LAND_OVERVIEW_URL = "./data/japan_municipalities_light.geojson";
-const EQ_APP_JAPAN_LAND_URL = "./data/eq_app_japan_land.geojson";
-const BOUNDARY_LAYERS_URL = "./data/boundary_layers.geojson";
 const JMA_LOCAL_AREAS_URL = "./data/jma_local_areas.geojson";
 const JMA_EEW_FORECAST_AREAS_URL = "./data/jma_eew_forecast_areas.json";
 const JMA_EPICENTER_AREAS_URL = "./data/jma_epicenter_areas.geojson";
@@ -9,8 +7,10 @@ const ACTIVE_FAULT_SEGMENTS_URL = "./data/activefault_japan_segments.geojson";
 const SUBMARINE_OBSERVATION_POINTS_URL = "./data/submarine_observation_points.geojson";
 const SURROUNDING_LAND_URL = "./data/surrounding_land.geojson";
 const WORLD_COASTLINE_URL = "./data/world_coastline.geojson";
-const GEOSHAPE_MUNICIPALITY_TILE_URL = "https://geoshape.ex.nii.ac.jp/vector-adm/tile/city/{z}/{x}/{y}.pbf";
-const GEOSHAPE_MUNICIPALITY_SOURCE_LAYER = "city";
+const JAPAN_PMTILES_URL = "./map/japan.pmtiles";
+const JAPAN_PMTILES_SOURCE_LAYER_PREF = "pref";
+const JAPAN_PMTILES_SOURCE_LAYER_EQ_AREA = "eq_area";
+const JAPAN_PMTILES_SOURCE_LAYER_CITY = "city";
 const GROUND_MODEL_URL = "./data/ground_model.json";
 const SHINDO_STATIONS_URL = "./data/jma_shindo_stations.json";
 const FEEDBACK_SHEET_URL =
@@ -70,6 +70,7 @@ const JAPAN_WORLD_MAP_SUPPRESS_BOUNDS = [
   { west: 129.3, south: 30.8, east: 132.2, north: 34.1 },
   { west: 132, south: 32.6, east: 134.9, north: 34.7 },
   ...JAPAN_OUTLYING_ISLAND_WORLD_SUPPRESS_BOUNDS,
+  ...EXCLUDED_JAPAN_LAND_BOUNDS,
   ...NORTHERN_TERRITORIES_BOUNDS,
 ];
 const JAPAN_WORLD_COASTLINE_SUPPRESS_BOUNDS = [
@@ -78,6 +79,7 @@ const JAPAN_WORLD_COASTLINE_SUPPRESS_BOUNDS = [
   { west: 129.3, south: 30.8, east: 132.2, north: 34.1 },
   { west: 132, south: 32.6, east: 134.9, north: 34.7 },
   ...JAPAN_OUTLYING_ISLAND_WORLD_SUPPRESS_BOUNDS,
+  ...EXCLUDED_JAPAN_LAND_BOUNDS,
   ...NORTHERN_TERRITORIES_BOUNDS,
 ];
 const MUNICIPALITY_BOUNDARY_MIN_ZOOM = 8;
@@ -417,13 +419,9 @@ let epicenterMarker;
 let municipalityDisplayData;
 let japanLandOverviewData;
 let japanLandOverviewLoadPromise;
-let eqAppJapanLandData;
-let eqAppJapanLandLoadPromise;
 let municipalityOverviewDisplayData;
 let oldScaleSyntheticMunicipalityHydrationPromise;
 let oldScaleSyntheticMunicipalityHydratingPresetId = "";
-let boundaryData;
-let boundaryLoadPromise;
 let localAreaData;
 let localAreaLoadPromise;
 let eewForecastAreaData;
@@ -518,6 +516,8 @@ let stationSummaryCache = { data: null, summary: null };
 let speechAnnouncementState = createSpeechAnnouncementState();
 let postMunicipalityDataScheduled = false;
 const sourceDataRefs = new Map();
+let pmtilesProtocolRegistered = false;
+let japanPmtilesProtocolUrl = "";
 const SOURCE_LINKS = [
   { label: "気象庁", href: "https://www.jma.go.jp/" },
   { label: "JMA_Region", href: "https://github.com/0Quake/JMA_Region" },
@@ -1926,6 +1926,7 @@ function safelyResizeMap() {
 
 async function initEarthquakeMap() {
   updateAppViewportHeight();
+  registerPmtilesProtocol();
   map = new maplibregl.Map({
     container: "map",
     style: {
@@ -2025,6 +2026,24 @@ async function initEarthquakeMap() {
   }
 
   updateEpicenter({ skipIntensityUpdate: true });
+}
+
+function registerPmtilesProtocol() {
+  if (pmtilesProtocolRegistered || !window.pmtiles?.Protocol || !window.pmtiles?.PMTiles || !window.maplibregl?.addProtocol) {
+    return;
+  }
+
+  const protocol = new window.pmtiles.Protocol();
+  const absoluteUrl = new URL(JAPAN_PMTILES_URL, window.location.href).href;
+  const archive = new window.pmtiles.PMTiles(absoluteUrl);
+  protocol.add(archive);
+  japanPmtilesProtocolUrl = `pmtiles://${absoluteUrl}`;
+  window.maplibregl.addProtocol("pmtiles", protocol.tile);
+  pmtilesProtocolRegistered = true;
+}
+
+function getJapanPmtilesProtocolUrl() {
+  return japanPmtilesProtocolUrl || `pmtiles://${new URL(JAPAN_PMTILES_URL, window.location.href).href}`;
 }
 
 function onceMapLoaded() {
@@ -5018,14 +5037,11 @@ async function showMapLayers() {
   startupLocationResolved = false;
   addGeoJsonSource("surrounding-land", emptyFeatureCollection());
   addGeoJsonSource("world-coastline", emptyFeatureCollection());
-  addGeoJsonSource("japan-base-land", emptyFeatureCollection());
-  addGeoJsonSource("japan-base-outline", emptyFeatureCollection());
-  addGeoJsonSource("display-only-territory-land", emptyFeatureCollection());
-  addVectorTileSource("geoshape-municipalities", {
-    tiles: [GEOSHAPE_MUNICIPALITY_TILE_URL],
-    minzoom: 5,
-    maxzoom: 12,
-    attribution: "Geoshape / National Land Numerical Information",
+  addVectorTileSource("japan-pmtiles", {
+    url: getJapanPmtilesProtocolUrl(),
+    minzoom: 0,
+    maxzoom: 14,
+    attribution: "JMA / National Land Numerical Information",
   });
   addGeoJsonSource("jma-local-areas", emptyFeatureCollection());
   addGeoJsonSource("plate-boundaries", emptyFeatureCollection());
@@ -5034,36 +5050,21 @@ async function showMapLayers() {
   addGeoJsonSource("shindo-stations", emptyFeatureCollection());
   addGeoJsonSource("p-wave", emptyFeatureCollection());
   addGeoJsonSource("s-wave", emptyFeatureCollection());
-  addGeoJsonSource("boundaries", emptyFeatureCollection());
 
   addMapLayers();
   setupStationHoverPopup();
   keepWaveAndStationLayerOrder();
   fitInitialMapBounds(getInitialJapanBounds());
-  hydrateDeferredMapData();
+  watchJapanPmtilesStartup();
+  scheduleDeferredTask(hydrateDeferredMapData, LIGHT_DEFERRED_DATA_DELAY_MS, 1800);
 }
 
 async function hydrateDeferredMapData() {
-  const japanLandPromise = loadEqAppJapanLand()
-    .then((eqAppJapanLand) => {
-      window.requestAnimationFrame(() => {
-        setGeoJsonSourceData("japan-base-land", eqAppJapanLand);
-        setGeoJsonSourceData("japan-base-outline", buildPolygonBoundaryLinework(eqAppJapanLand));
-        setGeoJsonSourceData("display-only-territory-land", emptyFeatureCollection());
-        keepWaveAndStationLayerOrder();
-        safelyResizeMap();
-      });
-      return eqAppJapanLand;
-    });
-
   const municipalityPromise = loadJapanLandOverview()
     .then((municipalities) => {
       window.requestAnimationFrame(() => {
         municipalityOverviewDisplayData = withoutInteriorRings(municipalities);
         applyMunicipalityDisplayData(municipalityOverviewDisplayData);
-        if (document.body.classList.contains("map-core-loading")) {
-          startupLocationResolved = true;
-        }
         showMunicipalityLinework();
         scheduleDeferredTask(() => scheduleLocationResolve(), 900, 2400);
         updateSimulationAvailability();
@@ -5073,7 +5074,7 @@ async function hydrateDeferredMapData() {
     });
 
   try {
-    await Promise.all([japanLandPromise, municipalityPromise]);
+    await municipalityPromise;
     hydrateDeferredSupplementaryMapData().catch((error) => console.warn(error));
     hydrateDeferredSimulationMapData().catch((error) => console.warn(error));
   } catch (error) {
@@ -5082,6 +5083,52 @@ async function hydrateDeferredMapData() {
   } finally {
     updateSimulationAvailability();
   }
+}
+
+function watchJapanPmtilesStartup() {
+  let settled = false;
+  let fallbackTimer = 0;
+
+  const finishAfterPaint = () => {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(finish);
+    });
+  };
+
+  const cleanup = () => {
+    map?.off("sourcedata", onSourceData);
+    map?.off("idle", finishAfterPaint);
+    if (fallbackTimer) {
+      window.clearTimeout(fallbackTimer);
+    }
+  };
+
+  const finish = () => {
+    if (settled) {
+      return;
+    }
+
+    settled = true;
+    cleanup();
+    startupLocationResolved = true;
+    municipalityBoundaryVisible = true;
+    scheduleStartupReadyAfterIntensityPaint();
+  };
+
+  const onSourceData = (event) => {
+    if (event.sourceId === "japan-pmtiles") {
+      finishAfterPaint();
+    }
+  };
+
+  if (map.isSourceLoaded?.("japan-pmtiles") || map.areTilesLoaded?.()) {
+    finishAfterPaint();
+    return;
+  }
+
+  map.on("sourcedata", onSourceData);
+  map.once("idle", finishAfterPaint);
+  fallbackTimer = window.setTimeout(finishAfterPaint, 900);
 }
 
 function applyMunicipalityDisplayData(displayData, options = {}) {
@@ -5149,16 +5196,13 @@ async function hydrateDeferredSupplementaryMapData() {
   const [
     surroundingLand,
     worldCoastline,
-    boundaries,
   ] = await Promise.all([
     loadOptionalGeoJsonData(loadSurroundingLand, "Surrounding land GeoJSON"),
     loadOptionalGeoJsonData(loadWorldCoastline, "World coastline GeoJSON"),
-    loadOptionalGeoJsonData(loadBoundaryLayers, "Boundary GeoJSON"),
   ]);
 
   setGeoJsonSourceData("surrounding-land", filterSurroundingLandForDisplay(surroundingLand));
   setGeoJsonSourceData("world-coastline", removeWorldJapanOverlapLinework(worldCoastline));
-  setGeoJsonSourceData("boundaries", boundaries);
   keepWaveAndStationLayerOrder();
 }
 
@@ -5224,8 +5268,7 @@ function scheduleStartupReadyAfterIntensityPaint() {
     startupMapVisualReady ||
     startupOverlayReleasePending ||
     !startupLocationResolved ||
-    !municipalityBoundaryVisible ||
-    !municipalityDisplayData?.features?.length
+    !municipalityBoundaryVisible
   ) {
     return;
   }
@@ -5538,7 +5581,22 @@ function addMapLayers() {
   addLayerIfMissing({
     id: "japan-land-fill",
     type: "fill",
-    source: "japan-base-land",
+    source: "japan-pmtiles",
+    "source-layer": JAPAN_PMTILES_SOURCE_LAYER_PREF,
+    paint: {
+      "fill-antialias": false,
+      "fill-color": "#8c9298",
+      "fill-outline-color": "rgba(140, 146, 152, 0)",
+      "fill-opacity": 1,
+    },
+  });
+
+  addLayerIfMissing({
+    id: "japan-city-land-fill",
+    type: "fill",
+    source: "japan-pmtiles",
+    "source-layer": JAPAN_PMTILES_SOURCE_LAYER_CITY,
+    minzoom: 5,
     paint: {
       "fill-antialias": false,
       "fill-color": "#8c9298",
@@ -5550,45 +5608,14 @@ function addMapLayers() {
   addLayerIfMissing({
     id: "japan-land-gap-fill",
     type: "line",
-    source: "japan-base-outline",
+    source: "japan-pmtiles",
+    "source-layer": JAPAN_PMTILES_SOURCE_LAYER_PREF,
     layout: {
       "line-cap": "round",
       "line-join": "round",
     },
     paint: {
       "line-color": "#8c9298",
-      "line-opacity": 1,
-      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 2.1, 7, 1.45, 10, 0.8, 12, 0.55],
-    },
-  });
-
-  addLayerIfMissing({
-    id: "display-only-territory-fill",
-    type: "fill",
-    source: "display-only-territory-land",
-    paint: {
-      "fill-antialias": false,
-      "fill-color": "#5f676d",
-      "fill-outline-color": "#5f676d",
-      "fill-opacity": 1,
-    },
-  });
-
-  addLayerIfMissing({
-    id: "display-only-territory-outline",
-    type: "line",
-    source: "display-only-territory-land",
-    layout: {
-      "line-cap": "round",
-      "line-join": "round",
-    },
-    paint: {
-      "line-color": [
-        "case",
-        ["==", ["get", "territoryType"], "northern-territories"],
-        "#8c9298",
-        "#535b61",
-      ],
       "line-opacity": 1,
       "line-width": ["interpolate", ["linear"], ["zoom"], 4, 2.1, 7, 1.45, 10, 0.8, 12, 0.55],
     },
@@ -5675,14 +5702,9 @@ function addMapLayers() {
   addLayerIfMissing({
     id: "municipality-boundaries",
     type: "line",
-    source: "geoshape-municipalities",
-    "source-layer": GEOSHAPE_MUNICIPALITY_SOURCE_LAYER,
+    source: "japan-pmtiles",
+    "source-layer": JAPAN_PMTILES_SOURCE_LAYER_CITY,
     minzoom: MUNICIPALITY_BOUNDARY_MIN_ZOOM,
-    filter: [
-      "any",
-      ["!", ["has", "N03_007"]],
-      ["!", ["in", ["get", "N03_007"], ["literal", [...EXCLUDED_TERRITORY_CODES]]]],
-    ],
     layout: {
       "line-cap": "round",
       "line-join": "round",
@@ -5698,8 +5720,9 @@ function addMapLayers() {
   addLayerIfMissing({
     id: "prefecture-boundaries",
     type: "line",
-    source: "boundaries",
-    filter: ["==", ["get", "layer"], "prefecture"],
+    source: "japan-pmtiles",
+    "source-layer": JAPAN_PMTILES_SOURCE_LAYER_PREF,
+    maxzoom: 8,
     paint: {
       "line-color": "#e4e9ef",
       "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.42, 7, 0.58, 10, 0.72],
@@ -5710,7 +5733,10 @@ function addMapLayers() {
   addLayerIfMissing({
     id: "jma-region-boundaries",
     type: "line",
-    source: "jma-local-areas",
+    source: "japan-pmtiles",
+    "source-layer": JAPAN_PMTILES_SOURCE_LAYER_EQ_AREA,
+    minzoom: 3,
+    maxzoom: 11,
     paint: {
       "line-color": "#d5dee8",
       "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.62, 7, 0.78, 10, 0.9],
@@ -7944,36 +7970,6 @@ async function loadJapanLandOverview() {
 
   japanLandOverviewData = await japanLandOverviewLoadPromise;
   return japanLandOverviewData;
-}
-
-async function loadEqAppJapanLand() {
-  if (eqAppJapanLandData) {
-    return eqAppJapanLandData;
-  }
-
-  if (!eqAppJapanLandLoadPromise) {
-    eqAppJapanLandLoadPromise = fetchJson(EQ_APP_JAPAN_LAND_URL, "EQ-app Japan land GeoJSON")
-      .catch((error) => {
-        console.warn("EQ-app Japan land unavailable; falling back to Japan land overview", error);
-        return loadJapanLandOverview();
-      });
-  }
-
-  eqAppJapanLandData = await eqAppJapanLandLoadPromise;
-  return eqAppJapanLandData;
-}
-
-async function loadBoundaryLayers() {
-  if (boundaryData) {
-    return boundaryData;
-  }
-
-  if (!boundaryLoadPromise) {
-    boundaryLoadPromise = fetchJson(BOUNDARY_LAYERS_URL, "Boundary GeoJSON");
-  }
-
-  boundaryData = await boundaryLoadPromise;
-  return boundaryData;
 }
 
 async function loadLocalAreas() {
