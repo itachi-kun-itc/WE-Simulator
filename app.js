@@ -13,7 +13,9 @@ const JMA_LOCAL_AREA_BOUNDARY_LINES_URL = "./data/jma_local_area_boundaries_line
 const MUNICIPALITY_BOUNDARY_LINES_URL = "./data/municipality_boundaries_lines.geojson";
 const JAPAN_PMTILES_LOCAL_URL = "./map/japan.pmtiles";
 const JAPAN_PMTILES_R2_URL = "https://we-simulator-push.h6fgpg2zht.workers.dev/map/japan.pmtiles";
-const JAPAN_PMTILES_URL = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname)
+const LOCAL_DEV_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
+const IS_LOCAL_DEV = LOCAL_DEV_HOSTNAMES.has(window.location.hostname);
+const JAPAN_PMTILES_URL = IS_LOCAL_DEV
   ? JAPAN_PMTILES_LOCAL_URL
   : JAPAN_PMTILES_R2_URL;
 const JAPAN_PMTILES_SOURCE_LAYER_PREF = "pref";
@@ -648,10 +650,13 @@ setupSpeechSynthesisRecovery();
 bootstrapApplication();
 
 async function bootstrapApplication() {
+  await disableLocalDevelopmentServiceWorker();
   recoverPmtilesByteServingIfNeeded().catch((error) => {
     console.warn("PMTiles byte serving recovery failed", error);
   });
-  setupPushNotifications();
+  if (!IS_LOCAL_DEV) {
+    setupPushNotifications();
+  }
   backfillLegacyNotificationHistory();
 
   if (window.maplibregl) {
@@ -661,6 +666,23 @@ async function bootstrapApplication() {
     });
   } else {
     els.status.textContent = "MapLibre GL JS was not loaded";
+  }
+}
+
+async function disableLocalDevelopmentServiceWorker() {
+  if (!IS_LOCAL_DEV || !("serviceWorker" in navigator)) {
+    return;
+  }
+
+  try {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(registrations.map((registration) => registration.unregister()));
+    if (window.caches?.keys) {
+      const keys = await window.caches.keys();
+      await Promise.all(keys.map((key) => window.caches.delete(key)));
+    }
+  } catch (error) {
+    console.warn("Local development cache cleanup failed", error);
   }
 }
 
@@ -1418,6 +1440,11 @@ function resetEpicenterToInitialState(options = {}) {
 }
 
 async function setupPushNotifications() {
+  if (IS_LOCAL_DEV) {
+    setPushNotificationStatus("ローカル開発中は通知を無効化しています", { disabled: true });
+    return;
+  }
+
   if (!els.notificationEnable || !els.notificationStatus) {
     return;
   }
@@ -2631,6 +2658,11 @@ function showPushConfirmOverlay(overlay, triggerButton) {
 }
 
 async function enablePushNotificationsFromOverlay(statusElement = null) {
+  if (IS_LOCAL_DEV) {
+    setPushPermissionStatus(statusElement, "ローカル開発中は通知を無効化しています。", true);
+    return false;
+  }
+
   if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
     setPushPermissionStatus(statusElement, "このブラウザはPush通知に対応していません。", true);
     return false;
@@ -2693,6 +2725,12 @@ async function enablePushNotificationsFromOverlay(statusElement = null) {
 }
 
 async function disablePushNotificationsFromOverlay(statusElement = null) {
+  if (IS_LOCAL_DEV) {
+    state.pushSubscribed = false;
+    setPushPermissionStatus(statusElement, "ローカル開発中は通知を無効化しています。", true);
+    return true;
+  }
+
   if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
     state.pushSubscribed = false;
     setPushPermissionStatus(statusElement, "通知は解除されています。");
@@ -6221,29 +6259,21 @@ function drawStationCanvasMarker(context, x, y, radius, fontSize, labelAlpha, pr
   const fillColor = properties.intensityColor || "#ffffff";
   const textColor = properties.intensityTextColor || "#111827";
 
+  context.save();
   context.beginPath();
   context.arc(x, y, radius, 0, Math.PI * 2);
   context.fillStyle = fillColor;
   context.fill();
-  context.lineWidth = 1.05;
-  context.strokeStyle = "#111827";
+  context.lineWidth = 1.35;
+  context.strokeStyle = "rgba(248, 250, 252, 0.86)";
   context.stroke();
+  context.restore();
 
   if (labelAlpha <= 0) {
     return;
   }
 
-  context.save();
-  context.globalAlpha = labelAlpha;
-  context.font = `700 ${fontSize}px "Noto Sans", "Arial", sans-serif`;
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  context.lineWidth = 0.9;
-  context.strokeStyle = Number(properties.intensityRank ?? 0) <= 2 ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.32)";
-  context.fillStyle = textColor;
-  context.strokeText(String(properties.intensityShortLabel ?? ""), x, y + 0.35);
-  context.fillText(String(properties.intensityShortLabel ?? ""), x, y + 0.35);
-  context.restore();
+  drawStationCanvasLabel(context, x, y, fontSize, labelAlpha, textColor, properties);
 }
 
 function drawSubmarineStationCanvasMarker(context, x, y, radius, fontSize, labelAlpha, properties) {
@@ -6258,23 +6288,28 @@ function drawSubmarineStationCanvasMarker(context, x, y, radius, fontSize, label
   context.arc(x, y, radius, 0, Math.PI * 2);
   context.fillStyle = fillColor;
   context.fill();
-  context.lineWidth = 1.9;
-  context.setLineDash([4, 3]);
-  context.strokeStyle = "#050607";
+  context.lineWidth = hasRecordedIntensity ? 1.35 : 1.55;
+  context.setLineDash(hasRecordedIntensity ? [3.5, 2.5] : [2.5, 3.2]);
+  context.strokeStyle = hasRecordedIntensity ? "rgba(125, 211, 252, 0.9)" : "rgba(148, 163, 184, 0.76)";
   context.stroke();
+  context.setLineDash([]);
   context.restore();
 
   if (!hasRecordedIntensity || labelAlpha <= 0) {
     return;
   }
 
+  drawStationCanvasLabel(context, x, y, fontSize, labelAlpha, textColor, properties);
+}
+
+function drawStationCanvasLabel(context, x, y, fontSize, labelAlpha, textColor, properties) {
   context.save();
   context.globalAlpha = labelAlpha;
   context.font = `700 ${fontSize}px "Noto Sans", "Arial", sans-serif`;
   context.textAlign = "center";
   context.textBaseline = "middle";
   context.lineWidth = 0.9;
-  context.strokeStyle = intensityRank <= 2 ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.32)";
+  context.strokeStyle = Number(properties.intensityRank ?? 0) <= 2 ? "rgba(255,255,255,0.72)" : "rgba(0,0,0,0.34)";
   context.fillStyle = textColor;
   context.strokeText(String(properties.intensityShortLabel ?? ""), x, y + 0.35);
   context.fillText(String(properties.intensityShortLabel ?? ""), x, y + 0.35);
