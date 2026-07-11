@@ -8741,3 +8741,53 @@ body #simulation-start::before {
 .settings-inline-panel.settings-detail-panel.is-scrolling::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.45) !important;
 }
+
+/* Final blocking and settings document scroll pass. */
+body.unsupported-screen-active #simulation-start,
+body.maintenance-screen-blocking #simulation-start {
+  pointer-events: none !important;
+}
+
+body.unsupported-screen-active::before,
+body.unsupported-screen-active::after {
+  z-index: 2147483006 !important;
+}
+
+.maintenance-mode-overlay:not(.hidden) {
+  z-index: 2147483005 !important;
+  pointer-events: auto !important;
+}
+
+.maintenance-mode-overlay:not(.hidden)::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: auto;
+}
+
+.settings-detail-panel .settings-privacy-content,
+.settings-detail-panel .source-info-overlay-content {
+  display: block !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+  contain: none !important;
+  padding-bottom: calc(96px + env(safe-area-inset-bottom)) !important;
+}
+
+.settings-detail-panel .source-info-tab-panel,
+.settings-detail-panel .source-info-sections,
+.settings-detail-panel .privacy-policy-sections {
+  display: grid !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+  padding-bottom: 2px !important;
+}
+
+.settings-inline-panel.settings-detail-panel {
+  scroll-padding-bottom: calc(112px + env(safe-area-inset-bottom)) !important;
+}
