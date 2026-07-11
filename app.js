@@ -1,3 +1,4 @@
+const JAPAN_LAND_OVERVIEW_URL = "./data/japan_municipalities_light.geojson";
 const JMA_LOCAL_AREAS_URL = "./data/jma_local_areas.geojson";
 const JMA_EEW_FORECAST_AREAS_URL = "./data/jma_eew_forecast_areas.json";
 const JMA_EPICENTER_AREAS_URL = "./data/jma_epicenter_areas.geojson";
@@ -6,11 +7,7 @@ const ACTIVE_FAULT_SEGMENTS_URL = "./data/activefault_japan_segments.geojson";
 const SUBMARINE_OBSERVATION_POINTS_URL = "./data/submarine_observation_points.geojson";
 const SURROUNDING_LAND_URL = "./data/surrounding_land.geojson";
 const WORLD_COASTLINE_URL = "./data/world_coastline.geojson";
-const JAPAN_PMTILES_LOCAL_URL = "./map/japan.pmtiles";
-const JAPAN_PMTILES_R2_URL = "https://we-simulator-push.h6fgpg2zht.workers.dev/map/japan.pmtiles";
-const JAPAN_PMTILES_URL = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname)
-  ? JAPAN_PMTILES_LOCAL_URL
-  : JAPAN_PMTILES_R2_URL;
+const JAPAN_PMTILES_URL = "./map/japan.pmtiles";
 const JAPAN_PMTILES_SOURCE_LAYER_PREF = "pref";
 const JAPAN_PMTILES_SOURCE_LAYER_EQ_AREA = "eq_area";
 const JAPAN_PMTILES_SOURCE_LAYER_CITY = "city";
@@ -87,6 +84,7 @@ const JAPAN_WORLD_COASTLINE_SUPPRESS_BOUNDS = [
   ...EXCLUDED_JAPAN_LAND_BOUNDS,
   ...NORTHERN_TERRITORIES_BOUNDS,
 ];
+const MUNICIPALITY_BOUNDARY_MIN_ZOOM = 8;
 const EPICENTER_DEFERRED_UPDATE_DELAY_MS = 220;
 const EPICENTER_DRAG_UPDATE_DELAY_MS = 320;
 const INTENSITY_DISTANCE_SIMPLIFY_TOLERANCE_DEGREES = 0.008;
@@ -121,11 +119,10 @@ const GEOLOCATION_IPAD_CACHED_MAX_AGE_MS = 300000;
 const WAVE_RENDER_RADIUS_STEP_KM = 1.5;
 const WAVE_CIRCLE_STEPS = 160;
 const RESET_VIEW_ANIMATION_MS = 1200;
-const LIGHT_DEFERRED_DATA_DELAY_MS = 700;
-const SIMULATION_DEFERRED_DATA_DELAY_MS = 2400;
-const STATION_DEFERRED_DATA_DELAY_MS = 3200;
-const PRESET_DEFERRED_DATA_DELAY_MS = 3800;
-const HEAVY_DEFERRED_DATA_DELAY_MS = 9000;
+const LIGHT_DEFERRED_DATA_DELAY_MS = 180;
+const STATION_DEFERRED_DATA_DELAY_MS = 450;
+const PRESET_DEFERRED_DATA_DELAY_MS = 900;
+const HEAVY_DEFERRED_DATA_DELAY_MS = 6000;
 const EARTHQUAKE_PRESETS = [];
 
 const INTENSITY_CLASSES = [
@@ -422,6 +419,8 @@ const els = {
 let map;
 let epicenterMarker;
 let municipalityDisplayData;
+let japanLandOverviewData;
+let japanLandOverviewLoadPromise;
 let oldScaleSyntheticMunicipalityHydrationPromise;
 let oldScaleSyntheticMunicipalityHydratingPresetId = "";
 let localAreaData;
@@ -486,7 +485,6 @@ let startupMapVisualReady = false;
 let municipalityBoundaryVisible = false;
 let startupLocationResolved = false;
 let startupOverlayReleasePending = false;
-let startupBackgroundDataScheduled = false;
 let maintenanceStatusReady = false;
 let simulationStartedAt;
 let simulationPausedAt;
@@ -2019,7 +2017,7 @@ async function initEarthquakeMap() {
           id: "sea-background",
           type: "background",
           paint: {
-            "background-color": "#0c1326",
+            "background-color": "#061a3a",
           },
         },
       ],
@@ -2027,7 +2025,7 @@ async function initEarthquakeMap() {
     center: getInitialMapView().center,
     zoom: getInitialMapView().zoom,
     minZoom: BASE_MAP_MIN_ZOOM,
-    maxZoom: 12,
+    maxZoom: 10.8,
     maxBounds: MAP_PAN_BOUNDS,
     renderWorldCopies: false,
     attributionControl: false,
@@ -5136,24 +5134,13 @@ async function showMapLayers() {
   municipalityBoundaryVisible = true;
   scheduleStartupReadyAfterIntensityPaint();
   watchJapanPmtilesStartup();
+  scheduleDeferredTask(hydrateDeferredMapData, LIGHT_DEFERRED_DATA_DELAY_MS, 1800);
 }
 
-function scheduleStartupBackgroundData() {
-  if (startupBackgroundDataScheduled) {
-    return;
-  }
-  startupBackgroundDataScheduled = true;
-  scheduleDeferredTask(
-    hydrateDeferredSupplementaryMapData,
-    LIGHT_DEFERRED_DATA_DELAY_MS,
-    3000,
-  ).catch((error) => console.warn(error));
-  scheduleDeferredTask(
-    hydrateDeferredSimulationMapData,
-    SIMULATION_DEFERRED_DATA_DELAY_MS,
-    8000,
-  ).catch((error) => console.warn(error));
-  scheduleDeferredTask(() => scheduleLocationResolve(), 1200, 3200);
+async function hydrateDeferredMapData() {
+  hydrateDeferredSupplementaryMapData().catch((error) => console.warn(error));
+  hydrateDeferredSimulationMapData().catch((error) => console.warn(error));
+  scheduleDeferredTask(() => scheduleLocationResolve(), 900, 2400);
   updateSimulationAvailability();
   schedulePostMunicipalityDataHydration();
 }
@@ -5261,6 +5248,8 @@ async function hydrateOldScaleSyntheticMunicipalityData(preset) {
   if (!preset?.observedStations?.length) {
     return;
   }
+
+  applyMunicipalityLogicData(await loadJapanLandOverview());
 }
 
 async function hydrateDeferredSupplementaryMapData() {
@@ -5348,7 +5337,6 @@ function releaseStartupMapOverlay() {
   window.requestAnimationFrame(() => renderStationCanvasOverlay());
   document.body.classList.remove("map-core-loading");
   updateSimulationAvailability();
-  scheduleStartupBackgroundData();
 }
 
 function schedulePostMunicipalityDataHydration() {
@@ -5603,18 +5591,18 @@ function addMapLayers() {
     type: "fill",
     source: "surrounding-land",
     paint: {
-      "fill-antialias": true,
+      "fill-antialias": false,
       "fill-color": [
         "case",
         ["==", ["get", "territoryType"], "northern-territories"],
-        "#3c3d40",
-        "#252a33",
+        "#8c9298",
+        "#5f676d",
       ],
       "fill-outline-color": [
         "case",
         ["==", ["get", "territoryType"], "northern-territories"],
-        "#3c3d40",
-        "#252a33",
+        "#8c9298",
+        "#5f676d",
       ],
       "fill-opacity": 1,
     },
@@ -5629,7 +5617,7 @@ function addMapLayers() {
       "line-join": "round",
     },
     paint: {
-      "line-color": "#252a33",
+      "line-color": "#5f676d",
       "line-opacity": 1,
       "line-width": ["interpolate", ["linear"], ["zoom"], 1, 1.8, 4, 2.5, 7, 1.7, 10, 0.9],
     },
@@ -5644,9 +5632,9 @@ function addMapLayers() {
       "line-join": "round",
     },
     paint: {
-      "line-color": "#5e6672",
-      "line-opacity": 0.42,
-      "line-width": ["interpolate", ["linear"], ["zoom"], 2, 0.35, 5, 0.65, 8, 1],
+      "line-color": "#b4bec6",
+      "line-opacity": ["interpolate", ["linear"], ["zoom"], 1, 0.38, 4, 0.52, 7, 0.66, 10, 0.76],
+      "line-width": ["interpolate", ["linear"], ["zoom"], 1, 0.45, 4, 0.7, 7, 1.05, 10, 1.45],
     },
   });
 
@@ -5656,9 +5644,9 @@ function addMapLayers() {
     source: "japan-pmtiles",
     "source-layer": JAPAN_PMTILES_SOURCE_LAYER_PREF,
     paint: {
-      "fill-antialias": true,
-      "fill-color": "#3c3d40",
-      "fill-outline-color": "rgba(60, 61, 64, 0)",
+      "fill-antialias": false,
+      "fill-color": "#8c9298",
+      "fill-outline-color": "rgba(140, 146, 152, 0)",
       "fill-opacity": 1,
     },
   });
@@ -5671,8 +5659,8 @@ function addMapLayers() {
     minzoom: 5,
     paint: {
       "fill-antialias": false,
-      "fill-color": "#3c3d40",
-      "fill-outline-color": "rgba(60, 61, 64, 0)",
+      "fill-color": "#8c9298",
+      "fill-outline-color": "rgba(140, 146, 152, 0)",
       "fill-opacity": 1,
     },
   });
@@ -5687,7 +5675,7 @@ function addMapLayers() {
       "line-join": "round",
     },
     paint: {
-      "line-color": "#3c3d40",
+      "line-color": "#8c9298",
       "line-opacity": 1,
       "line-width": ["interpolate", ["linear"], ["zoom"], 4, 2.1, 7, 1.45, 10, 0.8, 12, 0.55],
     },
@@ -5776,27 +5764,43 @@ function addMapLayers() {
     type: "line",
     source: "japan-pmtiles",
     "source-layer": JAPAN_PMTILES_SOURCE_LAYER_CITY,
-    minzoom: 4,
+    minzoom: MUNICIPALITY_BOUNDARY_MIN_ZOOM,
+    layout: {
+      "line-cap": "round",
+      "line-join": "round",
+    },
     paint: {
-      "line-color": "#848a94",
-      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.45, 7, 0.85, 10, 1.25],
-      "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.55, 7, 0.82, 10, 0.95],
+      "line-color": "#ffffff",
+      "line-opacity": 0.58,
+      "line-width": ["interpolate", ["linear"], ["zoom"], 8, 0.36, 10, 0.58],
     },
   });
+  updateLayerVisibility("municipality-boundaries", false);
 
   addLayerIfMissing({
     id: "prefecture-boundaries",
     type: "line",
     source: "japan-pmtiles",
     "source-layer": JAPAN_PMTILES_SOURCE_LAYER_PREF,
-    layout: {
-      "line-cap": "round",
-      "line-join": "round",
-    },
+    maxzoom: 8,
     paint: {
-      "line-color": "#f7fbff",
-      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 1.45, 7, 2, 10, 2.8],
-      "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.72, 7, 0.82, 10, 0.9],
+      "line-color": "#e4e9ef",
+      "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.42, 7, 0.58, 10, 0.72],
+      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.5, 7, 0.85, 10, 1.2],
+    },
+  });
+
+  addLayerIfMissing({
+    id: "jma-region-boundaries",
+    type: "line",
+    source: "japan-pmtiles",
+    "source-layer": JAPAN_PMTILES_SOURCE_LAYER_EQ_AREA,
+    minzoom: 3,
+    maxzoom: 11,
+    paint: {
+      "line-color": "#d5dee8",
+      "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.62, 7, 0.78, 10, 0.9],
+      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 1.05, 7, 1.7, 10, 2.45],
     },
   });
 
@@ -7585,7 +7589,7 @@ function scheduleMaxStationListRender() {
 
   if ("requestIdleCallback" in window) {
     maxStationListRenderHandleType = "idle";
-    maxStationListRenderHandle = window.requestIdleCallback(render);
+    maxStationListRenderHandle = window.requestIdleCallback(render, { timeout: 900 });
     return;
   }
 
@@ -7674,17 +7678,7 @@ function renderMaxStationListItems(observedStations) {
     }
   });
   maxStationListEmptyItem = null;
-  // Keep existing nodes attached whenever their order has not changed. Replacing
-  // the entire list caused a layout/paint spike at the one-second update cadence.
-  items.forEach((item, index) => {
-    const currentItem = els.maxStationList.children[index] ?? null;
-    if (currentItem !== item) {
-      els.maxStationList.insertBefore(item, currentItem);
-    }
-  });
-  while (els.maxStationList.children.length > items.length) {
-    els.maxStationList.lastElementChild?.remove();
-  }
+  els.maxStationList.replaceChildren(...items);
 }
 
 function isSimulationComplete(elapsedSec) {
@@ -7988,15 +7982,30 @@ async function findMunicipalityAtPoint(longitude, latitude) {
   }
 
   try {
-    if (!map?.getLayer("japan-city-land-fill")) {
-      return null;
-    }
-    const point = map.project({ lng: longitude, lat: latitude });
-    return map.queryRenderedFeatures(point, { layers: ["japan-city-land-fill"] })[0] ?? null;
+    const municipalities = municipalityDisplayData ?? await loadJapanLandOverview();
+    return findFeatureAtPoint(municipalities, longitude, latitude) ?? null;
   } catch (error) {
     console.warn("Municipality lookup unavailable", error);
     return null;
   }
+}
+
+async function loadJapanLandOverview() {
+  if (japanLandOverviewData) {
+    return japanLandOverviewData;
+  }
+
+  if (!japanLandOverviewLoadPromise) {
+    japanLandOverviewLoadPromise = fetchJson(JAPAN_LAND_OVERVIEW_URL, "Japan land overview GeoJSON")
+      .catch((error) => {
+        console.warn("Japan land overview unavailable", error);
+        return emptyFeatureCollection();
+      });
+  }
+
+  japanLandOverviewData = await japanLandOverviewLoadPromise;
+  municipalityDisplayData = japanLandOverviewData;
+  return japanLandOverviewData;
 }
 
 async function loadLocalAreas() {
