@@ -11124,3 +11124,115 @@ body #simulation-start.sheet-simulation-start:disabled {
   left: 9px !important;
   top: 9px !important;
 }
+
+/* Preset picker / compact info toolbar follow-up fixes. */
+.preset-picker-overlay {
+  padding-top: max(106px, env(safe-area-inset-top) + 96px) !important;
+}
+
+.preset-picker-dialog {
+  width: min(92vw, 680px) !important;
+  padding: 64px 14px 14px !important;
+  max-height: calc(100dvh - 128px - env(safe-area-inset-bottom)) !important;
+}
+
+.preset-picker-close {
+  left: 14px !important;
+  top: 12px !important;
+  width: 40px !important;
+  height: 40px !important;
+}
+
+.preset-picker-head {
+  display: grid !important;
+  gap: 8px !important;
+  width: 100% !important;
+  padding: 0 2px 8px !important;
+}
+
+.preset-filter-input {
+  width: 100% !important;
+  min-height: 40px !important;
+  height: 40px !important;
+  padding: 8px 14px !important;
+  border-radius: 15px !important;
+  font-size: 0.9rem !important;
+}
+
+.preset-sort-buttons {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 7px !important;
+  width: 100% !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+}
+
+.preset-sort-choice {
+  min-width: 0 !important;
+  min-height: 34px !important;
+  padding: 7px 6px !important;
+  border-radius: 13px !important;
+  line-height: 1.15 !important;
+  white-space: nowrap !important;
+}
+
+.preset-picker-table-wrap {
+  margin-top: 6px !important;
+  max-height: calc(100dvh - 244px - env(safe-area-inset-bottom)) !important;
+}
+
+@media (max-width: 720px) {
+  .preset-picker-overlay {
+    padding-top: max(104px, env(safe-area-inset-top) + 94px) !important;
+  }
+
+  .preset-picker-dialog {
+    width: calc(100vw - 18px) !important;
+    padding-inline: 10px !important;
+  }
+
+  .preset-sort-choice {
+    font-size: 0.68rem !important;
+  }
+}
+
+#setup-panel .simulation-quick-actions,
+#setup-panel .simulation-start-sheet-host {
+  position: static !important;
+  inset: auto !important;
+  bottom: auto !important;
+  top: auto !important;
+  transform: none !important;
+}
+
+#setup-panel .simulation-quick-actions {
+  margin: 14px 0 10px !important;
+}
+
+#info-full-panel .station-info-toolbar {
+  gap: 8px 10px !important;
+  padding: 10px 18px 8px !important;
+}
+
+#info-full-panel #station-info-region,
+#info-full-panel #station-info-affiliation {
+  height: 40px !important;
+  min-height: 40px !important;
+  padding: 0 14px !important;
+  border-radius: 15px !important;
+  font-size: 0.86rem !important;
+}
+
+#info-full-panel #station-info-filter {
+  height: 38px !important;
+  min-height: 38px !important;
+  padding: 8px 12px !important;
+  border-radius: 14px !important;
+  font-size: 0.84rem !important;
+}
+
+#info-full-panel #station-info-count {
+  margin-top: -2px !important;
+  line-height: 1 !important;
+}
