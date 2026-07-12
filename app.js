@@ -30,6 +30,7 @@ const FEEDBACK_ENDPOINT_URL =
   "https://script.google.com/macros/s/AKfycbztrmCH_ukdLtY6xUKNSZQWShY0ziCT_8HMm7QI-qtSFRviETHw_APJJhyV50hSRvMy3A/exec";
 const PUSH_CONFIG_URL = "./push-config.json";
 const EARTHQUAKE_STATISTICS_FALLBACK_URL = "./data/earthquake_statistics.json";
+const USGS_EARTHQUAKE_QUERY_URL = "https://earthquake.usgs.gov/fdsnws/event/1/query";
 const ADMIN_PARENT_TOKEN_KEY = "weather-earthquake-admin-parent-token";
 const NOTIFICATION_HISTORY_READ_IDS_KEY = "weather-earthquake-notification-history-read-ids";
 const NOTIFICATION_HISTORY_DB_NAME = "we-simulator-notification-history";
@@ -976,6 +977,30 @@ function setupTabs() {
     endSelect.innerHTML = options;
     startSelect.value = earthquakeStatisticsRange.startYear;
     endSelect.value = earthquakeStatisticsRange.endYear;
+    [startSelect, endSelect].forEach((select) => {
+      select.addEventListener("change", () => {
+        const nextRange = {
+          startYear: startSelect.value,
+          endYear: endSelect.value,
+        };
+        if (
+          nextRange.startYear === earthquakeStatisticsRange.startYear &&
+          nextRange.endYear === earthquakeStatisticsRange.endYear
+        ) {
+          return;
+        }
+        abortEarthquakeStatisticsLoad();
+        earthquakeStatisticsRange = nextRange;
+        earthquakeStatisticsData = null;
+        earthquakeStatisticsLoadKey = "";
+        selectedHistoryLocalAreaName = "";
+        pastEarthquakeAreaStatsCache = { signature: "", rows: [] };
+        if (map?.getSource("jma-local-areas")) {
+          setGeoJsonSourceData("jma-local-areas", buildHistoryLocalAreaMapData());
+        }
+        renderPastEarthquakeStatsPanel();
+      });
+    });
     row.querySelector("#history-statistics-load")?.addEventListener("click", async () => {
       const startYear = Number(startSelect.value);
       const endYear = Number(endSelect.value);
@@ -989,6 +1014,8 @@ function setupTabs() {
         startYear: startSelect.value,
         endYear: endSelect.value,
       };
+      earthquakeStatisticsData = null;
+      earthquakeStatisticsLoadKey = "";
       pastEarthquakeAreaStatsCache = { signature: "", rows: [] };
       earthquakeStatisticsLoading = true;
       renderPastEarthquakeStatsPanel();
@@ -1060,6 +1087,7 @@ function setupTabs() {
     if (els.historicalEarthquakeButton && !quickHost.contains(els.historicalEarthquakeButton)) {
       quickHost.append(els.historicalEarthquakeButton);
     }
+    els.historicalEarthquakeButton?.querySelector("span")?.replaceChildren("プリセット地震");
     if (!quickHost.querySelector(".sheet-speech-toggle")) {
       const { speechConfirmOverlay } = setupGlobalOverlays();
       const speechButton = document.createElement("button");
@@ -1078,12 +1106,18 @@ function setupTabs() {
       });
       quickHost.append(speechButton);
     }
+    const speechButton = quickHost.querySelector(".sheet-speech-toggle");
+    speechButton?.querySelector("span")?.replaceChildren("♪");
+    speechButton?.querySelector("strong")?.replaceChildren("読み上げ");
 
     let host = els.setupPanel.querySelector(".simulation-start-sheet-host");
     if (!host) {
       host = document.createElement("div");
       host.className = "simulation-start-sheet-host";
       els.setupPanel.append(host);
+    }
+    if (quickHost.nextElementSibling !== host) {
+      host.insertAdjacentElement("beforebegin", quickHost);
     }
     if (!host.contains(els.simulationStart)) {
       host.append(els.simulationStart);
@@ -1495,7 +1529,7 @@ function setupTabs() {
       els.historyAreaFilter.value = "";
     }
     els.historyFullPanel?.querySelectorAll("#history-start-year, #history-end-year").forEach((select) => {
-      select.value = select.id === "history-start-year" ? "2025" : "2026";
+      select.value = "2026";
     });
     if (map?.getSource("jma-local-areas") && localAreaData?.features?.length) {
       setGeoJsonSourceData("jma-local-areas", buildHistoryLocalAreaMapData());
@@ -1519,8 +1553,8 @@ function setupTabs() {
     const activeTab = document.querySelector(selector);
     activeTab?.classList.add("active");
     document.body.dataset.activeBottomTab = activeTab?.id || "";
-    if (previousTabId && previousTabId !== activeTab?.id && state.simulationRunning && !state.simulationPaused) {
-      pauseSimulation();
+    if (previousTabId && previousTabId !== activeTab?.id && state.simulationRunning) {
+      stopSimulation();
     }
     if (activeTab?.id !== "bottom-history-tab") {
       resetHistoryTabState();
@@ -1585,7 +1619,7 @@ function setupTabs() {
     ensureHistoryFullPanel()?.classList.remove("hidden");
     setHistoryMapModeActive(true);
     renderPastEarthquakeStatsPanel();
-    Promise.all([loadLocalAreas(), loadEpicenterAreas(), loadEarthquakeStatistics()])
+    Promise.all([loadLocalAreas(), loadEpicenterAreas()])
       .then(() => {
         setHistoryMapModeActive(true);
         renderPastEarthquakeStatsPanel();
@@ -2060,8 +2094,8 @@ function setupTabs() {
       const previousTabId = document.body.dataset.activeBottomTab || "";
       tab.classList.add("active");
       document.body.dataset.activeBottomTab = tab.id || "";
-      if (previousTabId && previousTabId !== tab.id && state.simulationRunning && !state.simulationPaused) {
-        pauseSimulation();
+      if (previousTabId && previousTabId !== tab.id && state.simulationRunning) {
+        stopSimulation();
       }
       if (tab.id !== "bottom-history-tab") {
         resetHistoryTabState();
@@ -2076,6 +2110,7 @@ function setupTabs() {
         els.settingsMenuSheet?.classList.add("hidden");
         closeFullPanels();
         activateSettingsTab("primary");
+        ensureSimulationStartInsideSheet();
         if (els.setupPanel?.classList.contains("setup-menu-open") && els.setupPanel?.dataset.sheetState === "open") {
           setSheetState(els.setupPanel, "collapsed");
         } else {
@@ -2114,6 +2149,31 @@ function setupTabs() {
   });
 
   els.settingsMenuSheet?.addEventListener("click", (event) => {
+    const statusCard = event.target?.closest?.(".settings-status-card");
+    if (statusCard && !activeSettingsDetailPanel) {
+      if (statusCard.classList.contains("settings-location-card")) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (els.currentLocationToggle) {
+          els.currentLocationToggle.checked = !els.currentLocationToggle.checked;
+          toggleCurrentLocationLink().finally(() => updateSettingsScreenNotificationState());
+        }
+        return;
+      }
+      if (statusCard.contains(els.settingsPushStatus)) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        const status = statusCard.querySelector(".settings-status-message");
+        (state.pushSubscribed
+          ? disablePushNotificationsFromOverlay(status)
+          : enablePushNotificationsFromOverlay(status)
+        ).finally(() => {
+          updateSettingsScreenNotificationState();
+          refreshSettingsPushPanelButton();
+        });
+        return;
+      }
+    }
     const row = event.target?.closest?.(".settings-menu-row");
     if (!row || activeSettingsDetailPanel) {
       return;
@@ -2904,6 +2964,8 @@ function getPastEarthquakeAreaStatsRows() {
       .sort((a, b) => b.count - a.count || a.areaName.localeCompare(b.areaName, "ja"));
   }
 
+  return [];
+
   const signature = [
     EARTHQUAKE_PRESETS.length,
     EARTHQUAKE_PRESETS[0]?.id ?? "",
@@ -3034,50 +3096,29 @@ async function loadEarthquakeStatistics(options = {}) {
     earthquakeStatisticsAbortController = controller;
     earthquakeStatisticsLoadKey = rangeKey;
     earthquakeStatisticsLoadPromise = (async () => {
-      const workerBaseUrl = await getWorkerBaseUrl();
       const startYear = Number(earthquakeStatisticsRange.startYear) || 2026;
       const endYear = Number(earthquakeStatisticsRange.endYear) || startYear;
       const normalizedStartYear = Math.min(startYear, endYear);
       const normalizedEndYear = Math.max(startYear, endYear);
-      const urls = [
-        workerBaseUrl ? `${workerBaseUrl}/earthquake-statistics?startYear=${normalizedStartYear}&endYear=${normalizedEndYear}` : "",
-        EARTHQUAKE_STATISTICS_FALLBACK_URL,
-      ].filter(Boolean);
-      for (const url of urls) {
-        try {
-          const response = await fetch(`${url}${url.includes("?") ? "&" : "?"}v=${Date.now()}`, {
-            cache: "no-store",
-            signal: controller.signal,
-          });
-          if (!response.ok) {
-            continue;
-          }
-          const data = await response.json();
-          const periodStartYear = Number(data?.period?.startYear ?? String(data?.period?.start || "").slice(0, 4));
-          const periodEndYear = Number(data?.period?.endYear ?? String(data?.period?.end || "").slice(0, 4));
-          if (
-            Number.isFinite(periodStartYear) &&
-            Number.isFinite(periodEndYear) &&
-            (periodStartYear !== normalizedStartYear || periodEndYear !== normalizedEndYear)
-          ) {
-            continue;
-          }
-          const areas = Array.isArray(data?.areas) ? data.areas : [];
-          earthquakeStatisticsData = {
-            source: data?.source || "USGS Earthquake Catalog API",
-            updatedAt: data?.updatedAt || "",
-            areas,
-          };
-          pastEarthquakeAreaStatsCache = { signature: "", rows: [] };
-          return earthquakeStatisticsData;
-        } catch (error) {
-          if (error?.name === "AbortError") {
-            throw error;
-          }
-          console.warn("earthquake statistics load failed", error);
+      try {
+        earthquakeStatisticsData = await fetchEarthquakeStatisticsFromUsgs(
+          normalizedStartYear,
+          normalizedEndYear,
+          controller.signal,
+        );
+      } catch (error) {
+        if (error?.name === "AbortError") {
+          throw error;
         }
+        console.warn("USGS earthquake statistics load failed", error);
+        earthquakeStatisticsData = {
+          source: "USGS Earthquake Catalog API",
+          updatedAt: "",
+          period: { startYear: normalizedStartYear, endYear: normalizedEndYear },
+          areas: [],
+        };
       }
-      earthquakeStatisticsData = { source: "fallback", updatedAt: "", areas: [] };
+      pastEarthquakeAreaStatsCache = { signature: "", rows: [] };
       return earthquakeStatisticsData;
     })().finally(() => {
       if (earthquakeStatisticsAbortController === controller) {
@@ -3087,6 +3128,100 @@ async function loadEarthquakeStatistics(options = {}) {
     });
   }
   return earthquakeStatisticsLoadPromise;
+}
+
+async function fetchEarthquakeStatisticsFromUsgs(startYear, endYear, signal) {
+  await Promise.all([loadLocalAreas(), loadEpicenterAreas()]);
+  const byArea = new Map();
+  let fetched = 0;
+  for (const [startDate, endDate] of getUsgsMonthRanges(startYear, endYear)) {
+    const url = new URL(USGS_EARTHQUAKE_QUERY_URL);
+    url.searchParams.set("format", "geojson");
+    url.searchParams.set("starttime", startDate);
+    url.searchParams.set("endtime", endDate);
+    url.searchParams.set("orderby", "time-asc");
+    url.searchParams.set("limit", "20000");
+    url.searchParams.set("minlatitude", "20");
+    url.searchParams.set("maxlatitude", "50");
+    url.searchParams.set("minlongitude", "118");
+    url.searchParams.set("maxlongitude", "156");
+    const response = await fetch(url.toString(), { cache: "no-store", signal });
+    if (!response.ok) {
+      throw new Error(`USGS request failed: ${response.status}`);
+    }
+    const data = await response.json();
+    const events = Array.isArray(data?.features) ? data.features : [];
+    fetched += events.length;
+    events.forEach((event) => addUsgsEventToStatistics(byArea, event));
+  }
+
+  return {
+    source: "USGS Earthquake Catalog API",
+    sourceUrl: USGS_EARTHQUAKE_QUERY_URL,
+    updatedAt: new Date().toISOString(),
+    period: { startYear, endYear },
+    fetched,
+    areas: [...byArea.values()]
+      .map((row) => ({
+        areaName: row.areaName,
+        count: row.count,
+        latestAt: row.latestAt,
+        epicenters: [...row.epicenterCounts.entries()]
+          .map(([name, count]) => ({ name, count }))
+          .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "ja"))
+          .slice(0, 20),
+      }))
+      .sort((a, b) => b.count - a.count || a.areaName.localeCompare(b.areaName, "ja")),
+  };
+}
+
+function addUsgsEventToStatistics(byArea, event) {
+  const coordinates = event?.geometry?.coordinates;
+  if (!Array.isArray(coordinates) || coordinates.length < 2) {
+    return;
+  }
+  const longitude = Number(coordinates[0]);
+  const latitude = Number(coordinates[1]);
+  if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {
+    return;
+  }
+  const area = findStatisticsAreaForPoint(longitude, latitude);
+  const areaName = cleanDisplayAreaName(area?.properties?.name);
+  if (!areaName) {
+    return;
+  }
+  const eventTime = new Date(Number(event.properties?.time) || 0);
+  if (Number.isNaN(eventTime.getTime())) {
+    return;
+  }
+  const place = cleanDisplayAreaName(event.properties?.place) || areaName;
+  const row = byArea.get(areaName) || {
+    areaName,
+    count: 0,
+    latestAt: "",
+    epicenterCounts: new Map(),
+  };
+  row.count += 1;
+  const isoTime = eventTime.toISOString();
+  if (!row.latestAt || isoTime > row.latestAt) {
+    row.latestAt = isoTime;
+  }
+  row.epicenterCounts.set(place, (row.epicenterCounts.get(place) || 0) + 1);
+  byArea.set(areaName, row);
+}
+
+function getUsgsMonthRanges(startYear, endYear) {
+  const normalizedStartYear = Math.min(Number(startYear) || 2026, Number(endYear) || startYear || 2026);
+  const normalizedEndYear = Math.max(Number(startYear) || 2026, Number(endYear) || startYear || 2026);
+  const ranges = [];
+  let cursor = new Date(Date.UTC(normalizedStartYear, 0, 1));
+  const finalDate = new Date(Date.UTC(normalizedEndYear + 1, 0, 1));
+  while (cursor < finalDate) {
+    const next = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1));
+    ranges.push([cursor.toISOString().slice(0, 10), (next < finalDate ? next : finalDate).toISOString().slice(0, 10)]);
+    cursor = next;
+  }
+  return ranges;
 }
 
 function setHistoryMapModeActive(active) {
@@ -3106,6 +3241,7 @@ function setHistoryMapModeActive(active) {
     updateLayerVisibility("jma-intensity-fill", false);
     updateLayerVisibility("eew-warning-fill", false);
     updateLayerVisibility("municipality-boundaries", false);
+    updateHistoryMapIsolation();
     bindHistoryMapEvents();
     return;
   }
@@ -3117,6 +3253,23 @@ function setHistoryMapModeActive(active) {
     setGeoJsonSourceData("jma-local-areas", buildIntensityAreaData(localAreaData, elapsedSec));
   }
   updateDisplayMode();
+}
+
+function updateHistoryMapIsolation() {
+  [
+    "shindo-station-points",
+    "submarine-observation-fill",
+    "eew-warning-fill",
+    "municipality-boundaries",
+    "plate-boundaries",
+    "active-fault-lines",
+    "p-wave-fill",
+    "p-wave-line",
+    "s-wave-fill",
+    "s-wave-line",
+  ].forEach((layerId) => updateLayerVisibility(layerId, false));
+  closeInactiveStationPopups();
+  scheduleStationCanvasRender({ force: true });
 }
 
 function buildHistoryLocalAreaMapData() {
@@ -7922,7 +8075,11 @@ function syncVisibleAreaSourceData(elapsedSec = getSimulationStationElapsedSec()
     return false;
   }
 
-  const updated = setGeoJsonSourceData("jma-local-areas", buildIntensityAreaData(localAreaData, elapsedSec));
+  const nextAreaData =
+    document.body.dataset.activeBottomTab === "bottom-history-tab"
+      ? buildHistoryLocalAreaMapData(elapsedSec)
+      : buildIntensityAreaData(localAreaData, elapsedSec);
+  const updated = setGeoJsonSourceData("jma-local-areas", nextAreaData);
   visibleAreaDataSyncBucket = bucket;
   return updated;
 }
@@ -8101,16 +8258,12 @@ function addMapLayers() {
         "case",
         ["==", ["get", "historySelected"], true],
         "rgba(38, 217, 255, 0.38)",
-        ["==", ["get", "historySelectable"], true],
-        "rgba(255, 255, 255, 0.06)",
         "rgba(255, 255, 255, 0)",
       ],
       "fill-outline-color": "rgba(255, 255, 255, 0)",
       "fill-opacity": [
         "case",
         ["==", ["get", "historySelected"], true],
-        1,
-        ["==", ["get", "historySelectable"], true],
         1,
         0,
       ],
@@ -8123,23 +8276,9 @@ function addMapLayers() {
     type: "fill",
     source: "history-epicenter-areas",
     paint: {
-      "fill-color": [
-        "case",
-        ["all", ["==", ["get", "historySelected"], true], ["==", ["get", "historyMarine"], true]],
-        "rgba(38, 217, 255, 0.34)",
-        ["==", ["get", "historyMarine"], true],
-        "rgba(255, 255, 255, 0.04)",
-        "rgba(255, 255, 255, 0)",
-      ],
+      "fill-color": "rgba(255, 255, 255, 0)",
       "fill-outline-color": "rgba(255, 255, 255, 0)",
-      "fill-opacity": [
-        "case",
-        ["all", ["==", ["get", "historySelected"], true], ["==", ["get", "historyMarine"], true]],
-        1,
-        ["==", ["get", "historyMarine"], true],
-        0.72,
-        0,
-      ],
+      "fill-opacity": 0,
     },
   });
   updateLayerVisibility("history-epicenter-area-fill", false);
@@ -8383,6 +8522,9 @@ function renderStationCanvasOverlay() {
 
   const { context, width, height } = canvasState;
   context.clearRect(0, 0, width, height);
+  if (document.body.dataset.activeBottomTab === "bottom-history-tab") {
+    return;
+  }
 
   const features = getStationCanvasFeatures();
   const submarineFeatures = getSubmarineStationCanvasFeatures();
@@ -11337,7 +11479,10 @@ function updateIntensityLayer() {
       return;
     }
 
-    const nextAreaData = buildIntensityAreaData(localAreaData, getSimulationStationElapsedSec());
+    const nextAreaData =
+      document.body.dataset.activeBottomTab === "bottom-history-tab"
+        ? buildHistoryLocalAreaMapData(getSimulationStationElapsedSec())
+        : buildIntensityAreaData(localAreaData, getSimulationStationElapsedSec());
     if (shouldSyncAreaSourceData() && map.getSource("jma-local-areas")) {
       const updated = setGeoJsonSourceData("jma-local-areas", nextAreaData);
       if (updated) {
