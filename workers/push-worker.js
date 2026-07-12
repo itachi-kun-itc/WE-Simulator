@@ -1,6 +1,6 @@
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS",
+  "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
   "Access-Control-Allow-Headers": "authorization,content-type",
 };
 
@@ -63,7 +63,7 @@ export default {
 
       if (request.method === "POST" && url.pathname === "/maintenance-action") {
         const body = await readRequestBody(request);
-        const result = await handleMaintenanceAction(body, env);
+        const result = await handleMaintenanceAction(body, env, request);
         return json(result);
       }
 
@@ -78,6 +78,65 @@ export default {
           endYear: url.searchParams.get("endYear"),
         });
         return json(statistics);
+      }
+
+      if (request.method === "POST" && url.pathname === "/community-accounts") {
+        const account = await createCommunityAccount(request, env);
+        return json({ ok: true, account }, 201);
+      }
+
+      if (request.method === "POST" && url.pathname === "/community-accounts/login") {
+        const account = await loginCommunityAccount(request, env);
+        return json({ ok: true, account });
+      }
+
+      if (request.method === "GET" && url.pathname === "/community-account") {
+        const account = await readCommunityAccount(request, env);
+        return json({ ok: true, account });
+      }
+
+      if (request.method === "PATCH" && url.pathname === "/community-account") {
+        const account = await updateCommunityAccount(request, env);
+        return json({ ok: true, account });
+      }
+
+      if (request.method === "DELETE" && url.pathname === "/community-account") {
+        await deleteCommunityAccount(request, env);
+        return json({ ok: true });
+      }
+
+      if (request.method === "DELETE" && url.pathname === "/community-session") {
+        await logoutCommunityAccount(request, env);
+        return json({ ok: true });
+      }
+
+      if (request.method === "GET" && url.pathname === "/community-accounts") {
+        const accounts = await listCommunityAccounts(request, env);
+        return json({ ok: true, accounts });
+      }
+
+      if (request.method === "GET" && url.pathname === "/community-posts") {
+        const posts = await listCommunityPosts(env, request);
+        return json({ posts });
+      }
+
+      if (request.method === "POST" && url.pathname === "/community-posts") {
+        const post = await createCommunityPost(request, env);
+        return json({ ok: true, post }, 201);
+      }
+
+      if (request.method === "DELETE" && url.pathname.startsWith("/community-posts/")) {
+        const id = decodeURIComponent(url.pathname.slice("/community-posts/".length));
+        await deleteCommunityPost(request, env, id);
+        return json({ ok: true });
+      }
+
+      if (
+        (request.method === "GET" || request.method === "HEAD") &&
+        url.pathname.startsWith("/community-media/")
+      ) {
+        const key = decodeURIComponent(url.pathname.slice("/community-media/".length));
+        return serveCommunityMedia(request, env, key);
       }
 
       if (request.method === "GET" && url.pathname.startsWith("/earthquake-presets/")) {
@@ -109,7 +168,9 @@ export default {
       }
 
       if (request.method === "POST" && url.pathname === "/notify") {
-        requireAdmin(request, env);
+        if (!(await isCommunityAdminRequest(request, env))) {
+          requireAdmin(request, env);
+        }
         const body = await request.json();
         const notification = normalizeNotification(body);
         await env.PUSH_SUBSCRIPTIONS.put(LATEST_NOTIFICATION_KEY, JSON.stringify(notification));
@@ -340,11 +401,12 @@ async function writeMaintenanceStatus(env, maintenance, reason) {
   ).run();
 }
 
-async function handleMaintenanceAction(body, env) {
+async function handleMaintenanceAction(body, env, request = null) {
   const action = String(body?.action || "").trim();
   if (!action) {
     return { ok: false, message: "action is required" };
   }
+  const hasCommunityAdmin = request ? await isCommunityAdminRequest(request, env) : false;
 
   if (action === "adminLogin") {
     const result = await forwardToAppsScript(env, body);
@@ -363,7 +425,7 @@ async function handleMaintenanceAction(body, env) {
   }
 
   const token = String(body?.token || "").trim();
-  const hasValidToken = await isValidParentToken(env, token);
+  const hasValidToken = hasCommunityAdmin || await isValidParentToken(env, token);
   if (!hasValidToken) {
     return {
       ok: false,
@@ -757,6 +819,604 @@ function getAppDb(env) {
   return env.EARTHQUAKE_PRESETS_DB;
 }
 
+async function listCommunityPosts(env, request) {
+  const db = getAppDb(env);
+  await ensureCommunitySchema(db);
+  const url = new URL(request.url);
+  const limit = clampInteger(url.searchParams.get("limit"), 1, 200, 100);
+  const result = await db
+    .prepare(
+      `SELECT
+        p.id,
+        p.latitude,
+        p.longitude,
+        p.location_mode AS locationMode,
+        p.tags_json AS tagsJson,
+        p.text,
+        p.media_key AS mediaKey,
+        p.media_type AS mediaType,
+        p.media_name AS mediaName,
+        p.account_id AS accountId,
+        p.created_at AS createdAt,
+        COALESCE(a.name, p.author_name, '') AS authorName,
+        COALESCE(a.icon, p.author_icon, '') AS authorIcon
+      FROM community_posts p
+      LEFT JOIN community_accounts a ON a.id = p.account_id
+      ORDER BY p.created_at DESC
+      LIMIT ?`,
+    )
+    .bind(limit)
+    .all();
+
+  return (result.results || []).map((row) => normalizeCommunityPostRow(row, request.url));
+}
+
+async function createCommunityPost(request, env) {
+  const db = getAppDb(env);
+  await ensureCommunitySchema(db);
+  const account = await requireCommunityAccount(request, env);
+  const formData = await request.formData();
+  const id = crypto.randomUUID();
+  const latitude = Number(formData.get("latitude"));
+  const longitude = Number(formData.get("longitude"));
+  const locationMode = ["current", "vague", "map"].includes(String(formData.get("locationMode")))
+    ? String(formData.get("locationMode"))
+    : "map";
+  const tags = normalizeCommunityPostTags(formData.getAll("tags"));
+  const text = String(formData.get("text") || "").trim().slice(0, 1200);
+  const media = formData.get("media");
+
+  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
+    throw httpError("latitude is invalid", 400);
+  }
+  if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+    throw httpError("longitude is invalid", 400);
+  }
+  if (tags.length !== 1) {
+    throw httpError("one tag is required", 400);
+  }
+  if (!text) {
+    throw httpError("text is required", 400);
+  }
+
+  let mediaKey = "";
+  let mediaType = "";
+  let mediaName = "";
+  if (media instanceof File && media.size > 0) {
+    if (!env.WE_SIMULATOR_DATA) {
+      throw httpError("R2 bucket is not configured", 500);
+    }
+    const allowedTypes = new Set(["image/png", "image/jpeg", "video/mp4"]);
+    mediaType = String(media.type || "");
+    if (!allowedTypes.has(mediaType)) {
+      throw httpError("media type is not allowed", 400);
+    }
+    const maxBytes = mediaType === "video/mp4" ? 80 * 1024 * 1024 : 20 * 1024 * 1024;
+    if (media.size > maxBytes) {
+      throw httpError("media is too large", 400);
+    }
+    mediaName = String(media.name || "").slice(0, 160);
+    const extension = mediaType === "image/png" ? "png" : mediaType === "image/jpeg" ? "jpg" : "mp4";
+    mediaKey = `community-posts/${id}/media.${extension}`;
+    await env.WE_SIMULATOR_DATA.put(mediaKey, media.stream(), {
+      httpMetadata: {
+        contentType: mediaType,
+        cacheControl: "public, max-age=31536000, immutable",
+      },
+    });
+  }
+
+  const createdAt = new Date().toISOString();
+  await db
+    .prepare(
+      `INSERT INTO community_posts (
+        id,
+        latitude,
+        longitude,
+        location_mode,
+        tags_json,
+        text,
+        media_key,
+        media_type,
+        media_name,
+        account_id,
+        author_name,
+        author_icon,
+        created_at,
+        updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      id,
+      latitude,
+      longitude,
+      locationMode,
+      JSON.stringify(tags),
+      text,
+      mediaKey,
+      mediaType,
+      mediaName,
+      account.id,
+      account.name,
+      account.icon,
+      createdAt,
+      createdAt,
+    )
+    .run();
+
+  return normalizeCommunityPostRow({
+    id,
+    latitude,
+    longitude,
+    locationMode,
+    tagsJson: JSON.stringify(tags),
+    text,
+    mediaKey,
+    mediaType,
+    mediaName,
+    accountId: account.id,
+    authorName: account.name,
+    authorIcon: account.icon,
+    createdAt,
+  }, request.url);
+}
+
+async function serveCommunityMedia(request, env, key) {
+  if (!key || key.includes("..") || !key.startsWith("community-posts/")) {
+    return json({ error: "not found" }, 404);
+  }
+  if (!env.WE_SIMULATOR_DATA) {
+    return json({ error: "R2 bucket is not configured" }, 503);
+  }
+  const object = await env.WE_SIMULATOR_DATA.get(key);
+  if (!object) {
+    return json({ error: "not found" }, 404);
+  }
+  const headers = new Headers(CORS_HEADERS);
+  object.writeHttpMetadata(headers);
+  headers.set("Cache-Control", "public, max-age=31536000, immutable");
+  headers.set("ETag", object.httpEtag);
+  headers.set("Content-Length", String(object.size));
+  return new Response(request.method === "HEAD" ? null : object.body, { headers });
+}
+
+async function createCommunityAccount(request, env) {
+  const db = getAppDb(env);
+  await ensureCommunitySchema(db);
+  const body = await request.json().catch(() => ({}));
+  const name = normalizeCommunityAccountName(body.name);
+  const icon = normalizeCommunityAccountIcon(body.icon);
+  const password = String(body.password || "");
+  if (!name) {
+    throw httpError("name is required", 400);
+  }
+  validateCommunityPassword(password);
+  if (name.toLowerCase() === "local 管理者".toLowerCase()) {
+    throw httpError("reserved account name", 400);
+  }
+  const existing = await db.prepare("SELECT id FROM community_accounts WHERE name = ?").bind(name).first();
+  if (existing) {
+    throw httpError("name is already used", 409);
+  }
+  const id = crypto.randomUUID();
+  const salt = randomBase64Url(16);
+  const passwordHash = await hashPassword(password, salt);
+  const token = randomBase64Url(32);
+  const createdAt = new Date().toISOString();
+  const isAdmin = isDefaultCommunityAdminCredential(name, password) ? 1 : 0;
+  await db
+    .prepare(
+      `INSERT INTO community_accounts (
+        id,
+        name,
+        icon,
+        password_salt,
+        password_hash,
+        is_admin,
+        created_at,
+        updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(id, name, icon, salt, passwordHash, isAdmin, createdAt, createdAt)
+    .run();
+  await createCommunitySession(db, id, token);
+  return { id, name, icon, token };
+}
+
+async function loginCommunityAccount(request, env) {
+  const db = getAppDb(env);
+  await ensureCommunitySchema(db);
+  const body = await request.json().catch(() => ({}));
+  const name = normalizeCommunityAccountName(body.name);
+  const password = String(body.password || "");
+  const account = await db
+    .prepare("SELECT * FROM community_accounts WHERE name = ?")
+    .bind(name)
+    .first();
+  if (!account) {
+    throw httpError("invalid account", 401);
+  }
+  const expectedHash = await hashPassword(password, account.password_salt);
+  if (!safeEqual(expectedHash, String(account.password_hash || ""))) {
+    throw httpError("invalid account", 401);
+  }
+  const token = randomBase64Url(32);
+  await createCommunitySession(db, account.id, token);
+  return {
+    id: account.id,
+    name: account.name,
+    icon: account.icon || "",
+    isAdmin: Boolean(account.is_admin),
+    token,
+  };
+}
+
+async function readCommunityAccount(request, env) {
+  const account = await requireCommunityAccount(request, env);
+  return { id: account.id, name: account.name, icon: account.icon || "", isAdmin: Boolean(account.isAdmin) };
+}
+
+async function updateCommunityAccount(request, env) {
+  const db = getAppDb(env);
+  await ensureCommunitySchema(db);
+  const account = await requireCommunityAccount(request, env);
+  const body = await request.json().catch(() => ({}));
+  const name = normalizeCommunityAccountName(body.name || account.name);
+  const icon = normalizeCommunityAccountIcon(body.icon ?? account.icon);
+  if (!name) {
+    throw httpError("name is required", 400);
+  }
+  const existing = await db
+    .prepare("SELECT id FROM community_accounts WHERE name = ? AND id <> ?")
+    .bind(name, account.id)
+    .first();
+  if (existing) {
+    throw httpError("name is already used", 409);
+  }
+  await db
+    .prepare("UPDATE community_accounts SET name = ?, icon = ?, updated_at = ? WHERE id = ?")
+    .bind(name, icon, new Date().toISOString(), account.id)
+    .run();
+  return { id: account.id, name, icon, isAdmin: Boolean(account.isAdmin), token: getBearerToken(request) };
+}
+
+async function logoutCommunityAccount(request, env) {
+  const db = getAppDb(env);
+  await ensureCommunitySchema(db);
+  const token = getBearerToken(request);
+  if (!token) {
+    return;
+  }
+  await db.prepare("DELETE FROM community_sessions WHERE token_hash = ?")
+    .bind(await sha256Base64Url(token))
+    .run();
+}
+
+async function deleteCommunityAccount(request, env) {
+  const db = getAppDb(env);
+  await ensureCommunitySchema(db);
+  const account = await requireCommunityAccount(request, env);
+  await db.prepare("DELETE FROM community_sessions WHERE account_id = ?").bind(account.id).run();
+  await db.prepare("DELETE FROM community_accounts WHERE id = ?").bind(account.id).run();
+}
+
+async function listCommunityAccounts(request, env) {
+  const db = getAppDb(env);
+  await ensureCommunitySchema(db);
+  const account = await requireCommunityAccount(request, env);
+  if (!account.isAdmin) {
+    throw httpError("admin account is required", 403);
+  }
+  const result = await db.prepare(
+    `SELECT
+      a.id,
+      a.name,
+      a.icon,
+      a.is_admin AS isAdmin,
+      a.created_at AS createdAt,
+      COUNT(s.id) AS sessionCount
+    FROM community_accounts a
+    LEFT JOIN community_sessions s ON s.account_id = a.id
+    GROUP BY a.id
+    ORDER BY a.created_at DESC`,
+  ).all();
+  return (result.results || []).map((row) => ({
+    id: String(row.id || ""),
+    name: String(row.name || ""),
+    icon: String(row.icon || ""),
+    isAdmin: Boolean(row.isAdmin),
+    createdAt: String(row.createdAt || ""),
+    sessionCount: Number(row.sessionCount || 0),
+  }));
+}
+
+async function deleteCommunityPost(request, env, postId) {
+  const db = getAppDb(env);
+  await ensureCommunitySchema(db);
+  const account = await requireCommunityAccount(request, env);
+  const post = await db.prepare("SELECT id, account_id AS accountId, media_key AS mediaKey FROM community_posts WHERE id = ?")
+    .bind(postId)
+    .first();
+  if (!post) {
+    throw httpError("not found", 404);
+  }
+  if (!account.isAdmin && String(post.accountId || "") !== account.id) {
+    throw httpError("forbidden", 403);
+  }
+  await db.prepare("DELETE FROM community_posts WHERE id = ?").bind(postId).run();
+  if (post.mediaKey && env.WE_SIMULATOR_DATA) {
+    await env.WE_SIMULATOR_DATA.delete(String(post.mediaKey)).catch(() => {});
+  }
+}
+
+async function requireCommunityAccount(request, env) {
+  const db = getAppDb(env);
+  await ensureCommunitySchema(db);
+  const token = getBearerToken(request);
+  if (!token) {
+    throw httpError("community account is required", 401);
+  }
+  const tokenHash = await sha256Base64Url(token);
+  const account = await db
+    .prepare(
+      `SELECT a.id, a.name, a.icon, a.is_admin AS isAdmin
+      FROM community_sessions s
+      JOIN community_accounts a ON a.id = s.account_id
+      WHERE s.token_hash = ?`,
+    )
+    .bind(tokenHash)
+    .first();
+  if (!account) {
+    throw httpError("community account is required", 401);
+  }
+  return {
+    id: String(account.id),
+    name: String(account.name || ""),
+    icon: String(account.icon || ""),
+    isAdmin: Boolean(account.isAdmin),
+  };
+}
+
+function getBearerToken(request) {
+  return request.headers.get("Authorization")?.replace(/^Bearer\s+/i, "").trim() || "";
+}
+
+function normalizeCommunityAccountName(value) {
+  return String(value || "").trim().replace(/\s+/g, " ").slice(0, 32);
+}
+
+function normalizeCommunityAccountIcon(value) {
+  const icon = String(value || "").trim();
+  if (!icon) {
+    return "";
+  }
+  if (!/^data:image\/(?:png|jpeg);base64,[A-Za-z0-9+/=]+$/i.test(icon)) {
+    throw httpError("icon must be a PNG or JPEG image", 400);
+  }
+  if (icon.length > 262144) {
+    throw httpError("icon is too large", 400);
+  }
+  return icon;
+}
+
+function validateCommunityPassword(password) {
+  if (!/^[A-Za-z0-9]{6,64}$/.test(password)) {
+    throw httpError("password must be 6-64 letters or numbers", 400);
+  }
+}
+
+function isDefaultCommunityAdminCredential(name, password) {
+  return String(name || "").toLowerCase() === "haruka" && password === "haru23";
+}
+
+async function createCommunitySession(db, accountId, token) {
+  const now = new Date().toISOString();
+  await db
+    .prepare("INSERT INTO community_sessions (id, account_id, token_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?)")
+    .bind(crypto.randomUUID(), accountId, await sha256Base64Url(token), now, now)
+    .run();
+}
+
+async function hashPassword(password, salt) {
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(password),
+    "PBKDF2",
+    false,
+    ["deriveBits"],
+  );
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      hash: "SHA-256",
+      salt: new TextEncoder().encode(salt),
+      iterations: 120000,
+    },
+    keyMaterial,
+    256,
+  );
+  return arrayBufferToBase64Url(bits);
+}
+
+async function sha256Base64Url(value) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return arrayBufferToBase64Url(digest);
+}
+
+function randomBase64Url(byteLength) {
+  const bytes = new Uint8Array(byteLength);
+  crypto.getRandomValues(bytes);
+  return arrayBufferToBase64Url(bytes);
+}
+
+function safeEqual(a, b) {
+  const left = String(a || "");
+  const right = String(b || "");
+  if (left.length !== right.length) {
+    return false;
+  }
+  let diff = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    diff |= left.charCodeAt(index) ^ right.charCodeAt(index);
+  }
+  return diff === 0;
+}
+
+function normalizeCommunityPostRow(row, requestUrl) {
+  const tags = parseJsonArray(row.tagsJson);
+  return {
+    id: String(row.id || ""),
+    latitude: Number(row.latitude),
+    longitude: Number(row.longitude),
+    locationMode: String(row.locationMode || "map"),
+    tags,
+    text: String(row.text || ""),
+    mediaType: String(row.mediaType || ""),
+    mediaName: String(row.mediaName || ""),
+    mediaUrl: row.mediaKey ? buildCommunityMediaUrl(requestUrl, String(row.mediaKey)) : "",
+    accountId: String(row.accountId || ""),
+    authorName: String(row.authorName || ""),
+    authorIcon: String(row.authorIcon || ""),
+    createdAt: String(row.createdAt || ""),
+  };
+}
+
+function buildCommunityMediaUrl(requestUrl, key) {
+  const url = new URL(requestUrl);
+  url.pathname = `/community-media/${encodeURIComponent(key).replace(/%2F/g, "/")}`;
+  url.search = "";
+  return url.toString();
+}
+
+function normalizeCommunityPostTags(values) {
+  const allowed = new Set(["weather", "disaster", "earthquake", "safety"]);
+  return [...new Set(values.flatMap((value) => String(value || "").split(",")))]
+    .map((value) => value.trim())
+    .filter((value) => allowed.has(value))
+    .slice(0, 1);
+}
+
+async function ensureCommunitySchema(db) {
+  await ensureCommunityAccountsSchema(db);
+  await ensureCommunityPostsSchema(db);
+}
+
+async function ensureCommunityAccountsSchema(db) {
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS community_accounts (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        icon TEXT NOT NULL DEFAULT '',
+        password_salt TEXT NOT NULL,
+        password_hash TEXT NOT NULL,
+        is_admin INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+    )
+    .run();
+  await ensureColumn(db, "community_accounts", "is_admin", "INTEGER NOT NULL DEFAULT 0");
+  await db
+    .prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_community_accounts_name ON community_accounts(name)")
+    .run();
+  await ensureCommunitySessionsSchema(db);
+  await ensureDefaultCommunityAdminAccount(db);
+}
+
+async function ensureCommunitySessionsSchema(db) {
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS community_sessions (
+        id TEXT PRIMARY KEY,
+        account_id TEXT NOT NULL,
+        token_hash TEXT NOT NULL UNIQUE,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+    )
+    .run();
+  await db.prepare("CREATE INDEX IF NOT EXISTS idx_community_sessions_account_id ON community_sessions(account_id)").run();
+  await db.prepare("CREATE INDEX IF NOT EXISTS idx_community_sessions_token_hash ON community_sessions(token_hash)").run();
+}
+
+async function ensureDefaultCommunityAdminAccount(db) {
+  const name = "haruka";
+  const password = "haru23";
+  const existing = await db.prepare("SELECT id, is_admin AS isAdmin FROM community_accounts WHERE name = ?").bind(name).first();
+  if (existing) {
+    if (!existing.isAdmin) {
+      await db.prepare("UPDATE community_accounts SET is_admin = 1, updated_at = ? WHERE id = ?")
+        .bind(new Date().toISOString(), existing.id)
+        .run();
+    }
+    return;
+  }
+  const id = crypto.randomUUID();
+  const salt = randomBase64Url(16);
+  const now = new Date().toISOString();
+  await db.prepare(
+    `INSERT INTO community_accounts (
+      id,
+      name,
+      icon,
+      password_salt,
+      password_hash,
+      is_admin,
+      created_at,
+      updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).bind(id, name, "", salt, await hashPassword(password, salt), 1, now, now).run();
+}
+
+async function ensureCommunityPostsSchema(db) {
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS community_posts (
+        id TEXT PRIMARY KEY,
+        latitude REAL NOT NULL,
+        longitude REAL NOT NULL,
+        location_mode TEXT NOT NULL DEFAULT 'map',
+        tags_json TEXT NOT NULL DEFAULT '[]',
+        text TEXT NOT NULL DEFAULT '',
+        media_key TEXT,
+        media_type TEXT,
+        media_name TEXT,
+        account_id TEXT,
+        author_name TEXT,
+        author_icon TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+    )
+    .run();
+  await ensureColumn(db, "community_posts", "account_id", "TEXT");
+  await ensureColumn(db, "community_posts", "author_name", "TEXT");
+  await ensureColumn(db, "community_posts", "author_icon", "TEXT");
+  await db
+    .prepare("CREATE INDEX IF NOT EXISTS idx_community_posts_created_at ON community_posts(created_at DESC)")
+    .run();
+  await db
+    .prepare("CREATE INDEX IF NOT EXISTS idx_community_posts_account_id ON community_posts(account_id)")
+    .run();
+}
+
+async function ensureColumn(db, tableName, columnName, type) {
+  const info = await db.prepare(`PRAGMA table_info(${tableName})`).all();
+  const exists = (info.results || []).some((column) => column.name === columnName);
+  if (!exists) {
+    await db.prepare(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${type}`).run();
+  }
+}
+
+function clampInteger(value, min, max, fallback) {
+  const number = Number.parseInt(value, 10);
+  if (!Number.isFinite(number)) {
+    return fallback;
+  }
+  return Math.min(Math.max(number, min), max);
+}
+
 function normalizeEarthquakePresetRow(row) {
   return {
     id: String(row.id),
@@ -830,6 +1490,15 @@ function pruneNotificationHistory(notifications, now = Date.now()) {
 function validateSubscription(subscription) {
   if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
     throw httpError("invalid push subscription", 400);
+  }
+}
+
+async function isCommunityAdminRequest(request, env) {
+  try {
+    const account = await requireCommunityAccount(request, env);
+    return Boolean(account?.isAdmin);
+  } catch (error) {
+    return false;
   }
 }
 

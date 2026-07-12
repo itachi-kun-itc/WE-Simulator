@@ -31,7 +31,22 @@ const FEEDBACK_ENDPOINT_URL =
 const PUSH_CONFIG_URL = "./push-config.json";
 const EARTHQUAKE_STATISTICS_FALLBACK_URL = "./data/earthquake_statistics.json";
 const USGS_EARTHQUAKE_QUERY_URL = "https://earthquake.usgs.gov/fdsnws/event/1/query";
+const COMMUNITY_MAP_TILE_URLS = [
+  "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+  "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+  "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+  "https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+];
+const COMMUNITY_MAP_ATTRIBUTION =
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+let COMMUNITY_POST_TAGS = [
+  { id: "safety", label: "防災共有" },
+  { id: "weather", label: "気象報告" },
+  { id: "disaster", label: "災害報告" },
+];
+const COMMUNITY_POST_VIDEO_MAX_SECONDS = 30;
 const ADMIN_PARENT_TOKEN_KEY = "weather-earthquake-admin-parent-token";
+const COMMUNITY_ACCOUNT_STORAGE_KEY = "we-simulator-community-account";
 const NOTIFICATION_HISTORY_READ_IDS_KEY = "weather-earthquake-notification-history-read-ids";
 const NOTIFICATION_HISTORY_DB_NAME = "we-simulator-notification-history";
 const NOTIFICATION_HISTORY_DB_VERSION = 1;
@@ -595,6 +610,16 @@ let earthquakeStatisticsLoading = false;
 let selectedStationInfoRegion = "";
 let stationInfoAffiliationFilter = "";
 let observedStationFeatureCache = { data: null, features: [] };
+let communityPosts = [];
+let communityPostsLoadPromise = null;
+let communityPostMarkers = [];
+let communityPostLocation = null;
+let communityPostOverlayElements = null;
+let communityAccount = loadCommunityAccountFromStorage();
+document.body?.classList.toggle("community-admin-account", Boolean(communityAccount?.isAdmin));
+document.body?.classList.toggle("community-local-account", Boolean(communityAccount?.localOnly));
+let communityAccountRequiredPanel = null;
+let communityAccountPanel = null;
 
 function updateHistoryStatisticsLoadButtonState() {
   const button = document.querySelector("#history-statistics-load");
@@ -622,6 +647,8 @@ const SOURCE_LINKS = [
   { label: "MeteoScope", href: "https://github.com/wvdtc7bjwn-bit/MeteoScope" },
   { label: "S-net", href: "https://www.seafloor.bosai.go.jp/outline/" },
   { label: "MapLibre GL JS", href: "https://maplibre.org/maplibre-gl-js/docs/" },
+  { label: "OpenStreetMap", href: "https://www.openstreetmap.org/copyright" },
+  { label: "CARTO", href: "https://carto.com/attributions" },
 ];
 const SOURCE_UPDATED_AT = "2026 07 11";
 const SOURCE_SECTIONS = [
@@ -657,6 +684,8 @@ const SOURCE_SECTIONS = [
       { label: "Natural Earth", href: "https://www.naturalearthdata.com/" },
       { label: "S-net", href: "https://www.seafloor.bosai.go.jp/outline/" },
       { label: "MapLibre GL JS", href: "https://maplibre.org/maplibre-gl-js/docs/" },
+      { label: "OpenStreetMap", href: "https://www.openstreetmap.org/copyright" },
+      { label: "CARTO", href: "https://carto.com/attributions" },
     ],
   },
   {
@@ -1369,11 +1398,111 @@ function setupTabs() {
     `).join("") + (filtered.length > visible.length ? `<div class="station-info-more">検索で絞り込んでください。</div>` : "");
   };
 
+  const ensureInfoToolShell = () => {
+    if (!els.infoFullPanel || els.infoFullPanel.dataset.toolShellReady === "true") {
+      return;
+    }
+    els.infoFullPanel.innerHTML = `
+      <section class="tool-home-page" id="tool-home-page" aria-label="ツール">
+        <div class="tool-menu-list">
+          <button class="tool-menu-row" type="button" data-tool-page="source">
+            <span>震源地検索</span><span aria-hidden="true">›</span>
+          </button>
+          <button class="tool-menu-row" type="button" data-tool-page="station">
+            <span>観測点検索</span><span aria-hidden="true">›</span>
+          </button>
+        </div>
+      </section>
+      <section class="tool-station-page hidden" id="tool-station-page" aria-label="観測点検索"></section>
+    `;
+    els.infoFullPanel.querySelector('[data-tool-page="source"]')?.addEventListener("click", () => openInfoSourceSearchPage());
+    els.infoFullPanel.querySelector('[data-tool-page="station"]')?.addEventListener("click", () => openInfoStationSearchPage());
+    els.infoFullPanel.dataset.toolShellReady = "true";
+    delete els.infoFullPanel.dataset.stationReady;
+  };
+
+  const showInfoToolHome = () => {
+    ensureInfoToolShell();
+    document.body.classList.remove("tool-source-search-mode", "tool-station-search-mode");
+    setHistoryMapModeActive(false);
+    els.historyFullPanel?.classList.add("hidden");
+    els.infoFullPanel?.querySelector("#tool-home-page")?.classList.remove("hidden");
+    els.infoFullPanel?.querySelector("#tool-station-page")?.classList.add("hidden");
+    els.infoFullPanel?.classList.remove("hidden");
+  };
+
+  const ensureToolPageHeader = (panel, title, onBack) => {
+    if (!panel || panel.querySelector(".tool-page-head")) {
+      return;
+    }
+    const head = document.createElement("div");
+    head.className = "tool-page-head";
+    head.innerHTML = `
+      <button class="tool-page-back" type="button" aria-label="戻る">‹</button>
+      <h2>${title}</h2>
+      <span aria-hidden="true"></span>
+    `;
+    head.querySelector(".tool-page-back")?.addEventListener("click", onBack);
+    panel.insertAdjacentElement("afterbegin", head);
+  };
+
+  const openInfoSourceSearchPage = () => {
+    ensureInfoToolShell();
+    closeEarthquakePresetPicker({ restoreTab: false, skipFocus: true });
+    closeSettingsMenuSheet();
+    setSetupMenuOpen(false);
+    els.infoFullPanel?.classList.add("hidden");
+    els.learningFullPanel?.classList.add("hidden");
+    const panel = ensureHistoryFullPanel();
+    ensureToolPageHeader(panel, "震源地検索", showInfoToolHome);
+    panel?.classList.remove("hidden");
+    document.body.classList.add("tool-source-search-mode");
+    setHistoryMapModeActive(true);
+    renderPastEarthquakeStatsPanel();
+    Promise.all([loadLocalAreas(), loadEpicenterAreas()])
+      .then(() => {
+        setHistoryMapModeActive(true);
+        renderPastEarthquakeStatsPanel();
+      })
+      .catch((error) => {
+        if (error?.name === "AbortError") {
+          return;
+        }
+        console.warn("Failed to prepare local area history stats", error);
+        renderPastEarthquakeStatsPanel(error);
+      });
+  };
+
+  const openInfoStationSearchPage = () => {
+    ensureInfoToolShell();
+    closeEarthquakePresetPicker({ restoreTab: false, skipFocus: true });
+    closeSettingsMenuSheet();
+    setSetupMenuOpen(false);
+    setHistoryMapModeActive(false);
+    els.historyFullPanel?.classList.add("hidden");
+    els.learningFullPanel?.classList.add("hidden");
+    document.body.classList.remove("tool-source-search-mode");
+    document.body.classList.add("tool-station-search-mode");
+    const stationPage = els.infoFullPanel?.querySelector("#tool-station-page");
+    ensureInfoStationPanel();
+    ensureToolPageHeader(stationPage, "観測点検索", showInfoToolHome);
+    els.infoFullPanel?.querySelector("#tool-home-page")?.classList.add("hidden");
+    stationPage?.classList.remove("hidden");
+    els.infoFullPanel?.classList.remove("hidden");
+    renderInfoStationList();
+    Promise.resolve(loadShindoStations())
+      .then(() => renderInfoStationList())
+      .catch((error) => {
+        console.warn("Failed to load station information", error);
+      });
+  };
+
   const ensureInfoStationPanel = () => {
     if (!els.infoFullPanel || els.infoFullPanel.dataset.stationReady === "true") {
       return;
     }
-    els.infoFullPanel.innerHTML = `
+    const stationHost = els.infoFullPanel.querySelector("#tool-station-page") ?? els.infoFullPanel;
+    stationHost.innerHTML = `
       <div class="station-info-toolbar">
         <div class="station-info-search-wrap">
           <input id="station-info-filter" type="search" inputmode="search" autocomplete="off" placeholder="観測点名・地域・機関で検索" aria-label="観測点を検索" />
@@ -1383,7 +1512,7 @@ function setupTabs() {
       </div>
       <div class="station-info-list" id="station-info-list"></div>
     `;
-    const toolbar = els.infoFullPanel.querySelector(".station-info-toolbar");
+    const toolbar = stationHost.querySelector(".station-info-toolbar");
     if (toolbar && !toolbar.querySelector("#station-info-region")) {
       const regionSelect = document.createElement("select");
       regionSelect.id = "station-info-region";
@@ -1564,6 +1693,7 @@ function setupTabs() {
   };
 
   const resetInfoTabState = () => {
+    document.body.classList.remove("tool-source-search-mode", "tool-station-search-mode");
     selectedStationInfoRegion = "";
     stationInfoAffiliationFilter = "";
     els.infoFullPanel?.querySelectorAll("#station-info-filter, #station-info-region, #station-info-affiliation").forEach((control) => {
@@ -1582,6 +1712,8 @@ function setupTabs() {
     }
     if (activeTab?.id !== "bottom-history-tab") {
       resetHistoryTabState();
+      setCommunityMapModeActive(false);
+      closeCommunityAccountRequiredPanel();
     }
     if (activeTab?.id !== "bottom-info-tab") {
       resetInfoTabState();
@@ -1628,6 +1760,7 @@ function setupTabs() {
 
   const closeFullPanels = () => {
     setHistoryMapModeActive(false);
+    document.body.classList.remove("tool-source-search-mode", "tool-station-search-mode");
     els.historyFullPanel?.classList.add("hidden");
     els.infoFullPanel?.classList.add("hidden");
     els.learningFullPanel?.classList.add("hidden");
@@ -1661,17 +1794,8 @@ function setupTabs() {
     closeEarthquakePresetPicker({ restoreTab: false, skipFocus: true });
     closeSettingsMenuSheet();
     setSetupMenuOpen(false);
-    setHistoryMapModeActive(false);
-    els.historyFullPanel?.classList.add("hidden");
     els.learningFullPanel?.classList.add("hidden");
-    ensureInfoStationPanel();
-    renderInfoStationList();
-    els.infoFullPanel?.classList.remove("hidden");
-    Promise.resolve(loadShindoStations())
-      .then(() => renderInfoStationList())
-      .catch((error) => {
-        console.warn("Failed to load station information", error);
-      });
+    showInfoToolHome();
   };
 
   const openLearningFullPanel = () => {
@@ -2123,6 +2247,8 @@ function setupTabs() {
       }
       if (tab.id !== "bottom-history-tab") {
         resetHistoryTabState();
+        setCommunityMapModeActive(false);
+        closeCommunityAccountRequiredPanel();
       }
       if (tab.id !== "bottom-info-tab") {
         resetInfoTabState();
@@ -2149,7 +2275,16 @@ function setupTabs() {
   document.querySelector("#bottom-history-tab")?.addEventListener("click", () => {
     setActiveBottomTab("#bottom-history-tab");
     activateEarthquakePanel();
-    openHistoryFullPanel();
+    closeFullPanels();
+    if (!hasCommunityAccount()) {
+      setCommunityMapModeActive(false);
+      openCommunityAccountRequiredPanel();
+      requestAnimationFrame(() => safelyResizeMap());
+      return;
+    }
+    closeCommunityAccountRequiredPanel();
+    setCommunityMapModeActive(true);
+    requestAnimationFrame(() => safelyResizeMap());
   });
 
   document.querySelector("#bottom-info-tab")?.addEventListener("click", () => {
@@ -2170,6 +2305,7 @@ function setupTabs() {
     closeFullPanels();
     setHistoryMapModeActive(false);
     openSettingsMenuSheet();
+    ensureCommunityAccountSettingsCard();
   });
 
   const toggleSettingsStatusCard = (statusCard) => {
@@ -3341,6 +3477,105 @@ function setHistoryMapModeActive(active) {
   updateDisplayMode();
 }
 
+function setCommunityMapModeActive(active) {
+  document.body.classList.toggle("community-map-mode", Boolean(active));
+  if (!map) {
+    return;
+  }
+  const hiddenLayers = [
+    "surrounding-land-fill",
+    "surrounding-land-gap-fill",
+    "japan-land-fill",
+    "japan-land-gap-fill",
+    "municipality-land-fill",
+    "world-coastline",
+    "japan-coastline",
+    "jma-intensity-fill",
+    "history-local-area-fill",
+    "history-epicenter-area-fill",
+    "eew-warning-fill",
+    "jma-local-area-boundaries",
+    "municipality-boundaries",
+    "prefecture-boundaries",
+    "submarine-observation-fill",
+    "shindo-station-points",
+    "plate-boundaries",
+    "active-fault-lines",
+    "p-wave-fill",
+    "p-wave-line",
+    "s-wave-fill",
+    "s-wave-line",
+  ];
+  if (active) {
+    ensureCommunityMapLayer();
+  }
+  if (map.getLayer("community-dark-map")) {
+    updateLayerVisibility("community-dark-map", Boolean(active));
+  }
+  map.setMaxZoom?.(active ? 18 : 14);
+  if (active) {
+    hiddenLayers.forEach((layerId) => updateLayerVisibility(layerId, false));
+    ensureCommunityPostUi();
+    loadCommunityPosts().catch((error) => console.warn("community posts load failed", error));
+    renderCommunityPostMarkers();
+    closeInactiveStationPopups();
+    scheduleStationCanvasRender({ force: true });
+    return;
+  }
+  document.body.classList.remove("community-pick-mode");
+  closeCommunityPostOverlay();
+  closeCommunityPostDetail();
+  renderCommunityPostMarkers();
+  restoreSimulationMapLayersAfterCommunityMode();
+  updateDisplayMode();
+}
+
+function restoreSimulationMapLayersAfterCommunityMode() {
+  [
+    "surrounding-land-fill",
+    "surrounding-land-gap-fill",
+    "japan-land-fill",
+    "japan-land-gap-fill",
+    "municipality-land-fill",
+    "world-coastline",
+    "japan-coastline",
+    "prefecture-boundaries",
+    "jma-local-area-boundaries",
+    "municipality-boundaries",
+  ].forEach((layerId) => updateLayerVisibility(layerId, true));
+  if (map?.getLayer("community-dark-map")) {
+    updateLayerVisibility("community-dark-map", false);
+  }
+}
+
+function ensureCommunityMapLayer() {
+  if (!map) {
+    return;
+  }
+  if (!map.getSource("community-dark-map")) {
+    map.addSource("community-dark-map", {
+      type: "raster",
+      tiles: COMMUNITY_MAP_TILE_URLS,
+      tileSize: 256,
+      minzoom: 0,
+      maxzoom: 19,
+      attribution: COMMUNITY_MAP_ATTRIBUTION,
+    });
+  }
+  if (!map.getLayer("community-dark-map")) {
+    const beforeId = map.getLayer("plate-boundaries") ? "plate-boundaries" : undefined;
+    map.addLayer({
+      id: "community-dark-map",
+      type: "raster",
+      source: "community-dark-map",
+      paint: {
+        "raster-opacity": 1,
+        "raster-fade-duration": 120,
+      },
+    }, beforeId);
+  }
+}
+
 function updateHistoryMapIsolation() {
   [
     "shindo-station-points",
@@ -3802,6 +4037,1048 @@ async function getWorkerBaseUrl() {
   return String(config.workerUrl || "").replace(/\/+$/, "");
 }
 
+function ensureCommunityPostUi() {
+  if (communityPostOverlayElements) {
+    return communityPostOverlayElements;
+  }
+
+  const button = document.createElement("button");
+  button.id = "community-post-button";
+  button.className = "community-post-button";
+  button.type = "button";
+  button.textContent = "＋ 投稿";
+  button.addEventListener("click", () => openCommunityPostOverlay());
+
+  const overlay = document.createElement("section");
+  overlay.id = "community-post-overlay";
+  overlay.className = "community-post-overlay hidden";
+  overlay.setAttribute("aria-label", "投稿");
+  overlay.innerHTML = `
+    <div class="community-post-sheet" role="dialog" aria-modal="false">
+      <div class="community-post-head">
+        <button class="community-post-close" type="button" aria-label="閉じる">×</button>
+        <h2>投稿する</h2>
+        <span></span>
+      </div>
+      <form id="community-post-form" class="community-post-form">
+        <section class="community-post-section">
+          <h3>どこから投稿するか</h3>
+          <div class="community-post-location-actions">
+            <button type="button" data-community-location="current">現在地</button>
+            <button type="button" data-community-location="map">マップから指定</button>
+          </div>
+          <p class="community-post-location" id="community-post-location-status">場所を選択してください</p>
+        </section>
+        <section class="community-post-section">
+          <h3>タグ</h3>
+          <div class="community-post-tags">
+            ${COMMUNITY_POST_TAGS.map((tag) => `
+              <label>
+                <input type="radio" name="tags" value="${tag.id}" required />
+                <span>${tag.label}</span>
+              </label>
+            `).join("")}
+          </div>
+        </section>
+        <section class="community-post-section">
+          <h3>写真・動画</h3>
+          <label class="community-media-picker">
+            <input id="community-post-media" name="media" type="file" accept="image/png,image/jpeg,video/mp4" />
+            <span>PNG / JPEG / 30秒以内のMP4</span>
+          </label>
+          <div id="community-post-preview" class="community-post-preview hidden"></div>
+        </section>
+        <section class="community-post-section">
+          <h3>投稿文</h3>
+          <textarea id="community-post-text" name="text" rows="5" maxlength="1200" required placeholder="状況、見えたもの、危険箇所など"></textarea>
+        </section>
+        <p id="community-post-status" class="community-post-status" aria-live="polite"></p>
+        <button class="community-post-submit" type="submit">投稿する</button>
+      </form>
+    </div>
+  `;
+
+  document.body.append(button, overlay);
+
+  const form = overlay.querySelector("#community-post-form");
+  const close = overlay.querySelector(".community-post-close");
+  close?.replaceChildren("‹");
+  overlay.querySelector(".community-post-head h2")?.replaceChildren("投稿設定");
+  close?.replaceChildren("‹");
+  overlay.querySelector(".community-post-head h2")?.replaceChildren("投稿設定");
+  const currentLocationButton = overlay.querySelector('[data-community-location="current"]');
+  const mapLocationButton = overlay.querySelector('[data-community-location="map"]');
+  const locationStatus = overlay.querySelector("#community-post-location-status");
+  const mediaInput = overlay.querySelector("#community-post-media");
+  const preview = overlay.querySelector("#community-post-preview");
+  const status = overlay.querySelector("#community-post-status");
+  overlay.setAttribute("aria-label", "投稿設定");
+  close?.replaceChildren("‹");
+  close?.setAttribute("aria-label", "戻る");
+  overlay.querySelector(".community-post-head h2")?.replaceChildren("投稿設定");
+  overlay.querySelector('[data-community-location="current"]')?.replaceChildren("現在地");
+  overlay.querySelector('[data-community-location="vague"]')?.replaceChildren("曖昧な現在地");
+  overlay.querySelector('[data-community-location="map"]')?.replaceChildren("マップから選択");
+  overlay.querySelector(".community-media-picker span")?.replaceChildren("ここをタップして画像・動画を追加");
+  overlay.querySelector(".community-media-picker small")?.replaceChildren("PNG / JPEG / 30秒以内のMP4");
+  overlay.querySelector(".community-post-submit")?.replaceChildren("投稿する");
+  overlay.querySelector("#community-post-text")?.setAttribute("placeholder", "状況、見えたもの、危険箇所など");
+  overlay.querySelectorAll(".community-post-section h3").forEach((heading, index) => {
+    const labels = ["投稿場所", "タグ", "写真・動画", "投稿文"];
+    if (labels[index]) {
+      heading.textContent = labels[index];
+    }
+  });
+
+  close?.addEventListener("click", () => closeCommunityPostOverlay());
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) {
+      closeCommunityPostOverlay();
+    }
+  });
+  currentLocationButton?.addEventListener("click", () => selectCommunityPostCurrentLocation());
+  mapLocationButton?.addEventListener("click", () => beginCommunityPostMapPick());
+  mediaInput?.addEventListener("change", () => validateAndPreviewCommunityMedia());
+  form?.addEventListener("input", updateCommunityPostSubmitState);
+  form?.addEventListener("change", updateCommunityPostSubmitState);
+  form?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    submitCommunityPost();
+  });
+
+  communityPostOverlayElements = { button, overlay, form, locationStatus, mediaInput, preview, status };
+  updateCommunityPostLocationStatus();
+  return communityPostOverlayElements;
+}
+
+function openCommunityPostOverlay() {
+  const ui = ensureCommunityPostUi();
+  document.body.classList.add("community-post-overlay-open");
+  ui.overlay.classList.remove("hidden");
+  updateCommunityPostLocationStatus();
+  ui.overlay.querySelector("textarea, input, button")?.focus?.();
+}
+
+function closeCommunityPostOverlay() {
+  document.body.classList.remove("community-post-overlay-open", "community-pick-mode");
+  communityPostOverlayElements?.overlay?.classList.add("hidden");
+}
+
+function resetCommunityPostForm() {
+  const ui = ensureCommunityPostUi();
+  ui.form?.reset();
+  ui.preview?.classList.add("hidden");
+  if (ui.preview) {
+    ui.preview.innerHTML = "";
+  }
+  if (ui.status) {
+    ui.status.textContent = "";
+  }
+  communityPostLocation = null;
+  updateCommunityPostLocationStatus();
+}
+
+function updateCommunityPostLocationStatus() {
+  const ui = ensureCommunityPostUi();
+  if (!ui.locationStatus) {
+    return;
+  }
+  if (!communityPostLocation) {
+    ui.locationStatus.textContent = "場所を選択してください";
+    return;
+  }
+  const label = communityPostLocation.mode === "current" ? "現在地" : "マップ指定";
+  ui.locationStatus.textContent = `${label}: ${communityPostLocation.latitude.toFixed(5)}, ${communityPostLocation.longitude.toFixed(5)}`;
+}
+
+function selectCommunityPostCurrentLocation() {
+  const ui = ensureCommunityPostUi();
+  if (!navigator.geolocation) {
+    ui.status.textContent = "このブラウザでは現在地を取得できません。";
+    return;
+  }
+  ui.status.textContent = "現在地を取得中...";
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      communityPostLocation = {
+        mode: "current",
+        latitude: Number(position.coords.latitude),
+        longitude: Number(position.coords.longitude),
+      };
+      ui.status.textContent = "";
+      updateCommunityPostLocationStatus();
+      updateCommunityPostSubmitState();
+    },
+    () => {
+      ui.status.textContent = "現在地の取得ができませんでした。マップから指定してください。";
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 },
+  );
+}
+
+function beginCommunityPostMapPick() {
+  const ui = ensureCommunityPostUi();
+  ui.status.textContent = "地図をタップして投稿場所を指定してください。";
+  document.body.classList.add("community-pick-mode");
+  ui.overlay.classList.add("hidden");
+}
+
+function setCommunityPostMapLocation(lngLat) {
+  communityPostLocation = {
+    mode: "map",
+    latitude: Number(lngLat.lat),
+    longitude: Number(lngLat.lng),
+  };
+  document.body.classList.remove("community-pick-mode");
+  openCommunityPostOverlay();
+}
+
+function validateAndPreviewCommunityMedia() {
+  const ui = ensureCommunityPostUi();
+  const file = ui.mediaInput?.files?.[0];
+  if (ui.preview) {
+    ui.preview.innerHTML = "";
+    ui.preview.classList.add("hidden");
+  }
+  if (ui.status) {
+    ui.status.textContent = "";
+  }
+  if (!file) {
+    return;
+  }
+  const allowed = ["image/png", "image/jpeg", "video/mp4"];
+  if (!allowed.includes(file.type)) {
+    ui.status.textContent = "PNG / JPEG / MP4 のみ投稿できます。";
+    ui.mediaInput.value = "";
+    return;
+  }
+  const url = URL.createObjectURL(file);
+  if (file.type === "video/mp4") {
+    const video = document.createElement("video");
+    video.controls = true;
+    video.muted = true;
+    video.src = url;
+    video.addEventListener("loadedmetadata", () => {
+      if (video.duration > COMMUNITY_POST_VIDEO_MAX_SECONDS) {
+        URL.revokeObjectURL(url);
+        ui.status.textContent = "動画は30秒以内にしてください。";
+        ui.mediaInput.value = "";
+        ui.preview.innerHTML = "";
+        ui.preview.classList.add("hidden");
+      }
+    }, { once: true });
+    ui.preview?.append(video);
+  } else {
+    const image = document.createElement("img");
+    image.alt = "投稿写真プレビュー";
+    image.src = url;
+    ui.preview?.append(image);
+  }
+  const removeButton = document.createElement("button");
+  removeButton.type = "button";
+  removeButton.className = "community-media-remove";
+  removeButton.replaceChildren("添付を削除");
+  removeButton.textContent = "添付を削除";
+  removeButton.replaceChildren("添付を削除");
+  removeButton.addEventListener("click", () => {
+    if (ui.mediaInput) {
+      ui.mediaInput.value = "";
+    }
+    ui.preview.innerHTML = "";
+    ui.preview.classList.add("hidden");
+    updateCommunityPostSubmitState();
+  });
+  ui.preview?.append(removeButton);
+  ui.preview?.classList.remove("hidden");
+  updateCommunityPostSubmitState();
+}
+
+function updateCommunityPostSubmitState() {
+  const ui = communityPostOverlayElements;
+  if (!ui?.form) {
+    return;
+  }
+  const submitButton = ui.form.querySelector(".community-post-submit");
+  const hasLocation = Boolean(communityPostLocation);
+  const hasTag = ui.form.querySelectorAll('input[name="tags"]:checked').length === 1;
+  const hasText = Boolean(String(ui.form.querySelector("#community-post-text")?.value || "").trim());
+  if (submitButton) {
+    submitButton.disabled = !(hasLocation && hasTag && hasText);
+  }
+}
+
+async function submitCommunityPost() {
+  const ui = ensureCommunityPostUi();
+  if (!hasCommunityAccount()) {
+    ui.status.textContent = "投稿するにはアカウントを作成してください。";
+    return;
+  }
+  const workerUrl = await getWorkerBaseUrl();
+  if (!workerUrl) {
+    ui.status.textContent = "投稿先のWorkerが設定されていません。";
+    return;
+  }
+  if (!communityPostLocation) {
+    ui.status.textContent = "投稿場所を選択してください。";
+    return;
+  }
+  const checkedTags = [...ui.form.querySelectorAll('input[name="tags"]:checked')].map((input) => input.value);
+  if (checkedTags.length !== 1) {
+    ui.status.textContent = "タグを1つ以上選択してください。";
+    return;
+  }
+  const postText = String(ui.form.querySelector("#community-post-text")?.value || "").trim();
+  if (!postText) {
+    ui.status.textContent = "投稿文を入力してください。";
+    return;
+  }
+  const submitButton = ui.form.querySelector(".community-post-submit");
+  if (submitButton) {
+    submitButton.disabled = true;
+  }
+  ui.status.textContent = "投稿中...";
+  try {
+    const formData = new FormData(ui.form);
+    formData.set("latitude", String(communityPostLocation.latitude));
+    formData.set("longitude", String(communityPostLocation.longitude));
+    formData.set("locationMode", communityPostLocation.mode);
+    formData.delete("tags");
+    checkedTags.forEach((tag) => formData.append("tags", tag));
+    const response = await fetch(`${workerUrl}/community-posts`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${communityAccount.token}`,
+      },
+      body: formData,
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data?.error || `投稿に失敗しました (${response.status})`);
+    }
+    if (data.post) {
+      communityPosts = [data.post, ...communityPosts.filter((post) => post.id !== data.post.id)];
+      renderCommunityPostMarkers();
+    }
+    resetCommunityPostForm();
+    closeCommunityPostOverlay();
+  } catch (error) {
+    ui.status.textContent = error?.message || "投稿に失敗しました。";
+  } finally {
+    updateCommunityPostSubmitState();
+  }
+}
+
+async function loadCommunityPosts({ force = false } = {}) {
+  if (communityPostsLoadPromise && !force) {
+    return communityPostsLoadPromise;
+  }
+  const workerUrl = await getWorkerBaseUrl();
+  if (!workerUrl) {
+    communityPosts = [];
+    renderCommunityPostMarkers();
+    return [];
+  }
+  communityPostsLoadPromise = fetch(`${workerUrl}/community-posts?limit=120`, { cache: "no-store" })
+    .then(async (response) => {
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.error || "community posts load failed");
+      }
+      communityPosts = Array.isArray(data.posts) ? data.posts : [];
+      renderCommunityPostMarkers();
+      return communityPosts;
+    })
+    .catch((error) => {
+      console.warn("community posts load failed", error);
+      return [];
+    })
+    .finally(() => {
+      communityPostsLoadPromise = null;
+    });
+  return communityPostsLoadPromise;
+}
+
+function renderCommunityPostMarkers() {
+  communityPostMarkers.forEach((marker) => marker.remove());
+  communityPostMarkers = [];
+  if (!map || !document.body.classList.contains("community-map-mode")) {
+    return;
+  }
+  communityPosts.forEach((post) => {
+    const latitude = Number(post.latitude);
+    const longitude = Number(post.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return;
+    }
+    const markerElement = document.createElement("button");
+    markerElement.type = "button";
+    markerElement.className = "community-post-marker";
+    markerElement.dataset.communityTag = Array.isArray(post.tags) ? String(post.tags[0] || "") : "";
+    markerElement.setAttribute("aria-label", "投稿");
+    const popup = new maplibregl.Popup({
+      closeButton: true,
+      closeOnClick: true,
+      className: "community-post-popup",
+      offset: 16,
+    }).setHTML(buildCommunityPostPopupHtml(post));
+    const marker = new maplibregl.Marker({ element: markerElement, anchor: "center" })
+      .setLngLat([longitude, latitude])
+      .setPopup(popup)
+      .addTo(map);
+    communityPostMarkers.push(marker);
+  });
+}
+
+function buildCommunityPostPopupHtml(post) {
+  const tags = (Array.isArray(post.tags) ? post.tags : [])
+    .map((tag) => COMMUNITY_POST_TAGS.find((item) => item.id === tag)?.label || tag)
+    .map((tag) => `<span>${escapeHtml(tag)}</span>`)
+    .join("");
+  const media = post.mediaUrl
+    ? post.mediaType === "video/mp4"
+      ? `<video controls playsinline src="${escapeHtml(post.mediaUrl)}"></video>`
+      : `<img alt="投稿写真" src="${escapeHtml(post.mediaUrl)}" />`
+    : "";
+  return `
+    <article class="community-post-popup-card">
+      <div class="community-post-popup-tags">${tags}</div>
+      ${media}
+      <p>${escapeHtml(post.text || "投稿文なし")}</p>
+      <time>${escapeHtml(formatCommunityPostDate(post.createdAt))}</time>
+    </article>
+  `;
+}
+
+function formatCommunityPostDate(value) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) {
+    return "";
+  }
+  return new Intl.DateTimeFormat("ja-JP", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function ensureCommunityPostUi() {
+  if (communityPostOverlayElements) {
+    return communityPostOverlayElements;
+  }
+
+  const button = document.createElement("button");
+  button.id = "community-post-button";
+  button.className = "community-post-button";
+  button.type = "button";
+  button.textContent = "投稿";
+  button.addEventListener("click", () => openCommunityPostOverlay());
+
+  const overlay = document.createElement("section");
+  overlay.id = "community-post-overlay";
+  overlay.className = "community-post-overlay hidden";
+  overlay.setAttribute("aria-label", "投稿");
+  overlay.innerHTML = `
+    <div class="community-post-sheet" role="dialog" aria-modal="false">
+      <div class="community-post-head">
+        <button class="community-post-close" type="button" aria-label="閉じる">×</button>
+        <h2>投稿する</h2>
+        <span></span>
+      </div>
+      <form id="community-post-form" class="community-post-form">
+        <section class="community-post-section">
+          <h3>投稿場所</h3>
+          <div class="community-post-location-preview" id="community-post-location-preview">
+            <span class="community-post-location-dot" aria-hidden="true"></span>
+            <span class="community-post-location-preview-text">場所を選択してください</span>
+          </div>
+          <div class="community-post-location-actions">
+            <button type="button" data-community-location="current">現在地</button>
+            <button type="button" data-community-location="vague">曖昧な現在地</button>
+            <button type="button" data-community-location="map">マップから選択</button>
+          </div>
+          <p class="community-post-location" id="community-post-location-status">場所を選択してください</p>
+        </section>
+        <section class="community-post-section">
+          <h3>タグ</h3>
+          <div class="community-post-tags">
+            ${COMMUNITY_POST_TAGS.map((tag) => `
+              <label>
+                <input type="radio" name="tags" value="${tag.id}" required />
+                <span>${tag.label}</span>
+              </label>
+            `).join("")}
+          </div>
+        </section>
+        <section class="community-post-section">
+          <h3>写真・動画</h3>
+          <label class="community-media-picker">
+            <input id="community-post-media" name="media" type="file" accept="image/png,image/jpeg,video/mp4" />
+            <span>ここをタップして画像・動画を追加</span>
+            <small>PNG / JPEG / 30秒以内のMP4</small>
+          </label>
+          <div id="community-post-preview" class="community-post-preview hidden"></div>
+        </section>
+        <section class="community-post-section">
+          <h3>投稿文</h3>
+          <textarea id="community-post-text" name="text" rows="5" maxlength="1200" required placeholder="状況、見えたもの、危険箇所など"></textarea>
+        </section>
+        <p id="community-post-status" class="community-post-status" aria-live="polite"></p>
+        <button class="community-post-submit" type="submit">投稿する</button>
+      </form>
+    </div>
+  `;
+
+  document.body.append(button, overlay);
+
+  const form = overlay.querySelector("#community-post-form");
+  const close = overlay.querySelector(".community-post-close");
+  const locationStatus = overlay.querySelector("#community-post-location-status");
+  const locationPreview = overlay.querySelector("#community-post-location-preview");
+  const mediaInput = overlay.querySelector("#community-post-media");
+  const preview = overlay.querySelector("#community-post-preview");
+  const status = overlay.querySelector("#community-post-status");
+
+  close?.addEventListener("click", () => closeCommunityPostOverlay());
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) {
+      closeCommunityPostOverlay();
+    }
+  });
+  overlay.querySelector('[data-community-location="current"]')?.addEventListener("click", () => {
+    selectCommunityPostCurrentLocation("current");
+  });
+  overlay.querySelector('[data-community-location="vague"]')?.addEventListener("click", () => {
+    selectCommunityPostCurrentLocation("vague");
+  });
+  overlay.querySelector('[data-community-location="map"]')?.addEventListener("click", () => beginCommunityPostMapPick());
+  mediaInput?.addEventListener("change", () => validateAndPreviewCommunityMedia());
+  form?.addEventListener("input", updateCommunityPostSubmitState);
+  form?.addEventListener("change", updateCommunityPostSubmitState);
+  form?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    submitCommunityPost();
+  });
+
+  communityPostOverlayElements = { button, overlay, form, locationStatus, locationPreview, mediaInput, preview, status };
+  updateCommunityPostLocationStatus();
+  updateCommunityPostSubmitState();
+  return communityPostOverlayElements;
+}
+
+function updateCommunityPostLocationStatus() {
+  const ui = ensureCommunityPostUi();
+  const text = ui.locationPreview?.querySelector(".community-post-location-preview-text");
+  const dot = ui.locationPreview?.querySelector(".community-post-location-dot");
+  if (!communityPostLocation) {
+    if (ui.locationStatus) {
+      ui.locationStatus.textContent = "場所を選択してください";
+    }
+    if (text) {
+      text.textContent = "場所を選択してください";
+    }
+    dot?.classList.remove("is-set");
+    return;
+  }
+  const labels = {
+    current: "現在地",
+    vague: "曖昧な現在地",
+    map: "マップ指定",
+  };
+  const label = labels[communityPostLocation.mode] || "投稿場所";
+  const locationText = `${label}を設定済み`;
+  if (ui.locationStatus) {
+    ui.locationStatus.textContent = `${locationText}（${communityPostLocation.latitude.toFixed(5)}, ${communityPostLocation.longitude.toFixed(5)}）`;
+  }
+  if (text) {
+    text.textContent = locationText;
+  }
+  dot?.classList.add("is-set");
+}
+
+function selectCommunityPostCurrentLocation(mode = "current") {
+  const ui = ensureCommunityPostUi();
+  if (!navigator.geolocation) {
+    ui.status.textContent = "このブラウザでは現在地を取得できません。";
+    return;
+  }
+  ui.status.textContent = mode === "vague" ? "曖昧な現在地を作成中..." : "現在地を取得中...";
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      const base = {
+        latitude: Number(position.coords.latitude),
+        longitude: Number(position.coords.longitude),
+      };
+      const point = mode === "vague" ? randomizeLocationWithinRadius(base, 1000) : base;
+      communityPostLocation = {
+        mode,
+        latitude: point.latitude,
+        longitude: point.longitude,
+      };
+      ui.status.textContent = "";
+      updateCommunityPostLocationStatus();
+    },
+    () => {
+      ui.status.textContent = "現在地の取得ができませんでした。マップから指定してください。";
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 },
+  );
+}
+
+function randomizeLocationWithinRadius(location, radiusMeters) {
+  const bearing = Math.random() * Math.PI * 2;
+  const distance = Math.sqrt(Math.random()) * radiusMeters;
+  const earthRadius = 6378137;
+  const lat1 = location.latitude * Math.PI / 180;
+  const lon1 = location.longitude * Math.PI / 180;
+  const angularDistance = distance / earthRadius;
+  const lat2 = Math.asin(
+    Math.sin(lat1) * Math.cos(angularDistance) +
+    Math.cos(lat1) * Math.sin(angularDistance) * Math.cos(bearing),
+  );
+  const lon2 = lon1 + Math.atan2(
+    Math.sin(bearing) * Math.sin(angularDistance) * Math.cos(lat1),
+    Math.cos(angularDistance) - Math.sin(lat1) * Math.sin(lat2),
+  );
+  return {
+    latitude: lat2 * 180 / Math.PI,
+    longitude: lon2 * 180 / Math.PI,
+  };
+}
+
+function setCommunityPostMapLocation(lngLat) {
+  communityPostLocation = {
+    mode: "map",
+    latitude: Number(lngLat.lat),
+    longitude: Number(lngLat.lng),
+  };
+  document.body.classList.remove("community-pick-mode");
+  openCommunityPostOverlay();
+  if (communityPostOverlayElements?.status) {
+    communityPostOverlayElements.status.textContent = "";
+  }
+  updateCommunityPostLocationStatus();
+  updateCommunityPostSubmitState();
+}
+
+function renderCommunityPostMarkers() {
+  communityPostMarkers.forEach((marker) => marker.remove());
+  communityPostMarkers = [];
+  if (!map || !document.body.classList.contains("community-map-mode")) {
+    return;
+  }
+  communityPosts.forEach((post) => {
+    const latitude = Number(post.latitude);
+    const longitude = Number(post.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return;
+    }
+    const markerElement = document.createElement("button");
+    markerElement.type = "button";
+    markerElement.className = "community-post-marker";
+    markerElement.dataset.communityTag = Array.isArray(post.tags) ? String(post.tags[0] || "") : "";
+    markerElement.setAttribute("aria-label", "投稿を開く");
+    markerElement.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openCommunityPostDetail(post);
+    });
+    const marker = new maplibregl.Marker({ element: markerElement, anchor: "center" })
+      .setLngLat([longitude, latitude])
+      .addTo(map);
+    communityPostMarkers.push(marker);
+  });
+}
+
+function ensureCommunityPostDetailUi() {
+  if (communityPostOverlayElements?.detailSheet) {
+    return communityPostOverlayElements.detailSheet;
+  }
+  ensureCommunityPostUi();
+  const sheet = document.createElement("section");
+  sheet.id = "community-post-detail-sheet";
+  sheet.className = "community-post-detail-sheet hidden";
+  sheet.setAttribute("aria-label", "投稿内容");
+  sheet.innerHTML = `
+    <button class="community-post-detail-close" type="button" aria-label="閉じる">×</button>
+    <div class="community-post-detail-body"></div>
+  `;
+  sheet.querySelector(".community-post-detail-close")?.addEventListener("click", () => closeCommunityPostDetail());
+  document.body.append(sheet);
+  communityPostOverlayElements.detailSheet = sheet;
+  return sheet;
+}
+
+async function openCommunityPostDetail(post) {
+  const sheet = ensureCommunityPostDetailUi();
+  document.body.classList.add("community-post-detail-open");
+  sheet.classList.remove("hidden");
+  renderCommunityPostDetail(post, "場所を判定中...");
+  const placeName = await resolveCommunityPostPlaceName(post);
+  if (!sheet.classList.contains("hidden")) {
+    renderCommunityPostDetail(post, placeName);
+  }
+}
+
+function closeCommunityPostDetail() {
+  document.body.classList.remove("community-post-detail-open");
+  communityPostOverlayElements?.detailSheet?.classList.add("hidden");
+}
+
+function renderCommunityPostDetail(post, placeName = "") {
+  const sheet = ensureCommunityPostDetailUi();
+  const body = sheet.querySelector(".community-post-detail-body");
+  if (!body) {
+    return;
+  }
+  const tags = (Array.isArray(post.tags) ? post.tags : [])
+    .map((tag) => COMMUNITY_POST_TAGS.find((item) => item.id === tag)?.label || tag)
+    .map((tag) => `<span>${escapeHtml(tag)}</span>`)
+    .join("");
+  const media = post.mediaUrl
+    ? post.mediaType === "video/mp4"
+      ? `<video controls playsinline src="${escapeHtml(post.mediaUrl)}"></video>`
+      : `<img alt="投稿写真" src="${escapeHtml(post.mediaUrl)}" />`
+    : "";
+  body.innerHTML = `
+    <div class="community-post-author">
+      ${renderCommunityAccountIcon({ icon: post.authorIcon || "", name: post.authorName || "" }, "community-post-author-icon")}
+      <strong>${escapeHtml(post.authorName || "匿名ユーザー")}</strong>
+    </div>
+    <div class="community-post-detail-tags">${tags}</div>
+    ${media}
+    <dl class="community-post-detail-meta">
+      <div><dt>投稿場所</dt><dd>${escapeHtml(placeName || "場所を判定中...")}</dd></div>
+      <div><dt>投稿時間</dt><dd>${escapeHtml(formatCommunityPostDate(post.createdAt))}</dd></div>
+    </dl>
+    <p>${escapeHtml(post.text || "投稿文なし")}</p>
+    ${canDeleteCommunityPost(post) ? `<button class="community-post-delete-button" type="button" data-community-post-delete="${escapeHtml(post.id)}">投稿を削除</button>` : ""}
+  `;
+  body.querySelector("[data-community-post-delete]")?.addEventListener("click", () => deleteCommunityPost(post));
+}
+
+function canDeleteCommunityPost(post) {
+  return Boolean(
+    hasCommunityAccount() &&
+    post?.id &&
+    (communityAccount?.isAdmin || (post.accountId && post.accountId === communityAccount.id)),
+  );
+}
+
+async function deleteCommunityPost(post) {
+  if (!window.confirm("この投稿を削除しますか？")) {
+    return;
+  }
+  const workerUrl = await getWorkerBaseUrl();
+  try {
+    const response = await fetch(`${workerUrl}/community-posts/${encodeURIComponent(post.id)}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${communityAccount.token}` },
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body?.error || "投稿を削除できませんでした。");
+    }
+    communityPosts = communityPosts.filter((item) => item.id !== post.id);
+    renderCommunityPostMarkers();
+    closeCommunityPostDetail();
+  } catch (error) {
+    window.alert(error?.message || "投稿を削除できませんでした。");
+  }
+}
+
+async function resolveCommunityPostPlaceName(post) {
+  const longitude = Number(post.longitude);
+  const latitude = Number(post.latitude);
+  if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {
+    return "-";
+  }
+  const name = await resolveMunicipalityNameAt(longitude, latitude);
+  if (name && name !== "-") {
+    return name;
+  }
+  return `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+}
+
+function updateCommunityPostLocationStatus() {
+  const ui = ensureCommunityPostUi();
+  const text = ui.locationPreview?.querySelector(".community-post-location-preview-text");
+  const dot = ui.locationPreview?.querySelector(".community-post-location-dot");
+  if (!communityPostLocation) {
+    if (ui.locationStatus) {
+      ui.locationStatus.textContent = "場所を選択してください";
+    }
+    if (text) {
+      text.textContent = "場所を選択してください";
+    }
+    dot?.classList.remove("is-set");
+    updateCommunityPostSubmitState();
+    return;
+  }
+  const labels = {
+    current: "現在地",
+    vague: "曖昧な現在地",
+    map: "マップ指定",
+  };
+  const label = labels[communityPostLocation.mode] || "投稿場所";
+  const locationText = `${label}を設定済み`;
+  if (ui.locationStatus) {
+    ui.locationStatus.textContent = `${locationText}（${communityPostLocation.latitude.toFixed(5)}, ${communityPostLocation.longitude.toFixed(5)}）`;
+  }
+  if (text) {
+    text.textContent = locationText;
+  }
+  dot?.classList.add("is-set");
+  updateCommunityPostSubmitState();
+}
+
+COMMUNITY_POST_TAGS = [
+  { id: "weather", label: "気象" },
+  { id: "disaster", label: "災害" },
+  { id: "earthquake", label: "地震" },
+  { id: "safety", label: "防災" },
+];
+
+function loadCommunityAccountFromStorage() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(COMMUNITY_ACCOUNT_STORAGE_KEY) || "null");
+    if (parsed?.token && parsed?.name) {
+      return {
+        id: String(parsed.id || ""),
+        name: String(parsed.name || ""),
+        icon: String(parsed.icon || "🌐"),
+        token: String(parsed.token || ""),
+      };
+    }
+  } catch (error) {
+    console.warn("community account storage read failed", error);
+  }
+  return null;
+}
+
+function saveCommunityAccount(account) {
+  communityAccount = account?.token ? {
+    id: String(account.id || ""),
+    name: String(account.name || ""),
+    icon: String(account.icon || "🌐"),
+    token: String(account.token || ""),
+  } : null;
+  if (communityAccount) {
+    localStorage.setItem(COMMUNITY_ACCOUNT_STORAGE_KEY, JSON.stringify(communityAccount));
+  } else {
+    localStorage.removeItem(COMMUNITY_ACCOUNT_STORAGE_KEY);
+  }
+  updateCommunityAccountSettingsCard();
+  if (communityAccount && document.body.dataset.activeBottomTab === "bottom-history-tab") {
+    closeCommunityAccountRequiredPanel();
+    setCommunityMapModeActive(true);
+  }
+}
+
+function hasCommunityAccount() {
+  return Boolean(communityAccount?.token && communityAccount?.name);
+}
+
+function openCommunityAccountRequiredPanel() {
+  if (!communityAccountRequiredPanel) {
+    communityAccountRequiredPanel = document.createElement("section");
+    communityAccountRequiredPanel.id = "community-account-required";
+    communityAccountRequiredPanel.className = "community-account-required";
+    communityAccountRequiredPanel.innerHTML = `
+      <div class="community-account-required-card">
+        <div class="community-account-required-icon">＋</div>
+        <h2>アカウントを作成してください</h2>
+        <p>投稿を見る・投稿するにはアカウントが必要です。設定タブから名前、アイコン、パスワードを登録してください。</p>
+        <button type="button" id="community-account-required-settings">設定で作成する</button>
+      </div>
+    `;
+    communityAccountRequiredPanel.querySelector("#community-account-required-settings")?.addEventListener("click", () => {
+      document.querySelector("#bottom-settings-tab")?.click();
+    });
+    document.body.append(communityAccountRequiredPanel);
+  }
+  communityAccountRequiredPanel.classList.remove("hidden");
+}
+
+function closeCommunityAccountRequiredPanel() {
+  communityAccountRequiredPanel?.classList.add("hidden");
+}
+
+function ensureCommunityAccountSettingsCard() {
+  const list = els.settingsMenuSheet?.querySelector(".settings-menu-list");
+  if (!list) {
+    return null;
+  }
+  if (!communityAccountPanel) {
+    communityAccountPanel = document.createElement("section");
+    communityAccountPanel.id = "community-account-panel";
+    communityAccountPanel.className = "community-account-panel";
+    list.insertAdjacentElement("afterbegin", communityAccountPanel);
+  }
+  updateCommunityAccountSettingsCard();
+  return communityAccountPanel;
+}
+
+function updateCommunityAccountSettingsCard() {
+  if (!communityAccountPanel) {
+    return;
+  }
+  document.body.classList.toggle("community-admin-account", Boolean(communityAccount?.isAdmin));
+  document.body.classList.toggle("community-local-account", Boolean(communityAccount?.localOnly));
+  if (hasCommunityAccount()) {
+    communityAccountPanel.innerHTML = `
+      <div class="community-profile-card">
+        <div class="community-profile-icon">${escapeHtml(communityAccount.icon || "🌐")}</div>
+        <div class="community-profile-main">
+          <span>プロフィール</span>
+          <strong>${escapeHtml(communityAccount.name)}</strong>
+        </div>
+      </div>
+      <form class="community-account-edit-form">
+        <label>名前<input name="name" type="text" maxlength="32" value="${escapeHtml(communityAccount.name)}" /></label>
+        <label>アイコン<input name="icon" type="text" maxlength="8" value="${escapeHtml(communityAccount.icon || "🌐")}" /></label>
+        <button type="submit">プロフィールを更新</button>
+      </form>
+      <p class="community-account-note">投稿にはこのプロフィール名が表示されます。</p>
+    `;
+    communityAccountPanel.querySelector(".community-account-edit-form")?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      updateCommunityAccountProfile(event.currentTarget);
+    });
+    return;
+  }
+
+  communityAccountPanel.innerHTML = `
+    <div class="community-profile-card is-empty">
+      <div class="community-profile-icon">＋</div>
+      <div class="community-profile-main">
+        <span>プロフィール</span>
+        <strong>アカウント未作成</strong>
+      </div>
+    </div>
+    <form class="community-account-create-form">
+      <label>名前<input name="name" type="text" maxlength="32" autocomplete="username" placeholder="表示名" required /></label>
+      <label>アイコン<input name="icon" type="text" maxlength="8" placeholder="例: 🌦️" /></label>
+      <label>パスワード<input name="password" type="password" minlength="8" autocomplete="new-password" placeholder="8文字以上" required /></label>
+      <label class="community-account-confirm"><input name="confirm" type="checkbox" required /><span>パスワードは絶対に忘れてはいけません。</span></label>
+      <button type="submit">アカウント作成</button>
+    </form>
+    <form class="community-account-login-form">
+      <strong>作成済みアカウントでログイン</strong>
+      <label>名前<input name="name" type="text" maxlength="32" autocomplete="username" /></label>
+      <label>パスワード<input name="password" type="password" autocomplete="current-password" /></label>
+      <button type="submit">ログイン</button>
+    </form>
+    <p class="community-account-note">パスワードはサーバー側でハッシュ化して保存します。平文では保存しません。</p>
+  `;
+  communityAccountPanel.querySelector(".community-account-create-form")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    createCommunityAccountFromForm(event.currentTarget);
+  });
+  communityAccountPanel.querySelector(".community-account-login-form")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    loginCommunityAccountFromForm(event.currentTarget);
+  });
+}
+
+async function createCommunityAccountFromForm(form) {
+  const status = getCommunityAccountStatusElement();
+  const workerUrl = await getWorkerBaseUrl();
+  if (!workerUrl) {
+    status.textContent = "Workerが設定されていません。";
+    return;
+  }
+  const data = Object.fromEntries(new FormData(form).entries());
+  status.textContent = "アカウント作成中...";
+  try {
+    const response = await fetch(`${workerUrl}/community-accounts`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: data.name,
+        icon: data.icon,
+        password: data.password,
+      }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(body?.error || "アカウント作成に失敗しました。");
+    }
+    saveCommunityAccount(body.account);
+    status.textContent = "アカウントを作成しました。";
+    closeCommunityAccountRequiredPanel();
+  } catch (error) {
+    status.textContent = error?.message || "アカウント作成に失敗しました。";
+  }
+}
+
+async function loginCommunityAccountFromForm(form) {
+  const status = getCommunityAccountStatusElement();
+  const workerUrl = await getWorkerBaseUrl();
+  if (!workerUrl) {
+    status.textContent = "Workerが設定されていません。";
+    return;
+  }
+  const data = Object.fromEntries(new FormData(form).entries());
+  status.textContent = "ログイン中...";
+  try {
+    const response = await fetch(`${workerUrl}/community-accounts/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: data.name, password: data.password }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(body?.error || "ログインに失敗しました。");
+    }
+    saveCommunityAccount(body.account);
+    status.textContent = "ログインしました。";
+    closeCommunityAccountRequiredPanel();
+  } catch (error) {
+    status.textContent = error?.message || "ログインに失敗しました。";
+  }
+}
+
+async function updateCommunityAccountProfile(form) {
+  const status = getCommunityAccountStatusElement();
+  const workerUrl = await getWorkerBaseUrl();
+  if (!workerUrl || !hasCommunityAccount()) {
+    status.textContent = "アカウント情報を更新できません。";
+    return;
+  }
+  const data = Object.fromEntries(new FormData(form).entries());
+  status.textContent = "更新中...";
+  try {
+    const response = await fetch(`${workerUrl}/community-account`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${communityAccount.token}`,
+      },
+      body: JSON.stringify({ name: data.name, icon: data.icon }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(body?.error || "更新に失敗しました。");
+    }
+    saveCommunityAccount({ ...communityAccount, ...body.account, token: body.account?.token || communityAccount.token });
+    status.textContent = "プロフィールを更新しました。";
+  } catch (error) {
+    status.textContent = error?.message || "更新に失敗しました。";
+  }
+}
+
+function getCommunityAccountStatusElement() {
+  ensureCommunityAccountSettingsCard();
+  let status = communityAccountPanel?.querySelector(".community-account-status");
+  if (!status) {
+    status = document.createElement("p");
+    status.className = "community-account-status";
+    communityAccountPanel?.append(status);
+  }
+  return status;
+}
+
 function setPushNotificationStatus(message, options = {}) {
   if (els.notificationStatus) {
     els.notificationStatus.textContent = message;
@@ -4191,7 +5468,7 @@ function setupMobileSheets() {
       const deltaY = dragCurrentY - dragStartY;
       const viewportHeight = window.visualViewport?.height || window.innerHeight || 720;
       const minHeight = Math.min(viewportHeight * 0.26, 260);
-      const maxHeight = Math.min(viewportHeight * 0.58, 560);
+      const maxHeight = Math.min(viewportHeight * 0.72, 700);
       const nextHeight = clamp(dragStartHeight - deltaY, minHeight, maxHeight);
       panel.style.setProperty("--sheet-drag-height", `${nextHeight}px`);
     };
@@ -4587,6 +5864,12 @@ async function initEarthquakeMap() {
   });
 
   map.on("click", (event) => {
+    if (document.body.classList.contains("community-pick-mode")) {
+      event.originalEvent?.preventDefault?.();
+      setCommunityPostMapLocation(event.lngLat);
+      return;
+    }
+
     if (!state.epicenterEditEnabled) {
       return;
     }
@@ -6663,7 +7946,7 @@ function createAdminModeOverlay() {
       return;
     }
 
-    const token = localStorage.getItem(ADMIN_PARENT_TOKEN_KEY);
+    const token = communityAccount?.isAdmin ? "" : localStorage.getItem(ADMIN_PARENT_TOKEN_KEY);
     if (token) {
       setAdminParentActionPending(overlay, true);
       setAdminModeStatus(status, "解除中...");
@@ -6763,8 +8046,8 @@ function createAdminModeOverlay() {
       return;
     }
 
-    const token = localStorage.getItem(ADMIN_PARENT_TOKEN_KEY);
-    if (!token) {
+    const token = communityAccount?.isAdmin ? "" : localStorage.getItem(ADMIN_PARENT_TOKEN_KEY);
+    if (!token && !communityAccount?.isAdmin) {
       setAdminModeStatus(status, "先に親端末認証をしてください。", true);
       return;
     }
@@ -6835,8 +8118,7 @@ async function sendAdminNotification(overlay) {
   const tokenInput = overlay.querySelector("#admin-notification-token");
   const status = overlay.querySelector("#admin-notification-status");
   const button = overlay.querySelector("#admin-notification-send");
-  const isParentTerminal = Boolean(localStorage.getItem(ADMIN_PARENT_TOKEN_KEY));
-  const canSend = isLocalDevelopmentHost() || isParentTerminal;
+  const canSend = isLocalDevelopmentHost() || Boolean(communityAccount?.isAdmin);
 
   if (!canSend) {
     setAdminNotificationStatus(status, "Localサーバーまたは親端末でのみ送信できます。", true);
@@ -6920,19 +8202,22 @@ async function postParentAdminNotification(payload, tokenInput) {
   const config = await loadPushConfig();
   const workerUrl = config.workerUrl?.replace(/\/+$/, "");
   const token = String(tokenInput?.value || "").trim();
+  const accountAdminToken = communityAccount?.isAdmin && communityAccount?.token && !communityAccount.localOnly
+    ? communityAccount.token
+    : "";
 
   if (!workerUrl) {
     return { ok: false, message: "Cloudflare Worker URLが未設定です。" };
   }
 
-  if (!token) {
+  if (!token && !accountAdminToken) {
     return { ok: false, message: "通知送信用トークンを入力してください。" };
   }
 
   const response = await fetch(`${workerUrl}/notify`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${accountAdminToken || token}`,
       "Content-Type": "application/json; charset=utf-8",
     },
     body: JSON.stringify(payload),
@@ -6951,16 +8236,16 @@ function updateAdminNotificationControls(overlay) {
     return;
   }
 
-  const isParentTerminal = Boolean(localStorage.getItem(ADMIN_PARENT_TOKEN_KEY));
   const isLocalServer = isLocalDevelopmentHost();
+  const isAdminAccount = Boolean(communityAccount?.isAdmin);
   const panel = overlay.querySelector(".admin-notification-panel");
   const tokenField = overlay.querySelector(".admin-notification-token-field");
   const button = overlay.querySelector("#admin-notification-send");
   const pending = isAdminNotificationActionPending(overlay);
-  const canShowNotificationPanel = isLocalServer || isParentTerminal;
+  const canShowNotificationPanel = isLocalServer || isAdminAccount;
 
   panel?.classList.toggle("hidden", !canShowNotificationPanel);
-  tokenField?.classList.toggle("hidden", isLocalServer);
+  tokenField?.classList.toggle("hidden", isLocalServer || isAdminAccount);
   if (button) {
     button.disabled = pending || !canShowNotificationPanel;
     if (!pending) {
@@ -7047,12 +8332,13 @@ function updateAdminModeControls(overlay, maintenanceStatus = null) {
     return;
   }
 
-  const isParentTerminal = Boolean(localStorage.getItem(ADMIN_PARENT_TOKEN_KEY));
+  const isParentTerminal = Boolean(localStorage.getItem(ADMIN_PARENT_TOKEN_KEY)) || Boolean(communityAccount?.isAdmin);
+  const isAdminAccount = Boolean(communityAccount?.isAdmin);
   const passwordInput = overlay.querySelector("#admin-mode-password");
   const loginButton = overlay.querySelector(".admin-mode-login");
   const toggleButton = overlay.querySelector("#admin-maintenance-toggle");
   updateAdminNotificationControls(overlay);
-  if (isLocalDevelopmentHost()) {
+  if (isLocalDevelopmentHost() && !isAdminAccount) {
     if (passwordInput) {
       passwordInput.disabled = true;
     }
@@ -7228,7 +8514,7 @@ function updateParentTerminalBadge(badge, maintenanceStatus = latestMaintenanceS
     return;
   }
 
-  const isParentTerminal = Boolean(localStorage.getItem(ADMIN_PARENT_TOKEN_KEY));
+  const isParentTerminal = Boolean(localStorage.getItem(ADMIN_PARENT_TOKEN_KEY)) || Boolean(communityAccount?.isAdmin);
   badge.textContent = maintenanceStatus?.maintenance ? "親端末／メンテナンスモード" : "親端末";
   badge.classList.toggle("hidden", !isParentTerminal || isLocalDevelopmentHost());
 }
@@ -7359,9 +8645,13 @@ async function postMaintenanceAction(action, payload = {}) {
       return { ok: false, message: "Cloudflare Worker URLが未設定です。" };
     }
 
+    const headers = { "Content-Type": "application/json; charset=utf-8" };
+    if (communityAccount?.isAdmin && communityAccount?.token && !communityAccount.localOnly) {
+      headers.Authorization = `Bearer ${communityAccount.token}`;
+    }
     const response = await fetch(`${workerUrl}/maintenance-action`, {
       method: "POST",
-      headers: { "Content-Type": "application/json; charset=utf-8" },
+      headers,
       body: JSON.stringify({
         action,
         ...payload,
@@ -14202,3 +15492,493 @@ function setCompactHistoryTabLabel() {
 setCompactHistoryTabLabel();
 document.addEventListener("DOMContentLoaded", setCompactHistoryTabLabel);
 window.addEventListener("load", setCompactHistoryTabLabel);
+
+function setFinalToolTabLabels() {
+  document.querySelector("#bottom-history-tab span:last-child")?.replaceChildren("マップ");
+  document.querySelector("#bottom-info-tab span:last-child")?.replaceChildren("ツール");
+}
+
+setFinalToolTabLabels();
+document.addEventListener("DOMContentLoaded", setFinalToolTabLabels);
+window.addEventListener("load", setFinalToolTabLabels);
+
+function setFinalPostTabLabels() {
+  document.querySelector("#bottom-history-tab span:last-child")?.replaceChildren("投稿");
+  document.querySelector("#bottom-info-tab span:last-child")?.replaceChildren("ツール");
+}
+
+setFinalPostTabLabels();
+document.addEventListener("DOMContentLoaded", setFinalPostTabLabels);
+window.addEventListener("load", setFinalPostTabLabels);
+
+COMMUNITY_POST_TAGS = [
+  { id: "weather", label: "気象" },
+  { id: "disaster", label: "災害" },
+  { id: "earthquake", label: "地震" },
+  { id: "safety", label: "防災" },
+];
+
+function loadCommunityAccountFromStorage() {
+  if (IS_LOCAL_DEV) {
+    return {
+      id: "local-admin",
+      name: "Local 管理者",
+      icon: "",
+      token: "local-admin",
+      isAdmin: true,
+      localOnly: true,
+    };
+  }
+  try {
+    const parsed = JSON.parse(localStorage.getItem(COMMUNITY_ACCOUNT_STORAGE_KEY) || "null");
+    if (parsed?.token && parsed?.name) {
+      return {
+        id: String(parsed.id || ""),
+        name: String(parsed.name || ""),
+        icon: String(parsed.icon || ""),
+        token: String(parsed.token || ""),
+        isAdmin: Boolean(parsed.isAdmin),
+      };
+    }
+  } catch (error) {
+    console.warn("community account storage read failed", error);
+  }
+  return null;
+}
+
+function saveCommunityAccount(account) {
+  communityAccount = account?.token ? {
+    id: String(account.id || ""),
+    name: String(account.name || ""),
+    icon: String(account.icon || ""),
+    token: String(account.token || ""),
+    isAdmin: Boolean(account.isAdmin),
+    localOnly: Boolean(account.localOnly),
+  } : null;
+  if (communityAccount && !communityAccount.localOnly) {
+    localStorage.setItem(COMMUNITY_ACCOUNT_STORAGE_KEY, JSON.stringify(communityAccount));
+  } else if (!communityAccount) {
+    localStorage.removeItem(COMMUNITY_ACCOUNT_STORAGE_KEY);
+  }
+  document.body.classList.toggle("community-admin-account", Boolean(communityAccount?.isAdmin));
+  document.body.classList.toggle("community-local-account", Boolean(communityAccount?.localOnly));
+  updateCommunityAccountSettingsCard();
+  if (communityAccount && document.body.dataset.activeBottomTab === "bottom-history-tab") {
+    closeCommunityAccountRequiredPanel();
+    setCommunityMapModeActive(true);
+  }
+}
+
+function hasCommunityAccount() {
+  return Boolean(communityAccount?.token && communityAccount?.name);
+}
+
+function renderCommunityAccountIcon(account, className = "community-profile-icon") {
+  const icon = account?.icon || "";
+  if (icon.startsWith("data:image/")) {
+    return `<span class="${className}"><img src="${escapeHtml(icon)}" alt="" /></span>`;
+  }
+  const text = account?.localOnly ? "L" : "＋";
+  return `<span class="${className}">${escapeHtml(text)}</span>`;
+}
+
+function ensureCommunityAccountSettingsCard() {
+  const list = els.settingsMenuSheet?.querySelector(".settings-menu-list");
+  if (!list) {
+    return null;
+  }
+  if (!communityAccountPanel) {
+    communityAccountPanel = document.createElement("section");
+    communityAccountPanel.id = "community-account-panel";
+    communityAccountPanel.className = "community-account-panel";
+    list.insertAdjacentElement("afterbegin", communityAccountPanel);
+  }
+  updateCommunityAccountSettingsCard();
+  return communityAccountPanel;
+}
+
+function updateCommunityAccountSettingsCard() {
+  if (!communityAccountPanel) {
+    return;
+  }
+  if (hasCommunityAccount()) {
+    communityAccountPanel.innerHTML = `
+      <div class="community-profile-card">
+        ${renderCommunityAccountIcon(communityAccount)}
+        <div class="community-profile-main">
+          <span>プロフィール</span>
+          <strong>${escapeHtml(communityAccount.name)}</strong>
+          ${communityAccount.isAdmin ? `<em>管理者アカウント</em>` : ""}
+        </div>
+      </div>
+      <div class="community-account-button-row">
+        <button type="button" data-community-account-screen="name">名前を編集</button>
+        <button type="button" data-community-account-screen="icon">アイコンを編集</button>
+      </div>
+      ${communityAccount.isAdmin ? `<button class="community-account-wide-button" type="button" data-community-account-screen="accounts">アカウント情報</button>` : ""}
+      <div class="community-account-danger-actions">
+        <button type="button" data-community-account-action="logout">ログアウト</button>
+        ${communityAccount.localOnly ? "" : `<button type="button" data-community-account-action="delete">アカウント削除</button>`}
+      </div>
+      <p class="community-account-status" aria-live="polite"></p>
+    `;
+  } else {
+    communityAccountPanel.innerHTML = `
+      <div class="community-profile-card is-empty">
+        ${renderCommunityAccountIcon(null)}
+        <div class="community-profile-main">
+          <span>プロフィール</span>
+          <strong>アカウント未作成</strong>
+        </div>
+      </div>
+      <p class="community-account-note">アカウント名は投稿時にほかの人からも見えます。</p>
+      <div class="community-account-button-row">
+        <button type="button" data-community-account-screen="login">ログイン</button>
+        <button type="button" data-community-account-screen="create">アカウント作成</button>
+      </div>
+      <p class="community-account-status" aria-live="polite"></p>
+    `;
+  }
+  if (hasCommunityAccount()) {
+    const profileMain = communityAccountPanel.querySelector(".community-profile-main");
+    if (profileMain) {
+      let typeLabel = profileMain.querySelector("em");
+      if (!typeLabel) {
+        typeLabel = document.createElement("em");
+        profileMain.append(typeLabel);
+      }
+      typeLabel.textContent = communityAccount.isAdmin ? "管理者アカウント" : "一般アカウント";
+    }
+    const nameButton = communityAccountPanel.querySelector('[data-community-account-screen="name"]');
+    const logoutButton = communityAccountPanel.querySelector('[data-community-account-action="logout"]');
+    if (nameButton) {
+      nameButton.textContent = "名前を編集";
+      nameButton.disabled = Boolean(communityAccount.localOnly);
+      nameButton.classList.toggle("is-disabled", Boolean(communityAccount.localOnly));
+    }
+    const iconButton = communityAccountPanel.querySelector('[data-community-account-screen="icon"]');
+    if (iconButton) {
+      iconButton.textContent = "アイコンを編集";
+    }
+    const accountsButton = communityAccountPanel.querySelector('[data-community-account-screen="accounts"]');
+    if (accountsButton) {
+      accountsButton.textContent = "アカウント情報";
+    }
+    if (logoutButton) {
+      logoutButton.textContent = "ログアウト";
+      logoutButton.disabled = Boolean(communityAccount.localOnly);
+      logoutButton.classList.toggle("is-disabled", Boolean(communityAccount.localOnly));
+    }
+    const deleteButton = communityAccountPanel.querySelector('[data-community-account-action="delete"]');
+    if (deleteButton) {
+      deleteButton.textContent = "アカウント削除";
+    }
+  }
+  communityAccountPanel.querySelectorAll("[data-community-account-screen]").forEach((button) => {
+    button.addEventListener("click", () => openCommunityAccountScreen(button.dataset.communityAccountScreen));
+  });
+  communityAccountPanel.querySelector('[data-community-account-action="logout"]')?.addEventListener("click", () => logoutCommunityAccount());
+  communityAccountPanel.querySelector('[data-community-account-action="delete"]')?.addEventListener("click", () => deleteCommunityAccountWithConfirm());
+}
+
+function openCommunityAccountScreen(type) {
+  const sheet = els.settingsMenuSheet;
+  if (!sheet) {
+    return;
+  }
+  let screen = sheet.querySelector("#community-account-screen");
+  if (!screen) {
+    screen = document.createElement("section");
+    screen.id = "community-account-screen";
+    screen.className = "community-account-screen hidden";
+    sheet.append(screen);
+  }
+  const content = getCommunityAccountScreenHtml(type);
+  screen.innerHTML = `
+    <button class="community-account-screen-back" type="button" aria-label="戻る">‹</button>
+    ${content}
+    <p class="community-account-screen-status" aria-live="polite"></p>
+  `;
+  screen.classList.remove("hidden");
+  screen.querySelector(".community-account-screen-back")?.addEventListener("click", closeCommunityAccountScreen);
+  bindCommunityAccountScreen(type, screen);
+}
+
+function closeCommunityAccountScreen() {
+  els.settingsMenuSheet?.querySelector("#community-account-screen")?.classList.add("hidden");
+}
+
+function getCommunityAccountScreenHtml(type) {
+  if (type === "login") {
+    return `
+      <h2>ログイン</h2>
+      <form class="community-account-screen-form" data-community-account-form="login">
+        <label>名前<input name="name" type="text" maxlength="32" autocomplete="username" required /></label>
+        <label>パスワード<input name="password" type="password" autocomplete="current-password" required /></label>
+        <button type="submit">ログイン</button>
+      </form>
+    `;
+  }
+  if (type === "create") {
+    return `
+      <h2>アカウント作成</h2>
+      <p class="community-account-note">アカウント名は投稿時にほかの人からも見えます。パスワードは英大文字・小文字・数字のみ使用できます。パスワードは絶対に忘れないでください。</p>
+      <form class="community-account-screen-form" data-community-account-form="create">
+        <label>名前<input name="name" type="text" maxlength="32" autocomplete="username" required /></label>
+        <label>パスワード<input name="password" type="password" minlength="6" maxlength="64" pattern="[A-Za-z0-9]{6,64}" autocomplete="new-password" required /></label>
+        <label class="community-account-confirm"><input name="confirm" type="checkbox" required /><span>パスワードを忘れるとログインできません。</span></label>
+        <button type="submit">作成する</button>
+      </form>
+    `;
+  }
+  if (type === "name") {
+    return `
+      <h2>名前を編集</h2>
+      <p class="community-account-note">名前は投稿時にほかの人からも見えます。</p>
+      <form class="community-account-screen-form" data-community-account-form="name">
+        <label>名前<input name="name" type="text" maxlength="32" value="${escapeHtml(communityAccount?.name || "")}" required /></label>
+        <button type="submit">保存</button>
+      </form>
+    `;
+  }
+  if (type === "icon") {
+    return `
+      <h2>アイコンを編集</h2>
+      <form class="community-account-screen-form" data-community-account-form="icon">
+        <label class="community-icon-picker">PNG / JPEGを選択<input name="icon" type="file" accept="image/png,image/jpeg" required /></label>
+        <div class="community-icon-preview" id="community-icon-preview">${communityAccount?.icon ? `<img src="${escapeHtml(communityAccount.icon)}" alt="アイコンプレビュー" />` : "プレビュー"}</div>
+        <button type="submit">保存</button>
+      </form>
+    `;
+  }
+  return `
+    <h2>アカウント情報</h2>
+    <div class="community-account-list" id="community-account-list">読み込み中...</div>
+  `;
+}
+
+function bindCommunityAccountScreen(type, screen) {
+  const form = screen.querySelector(".community-account-screen-form");
+  if (form) {
+    if (type === "icon") {
+      form.querySelector('input[name="icon"]')?.addEventListener("change", async (event) => {
+        const preview = form.querySelector("#community-icon-preview");
+        const file = event.target.files?.[0];
+        if (!preview || !file) {
+          return;
+        }
+        if (!["image/png", "image/jpeg"].includes(file.type)) {
+          preview.textContent = "PNG / JPEGのみ";
+          return;
+        }
+        try {
+          const dataUrl = await compressIconFileToDataUrl(file);
+          preview.innerHTML = `<img src="${escapeHtml(dataUrl)}" alt="アイコンプレビュー" />`;
+          preview.dataset.iconDataUrl = dataUrl;
+        } catch {
+          preview.textContent = "プレビューできませんでした";
+        }
+      });
+    }
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (type === "create") {
+        await createCommunityAccountFromForm(form);
+      } else if (type === "login") {
+        await loginCommunityAccountFromForm(form);
+      } else if (type === "name") {
+        await updateCommunityAccountProfile(form);
+      } else if (type === "icon") {
+        await updateCommunityAccountIcon(form);
+      }
+    });
+  }
+  if (type === "accounts") {
+    loadCommunityAccountList(screen);
+  }
+}
+
+async function createCommunityAccountFromForm(form) {
+  const status = getCommunityAccountScreenStatus();
+  const workerUrl = await getWorkerBaseUrl();
+  const data = Object.fromEntries(new FormData(form).entries());
+  status.textContent = "作成中...";
+  try {
+    const response = await fetch(`${workerUrl}/community-accounts`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: data.name, password: data.password, icon: "" }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(body?.error || "アカウント作成に失敗しました。");
+    }
+    saveCommunityAccount(body.account);
+    status.textContent = "作成しました。";
+    closeCommunityAccountScreen();
+  } catch (error) {
+    status.textContent = error?.message || "アカウント作成に失敗しました。";
+  }
+}
+
+async function loginCommunityAccountFromForm(form) {
+  const status = getCommunityAccountScreenStatus();
+  const workerUrl = await getWorkerBaseUrl();
+  const data = Object.fromEntries(new FormData(form).entries());
+  status.textContent = "ログイン中...";
+  try {
+    const response = await fetch(`${workerUrl}/community-accounts/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: data.name, password: data.password }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(body?.error || "ログインに失敗しました。");
+    }
+    saveCommunityAccount(body.account);
+    status.textContent = "ログインしました。";
+    closeCommunityAccountScreen();
+  } catch (error) {
+    status.textContent = error?.message || "ログインに失敗しました。";
+  }
+}
+
+async function updateCommunityAccountProfile(form) {
+  const status = getCommunityAccountScreenStatus();
+  const data = Object.fromEntries(new FormData(form).entries());
+  await updateCommunityAccountRequest({ name: data.name }, status);
+}
+
+async function updateCommunityAccountIcon(form) {
+  const status = getCommunityAccountScreenStatus();
+  const file = new FormData(form).get("icon");
+  if (!(file instanceof File) || !["image/png", "image/jpeg"].includes(file.type)) {
+    status.textContent = "PNG / JPEG画像を選択してください。";
+    return;
+  }
+  const previewDataUrl = form.querySelector("#community-icon-preview")?.dataset.iconDataUrl;
+  await updateCommunityAccountRequest({ icon: previewDataUrl || await compressIconFileToDataUrl(file) }, status);
+}
+
+function compressIconFileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const url = URL.createObjectURL(file);
+    image.onload = () => {
+      URL.revokeObjectURL(url);
+      const size = 96;
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      const context = canvas.getContext("2d");
+      if (!context) {
+        reject(new Error("canvas unavailable"));
+        return;
+      }
+      const scale = Math.max(size / image.width, size / image.height);
+      const width = image.width * scale;
+      const height = image.height * scale;
+      context.drawImage(image, (size - width) / 2, (size - height) / 2, width, height);
+      resolve(canvas.toDataURL(file.type === "image/png" ? "image/png" : "image/jpeg", 0.86));
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("image load failed"));
+    };
+    image.src = url;
+  });
+}
+
+async function updateCommunityAccountRequest(patch, status) {
+  const workerUrl = await getWorkerBaseUrl();
+  status.textContent = "保存中...";
+  try {
+    const response = await fetch(`${workerUrl}/community-account`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${communityAccount.token}`,
+      },
+      body: JSON.stringify(patch),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(body?.error || "保存に失敗しました。");
+    }
+    saveCommunityAccount({ ...communityAccount, ...body.account, token: body.account?.token || communityAccount.token });
+    status.textContent = "保存しました。";
+    closeCommunityAccountScreen();
+  } catch (error) {
+    status.textContent = error?.message || "保存に失敗しました。";
+  }
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+function getCommunityAccountScreenStatus() {
+  return els.settingsMenuSheet?.querySelector(".community-account-screen-status") || getCommunityAccountStatusElement();
+}
+
+async function logoutCommunityAccount() {
+  if (!window.confirm("ログアウトしますか？")) {
+    return;
+  }
+  const workerUrl = await getWorkerBaseUrl();
+  if (workerUrl && communityAccount?.token && !communityAccount.localOnly) {
+    await fetch(`${workerUrl}/community-session`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${communityAccount.token}` },
+    }).catch(() => {});
+  }
+  saveCommunityAccount(null);
+}
+
+async function deleteCommunityAccountWithConfirm() {
+  if (!window.confirm("アカウントを削除しますか？投稿内容は削除されません。")) {
+    return;
+  }
+  const workerUrl = await getWorkerBaseUrl();
+  if (workerUrl && communityAccount?.token) {
+    await fetch(`${workerUrl}/community-account`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${communityAccount.token}` },
+    }).catch(() => {});
+  }
+  saveCommunityAccount(null);
+}
+
+async function loadCommunityAccountList(screen) {
+  const list = screen.querySelector("#community-account-list");
+  const workerUrl = await getWorkerBaseUrl();
+  try {
+    if (communityAccount?.localOnly) {
+      list.innerHTML = `<article class="community-account-list-item"><strong>Local 管理者</strong><span>ログイン端末数: 1</span><em>管理者</em></article>`;
+      return;
+    }
+    const response = await fetch(`${workerUrl}/community-accounts`, {
+      headers: { Authorization: `Bearer ${communityAccount.token}` },
+      cache: "no-store",
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(body?.error || "読み込みに失敗しました。");
+    }
+    list.innerHTML = (body.accounts || []).map((account) => `
+      <article class="community-account-list-item">
+        <strong>${escapeHtml(account.name)}</strong>
+        <span>ログイン端末数: ${Number(account.sessionCount || 0).toLocaleString("ja-JP")}</span>
+        ${account.isAdmin ? "<em>管理者</em>" : ""}
+      </article>
+    `).join("") || "アカウントがありません。";
+  } catch (error) {
+    list.textContent = error?.message || "読み込みに失敗しました。";
+  }
+}
