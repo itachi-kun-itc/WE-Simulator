@@ -2748,6 +2748,42 @@ body.community-map-mode #map::after {
   bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) - 12px) !important;
 }
 
+.maintenance-mode-badge,
+.local-server-badge,
+.parent-terminal-badge {
+  display: none !important;
+}
+
+/* Community post dots: keep them tiny and flat so many posts can accumulate. */
+.community-post-marker {
+  width: 14px !important;
+  height: 14px !important;
+  min-width: 14px !important;
+  min-height: 14px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  background: #2ea7ff !important;
+  box-shadow: none !important;
+  opacity: 0.95 !important;
+}
+
+.community-post-marker[data-community-tag="weather"] {
+  background: #2ea7ff !important;
+}
+
+.community-post-marker[data-community-tag="disaster"] {
+  background: #ff304f !important;
+}
+
+.community-post-marker[data-community-tag="earthquake"] {
+  background: #34d06f !important;
+}
+
+.community-post-marker[data-community-tag="safety"] {
+  background: #ffd84a !important;
+}
+
 #history-full-panel .history-stats-sort-row {
   grid-template-columns: auto minmax(0, 1fr) 14px minmax(0, 1fr) 58px !important;
   column-gap: 6px !important;
@@ -10671,6 +10707,35 @@ body .source-info-button::after {
   min-width: 0 !important;
   display: grid !important;
   gap: 7px !important;
+}
+
+#settings-push-history-panel.settings-detail-panel {
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr) !important;
+  padding-bottom: 0 !important;
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+}
+
+#settings-push-history-panel.settings-detail-panel > .push-confirm-panel[data-push-panel="history"] {
+  display: grid !important;
+  grid-template-rows: minmax(0, 1fr) !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin-top: 0 !important;
+  padding-bottom: 0 !important;
+  overflow: hidden !important;
+}
+
+#settings-push-history-panel.settings-detail-panel .push-history-list {
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+  padding-bottom: calc(14px + env(safe-area-inset-bottom)) !important;
 }
 
 .settings-detail-panel .push-history-heading {

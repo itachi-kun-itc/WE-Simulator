@@ -5970,19 +5970,14 @@ function setupGlobalOverlays() {
   }
 
   const maintenanceOverlay = createMaintenanceModeOverlay();
-  const maintenanceBadge = createMaintenanceModeBadge();
-  const localServerBadge = createLocalServerBadge();
-  const parentTerminalBadge = createParentTerminalBadge();
+  const maintenanceBadge = null;
+  const localServerBadge = null;
+  const parentTerminalBadge = null;
   const feedbackOverlay = createFeedbackOverlay();
   document.body.append(
     feedbackOverlay,
     maintenanceOverlay,
-    maintenanceBadge,
-    localServerBadge,
-    parentTerminalBadge,
   );
-  setupLocalServerBadge(localServerBadge);
-  setupParentTerminalBadge(parentTerminalBadge);
   setupMaintenanceMode(maintenanceOverlay, maintenanceBadge);
 
   const adminOverlay = createAdminModeOverlay();
@@ -7889,14 +7884,9 @@ function createAdminModeOverlay() {
   overlay.setAttribute("aria-label", "管理者モード");
   overlay.innerHTML = `
     <button class="source-info-close" type="button" aria-label="管理者モードを閉じる">×</button>
-    <form class="admin-mode-dialog" id="admin-mode-form">
+    <div class="admin-mode-dialog" id="admin-mode-form">
       <h2>管理者モード</h2>
-      <label class="admin-mode-field">
-        <span>パスワード</span>
-        <input id="admin-mode-password" type="password" autocomplete="current-password" />
-      </label>
       <div class="admin-mode-actions">
-        <button class="admin-mode-login" type="submit">親端末に設定</button>
         <button class="admin-mode-maintenance" id="admin-maintenance-toggle" type="button" disabled>メンテナンスモード</button>
       </div>
       <section class="admin-notification-panel" aria-label="通知送信">
@@ -7917,7 +7907,7 @@ function createAdminModeOverlay() {
         <p class="admin-notification-status" id="admin-notification-status" role="status" aria-live="polite"></p>
       </section>
       <p class="admin-mode-status" id="admin-mode-status" role="status" aria-live="polite"></p>
-    </form>
+    </div>
   `;
 
   const closeButton = overlay.querySelector(".source-info-close");
@@ -8535,7 +8525,7 @@ function updateMaintenanceStateIndicators(overlay, badge, status) {
     maintenance: Boolean(status?.maintenance),
     reason: extractMaintenanceReason(status),
   };
-  const isParentTerminal = Boolean(localStorage.getItem(ADMIN_PARENT_TOKEN_KEY));
+  const isParentTerminal = Boolean(localStorage.getItem(ADMIN_PARENT_TOKEN_KEY)) || Boolean(communityAccount?.isAdmin);
   const isLocalServer = isLocalDevelopmentHost();
   const isMaintenanceExemptTerminal = isParentTerminal || isLocalServer;
   document.body.classList.toggle(
