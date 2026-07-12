@@ -29,6 +29,7 @@ const FEEDBACK_SHEET_URL =
 const FEEDBACK_ENDPOINT_URL =
   "https://script.google.com/macros/s/AKfycbztrmCH_ukdLtY6xUKNSZQWShY0ziCT_8HMm7QI-qtSFRviETHw_APJJhyV50hSRvMy3A/exec";
 const PUSH_CONFIG_URL = "./push-config.json";
+const EARTHQUAKE_STATISTICS_FALLBACK_URL = "./data/earthquake_statistics.json";
 const ADMIN_PARENT_TOKEN_KEY = "weather-earthquake-admin-parent-token";
 const NOTIFICATION_HISTORY_READ_IDS_KEY = "weather-earthquake-notification-history-read-ids";
 const NOTIFICATION_HISTORY_DB_NAME = "we-simulator-notification-history";
@@ -47,6 +48,8 @@ const LEGACY_NOTIFICATION_HISTORY_ITEMS = [
   },
 ];
 const MAINTENANCE_STATUS_POLL_MS = 60000;
+const APPEARANCE_THEME_KEY = "weather-earthquake-appearance-theme";
+const DEFAULT_APPEARANCE_THEME = "dark";
 const LOCAL_PARENT_UNAVAILABLE_LABEL = "Localサーバーでは\n親端末に設定できません";
 
 const INITIAL_CENTER = [139.767, 35.681];
@@ -56,13 +59,31 @@ const MOBILE_INITIAL_ZOOM = 6;
 const MAP_PAN_BOUNDS = [[85, -25], [180, 75]];
 const BASE_MAP_MIN_ZOOM = 3.5;
 const MAP_CONSTRAINT_TILE_SIZE = 512;
-const STATION_LABEL_ALL_VISIBLE_MIN_ZOOM = 8.8;
+const STATION_LABEL_ALL_VISIBLE_MIN_ZOOM = 7.8;
 const STATION_CANVAS_PIXEL_RATIO_LIMIT = 2.5;
 const EXCLUDED_JAPAN_LAND_BOUNDS = [
   { west: 131.75, south: 37.15, east: 131.95, north: 37.35 },
   { west: 123.2, south: 25.5, east: 124.8, north: 26.3 },
 ];
 const EXCLUDED_TERRITORY_CODES = new Set(["01695", "01696", "01697", "01698", "01699", "01700"]);
+const PREFECTURE_CENTROIDS = [
+  ["北海道", 43.064, 141.347], ["青森県", 40.824, 140.740], ["岩手県", 39.703, 141.152],
+  ["宮城県", 38.268, 140.872], ["秋田県", 39.718, 140.103], ["山形県", 38.240, 140.363],
+  ["福島県", 37.750, 140.467], ["茨城県", 36.342, 140.447], ["栃木県", 36.566, 139.884],
+  ["群馬県", 36.391, 139.061], ["埼玉県", 35.857, 139.649], ["千葉県", 35.605, 140.123],
+  ["東京都", 35.690, 139.692], ["神奈川県", 35.448, 139.643], ["新潟県", 37.902, 139.023],
+  ["富山県", 36.695, 137.211], ["石川県", 36.594, 136.626], ["福井県", 36.066, 136.222],
+  ["山梨県", 35.664, 138.568], ["長野県", 36.652, 138.181], ["岐阜県", 35.391, 136.722],
+  ["静岡県", 34.977, 138.383], ["愛知県", 35.180, 136.907], ["三重県", 34.730, 136.509],
+  ["滋賀県", 35.004, 135.868], ["京都府", 35.021, 135.756], ["大阪府", 34.686, 135.520],
+  ["兵庫県", 34.691, 135.183], ["奈良県", 34.685, 135.833], ["和歌山県", 34.226, 135.168],
+  ["鳥取県", 35.504, 134.238], ["島根県", 35.472, 133.051], ["岡山県", 34.662, 133.934],
+  ["広島県", 34.396, 132.459], ["山口県", 34.186, 131.471], ["徳島県", 34.066, 134.559],
+  ["香川県", 34.340, 134.043], ["愛媛県", 33.842, 132.766], ["高知県", 33.559, 133.531],
+  ["福岡県", 33.607, 130.418], ["佐賀県", 33.249, 130.298], ["長崎県", 32.745, 129.874],
+  ["熊本県", 32.790, 130.742], ["大分県", 33.238, 131.613], ["宮崎県", 31.911, 131.424],
+  ["鹿児島県", 31.560, 130.558], ["沖縄県", 26.212, 127.681],
+];
 const NORTHERN_TERRITORIES_BOUNDS = [
   { west: 145.15, south: 43.1, east: 149.1, north: 45.7 },
 ];
@@ -403,6 +424,12 @@ const els = {
   settingsFeedbackPanel: document.querySelector("#settings-feedback-panel"),
   settingsPushPanel: document.querySelector("#settings-push-panel"),
   settingsPushHistoryPanel: document.querySelector("#settings-push-history-panel"),
+  settingsAppearanceButton: document.querySelector("#settings-appearance-button"),
+  settingsAppearancePanel: document.querySelector("#settings-appearance-panel"),
+  settingsLocationStatus: document.querySelector("#settings-location-status"),
+  historyFullPanel: document.querySelector("#history-full-panel"),
+  historyAreaFilter: document.querySelector("#history-area-filter"),
+  historyStatsList: document.querySelector("#history-stats-list"),
   infoFullPanel: document.querySelector("#info-full-panel"),
   learningFullPanel: document.querySelector("#learning-full-panel"),
   intensityColorScheme: document.querySelector("#intensity-color-scheme"),
@@ -555,6 +582,17 @@ let areaEpicentralDistanceCache = {
   distances: [],
 };
 let stationSummaryCache = { data: null, summary: null };
+let pastEarthquakeAreaStatsCache = { signature: "", rows: [] };
+let selectedHistoryLocalAreaName = "";
+let historyMapEventsBound = false;
+let earthquakeStatisticsData = null;
+let earthquakeStatisticsLoadPromise = null;
+let earthquakeStatisticsLoadKey = "";
+let earthquakeStatisticsAbortController = null;
+let earthquakeStatisticsRange = { startYear: "2026", endYear: "2026" };
+let earthquakeStatisticsLoading = false;
+let selectedStationInfoRegion = "";
+let stationInfoAffiliationFilter = "";
 let observedStationFeatureCache = { data: null, features: [] };
 let speechAnnouncementState = createSpeechAnnouncementState();
 let postMunicipalityDataScheduled = false;
@@ -656,6 +694,12 @@ setStartupInteractionLocked(true);
 setInitialSimulationStartLoadingState();
 bindSimulationControls();
 applyIntensityColorScheme(state.intensityColorScheme, { refreshLayers: false });
+applyAppearanceTheme();
+window.matchMedia?.("(prefers-color-scheme: dark)")?.addEventListener?.("change", () => {
+  if (getAppearanceTheme() === "system") {
+    applyAppearanceTheme("system");
+  }
+});
 setupMobileSheets();
 setupTransientPanelScrollbars();
 setupPanelScrollbarOffsets();
@@ -776,17 +820,714 @@ function setInitialSimulationStartLoadingState() {
 }
 
 function setupTabs() {
+  const ensureSettingsStatusCards = () => {
+    const list = els.settingsMenuSheet?.querySelector(".settings-menu-list");
+    const notificationCard = els.settingsMenuSheet?.querySelector(".settings-notification-card");
+    if (!list || !notificationCard) {
+      return;
+    }
+
+    notificationCard.classList.add("settings-status-card");
+    let group = els.settingsMenuSheet.querySelector(".settings-status-group");
+    if (!group) {
+      group = document.createElement("section");
+      group.className = "settings-status-group";
+      notificationCard.insertAdjacentElement("beforebegin", group);
+      group.append(notificationCard);
+    } else if (!group.contains(notificationCard)) {
+      group.append(notificationCard);
+    }
+
+    notificationCard.querySelector(".settings-notification-row span")?.replaceChildren("現在の通知");
+    els.settingsPushToggle?.remove();
+
+    if (!els.settingsLocationStatus) {
+      const locationCard = document.createElement("section");
+      locationCard.className = "settings-notification-card settings-status-card settings-location-card";
+      locationCard.setAttribute("aria-label", "位置情報");
+      locationCard.innerHTML = `
+        <div class="settings-notification-row">
+          <span>位置情報</span>
+          <strong id="settings-location-status">OFF</strong>
+        </div>
+      `;
+      notificationCard.insertAdjacentElement("afterend", locationCard);
+      els.settingsLocationStatus = locationCard.querySelector("#settings-location-status");
+    }
+  };
+
+  const ensureSettingsAppearanceElements = () => {
+    if (!els.settingsAppearanceButton && els.settingsPushButton) {
+      els.settingsAppearanceButton = document.createElement("button");
+      els.settingsAppearanceButton.className = "settings-menu-row";
+      els.settingsAppearanceButton.id = "settings-appearance-button";
+      els.settingsAppearanceButton.type = "button";
+      els.settingsAppearanceButton.innerHTML = `<span>外観</span><span aria-hidden="true">›</span>`;
+      els.settingsPushButton.insertAdjacentElement("afterend", els.settingsAppearanceButton);
+    }
+    if (!els.settingsAppearancePanel && els.settingsPushPanel) {
+      els.settingsAppearancePanel = document.createElement("section");
+      els.settingsAppearancePanel.className = "settings-inline-panel hidden";
+      els.settingsAppearancePanel.id = "settings-appearance-panel";
+      els.settingsAppearancePanel.setAttribute("aria-label", "外観");
+      els.settingsPushPanel.insertAdjacentElement("afterend", els.settingsAppearancePanel);
+    }
+  };
+
+  const ensureSettingsAppearancePanel = () => {
+    ensureSettingsAppearanceElements();
+    if (!els.settingsAppearancePanel || els.settingsAppearancePanel.dataset.ready === "true") {
+      return;
+    }
+
+    const colorField = els.intensityColorScheme?.closest(".field");
+    const colorFieldHost = document.createElement("div");
+    colorFieldHost.className = "settings-appearance-color-host";
+    if (colorField) {
+      colorFieldHost.append(colorField);
+    }
+
+    els.settingsAppearancePanel.replaceChildren();
+    els.settingsAppearancePanel.insertAdjacentHTML("beforeend", `
+      <section class="settings-appearance-section">
+        <h4>表示テーマ</h4>
+        <div class="settings-theme-options" role="radiogroup" aria-label="表示テーマ">
+          <label><input type="radio" name="appearance-theme" value="system" /> <span>システムに従う</span></label>
+          <label><input type="radio" name="appearance-theme" value="light" /> <span>ライトモード</span></label>
+          <label><input type="radio" name="appearance-theme" value="dark" /> <span>ダークモード</span></label>
+        </div>
+      </section>
+      <section class="settings-appearance-section settings-appearance-color-section">
+        <h4>震度配色</h4>
+      </section>
+    `);
+    const appearanceHeadings = els.settingsAppearancePanel.querySelectorAll(".settings-appearance-section h4");
+    if (appearanceHeadings[0]) {
+      appearanceHeadings[0].textContent = "表示テーマ";
+    }
+    if (appearanceHeadings[1]) {
+      appearanceHeadings[1].textContent = "震度配色";
+    }
+    const themeLabels = els.settingsAppearancePanel.querySelectorAll(".settings-theme-options label span");
+    ["システムに従う", "ライトモード", "ダークモード"].forEach((label, index) => {
+      if (themeLabels[index]) {
+        themeLabels[index].textContent = label;
+      }
+    });
+    els.settingsAppearancePanel.querySelector(".settings-appearance-color-section")?.append(colorFieldHost);
+    els.settingsAppearancePanel.querySelectorAll('input[name="appearance-theme"]').forEach((input) => {
+      input.checked = input.value === getAppearanceTheme();
+      input.addEventListener("change", () => {
+        if (input.checked) {
+          setAppearanceTheme(input.value);
+        }
+      });
+    });
+    els.settingsAppearancePanel.dataset.ready = "true";
+  };
+
+  const ensureHistoryFullPanel = () => {
+    if (els.historyFullPanel) {
+      return els.historyFullPanel;
+    }
+
+    const panel = document.createElement("section");
+    panel.className = "nerv-full-panel hidden history-full-panel";
+    panel.id = "history-full-panel";
+    panel.setAttribute("aria-label", "過去の地震");
+    panel.innerHTML = `
+      <div class="history-stats-toolbar">
+        <input id="history-area-filter" type="search" inputmode="search" autocomplete="off" list="history-area-suggestions" placeholder="細分区域・震源地を検索" aria-label="過去の地震回数を検索" />
+        <datalist id="history-area-suggestions"></datalist>
+      </div>
+      <div class="history-stats-list" id="history-stats-list" role="list"></div>
+    `;
+    els.settingsMenuSheet?.insertAdjacentElement("beforebegin", panel);
+    els.historyFullPanel = panel;
+    els.historyAreaFilter = panel.querySelector("#history-area-filter");
+    els.historyStatsList = panel.querySelector("#history-stats-list");
+    setupHistoryStatisticsControls(panel);
+    els.historyAreaFilter?.addEventListener("input", () => renderPastEarthquakeStatsPanel());
+    return panel;
+  };
+
+  const setupHistoryStatisticsControls = (panel) => {
+    const toolbar = panel?.querySelector(".history-stats-toolbar");
+    if (!toolbar || toolbar.querySelector(".history-stats-sort-row")) {
+      return;
+    }
+    const row = document.createElement("div");
+    row.className = "history-stats-sort-row";
+    row.innerHTML = `
+      <label><span>期間</span><select id="history-start-year" aria-label="開始年"></select></label>
+      <span aria-hidden="true">〜</span>
+      <label><select id="history-end-year" aria-label="終了年"></select></label>
+      <button id="history-statistics-load" type="button">取得</button>
+    `;
+    toolbar.append(row);
+    const startSelect = row.querySelector("#history-start-year");
+    const endSelect = row.querySelector("#history-end-year");
+    const currentYear = new Date().getFullYear();
+    const options = Array.from({ length: currentYear - 1900 + 1 }, (_, index) => {
+      const year = currentYear - index;
+      return `<option value="${year}">${year}年</option>`;
+    }).join("");
+    startSelect.innerHTML = options;
+    endSelect.innerHTML = options;
+    startSelect.value = earthquakeStatisticsRange.startYear;
+    endSelect.value = earthquakeStatisticsRange.endYear;
+    row.querySelector("#history-statistics-load")?.addEventListener("click", async () => {
+      const startYear = Number(startSelect.value);
+      const endYear = Number(endSelect.value);
+      if (Math.abs(endYear - startYear) + 1 >= 5) {
+        const confirmed = await confirmLargeStatisticsFetch(startYear, endYear);
+        if (!confirmed) {
+          return;
+        }
+      }
+      earthquakeStatisticsRange = {
+        startYear: startSelect.value,
+        endYear: endSelect.value,
+      };
+      pastEarthquakeAreaStatsCache = { signature: "", rows: [] };
+      earthquakeStatisticsLoading = true;
+      renderPastEarthquakeStatsPanel();
+      try {
+        await loadEarthquakeStatistics({ force: true });
+      } catch (error) {
+        if (error?.name !== "AbortError") {
+          throw error;
+        }
+      } finally {
+        earthquakeStatisticsLoading = false;
+        if (map?.getSource("jma-local-areas")) {
+          setGeoJsonSourceData("jma-local-areas", buildHistoryLocalAreaMapData());
+        }
+        renderPastEarthquakeStatsPanel();
+      }
+    });
+  };
+
+  const confirmLargeStatisticsFetch = (startYear, endYear) => new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "statistics-confirm-overlay";
+    overlay.innerHTML = `
+      <section class="statistics-confirm-dialog" role="dialog" aria-modal="true" aria-label="取得確認">
+        <h2>取得範囲が大きいです</h2>
+        <p>${Math.min(startYear, endYear)}年〜${Math.max(startYear, endYear)}年の統計を取得します。期間が長いほど通信容量が大きくなります。</p>
+        <div class="statistics-confirm-actions">
+          <button type="button" data-statistics-confirm-back>戻る</button>
+          <button type="button" data-statistics-confirm-continue>続行</button>
+        </div>
+      </section>
+    `;
+    const close = (value) => {
+      overlay.remove();
+      resolve(value);
+    };
+    overlay.querySelector("[data-statistics-confirm-back]")?.addEventListener("click", () => close(false));
+    overlay.querySelector("[data-statistics-confirm-continue]")?.addEventListener("click", () => close(true));
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) {
+        close(false);
+      }
+    });
+    document.body.append(overlay);
+    overlay.querySelector("[data-statistics-confirm-continue]")?.focus();
+  });
+
+  const ensureSimulationStartInsideSheet = () => {
+    if (!els.setupPanel || !els.simulationStart) {
+      return;
+    }
+    const colorField = els.intensityColorScheme?.closest(".field");
+    if (colorField && els.setupPanel.contains(colorField)) {
+      colorField.classList.add("setup-intensity-color-field");
+    }
+
+    let quickHost = els.setupPanel.querySelector(".simulation-quick-actions");
+    if (!quickHost) {
+      quickHost = document.createElement("div");
+      quickHost.className = "simulation-quick-actions";
+      const layerToggles = els.setupPanel.querySelector(".simulation-layer-toggles");
+      if (layerToggles) {
+        layerToggles.insertAdjacentElement("afterend", quickHost);
+      } else {
+        els.setupPanel.append(quickHost);
+      }
+    }
+
+    if (els.historicalEarthquakeButton && !quickHost.contains(els.historicalEarthquakeButton)) {
+      quickHost.append(els.historicalEarthquakeButton);
+    }
+    if (!quickHost.querySelector(".sheet-speech-toggle")) {
+      const { speechConfirmOverlay } = setupGlobalOverlays();
+      const speechButton = document.createElement("button");
+      speechButton.type = "button";
+      speechButton.className = `sheet-speech-toggle ${state.speechMuted ? "is-muted" : ""}`;
+      speechButton.setAttribute("aria-pressed", String(state.speechMuted));
+      speechButton.innerHTML = `<span aria-hidden="true">♪</span><strong>音声読み上げ</strong>`;
+      speechButton.addEventListener("click", () => {
+        if (speechButton.classList.contains("is-muted")) {
+          showSpeechConfirmOverlay(speechConfirmOverlay, () => {
+            setSpeechButtonMuted(speechButton, false);
+          });
+          return;
+        }
+        setSpeechButtonMuted(speechButton, true);
+      });
+      quickHost.append(speechButton);
+    }
+
+    let host = els.setupPanel.querySelector(".simulation-start-sheet-host");
+    if (!host) {
+      host = document.createElement("div");
+      host.className = "simulation-start-sheet-host";
+      els.setupPanel.append(host);
+    }
+    if (!host.contains(els.simulationStart)) {
+      host.append(els.simulationStart);
+      els.simulationStart.classList.remove("map-simulation-start");
+      els.simulationStart.classList.add("sheet-simulation-start");
+    }
+    if (!state.simulationRunning) {
+      els.simulationStart.textContent = "シミュレーション開始";
+    }
+  };
+
+  const getStationAffiliationLabel = (station) => {
+    const code = String(station?.affiliationCode ?? "");
+    if (code === "0") {
+      return "気象庁";
+    }
+    if (code === "1") {
+      return "地方公共団体";
+    }
+    if (code === "2") {
+      return "防災科学技術研究所";
+    }
+    return station?.affiliation || "不明";
+  };
+
+  const getStationInfoRegion = (station) => {
+    const latitude = Number(station?.latitude);
+    const longitude = Number(station?.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return "海域";
+    }
+    let nearest = null;
+    let nearestDistance = Infinity;
+    PREFECTURE_CENTROIDS.forEach(([name, lat, lon]) => {
+      const distance = haversineKilometers([longitude, latitude], [lon, lat]);
+      if (distance < nearestDistance) {
+        nearest = name;
+        nearestDistance = distance;
+      }
+    });
+    return nearestDistance <= 180 ? nearest : "海域";
+  };
+
+  const getStationAffiliationDisplayLabel = (station) => {
+    const code = String(station?.affiliationCode ?? "");
+    if (code === "0") return "気象庁";
+    if (code === "1") return "地方公共団体";
+    if (code === "2") return "防災科学技術研究所";
+    return "不明";
+  };
+
+  const getStationRegionSortIndex = (region) => {
+    if (region === "海域") {
+      return PREFECTURE_CENTROIDS.length + 1;
+    }
+    const index = PREFECTURE_CENTROIDS.findIndex(([name]) => name === region);
+    return index >= 0 ? index : PREFECTURE_CENTROIDS.length;
+  };
+
+  const getStationInfoRegionSafe = (station) => {
+    const latitude = Number(station?.latitude);
+    const longitude = Number(station?.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return "\u6d77\u57df";
+    }
+    let nearest = null;
+    let nearestDistance = Infinity;
+    PREFECTURE_CENTROIDS.forEach(([name, lat, lon]) => {
+      const distance = haversineKilometers([longitude, latitude], [lon, lat]);
+      if (distance < nearestDistance) {
+        nearest = name;
+        nearestDistance = distance;
+      }
+    });
+    return nearestDistance <= 180 ? nearest : "\u6d77\u57df";
+  };
+
+  const getStationRegionSortIndexSafe = (region) => {
+    if (region === "\u6d77\u57df") {
+      return PREFECTURE_CENTROIDS.length + 1;
+    }
+    const index = PREFECTURE_CENTROIDS.findIndex(([name]) => name === region);
+    return index >= 0 ? index : PREFECTURE_CENTROIDS.length;
+  };
+
+  const getStationAffiliationDisplayLabelSafe = (station) => {
+    const code = String(station?.affiliationCode ?? "");
+    if (code === "0") return "\u6c17\u8c61\u5e81";
+    if (code === "1") return "\u5730\u65b9\u516c\u5171\u56e3\u4f53";
+    if (code === "2") return "\u9632\u707d\u79d1\u5b66\u6280\u8853\u7814\u7a76\u6240";
+    return "\u4e0d\u660e";
+  };
+
+  const getStationInfoSuggestionValues = (stations) => {
+    const suggestions = new Set();
+    for (const station of stations) {
+      if (station?.name) suggestions.add(String(station.name));
+      if (station?.areaName) suggestions.add(String(station.areaName));
+      suggestions.add(getStationInfoRegionSafe(station));
+      suggestions.add(getStationAffiliationDisplayLabelSafe(station));
+      if (suggestions.size >= 320) break;
+    }
+    return [...suggestions]
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, "ja", { numeric: true }));
+  };
+
+  const renderStationInfoSuggestions = (stations) => {
+    const input = els.infoFullPanel?.querySelector("#station-info-filter");
+    const panel = els.infoFullPanel?.querySelector("#station-info-suggestions");
+    if (!input || !panel) {
+      return;
+    }
+    const query = normalizePresetFilterText(input.value ?? "");
+    if (!query) {
+      panel.classList.add("hidden");
+      panel.innerHTML = "";
+      return;
+    }
+    const values = getStationInfoSuggestionValues(stations)
+      .filter((value) => normalizePresetFilterText(value).includes(query))
+      .slice(0, 8);
+    if (!values.length) {
+      panel.classList.add("hidden");
+      panel.innerHTML = "";
+      return;
+    }
+    panel.innerHTML = values
+      .map((value) => `<button type="button" data-station-suggestion="${escapeHtml(value)}">${escapeHtml(value)}</button>`)
+      .join("");
+    panel.classList.remove("hidden");
+  };
+
+  const renderInfoStationList = () => {
+    if (!els.infoFullPanel) {
+      return;
+    }
+    const stations = Array.isArray(shindoStationData?.stations) ? shindoStationData.stations : [];
+    const input = els.infoFullPanel.querySelector("#station-info-filter");
+    const regionSelect = els.infoFullPanel.querySelector("#station-info-region");
+    const affiliationSelect = els.infoFullPanel.querySelector("#station-info-affiliation");
+    const list = els.infoFullPanel.querySelector("#station-info-list");
+    const count = els.infoFullPanel.querySelector("#station-info-count");
+    if (!list || !count) {
+      return;
+    }
+    if (!stations.length) {
+      list.innerHTML = `<div class="station-info-empty">観測点データを読み込み中です。</div>`;
+      count.textContent = "-";
+      return;
+    }
+    const regionCounts = new Map();
+    stations.forEach((station) => {
+      const region = getStationInfoRegionSafe(station);
+      regionCounts.set(region, (regionCounts.get(region) ?? 0) + 1);
+    });
+    if (regionSelect && regionSelect.dataset.ready !== "true") {
+      const options = [...regionCounts.entries()]
+        .sort((a, b) => getStationRegionSortIndexSafe(a[0]) - getStationRegionSortIndexSafe(b[0]))
+        .map(([region, value]) => `<option value="${escapeHtml(region)}">${escapeHtml(region)}（${value}）</option>`);
+      regionSelect.innerHTML = `<option value="">都道府県・海域を選択</option>${options.join("")}`;
+      regionSelect.dataset.ready = "true";
+    }
+    if (regionSelect) {
+      regionSelect.value = selectedStationInfoRegion;
+    }
+    if (false && !selectedStationInfoRegion) {
+      count.textContent = `${stations.length.toLocaleString("ja-JP")}`;
+      list.innerHTML = `<div class="station-info-empty">都道府県または海域を選択してください。</div>`;
+      if (input) {
+        input.disabled = true;
+      }
+      if (affiliationSelect) {
+        affiliationSelect.disabled = true;
+      }
+      return;
+    }
+    if (input) {
+      input.disabled = false;
+    }
+    if (affiliationSelect) {
+      affiliationSelect.disabled = false;
+    }
+    const query = normalizePresetFilterText(input?.value ?? "");
+    const hasUserFilter = Boolean(selectedStationInfoRegion || stationInfoAffiliationFilter || query);
+    const filtered = stations.filter((station) => {
+      if (selectedStationInfoRegion && getStationInfoRegionSafe(station) !== selectedStationInfoRegion) {
+        return false;
+      }
+      if (stationInfoAffiliationFilter && String(station.affiliationCode ?? "") !== stationInfoAffiliationFilter) {
+        return false;
+      }
+      if (!query) {
+        return true;
+      }
+      return normalizePresetFilterText([
+        station.name,
+        station.areaName,
+        station.address,
+        getStationAffiliationDisplayLabelSafe(station),
+      ].join(" ")).includes(query);
+    });
+    if (!hasUserFilter) {
+      count.textContent = `0 / ${stations.length.toLocaleString("ja-JP")}`;
+      list.innerHTML = `<div class="station-info-empty">\u691c\u7d22\u3067\u7d5e\u308a\u8fbc\u3093\u3067\u304f\u3060\u3055\u3044\u3002</div>`;
+      renderStationInfoSuggestions(stations);
+      return;
+    }
+    const visible = filtered
+      .sort((a, b) =>
+        getStationAffiliationDisplayLabelSafe(a).localeCompare(getStationAffiliationDisplayLabelSafe(b), "ja") ||
+        String(a.name || "").localeCompare(String(b.name || ""), "ja", { numeric: true })
+      )
+      .slice(0, 650);
+    count.textContent = `${filtered.length.toLocaleString("ja-JP")} / ${stations.length.toLocaleString("ja-JP")}`;
+    list.innerHTML = visible.map((station) => `
+      <article class="station-info-card">
+        <div class="station-info-card-main">
+          <strong>${escapeHtml(station.name || "-")}</strong>
+          <span>${escapeHtml(station.areaName || "-")}</span>
+        </div>
+        <dl>
+          <div><dt>機関</dt><dd>${escapeHtml(getStationAffiliationDisplayLabelSafe(station))}</dd></div>
+          <div><dt>緯度</dt><dd>${escapeHtml(Number(station.latitude).toFixed(3))}</dd></div>
+          <div><dt>経度</dt><dd>${escapeHtml(Number(station.longitude).toFixed(3))}</dd></div>
+        </dl>
+      </article>
+    `).join("") + (filtered.length > visible.length ? `<div class="station-info-more">検索で絞り込んでください。</div>` : "");
+  };
+
+  const ensureInfoStationPanel = () => {
+    if (!els.infoFullPanel || els.infoFullPanel.dataset.stationReady === "true") {
+      return;
+    }
+    els.infoFullPanel.innerHTML = `
+      <div class="station-info-toolbar">
+        <div class="station-info-search-wrap">
+          <input id="station-info-filter" type="search" inputmode="search" autocomplete="off" placeholder="観測点名・地域・機関で検索" aria-label="観測点を検索" />
+          <div class="station-info-suggestions hidden" id="station-info-suggestions"></div>
+        </div>
+        <span id="station-info-count">-</span>
+      </div>
+      <div class="station-info-list" id="station-info-list"></div>
+    `;
+    const toolbar = els.infoFullPanel.querySelector(".station-info-toolbar");
+    if (toolbar && !toolbar.querySelector("#station-info-region")) {
+      const regionSelect = document.createElement("select");
+      regionSelect.id = "station-info-region";
+      regionSelect.setAttribute("aria-label", "都道府県・海域を選択");
+      const affiliationSelect = document.createElement("select");
+      affiliationSelect.id = "station-info-affiliation";
+      affiliationSelect.setAttribute("aria-label", "機関で絞り込み");
+      affiliationSelect.innerHTML = `
+        <option value="">すべての機関</option>
+        <option value="0">気象庁</option>
+        <option value="1">地方公共団体</option>
+        <option value="2">防災科学技術研究所</option>
+      `;
+      toolbar.prepend(regionSelect, affiliationSelect);
+      regionSelect.addEventListener("change", (event) => {
+        selectedStationInfoRegion = event.target.value;
+        renderInfoStationList();
+      });
+      affiliationSelect.addEventListener("change", (event) => {
+        stationInfoAffiliationFilter = event.target.value;
+        renderInfoStationList();
+      });
+    }
+    const stationFilterInput = els.infoFullPanel.querySelector("#station-info-filter");
+    stationFilterInput?.addEventListener("input", () => {
+      const stations = Array.isArray(shindoStationData?.stations) ? shindoStationData.stations : [];
+      renderStationInfoSuggestions(stations);
+      renderInfoStationList();
+    });
+    stationFilterInput?.addEventListener("focus", () => {
+      renderStationInfoSuggestions(Array.isArray(shindoStationData?.stations) ? shindoStationData.stations : []);
+    });
+    els.infoFullPanel.querySelector("#station-info-suggestions")?.addEventListener("pointerdown", (event) => {
+      const button = event.target?.closest?.("[data-station-suggestion]");
+      if (!button || !stationFilterInput) {
+        return;
+      }
+      event.preventDefault();
+      stationFilterInput.value = button.dataset.stationSuggestion || "";
+      button.parentElement?.classList.add("hidden");
+      renderInfoStationList();
+    });
+    els.infoFullPanel.dataset.stationReady = "true";
+  };
+
+  const ensureLearningPanel = () => {
+    if (!els.learningFullPanel || els.learningFullPanel.dataset.ready === "true") {
+      return;
+    }
+    const items = [
+      ["0", "人は揺れを感じませんが、地震計には記録される段階です。"],
+      ["1", "屋内で静かにしている人の中には、わずかな揺れを感じる人がいます。"],
+      ["2", "屋内で静かにしている人の多くが揺れを感じ、眠っている人が目を覚ますことがあります。"],
+      ["3", "屋内のほとんどの人が揺れを感じ、食器類が音を立てることがあります。"],
+      ["4", "ほとんどの人が驚き、つり下げ物が大きく揺れ、座りの悪い置物が倒れることがあります。"],
+      ["5弱", "多くの人が恐怖を覚え、物につかまりたいと感じます。棚の物が落ちることがあります。"],
+      ["5強", "物につかまらないと歩くことが難しく、固定していない家具が倒れることがあります。"],
+      ["6弱", "立っていることが困難になります。固定していない家具の多くが移動し、倒れるものがあります。"],
+      ["6強", "立っていられず、はわないと動けないほどの揺れになることがあります。"],
+      ["7", "固定していない家具が大きく移動・転倒し、飛ぶこともあります。"],
+    ];
+    els.learningFullPanel.innerHTML = `
+      <div class="learning-content">
+        <section class="learning-hero">
+          <span class="learning-kicker">地震を知る</span>
+          <h2>震度ごとの揺れの目安</h2>
+          <p>気象庁の震度階級関連解説表をもとに、アプリ内で読みやすい短い説明に整理しています。</p>
+        </section>
+        <section class="learning-card">
+          <h3>震度は「場所ごとの揺れの強さ」</h3>
+          <p>マグニチュードは地震そのものの規模、震度は各地点で観測された揺れの強さです。同じ地震でも、震源からの距離や地盤によって震度は変わります。</p>
+        </section>
+        <section class="learning-intensity-list">
+          ${items.map(([label, description]) => `
+            <article class="learning-intensity-item">
+              <span class="learning-intensity-badge">${escapeHtml(label)}</span>
+              <p>${escapeHtml(description)}</p>
+            </article>
+          `).join("")}
+        </section>
+        <section class="learning-card">
+          <h3>見るときの注意</h3>
+          <p>震度の説明は目安です。実際の被害は、揺れの周期・継続時間・建物の状態・地盤の違いで変わります。</p>
+          <a href="https://www.jma.go.jp/jma/kishou/know/shindo/index.html" target="_blank" rel="noopener noreferrer">気象庁「震度について」</a>
+          <a href="https://www.jma.go.jp/jma/kishou/know/shindo/kaisetsu.html" target="_blank" rel="noopener noreferrer">気象庁「震度階級関連解説表」</a>
+        </section>
+      </div>
+    `;
+    els.learningFullPanel.dataset.ready = "true";
+    normalizeLearningIntensityBadges();
+    enhanceLearningPanelContent();
+  };
+
+  const normalizeLearningIntensityBadges = () => {
+    const labels = ["0", "1", "2", "3", "4", "5弱", "5強", "6弱", "6強", "7"];
+    els.learningFullPanel?.querySelectorAll(".learning-intensity-badge").forEach((badge, index) => {
+      const label = labels[index] ?? badge.textContent;
+      const intensityClass = getIntensityClassByLearningLabel(label);
+      badge.textContent = label;
+      if (intensityClass) {
+        badge.style.setProperty("--learning-intensity-color", intensityClass.color);
+        badge.style.setProperty("--learning-intensity-text", intensityClass.textColor);
+      }
+    });
+  };
+
+  const getIntensityClassByLearningLabel = (label) => {
+    const normalized = String(label).replace("弱", "-").replace("強", "+");
+    return INTENSITY_CLASSES.find((item) => item.shortLabel === normalized || item.label === normalized) ?? null;
+  };
+
+  const enhanceLearningPanelContent = () => {
+    const labels = ["0", "1", "2", "3", "4", "5\u5f31", "5\u5f37", "6\u5f31", "6\u5f37", "7"];
+    els.learningFullPanel?.querySelectorAll(".learning-intensity-badge").forEach((badge, index) => {
+      const label = labels[index] ?? badge.textContent;
+      const normalized = String(label).replace("\u5f31", "-").replace("\u5f37", "+");
+      const intensityClass = INTENSITY_CLASSES.find((item) => item.shortLabel === normalized || item.label === normalized);
+      badge.textContent = label;
+      if (intensityClass) {
+        badge.style.setProperty("--learning-intensity-color", intensityClass.color);
+        badge.style.setProperty("--learning-intensity-text", intensityClass.textColor);
+      }
+    });
+
+    const content = els.learningFullPanel?.querySelector(".learning-content");
+    if (!content || content.querySelector(".learning-long-period")) {
+      return;
+    }
+    const levels = [
+      ["1", "#7dd3fc", "\u5ba4\u5185\u3067\u63fa\u308c\u3092\u611f\u3058\u308b\u3053\u3068\u304c\u3042\u308a\u307e\u3059\u3002"],
+      ["2", "#86efac", "\u5ba4\u5185\u306e\u540a\u308a\u4e0b\u3052\u7269\u304c\u5927\u304d\u304f\u63fa\u308c\u308b\u3053\u3068\u304c\u3042\u308a\u307e\u3059\u3002"],
+      ["3", "#fde047", "\u7acb\u3063\u3066\u3044\u308b\u3053\u3068\u304c\u56f0\u96e3\u306b\u306a\u308b\u5834\u5408\u304c\u3042\u308a\u307e\u3059\u3002"],
+      ["4", "#fb7185", "\u306f\u308f\u306a\u3044\u3068\u52d5\u3051\u306a\u3044\u307b\u3069\u306e\u5927\u304d\u306a\u63fa\u308c\u306b\u306a\u308b\u5834\u5408\u304c\u3042\u308a\u307e\u3059\u3002"],
+    ];
+    const section = document.createElement("section");
+    section.className = "learning-card learning-long-period";
+    section.innerHTML = `
+      <h3>\u9577\u5468\u671f\u5730\u9707\u52d5\u968e\u7d1a</h3>
+      <p>\u9ad8\u5c64\u30d3\u30eb\u306a\u3069\u3067\u3086\u3063\u304f\u308a\u3068\u5927\u304d\u304f\u63fa\u308c\u308b\u73fe\u8c61\u3067\u3059\u3002\u968e\u7d1a\u304c\u5927\u304d\u3044\u307b\u3069\u3001\u9577\u3044\u5468\u671f\u306e\u63fa\u308c\u306b\u3088\u308b\u884c\u52d5\u306e\u3057\u3065\u3089\u3055\u3084\u5ba4\u5185\u306e\u79fb\u52d5\u30fb\u8ee2\u5012\u306e\u53ef\u80fd\u6027\u304c\u9ad8\u304f\u306a\u308a\u307e\u3059\u3002</p>
+      <div class="learning-long-period-list">
+        ${levels.map(([level, color, text]) => `
+          <article class="learning-long-period-item" style="--long-period-color: ${color}">
+            <span>${level}</span>
+            <p>${text}</p>
+          </article>
+        `).join("")}
+      </div>
+      <a href="https://www.jma.go.jp/jma/kishou/know/jishin/ltpgm/index.html" target="_blank" rel="noopener noreferrer">\u6c17\u8c61\u5e81\u300c\u9577\u5468\u671f\u5730\u9707\u52d5\u306b\u3064\u3044\u3066\u300d</a>
+    `;
+    content.append(section);
+  };
+
   const activateEarthquakePanel = () => {
     document.querySelectorAll(".panel").forEach((panel) => panel.classList.remove("panel-active"));
     document.querySelector("#earthquake-panel")?.classList.add("panel-active");
     requestAnimationFrame(() => safelyResizeMap());
   };
 
+  const resetHistoryTabState = () => {
+    selectedHistoryLocalAreaName = "";
+    abortEarthquakeStatisticsLoad();
+    earthquakeStatisticsRange = { startYear: "2026", endYear: "2026" };
+    if (els.historyAreaFilter) {
+      els.historyAreaFilter.value = "";
+    }
+    els.historyFullPanel?.querySelectorAll("#history-start-year, #history-end-year").forEach((select) => {
+      select.value = select.id === "history-start-year" ? "2025" : "2026";
+    });
+    if (map?.getSource("jma-local-areas") && localAreaData?.features?.length) {
+      setGeoJsonSourceData("jma-local-areas", buildHistoryLocalAreaMapData());
+    }
+    if (map?.getSource("history-epicenter-areas") && epicenterAreaData?.features?.length) {
+      setGeoJsonSourceData("history-epicenter-areas", buildHistoryEpicenterAreaMapData());
+    }
+  };
+
+  const resetInfoTabState = () => {
+    selectedStationInfoRegion = "";
+    stationInfoAffiliationFilter = "";
+    els.infoFullPanel?.querySelectorAll("#station-info-filter, #station-info-region, #station-info-affiliation").forEach((control) => {
+      control.value = "";
+    });
+  };
+
   const setActiveBottomTab = (selector) => {
+    const previousTabId = document.body.dataset.activeBottomTab || "";
     document.querySelectorAll(".tab").forEach((item) => item.classList.remove("active"));
     const activeTab = document.querySelector(selector);
     activeTab?.classList.add("active");
     document.body.dataset.activeBottomTab = activeTab?.id || "";
+    if (previousTabId && previousTabId !== activeTab?.id && state.simulationRunning && !state.simulationPaused) {
+      pauseSimulation();
+    }
+    if (activeTab?.id !== "bottom-history-tab") {
+      resetHistoryTabState();
+    }
+    if (activeTab?.id !== "bottom-info-tab") {
+      resetInfoTabState();
+    }
   };
 
   document.body.dataset.activeBottomTab = document.querySelector(".tab.active")?.id || "earthquake-tab";
@@ -812,6 +1553,8 @@ function setupTabs() {
   const openSettingsMenuSheet = () => {
     closeEarthquakePresetPicker({ restoreTab: false, skipFocus: true });
     setSetupMenuOpen(false);
+    ensureSettingsStatusCards();
+    ensureSettingsAppearanceElements();
     els.settingsMenuSheet?.classList.remove("settings-detail-open");
     els.settingsMenuSheet?.querySelectorAll(".settings-inline-panel").forEach((panel) => {
       panel.classList.add("hidden");
@@ -826,27 +1569,67 @@ function setupTabs() {
   };
 
   const closeFullPanels = () => {
+    setHistoryMapModeActive(false);
+    els.historyFullPanel?.classList.add("hidden");
     els.infoFullPanel?.classList.add("hidden");
     els.learningFullPanel?.classList.add("hidden");
+  };
+
+  const openHistoryFullPanel = () => {
+    closeEarthquakePresetPicker({ restoreTab: false, skipFocus: true });
+    closeSettingsMenuSheet();
+    setSetupMenuOpen(false);
+    setSheetState(els.setupPanel, "collapsed");
+    els.infoFullPanel?.classList.add("hidden");
+    els.learningFullPanel?.classList.add("hidden");
+    ensureHistoryFullPanel()?.classList.remove("hidden");
+    setHistoryMapModeActive(true);
+    renderPastEarthquakeStatsPanel();
+    Promise.all([loadLocalAreas(), loadEpicenterAreas(), loadEarthquakeStatistics()])
+      .then(() => {
+        setHistoryMapModeActive(true);
+        renderPastEarthquakeStatsPanel();
+      })
+      .catch((error) => {
+        if (error?.name === "AbortError") {
+          return;
+        }
+        console.warn("Failed to prepare local area history stats", error);
+        renderPastEarthquakeStatsPanel(error);
+      });
   };
 
   const openInfoFullPanel = () => {
     closeEarthquakePresetPicker({ restoreTab: false, skipFocus: true });
     closeSettingsMenuSheet();
     setSetupMenuOpen(false);
+    setHistoryMapModeActive(false);
+    els.historyFullPanel?.classList.add("hidden");
     els.learningFullPanel?.classList.add("hidden");
+    ensureInfoStationPanel();
+    renderInfoStationList();
     els.infoFullPanel?.classList.remove("hidden");
+    Promise.resolve(loadShindoStations())
+      .then(() => renderInfoStationList())
+      .catch((error) => {
+        console.warn("Failed to load station information", error);
+      });
   };
 
   const openLearningFullPanel = () => {
     closeEarthquakePresetPicker({ restoreTab: false, skipFocus: true });
     closeSettingsMenuSheet();
     setSetupMenuOpen(false);
+    setHistoryMapModeActive(false);
+    els.historyFullPanel?.classList.add("hidden");
     els.infoFullPanel?.classList.add("hidden");
+    ensureLearningPanel();
     els.learningFullPanel?.classList.remove("hidden");
   };
 
   const setSettingsRowLabels = () => {
+    ensureSettingsStatusCards();
+    ensureSettingsAppearanceElements();
     if (!els.settingsPrivacyButton && els.settingsSourceButton) {
       els.settingsPrivacyButton = document.createElement("button");
       els.settingsPrivacyButton.className = "settings-menu-row";
@@ -905,6 +1688,12 @@ function setupTabs() {
       els.settingsPushButton.firstElementChild.textContent = "通知の設定";
       els.settingsPushButton.lastElementChild.textContent = "›";
     }
+    if (els.settingsAppearanceButton?.firstElementChild) {
+      els.settingsAppearanceButton.firstElementChild.textContent = "外観";
+      els.settingsAppearanceButton.lastElementChild.textContent = "›";
+      els.settingsAppearanceButton.setAttribute("aria-controls", "settings-appearance-panel");
+      els.settingsAppearanceButton.setAttribute("aria-expanded", "false");
+    }
     if (els.settingsPushHistoryButton?.firstElementChild) {
       els.settingsPushHistoryButton.firstElementChild.textContent = "通知履歴";
       els.settingsPushHistoryButton.lastElementChild.textContent = "›";
@@ -918,6 +1707,7 @@ function setupTabs() {
       [els.settingsFeedbackButton, els.settingsFeedbackPanel],
       [els.settingsAdminButton, els.settingsAdminPanel],
       [els.settingsPushButton, els.settingsPushPanel],
+      [els.settingsAppearanceButton, els.settingsAppearancePanel],
       [els.settingsPushHistoryButton, els.settingsPushHistoryPanel],
     ].forEach(([button, panel]) => {
       if (panel && panel !== exceptPanel) {
@@ -1118,6 +1908,12 @@ function setupTabs() {
     updateAdminModeControls(adminPanel);
   };
 
+  ensureSettingsStatusCards();
+  ensureSettingsAppearanceElements();
+  ensureSettingsAppearancePanel();
+  ensureSimulationStartInsideSheet();
+  ensureInfoStationPanel();
+
   const toggleSettingsInlinePanel = (button, panel, ensurePanel) => {
     ensurePanel();
     const willOpen = panel?.classList.contains("hidden");
@@ -1152,6 +1948,7 @@ function setupTabs() {
       els.settingsFeedbackButton,
       els.settingsAdminButton,
       els.settingsPushButton,
+      els.settingsAppearanceButton,
       els.settingsPushHistoryButton,
     ].forEach((button) => button?.setAttribute("aria-expanded", "false"));
 
@@ -1221,6 +2018,35 @@ function setupTabs() {
   });
 
   setSettingsRowLabels();
+  document.querySelector("#bottom-history-tab span:last-child")?.replaceChildren("地震統計");
+  document.querySelector("#bottom-info-tab span:last-child")?.replaceChildren("情報");
+  document.querySelector("#bottom-learning-tab span:last-child")?.replaceChildren("学習");
+  document.querySelector("#bottom-settings-tab span:last-child")?.replaceChildren("設定");
+  document.querySelector("#earthquake-tab span:last-child")?.replaceChildren("シミュレーション");
+  els.settingsMenuSheet?.querySelector(".settings-menu-head h2")?.replaceChildren("設定");
+  els.settingsPushStatus?.closest(".settings-notification-row")?.querySelector("span")?.replaceChildren("現在の通知");
+  els.settingsLocationStatus?.closest(".settings-notification-row")?.querySelector("span")?.replaceChildren("位置情報");
+  if (els.settingsPushButton?.firstElementChild) {
+    els.settingsPushButton.firstElementChild.textContent = "通知設定";
+  }
+  if (els.settingsPushHistoryButton?.firstElementChild) {
+    els.settingsPushHistoryButton.firstElementChild.textContent = "通知履歴";
+  }
+  if (els.settingsSourceButton?.firstElementChild) {
+    els.settingsSourceButton.firstElementChild.textContent = "出典";
+  }
+  if (els.settingsPrivacyButton?.firstElementChild) {
+    els.settingsPrivacyButton.firstElementChild.textContent = "プライバシーポリシー";
+  }
+  if (els.settingsFeedbackButton?.firstElementChild) {
+    els.settingsFeedbackButton.firstElementChild.textContent = "フィードバック";
+  }
+  if (els.settingsAppearanceButton?.firstElementChild) {
+    els.settingsAppearanceButton.firstElementChild.textContent = "外観";
+  }
+  if (els.settingsAdminButton?.firstElementChild) {
+    els.settingsAdminButton.firstElementChild.textContent = "管理者モード";
+  }
 
   document.querySelectorAll(".tab").forEach((tab) => {
     tab.addEventListener("click", () => {
@@ -1231,8 +2057,18 @@ function setupTabs() {
       document.querySelectorAll(".tab").forEach((item) => item.classList.remove("active"));
       document.querySelectorAll(".panel").forEach((panel) => panel.classList.remove("panel-active"));
 
+      const previousTabId = document.body.dataset.activeBottomTab || "";
       tab.classList.add("active");
       document.body.dataset.activeBottomTab = tab.id || "";
+      if (previousTabId && previousTabId !== tab.id && state.simulationRunning && !state.simulationPaused) {
+        pauseSimulation();
+      }
+      if (tab.id !== "bottom-history-tab") {
+        resetHistoryTabState();
+      }
+      if (tab.id !== "bottom-info-tab") {
+        resetInfoTabState();
+      }
       document.querySelector(`#${tab.dataset.panel}`).classList.add("panel-active");
 
       if (tab.dataset.panel === "earthquake-panel" && map) {
@@ -1254,10 +2090,7 @@ function setupTabs() {
   document.querySelector("#bottom-history-tab")?.addEventListener("click", () => {
     setActiveBottomTab("#bottom-history-tab");
     activateEarthquakePanel();
-    closeSettingsMenuSheet();
-    closeFullPanels();
-    setSetupMenuOpen(false);
-    openEarthquakePresetPicker();
+    openHistoryFullPanel();
   });
 
   document.querySelector("#bottom-info-tab")?.addEventListener("click", () => {
@@ -1276,7 +2109,31 @@ function setupTabs() {
     setActiveBottomTab("#bottom-settings-tab");
     activateEarthquakePanel();
     closeFullPanels();
+    setHistoryMapModeActive(false);
     openSettingsMenuSheet();
+  });
+
+  els.settingsMenuSheet?.addEventListener("click", (event) => {
+    const row = event.target?.closest?.(".settings-menu-row");
+    if (!row || activeSettingsDetailPanel) {
+      return;
+    }
+    const detailMap = {
+      "settings-source-button": [els.settingsSourceButton, els.settingsSourcePanel, ensureSettingsSourcePanel, "出典"],
+      "settings-privacy-button": [els.settingsPrivacyButton, els.settingsPrivacyPanel, ensureSettingsPrivacyPanel, "プライバシーポリシー"],
+      "settings-feedback-button": [els.settingsFeedbackButton, els.settingsFeedbackPanel, ensureSettingsFeedbackPanel, "フィードバック"],
+      "settings-admin-button": [els.settingsAdminButton, els.settingsAdminPanel, ensureSettingsAdminPanel, "管理者モード"],
+      "settings-push-button": [els.settingsPushButton, els.settingsPushPanel, ensureSettingsPushPanel, "通知設定"],
+      "settings-appearance-button": [els.settingsAppearanceButton, els.settingsAppearancePanel, ensureSettingsAppearancePanel, "外観"],
+      "settings-push-history-button": [els.settingsPushHistoryButton, els.settingsPushHistoryPanel, ensureSettingsPushHistoryPanel, "通知履歴"],
+    };
+    const detail = detailMap[row.id];
+    if (!detail) {
+      return;
+    }
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    openSettingsDetailPanel(...detail);
   });
 
   els.settingsMenuClose?.addEventListener("click", () => {
@@ -1297,6 +2154,9 @@ function setupTabs() {
   });
   els.settingsPushButton?.addEventListener("click", () => {
     openSettingsDetailPanel(els.settingsPushButton, els.settingsPushPanel, ensureSettingsPushPanel, "通知設定");
+  });
+  els.settingsAppearanceButton?.addEventListener("click", () => {
+    openSettingsDetailPanel(els.settingsAppearanceButton, els.settingsAppearancePanel, ensureSettingsAppearancePanel, "外観");
   });
   els.settingsPushHistoryButton?.addEventListener("click", () => {
     openSettingsDetailPanel(els.settingsPushHistoryButton, els.settingsPushHistoryPanel, ensureSettingsPushHistoryPanel, "通知履歴");
@@ -1885,11 +2745,478 @@ async function loadEarthquakePresets() {
     const presets = await loadEarthquakePresetSummaries();
     EARTHQUAKE_PRESETS.splice(0, EARTHQUAKE_PRESETS.length, ...presets);
     renderEarthquakePresetPicker();
+    pastEarthquakeAreaStatsCache = { signature: "", rows: [] };
+    renderPastEarthquakeStatsPanel();
     invalidateIntensityEstimateCache();
     updateIntensityLayer();
   } catch (error) {
     console.warn(error);
   }
+}
+
+function renderPastEarthquakeStatsPanel(error = null) {
+  if (!els.historyStatsList) {
+    return;
+  }
+
+  if (error) {
+    els.historyStatsList.innerHTML = `
+      <div class="history-stats-empty" role="status">
+        <strong>過去の地震回数を読み込めませんでした</strong>
+        <span>時間をおいてもう一度お試しください。</span>
+      </div>
+    `;
+    return;
+  }
+
+  if (earthquakeStatisticsLoading) {
+    els.historyStatsList.innerHTML = `
+      <div class="history-stats-empty history-stats-empty-static" role="status">
+        <strong>取得中...</strong>
+        <span>${escapeHtml(earthquakeStatisticsRange.startYear)}年 〜 ${escapeHtml(earthquakeStatisticsRange.endYear)}年の地震統計を読み込んでいます。</span>
+      </div>
+    `;
+    return;
+  }
+
+  if (!EARTHQUAKE_PRESETS.length && !earthquakeStatisticsData?.areas?.length) {
+    els.historyStatsList.innerHTML = `
+      <div class="history-stats-empty" role="status">
+        <strong>地震データを読み込み中</strong>
+        <span>プリセット地震データの取得後に表示します。</span>
+      </div>
+    `;
+    return;
+  }
+
+  if (!localAreaData?.features?.length) {
+    els.historyStatsList.innerHTML = `
+      <div class="history-stats-empty" role="status">
+        <strong>細分区域を読み込み中</strong>
+        <span>区域ごとの回数を集計しています。</span>
+      </div>
+    `;
+    return;
+  }
+
+  const filterText = normalizePresetFilterText(els.historyAreaFilter?.value ?? "");
+  let rows = getPastEarthquakeAreaStatsRows();
+  updateHistoryAreaSuggestions(rows);
+  if (!selectedHistoryLocalAreaName) {
+    els.historyStatsList.innerHTML = `
+      <div class="history-stats-empty history-stats-empty-static" role="status">
+        <strong>地域を選択してください</strong>
+        <span>地図上の細分区域をタップすると、その地域の地震統計だけを読み込みます。</span>
+      </div>
+    `;
+    return;
+  }
+  rows = rows.filter((row) => row.areaName === selectedHistoryLocalAreaName);
+  rows = rows.filter((row) => {
+    if (!filterText) {
+      return true;
+    }
+    return normalizePresetFilterText([
+      row.areaName,
+      ...row.epicenters.map((item) => item.name),
+    ].join(" ")).includes(filterText);
+  });
+
+  if (!rows.length) {
+    els.historyStatsList.innerHTML = `
+      <div class="history-stats-empty" role="status">
+        <strong>該当する地震回数がありません</strong>
+        <span>検索条件を変えてみてください。</span>
+      </div>
+    `;
+    return;
+  }
+
+  const heading = selectedHistoryLocalAreaName
+    ? `<div class="history-stats-sheet-head"><strong>${escapeHtml(selectedHistoryLocalAreaName)}</strong><button type="button" data-history-clear-area>全国一覧</button></div>`
+    : `<div class="history-stats-sheet-head"><strong>全国の震源域別・細分区域別</strong><span>区域をタップすると詳細表示</span></div>`;
+  const cards = rows.map((row) => {
+    const epicenters = row.epicenters.slice(0, 4).map((item) => `
+      <li>
+        <span>${escapeHtml(item.name)}</span>
+        <strong>${item.count}</strong>
+      </li>
+    `).join("");
+    const moreCount = Math.max(0, row.epicenters.length - 4);
+    return `
+      <article class="history-stats-card" role="listitem">
+        <div class="history-stats-card-main">
+          <strong>${escapeHtml(row.areaName)}</strong>
+          <span>直近: ${escapeHtml(row.latestLabel || "-")}</span>
+        </div>
+        <div class="history-stats-count" aria-label="地震回数">${row.count}</div>
+        <ul class="history-epicenter-list">${epicenters}${moreCount ? `<li class="history-epicenter-more">ほか ${moreCount} 件</li>` : ""}</ul>
+      </article>
+    `;
+  }).join("");
+
+  els.historyStatsList.innerHTML = `${heading}${cards}`;
+  els.historyStatsList.querySelector("[data-history-clear-area]")?.addEventListener("click", () => {
+    selectedHistoryLocalAreaName = "";
+    if (map?.getSource("jma-local-areas")) {
+      setGeoJsonSourceData("jma-local-areas", buildHistoryLocalAreaMapData());
+    }
+    renderPastEarthquakeStatsPanel();
+  });
+}
+
+function updateHistoryAreaSuggestions(rows) {
+  const datalist = document.querySelector("#history-area-suggestions");
+  if (!datalist || datalist.dataset.signature === String(rows.length)) {
+    return;
+  }
+  const suggestions = new Set();
+  rows.forEach((row) => {
+    if (row.areaName) suggestions.add(row.areaName);
+    row.epicenters?.slice(0, 4).forEach((item) => {
+      if (item.name) suggestions.add(item.name);
+    });
+  });
+  datalist.innerHTML = [...suggestions]
+    .filter(Boolean)
+    .slice(0, 320)
+    .map((value) => `<option value="${escapeHtml(value)}"></option>`)
+    .join("");
+  datalist.dataset.signature = String(rows.length);
+}
+
+function getPastEarthquakeAreaStatsRows() {
+  if (earthquakeStatisticsData?.areas?.length) {
+    return earthquakeStatisticsData.areas
+      .filter((area) => area?.areaName && Number(area.count) > 0)
+      .map((area) => ({
+        areaName: String(area.areaName),
+        count: Number(area.count) || 0,
+        latestTime: Date.parse(area.latestAt || "") || -Infinity,
+        latestLabel: area.latestAt ? formatDateTimeLabel(area.latestAt) : "",
+        epicenterCounts: new Map(),
+        epicenters: Array.isArray(area.epicenters)
+          ? area.epicenters
+              .filter((item) => item?.name && Number(item.count) > 0)
+              .map((item) => ({ name: String(item.name), count: Number(item.count) || 0 }))
+          : [],
+      }))
+      .sort((a, b) => b.count - a.count || a.areaName.localeCompare(b.areaName, "ja"));
+  }
+
+  const signature = [
+    EARTHQUAKE_PRESETS.length,
+    EARTHQUAKE_PRESETS[0]?.id ?? "",
+    EARTHQUAKE_PRESETS[EARTHQUAKE_PRESETS.length - 1]?.id ?? "",
+    localAreaData?.features?.length ?? 0,
+    epicenterAreaData?.features?.length ?? 0,
+  ].join("|");
+
+  if (pastEarthquakeAreaStatsCache.signature === signature) {
+    return pastEarthquakeAreaStatsCache.rows;
+  }
+
+  const byArea = new Map();
+  EARTHQUAKE_PRESETS.forEach((preset) => {
+    const longitude = Number(preset.longitude);
+    const latitude = Number(preset.latitude);
+    if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {
+      return;
+    }
+
+    const localArea = findStatisticsAreaForPoint(longitude, latitude);
+    const areaName = cleanDisplayAreaName(localArea?.properties?.name) || "区域未判定";
+    const epicenterName = String(preset.epicenterName || preset.label || "震源地未設定").trim();
+    const row = byArea.get(areaName) ?? {
+      areaName,
+      count: 0,
+      latestTime: -Infinity,
+      latestLabel: "",
+      epicenterCounts: new Map(),
+      epicenters: [],
+    };
+    row.count += 1;
+    const currentCount = row.epicenterCounts.get(epicenterName) ?? 0;
+    row.epicenterCounts.set(epicenterName, currentCount + 1);
+    const sortTime = getPresetSortTime(preset);
+    if (sortTime > row.latestTime) {
+      row.latestTime = sortTime;
+      row.latestLabel = formatPresetDateTime(preset);
+    }
+    byArea.set(areaName, row);
+  });
+
+  const rows = [...byArea.values()].map((row) => ({
+    ...row,
+    epicenters: [...row.epicenterCounts.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "ja")),
+  })).sort((a, b) => b.count - a.count || a.areaName.localeCompare(b.areaName, "ja"));
+
+  pastEarthquakeAreaStatsCache = { signature, rows };
+  return rows;
+}
+
+function findStatisticsAreaForPoint(longitude, latitude) {
+  if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {
+    return null;
+  }
+  const localArea = localAreaData?.features?.length
+    ? findFeatureAtPoint(localAreaData, longitude, latitude)
+    : null;
+  if (localArea) {
+    return localArea;
+  }
+  const epicenterArea = epicenterAreaData?.features?.length
+    ? findEpicenterAreaAtPoint(epicenterAreaData, longitude, latitude)
+    : null;
+  if (epicenterArea) {
+    return epicenterArea;
+  }
+  return epicenterAreaData?.features?.length
+    ? findNearestFeatureByDistance(epicenterAreaData, [toEpicenterAreaSourceLongitude(longitude), latitude], 180)
+    : null;
+}
+
+function findNearestFeatureByDistance(geojson, point, maxDistanceKm = Infinity) {
+  let nearest = null;
+  let nearestDistance = Infinity;
+  for (const feature of geojson?.features ?? []) {
+    const candidate = getNearestPointOnFeature(point, feature);
+    if (candidate.distanceKm < nearestDistance) {
+      nearest = feature;
+      nearestDistance = candidate.distanceKm;
+    }
+  }
+  return nearestDistance <= maxDistanceKm ? nearest : null;
+}
+
+function formatDateTimeLabel(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return new Intl.DateTimeFormat("ja-JP", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function getEarthquakeStatisticsRangeKey() {
+  const startYear = Number(earthquakeStatisticsRange.startYear) || 2026;
+  const endYear = Number(earthquakeStatisticsRange.endYear) || startYear;
+  return `${Math.min(startYear, endYear)}-${Math.max(startYear, endYear)}`;
+}
+
+function abortEarthquakeStatisticsLoad() {
+  if (earthquakeStatisticsAbortController) {
+    earthquakeStatisticsAbortController.abort();
+    earthquakeStatisticsAbortController = null;
+  }
+  earthquakeStatisticsLoadPromise = null;
+  earthquakeStatisticsLoading = false;
+}
+
+async function loadEarthquakeStatistics(options = {}) {
+  const rangeKey = getEarthquakeStatisticsRangeKey();
+  if (!options.force && earthquakeStatisticsData && earthquakeStatisticsLoadKey === rangeKey) {
+    return earthquakeStatisticsData;
+  }
+  if (options.force) {
+    abortEarthquakeStatisticsLoad();
+    earthquakeStatisticsData = null;
+  }
+  if (!earthquakeStatisticsLoadPromise) {
+    const controller = new AbortController();
+    earthquakeStatisticsAbortController = controller;
+    earthquakeStatisticsLoadKey = rangeKey;
+    earthquakeStatisticsLoadPromise = (async () => {
+      const workerBaseUrl = await getWorkerBaseUrl();
+      const startYear = Number(earthquakeStatisticsRange.startYear) || 2026;
+      const endYear = Number(earthquakeStatisticsRange.endYear) || startYear;
+      const normalizedStartYear = Math.min(startYear, endYear);
+      const normalizedEndYear = Math.max(startYear, endYear);
+      const urls = [
+        workerBaseUrl ? `${workerBaseUrl}/earthquake-statistics?startYear=${normalizedStartYear}&endYear=${normalizedEndYear}` : "",
+        EARTHQUAKE_STATISTICS_FALLBACK_URL,
+      ].filter(Boolean);
+      for (const url of urls) {
+        try {
+          const response = await fetch(`${url}${url.includes("?") ? "&" : "?"}v=${Date.now()}`, {
+            cache: "no-store",
+            signal: controller.signal,
+          });
+          if (!response.ok) {
+            continue;
+          }
+          const data = await response.json();
+          const periodStartYear = Number(data?.period?.startYear ?? String(data?.period?.start || "").slice(0, 4));
+          const periodEndYear = Number(data?.period?.endYear ?? String(data?.period?.end || "").slice(0, 4));
+          if (
+            Number.isFinite(periodStartYear) &&
+            Number.isFinite(periodEndYear) &&
+            (periodStartYear !== normalizedStartYear || periodEndYear !== normalizedEndYear)
+          ) {
+            continue;
+          }
+          const areas = Array.isArray(data?.areas) ? data.areas : [];
+          earthquakeStatisticsData = {
+            source: data?.source || "USGS Earthquake Catalog API",
+            updatedAt: data?.updatedAt || "",
+            areas,
+          };
+          pastEarthquakeAreaStatsCache = { signature: "", rows: [] };
+          return earthquakeStatisticsData;
+        } catch (error) {
+          if (error?.name === "AbortError") {
+            throw error;
+          }
+          console.warn("earthquake statistics load failed", error);
+        }
+      }
+      earthquakeStatisticsData = { source: "fallback", updatedAt: "", areas: [] };
+      return earthquakeStatisticsData;
+    })().finally(() => {
+      if (earthquakeStatisticsAbortController === controller) {
+        earthquakeStatisticsAbortController = null;
+      }
+      earthquakeStatisticsLoadPromise = null;
+    });
+  }
+  return earthquakeStatisticsLoadPromise;
+}
+
+function setHistoryMapModeActive(active) {
+  document.body.classList.toggle("history-map-mode", Boolean(active));
+  if (!map) {
+    return;
+  }
+  map.setMaxZoom?.(active ? 7.2 : 14);
+
+  if (active && localAreaData?.features?.length) {
+    setGeoJsonSourceData("jma-local-areas", buildHistoryLocalAreaMapData());
+    if (epicenterAreaData?.features?.length && map.getSource("history-epicenter-areas")) {
+      setGeoJsonSourceData("history-epicenter-areas", buildHistoryEpicenterAreaMapData());
+    }
+    updateLayerVisibility("history-local-area-fill", true);
+    updateLayerVisibility("history-epicenter-area-fill", Boolean(epicenterAreaData?.features?.length));
+    updateLayerVisibility("jma-intensity-fill", false);
+    updateLayerVisibility("eew-warning-fill", false);
+    updateLayerVisibility("municipality-boundaries", false);
+    bindHistoryMapEvents();
+    return;
+  }
+
+  updateLayerVisibility("history-local-area-fill", false);
+  updateLayerVisibility("history-epicenter-area-fill", false);
+  if (map.getSource("jma-local-areas") && localAreaData?.features?.length) {
+    const elapsedSec = state.simulationRunning ? getSimulationStationElapsedSec() : Infinity;
+    setGeoJsonSourceData("jma-local-areas", buildIntensityAreaData(localAreaData, elapsedSec));
+  }
+  updateDisplayMode();
+}
+
+function buildHistoryLocalAreaMapData() {
+  if (!localAreaData?.features?.length) {
+    return emptyFeatureCollection();
+  }
+
+  return {
+    ...localAreaData,
+    features: localAreaData.features.map((feature) => {
+      const areaName = cleanDisplayAreaName(feature.properties?.name);
+      const selectable = Boolean(areaName);
+      return {
+        ...feature,
+        properties: {
+          ...(feature.properties ?? {}),
+          historySelectable: selectable,
+          historySelected: Boolean(areaName && areaName === selectedHistoryLocalAreaName),
+        },
+      };
+    }),
+  };
+}
+
+function buildHistoryEpicenterAreaMapData() {
+  if (!epicenterAreaData?.features?.length) {
+    return emptyFeatureCollection();
+  }
+
+  return {
+    ...epicenterAreaData,
+    features: epicenterAreaData.features.map((feature) => {
+      const areaName = cleanDisplayAreaName(feature.properties?.name);
+      const marine = isMarineStatisticsAreaName(areaName);
+      return {
+        ...feature,
+        properties: {
+          ...(feature.properties ?? {}),
+          historySelectable: Boolean(areaName),
+          historySelected: Boolean(areaName && areaName === selectedHistoryLocalAreaName),
+          historyMarine: marine,
+        },
+      };
+    }),
+  };
+}
+
+function isMarineStatisticsAreaName(areaName) {
+  const name = String(areaName || "");
+  return /海|沖|湾|灘|水道|海峡|洋|島近海|島沖|諸島|列島|沿岸/.test(name);
+}
+
+function bindHistoryMapEvents() {
+  if (!map || historyMapEventsBound) {
+    return;
+  }
+
+  historyMapEventsBound = true;
+  map.on("click", "history-local-area-fill", (event) => {
+    if (document.body.dataset.activeBottomTab !== "bottom-history-tab") {
+      return;
+    }
+    const feature = event.features?.[0];
+    const areaName = cleanDisplayAreaName(feature?.properties?.name);
+    if (!areaName) {
+      return;
+    }
+    selectedHistoryLocalAreaName = areaName;
+    setGeoJsonSourceData("jma-local-areas", buildHistoryLocalAreaMapData());
+    if (map.getSource("history-epicenter-areas")) {
+      setGeoJsonSourceData("history-epicenter-areas", buildHistoryEpicenterAreaMapData());
+    }
+    renderPastEarthquakeStatsPanel();
+  });
+  map.on("click", "history-epicenter-area-fill", (event) => {
+    if (document.body.dataset.activeBottomTab !== "bottom-history-tab") {
+      return;
+    }
+    const feature = event.features?.[0];
+    const areaName = cleanDisplayAreaName(feature?.properties?.name);
+    if (!areaName) {
+      return;
+    }
+    selectedHistoryLocalAreaName = areaName;
+    setGeoJsonSourceData("jma-local-areas", buildHistoryLocalAreaMapData());
+    setGeoJsonSourceData("history-epicenter-areas", buildHistoryEpicenterAreaMapData());
+    renderPastEarthquakeStatsPanel();
+  });
+  map.on("mouseenter", "history-local-area-fill", () => {
+    map.getCanvas().style.cursor = "pointer";
+  });
+  map.on("mouseleave", "history-local-area-fill", () => {
+    map.getCanvas().style.cursor = "";
+  });
+  map.on("mouseenter", "history-epicenter-area-fill", () => {
+    map.getCanvas().style.cursor = "pointer";
+  });
+  map.on("mouseleave", "history-epicenter-area-fill", () => {
+    map.getCanvas().style.cursor = "";
+  });
 }
 
 async function loadEarthquakePresetSummaries() {
@@ -2059,7 +3386,10 @@ function bindSimulationControls() {
   els.simulationEewWarningToggle.addEventListener("change", () => syncSimulationLayerToggles());
   els.simulationPlateBoundaryLayerToggle?.addEventListener("change", () => syncSimulationLayerToggles());
   els.simulationFaultLayerToggle?.addEventListener("change", () => syncSimulationLayerToggles());
-  els.currentLocationToggle?.addEventListener("change", () => toggleCurrentLocationLink());
+  els.currentLocationToggle?.addEventListener("change", () => {
+    toggleCurrentLocationLink();
+    updateSettingsScreenNotificationState();
+  });
   els.simulationStart.addEventListener("click", () => {
     if (state.simulationRunning) {
       stopSimulation();
@@ -2245,11 +3575,35 @@ function setPushNotificationStatus(message, options = {}) {
 function updateSettingsScreenNotificationState() {
   if (els.settingsPushStatus) {
     els.settingsPushStatus.textContent = state.pushSubscribed ? "ON" : "OFF";
+    els.settingsPushStatus.dataset.state = state.pushSubscribed ? "on" : "off";
+  }
+  if (els.settingsLocationStatus) {
+    const locationOn = Boolean(els.currentLocationToggle?.checked);
+    els.settingsLocationStatus.textContent = locationOn ? "ON" : "OFF";
+    els.settingsLocationStatus.dataset.state = locationOn ? "on" : "off";
   }
   if (els.settingsPushToggle) {
     els.settingsPushToggle.classList.toggle("is-on", state.pushSubscribed);
     els.settingsPushToggle.setAttribute("aria-pressed", String(state.pushSubscribed));
   }
+}
+
+function getAppearanceTheme() {
+  const value = localStorage.getItem(APPEARANCE_THEME_KEY);
+  return ["system", "light", "dark"].includes(value) ? value : DEFAULT_APPEARANCE_THEME;
+}
+
+function setAppearanceTheme(value) {
+  const nextValue = ["system", "light", "dark"].includes(value) ? value : DEFAULT_APPEARANCE_THEME;
+  localStorage.setItem(APPEARANCE_THEME_KEY, nextValue);
+  applyAppearanceTheme(nextValue);
+}
+
+function applyAppearanceTheme(value = getAppearanceTheme()) {
+  const systemDark = window.matchMedia?.("(prefers-color-scheme: dark)")?.matches ?? true;
+  const resolved = value === "system" ? (systemDark ? "dark" : "light") : value;
+  document.documentElement.dataset.appearanceTheme = value;
+  document.documentElement.dataset.resolvedTheme = resolved;
 }
 
 function base64UrlToUint8Array(value) {
@@ -5869,7 +7223,7 @@ function applyFeedbackPlaceholder(textarea) {
     return;
   }
 
-  textarea.placeholder = getFeedbackPlaceholderText();
+  textarea.placeholder = getCleanFeedbackPlaceholderText();
 }
 
 function getFeedbackPlaceholderText() {
@@ -5877,6 +7231,13 @@ function getFeedbackPlaceholderText() {
     "例：スマホでメニューが少し開きにくい。",
     "　　震度表示を見やすくしてほしい。",
     "　　など",
+  ].join("\n");
+}
+
+function getCleanFeedbackPlaceholderText() {
+  return [
+    "例：スマホでメニューが少し開きにくい",
+    "　　震度表示を見やすくしてほしい",
   ].join("\n");
 }
 
@@ -5890,7 +7251,7 @@ function buildFeedbackOverlayHtml() {
       </header>
       <label class="feedback-field" for="feedback-message">
         <span>気づいた点、改善してほしい点など</span>
-        <textarea id="feedback-message" name="message" rows="10" maxlength="4000" placeholder="${escapeHtml(getFeedbackPlaceholderText())}"></textarea>
+        <textarea id="feedback-message" name="message" rows="10" maxlength="4000" placeholder="${escapeHtml(getCleanFeedbackPlaceholderText())}"></textarea>
       </label>
       <p class="feedback-status" role="status" aria-live="polite"></p>
       <p class="feedback-sheet-note">
@@ -6070,6 +7431,7 @@ async function showMapLayers() {
     attribution: "JMA / National Land Numerical Information",
   });
   addGeoJsonSource("jma-local-areas", emptyFeatureCollection());
+  addGeoJsonSource("history-epicenter-areas", emptyFeatureCollection());
   addGeoJsonSource("plate-boundaries", emptyFeatureCollection());
   addGeoJsonSource("active-faults", emptyFeatureCollection());
   addGeoJsonSource("submarine-observation-points", emptyFeatureCollection());
@@ -6731,6 +8093,58 @@ function addMapLayers() {
   updateLayerVisibility("jma-intensity-fill", state.showRegionLayer);
 
   addLayerIfMissing({
+    id: "history-local-area-fill",
+    type: "fill",
+    source: "jma-local-areas",
+    paint: {
+      "fill-color": [
+        "case",
+        ["==", ["get", "historySelected"], true],
+        "rgba(38, 217, 255, 0.38)",
+        ["==", ["get", "historySelectable"], true],
+        "rgba(255, 255, 255, 0.06)",
+        "rgba(255, 255, 255, 0)",
+      ],
+      "fill-outline-color": "rgba(255, 255, 255, 0)",
+      "fill-opacity": [
+        "case",
+        ["==", ["get", "historySelected"], true],
+        1,
+        ["==", ["get", "historySelectable"], true],
+        1,
+        0,
+      ],
+    },
+  });
+  updateLayerVisibility("history-local-area-fill", false);
+
+  addLayerIfMissing({
+    id: "history-epicenter-area-fill",
+    type: "fill",
+    source: "history-epicenter-areas",
+    paint: {
+      "fill-color": [
+        "case",
+        ["all", ["==", ["get", "historySelected"], true], ["==", ["get", "historyMarine"], true]],
+        "rgba(38, 217, 255, 0.34)",
+        ["==", ["get", "historyMarine"], true],
+        "rgba(255, 255, 255, 0.04)",
+        "rgba(255, 255, 255, 0)",
+      ],
+      "fill-outline-color": "rgba(255, 255, 255, 0)",
+      "fill-opacity": [
+        "case",
+        ["all", ["==", ["get", "historySelected"], true], ["==", ["get", "historyMarine"], true]],
+        1,
+        ["==", ["get", "historyMarine"], true],
+        0.72,
+        0,
+      ],
+    },
+  });
+  updateLayerVisibility("history-epicenter-area-fill", false);
+
+  addLayerIfMissing({
     id: "eew-warning-fill",
     type: "fill",
     source: "jma-local-areas",
@@ -6982,14 +8396,14 @@ function renderStationCanvasOverlay() {
 
   if ((state.showStationLayer && features.length) || (state.showSubmarineStationLayer && submarineFeatures.length)) {
     const radius = interpolateByZoom(zoom, [
-      [4, 7.5],
-      [7, 9],
-      [10, 10.5],
+      [4, 8.2],
+      [7, 10.2],
+      [10, 12.2],
     ]);
     const fontSize = interpolateByZoom(zoom, [
-      [4, 9.2],
-      [8.8, 10.8],
-      [11, 11.6],
+      [4, 10.2],
+      [8.8, 12.1],
+      [11, 13.2],
     ]);
     const labelFadeStartZoom = STATION_LABEL_ALL_VISIBLE_MIN_ZOOM - 0.18;
     const labelAlpha = smoothStep(clamp((zoom - labelFadeStartZoom) / 0.18, 0, 1));
@@ -7108,12 +8522,16 @@ function drawStationCanvasMarker(context, x, y, radius, fontSize, labelAlpha, pr
   const intensityRank = Number(properties.intensityRank ?? 0);
 
   context.save();
+  context.shadowColor = "rgba(0, 0, 0, 0.2)";
+  context.shadowBlur = 2.5;
+  context.shadowOffsetY = 0.6;
   context.beginPath();
   context.arc(x, y, radius, 0, Math.PI * 2);
   context.fillStyle = fillColor;
   context.fill();
-  context.lineWidth = intensityRank <= 1 ? 1.45 : 1.35;
-  context.strokeStyle = intensityRank <= 1 ? "rgba(15, 23, 42, 0.86)" : "rgba(248, 250, 252, 0.86)";
+  context.shadowColor = "transparent";
+  context.lineWidth = intensityRank <= 2 ? 1.35 : 1.45;
+  context.strokeStyle = intensityRank <= 2 ? "rgba(0, 0, 0, 0.36)" : "rgba(0, 0, 0, 0.30)";
   context.stroke();
   context.restore();
 
@@ -7132,13 +8550,17 @@ function drawSubmarineStationCanvasMarker(context, x, y, radius, fontSize, label
   const textColor = properties.intensityTextColor || "#111827";
 
   context.save();
+  context.shadowColor = hasRecordedIntensity ? "rgba(0, 0, 0, 0.16)" : "transparent";
+  context.shadowBlur = hasRecordedIntensity ? 2.2 : 0;
+  context.shadowOffsetY = hasRecordedIntensity ? 0.5 : 0;
   context.beginPath();
   context.arc(x, y, radius, 0, Math.PI * 2);
   context.fillStyle = fillColor;
   context.fill();
-  context.lineWidth = hasRecordedIntensity ? 1.35 : 1.55;
-  context.setLineDash(hasRecordedIntensity ? [3.5, 2.5] : [2.5, 3.2]);
-  context.strokeStyle = hasRecordedIntensity ? "rgba(125, 211, 252, 0.9)" : "rgba(148, 163, 184, 0.76)";
+  context.shadowColor = "transparent";
+  context.lineWidth = hasRecordedIntensity ? 1.35 : 1.45;
+  context.setLineDash(hasRecordedIntensity ? [2.8, 2.2] : [2.5, 3.2]);
+  context.strokeStyle = hasRecordedIntensity ? "rgba(0, 0, 0, 0.32)" : "rgba(0, 0, 0, 0.28)";
   context.stroke();
   context.setLineDash([]);
   context.restore();
@@ -7153,14 +8575,14 @@ function drawSubmarineStationCanvasMarker(context, x, y, radius, fontSize, label
 function drawStationCanvasLabel(context, x, y, fontSize, labelAlpha, textColor, properties) {
   context.save();
   context.globalAlpha = labelAlpha;
-  context.font = `700 ${fontSize}px "Noto Sans", "Arial", sans-serif`;
+  context.font = `800 ${fontSize}px "Segoe UI", "Noto Sans", "Arial", sans-serif`;
   context.textAlign = "center";
   context.textBaseline = "middle";
-  context.lineWidth = 0.9;
-  context.strokeStyle = Number(properties.intensityRank ?? 0) <= 2 ? "rgba(255,255,255,0.72)" : "rgba(0,0,0,0.34)";
+  context.lineWidth = 0.65;
+  context.strokeStyle = Number(properties.intensityRank ?? 0) <= 2 ? "rgba(255, 255, 255, 0.34)" : "rgba(0, 0, 0, 0.22)";
   context.fillStyle = textColor;
-  context.strokeText(String(properties.intensityShortLabel ?? ""), x, y + 0.35);
-  context.fillText(String(properties.intensityShortLabel ?? ""), x, y + 0.35);
+  context.strokeText(String(properties.intensityShortLabel ?? ""), x, y + 0.15);
+  context.fillText(String(properties.intensityShortLabel ?? ""), x, y + 0.15);
   context.restore();
 }
 
