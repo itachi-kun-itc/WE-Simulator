@@ -2178,7 +2178,14 @@ function setupTabs() {
     els.settingsMenuSheet?.classList.add("settings-detail-open");
     panel.classList.remove("hidden", "is-leaving");
     panel.classList.add("settings-detail-panel");
-    requestAnimationFrame(() => panel.classList.add("is-active"));
+    panel.scrollTop = 0;
+    panel.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+    els.settingsMenuSheet?.querySelector(".settings-menu-list")?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+    requestAnimationFrame(() => {
+      panel.scrollTop = 0;
+      panel.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+      panel.classList.add("is-active");
+    });
     button?.setAttribute("aria-expanded", "true");
   };
 
@@ -15705,6 +15712,13 @@ function openCommunityAccountScreen(type) {
   `;
   sheet.classList.add("community-account-screen-open");
   screen.classList.remove("hidden");
+  screen.scrollTop = 0;
+  screen.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+  sheet.querySelector(".settings-menu-list")?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+  requestAnimationFrame(() => {
+    screen.scrollTop = 0;
+    screen.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+  });
   screen.querySelector(".community-account-screen-back")?.addEventListener("click", closeCommunityAccountScreen);
   bindCommunityAccountScreen(type, screen);
 }
