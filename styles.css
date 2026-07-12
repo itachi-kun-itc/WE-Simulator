@@ -12530,11 +12530,16 @@ body.community-post-detail-open .community-post-button {
 .community-account-screen {
   position: absolute;
   inset: 0;
-  z-index: 5;
+  z-index: 80;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
   overflow-y: auto;
-  padding: 86px 18px 22px;
-  background: linear-gradient(180deg, rgba(11, 13, 14, 0.98), rgba(0, 0, 0, 0.99));
+  padding: 86px 18px calc(18px + env(safe-area-inset-bottom));
+  background: #050607;
   color: #fff;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .community-account-screen.hidden {
@@ -12558,6 +12563,25 @@ body.community-post-detail-open .community-post-button {
   margin: 0 0 18px;
   text-align: center;
   font-size: 22px;
+}
+
+.settings-menu-sheet.community-account-screen-open .settings-menu-list > :not(#community-account-screen) {
+  visibility: hidden;
+}
+
+.settings-menu-sheet.community-account-screen-open > :not(#community-account-screen) {
+  visibility: hidden;
+}
+
+.community-account-wide-button::after,
+#settings-admin-button span:first-child::after {
+  content: " [管理者のみ]";
+  display: inline-block;
+  margin-left: 0.45em;
+  color: #8ff6ff;
+  font-size: 0.74em;
+  font-weight: 900;
+  vertical-align: middle;
 }
 
 .community-account-screen-form {

@@ -1746,6 +1746,8 @@ function setupTabs() {
     ensureSettingsStatusCards();
     ensureSettingsAppearanceElements();
     els.settingsMenuSheet?.classList.remove("settings-detail-open");
+    els.settingsMenuSheet?.classList.remove("community-account-screen-open");
+    els.settingsMenuSheet?.querySelector("#community-account-screen")?.classList.add("hidden");
     els.settingsMenuSheet?.querySelectorAll(".settings-inline-panel").forEach((panel) => {
       panel.classList.add("hidden");
       panel.classList.remove("settings-detail-panel", "is-active", "is-leaving");
@@ -1755,6 +1757,7 @@ function setupTabs() {
   };
 
   const closeSettingsMenuSheet = () => {
+    closeCommunityAccountScreen();
     els.settingsMenuSheet?.classList.add("hidden");
   };
 
@@ -2275,6 +2278,7 @@ function setupTabs() {
   document.querySelector("#bottom-history-tab")?.addEventListener("click", () => {
     setActiveBottomTab("#bottom-history-tab");
     activateEarthquakePanel();
+    closeSettingsMenuSheet();
     closeFullPanels();
     if (!hasCommunityAccount()) {
       setCommunityMapModeActive(false);
@@ -15699,12 +15703,14 @@ function openCommunityAccountScreen(type) {
     ${content}
     <p class="community-account-screen-status" aria-live="polite"></p>
   `;
+  sheet.classList.add("community-account-screen-open");
   screen.classList.remove("hidden");
   screen.querySelector(".community-account-screen-back")?.addEventListener("click", closeCommunityAccountScreen);
   bindCommunityAccountScreen(type, screen);
 }
 
 function closeCommunityAccountScreen() {
+  els.settingsMenuSheet?.classList.remove("community-account-screen-open");
   els.settingsMenuSheet?.querySelector("#community-account-screen")?.classList.add("hidden");
 }
 
