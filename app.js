@@ -595,6 +595,17 @@ let earthquakeStatisticsLoading = false;
 let selectedStationInfoRegion = "";
 let stationInfoAffiliationFilter = "";
 let observedStationFeatureCache = { data: null, features: [] };
+
+function updateHistoryStatisticsLoadButtonState() {
+  const button = document.querySelector("#history-statistics-load");
+  if (!button) {
+    return;
+  }
+  const disabled = !selectedHistoryLocalAreaName || earthquakeStatisticsLoading;
+  button.disabled = disabled;
+  button.setAttribute("aria-disabled", String(disabled));
+}
+
 let speechAnnouncementState = createSpeechAnnouncementState();
 let postMunicipalityDataScheduled = false;
 const sourceDataRefs = new Map();
@@ -1001,7 +1012,12 @@ function setupTabs() {
         renderPastEarthquakeStatsPanel();
       });
     });
+    updateHistoryStatisticsLoadButtonState();
     row.querySelector("#history-statistics-load")?.addEventListener("click", async () => {
+      if (!selectedHistoryLocalAreaName) {
+        updateHistoryStatisticsLoadButtonState();
+        return;
+      }
       const startYear = Number(startSelect.value);
       const endYear = Number(endSelect.value);
       if (Math.abs(endYear - startYear) + 1 >= 5) {
@@ -1018,6 +1034,7 @@ function setupTabs() {
       earthquakeStatisticsLoadKey = "";
       pastEarthquakeAreaStatsCache = { signature: "", rows: [] };
       earthquakeStatisticsLoading = true;
+      updateHistoryStatisticsLoadButtonState();
       renderPastEarthquakeStatsPanel();
       try {
         await loadEarthquakeStatistics({ force: true });
@@ -1027,6 +1044,7 @@ function setupTabs() {
         }
       } finally {
         earthquakeStatisticsLoading = false;
+        updateHistoryStatisticsLoadButtonState();
         if (map?.getSource("jma-local-areas")) {
           setGeoJsonSourceData("jma-local-areas", buildHistoryLocalAreaMapData());
         }
@@ -1110,11 +1128,14 @@ function setupTabs() {
     speechButton?.querySelector("span")?.replaceChildren("");
     speechButton?.querySelector("strong")?.replaceChildren("読み上げ");
 
+    const scrollHost = els.setupPanel.querySelector(".sim-panel-scroll") ?? els.setupPanel;
     let host = els.setupPanel.querySelector(".simulation-start-sheet-host");
     if (!host) {
       host = document.createElement("div");
       host.className = "simulation-start-sheet-host";
-      els.setupPanel.append(host);
+      scrollHost.append(host);
+    } else if (!scrollHost.contains(host)) {
+      scrollHost.append(host);
     }
     if (quickHost.nextElementSibling !== host) {
       host.insertAdjacentElement("beforebegin", quickHost);
@@ -1539,6 +1560,7 @@ function setupTabs() {
     if (map?.getSource("history-epicenter-areas") && epicenterAreaData?.features?.length) {
       setGeoJsonSourceData("history-epicenter-areas", buildHistoryEpicenterAreaMapData());
     }
+    updateHistoryStatisticsLoadButtonState();
   };
 
   const resetInfoTabState = () => {
@@ -2150,31 +2172,38 @@ function setupTabs() {
     openSettingsMenuSheet();
   });
 
+  const toggleSettingsStatusCard = (statusCard) => {
+    if (!statusCard || activeSettingsDetailPanel) {
+      return false;
+    }
+    if (statusCard.classList.contains("settings-location-card")) {
+      if (els.currentLocationToggle) {
+        els.currentLocationToggle.checked = !els.currentLocationToggle.checked;
+        toggleCurrentLocationLink().finally(() => updateSettingsScreenNotificationState());
+      }
+      return true;
+    }
+    if (statusCard.contains(els.settingsPushStatus)) {
+      const status = statusCard.querySelector(".settings-status-message");
+      (state.pushSubscribed
+        ? disablePushNotificationsFromOverlay(status)
+        : enablePushNotificationsFromOverlay(status)
+      ).finally(() => {
+        updateSettingsScreenNotificationState();
+        refreshSettingsPushPanelButton();
+      });
+      return true;
+    }
+    return false;
+  };
+
   els.settingsMenuSheet?.addEventListener("click", (event) => {
-    const statusCard = event.target?.closest?.(".settings-status-card");
-    if (statusCard && !activeSettingsDetailPanel) {
-      if (statusCard.classList.contains("settings-location-card")) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        if (els.currentLocationToggle) {
-          els.currentLocationToggle.checked = !els.currentLocationToggle.checked;
-          toggleCurrentLocationLink().finally(() => updateSettingsScreenNotificationState());
-        }
-        return;
-      }
-      if (statusCard.contains(els.settingsPushStatus)) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        const status = statusCard.querySelector(".settings-status-message");
-        (state.pushSubscribed
-          ? disablePushNotificationsFromOverlay(status)
-          : enablePushNotificationsFromOverlay(status)
-        ).finally(() => {
-          updateSettingsScreenNotificationState();
-          refreshSettingsPushPanelButton();
-        });
-        return;
-      }
+    const statusPill = event.target?.closest?.("#settings-push-status, #settings-location-status");
+    const statusCard = statusPill?.closest?.(".settings-status-card") ?? event.target?.closest?.(".settings-status-card");
+    if (toggleSettingsStatusCard(statusCard)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
     }
     const row = event.target?.closest?.(".settings-menu-row");
     if (!row || activeSettingsDetailPanel) {
@@ -2196,6 +2225,18 @@ function setupTabs() {
     event.preventDefault();
     event.stopImmediatePropagation();
     openSettingsDetailPanel(...detail);
+  });
+
+  els.settingsMenuSheet?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+    const statusPill = event.target?.closest?.("#settings-push-status, #settings-location-status");
+    const statusCard = statusPill?.closest?.(".settings-status-card");
+    if (toggleSettingsStatusCard(statusCard)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
   });
 
   els.settingsMenuClose?.addEventListener("click", () => {
@@ -2484,8 +2525,33 @@ function updateEarthquakePresetButtonLabel() {
   els.historicalEarthquakeButton.textContent = preset
     ? formatEarthquakePresetButtonLabel(preset)
     : "地震を選ぶ";
+  const presetButtonLabel = document.createElement("span");
+  presetButtonLabel.textContent = preset ? formatEarthquakePresetButtonLabel(preset) : "地震を選択";
+  els.historicalEarthquakeButton.replaceChildren(presetButtonLabel);
   els.historicalEarthquakeButton.classList.toggle("has-preset", Boolean(preset));
   updateSubmarineObservationToggleAvailability();
+}
+
+function ensurePresetPickerCloseButton() {
+  const overlay = els.presetPickerOverlay ?? document.querySelector("#preset-picker-overlay");
+  if (!overlay) {
+    return null;
+  }
+  let button = els.presetPickerClose ?? document.querySelector("#preset-picker-close");
+  if (!button) {
+    button = document.createElement("button");
+    button.addEventListener("click", () => closeEarthquakePresetPicker());
+  }
+  button.id = "preset-picker-close";
+  button.className = "preset-picker-close";
+  button.type = "button";
+  button.setAttribute("aria-label", "閉じる");
+  button.textContent = "×";
+  if (button.parentElement !== overlay) {
+    overlay.insertAdjacentElement("afterbegin", button);
+  }
+  els.presetPickerClose = button;
+  return button;
 }
 
 function setupPresetToolbar() {
@@ -2700,6 +2766,7 @@ function getPresetSortTime(preset) {
 
 function openEarthquakePresetPicker() {
   setupPresetToolbar();
+  const closeButton = ensurePresetPickerCloseButton();
   const sortSelect = document.querySelector("#preset-sort-select");
   if (sortSelect) {
     sortSelect.value = `${state.presetSortKey}:${state.presetSortDirection}`;
@@ -2707,7 +2774,7 @@ function openEarthquakePresetPicker() {
   renderEarthquakePresetPicker();
   els.presetPickerOverlay?.classList.remove("hidden");
   resetPresetPickerScroll();
-  els.presetPickerClose?.focus();
+  closeButton?.focus();
 }
 
 function closeEarthquakePresetPicker(options = {}) {
@@ -2820,12 +2887,23 @@ function renderPastEarthquakeStatsPanel(error = null) {
   if (!els.historyStatsList) {
     return;
   }
+  updateHistoryStatisticsLoadButtonState();
 
   if (error) {
     els.historyStatsList.innerHTML = `
       <div class="history-stats-empty" role="status">
         <strong>過去の地震回数を読み込めませんでした</strong>
         <span>時間をおいてもう一度お試しください。</span>
+      </div>
+    `;
+    return;
+  }
+
+  if (!selectedHistoryLocalAreaName) {
+    els.historyStatsList.innerHTML = `
+      <div class="history-stats-empty history-stats-empty-static" role="status">
+        <strong>地域を選択してください</strong>
+        <span>地図上の細分区域をタップすると、その地域の地震統計だけを読み込みます。</span>
       </div>
     `;
     return;
@@ -2919,8 +2997,11 @@ function renderPastEarthquakeStatsPanel(error = null) {
 
   els.historyStatsList.innerHTML = `${heading}${cards}`;
   els.historyStatsList
-    .querySelectorAll("[data-history-clear-area], .history-epicenter-list, .history-epicenter-more")
+    .querySelectorAll(".history-stats-sheet-head, [data-history-clear-area], .history-epicenter-list, .history-epicenter-more")
     .forEach((element) => element.remove());
+  els.historyStatsList.querySelectorAll(".history-stats-card-main span").forEach((element) => {
+    element.replaceChildren("この区域を震源とする地震");
+  });
   els.historyStatsList.querySelector("[data-history-clear-area]")?.addEventListener("click", () => {
     selectedHistoryLocalAreaName = "";
     if (map?.getSource("jma-local-areas")) {
@@ -3347,6 +3428,7 @@ function bindHistoryMapEvents() {
     if (map.getSource("history-epicenter-areas")) {
       setGeoJsonSourceData("history-epicenter-areas", buildHistoryEpicenterAreaMapData());
     }
+    updateHistoryStatisticsLoadButtonState();
     renderPastEarthquakeStatsPanel();
   });
   map.on("click", "history-epicenter-area-fill", (event) => {
@@ -3361,6 +3443,7 @@ function bindHistoryMapEvents() {
     selectedHistoryLocalAreaName = areaName;
     setGeoJsonSourceData("jma-local-areas", buildHistoryLocalAreaMapData());
     setGeoJsonSourceData("history-epicenter-areas", buildHistoryEpicenterAreaMapData());
+    updateHistoryStatisticsLoadButtonState();
     renderPastEarthquakeStatsPanel();
   });
   map.on("mouseenter", "history-local-area-fill", () => {
@@ -3734,11 +3817,17 @@ function updateSettingsScreenNotificationState() {
   if (els.settingsPushStatus) {
     els.settingsPushStatus.textContent = state.pushSubscribed ? "ON" : "OFF";
     els.settingsPushStatus.dataset.state = state.pushSubscribed ? "on" : "off";
+    els.settingsPushStatus.setAttribute("role", "button");
+    els.settingsPushStatus.setAttribute("tabindex", "0");
+    els.settingsPushStatus.setAttribute("aria-pressed", String(state.pushSubscribed));
   }
   if (els.settingsLocationStatus) {
     const locationOn = Boolean(els.currentLocationToggle?.checked);
     els.settingsLocationStatus.textContent = locationOn ? "ON" : "OFF";
     els.settingsLocationStatus.dataset.state = locationOn ? "on" : "off";
+    els.settingsLocationStatus.setAttribute("role", "button");
+    els.settingsLocationStatus.setAttribute("tabindex", "0");
+    els.settingsLocationStatus.setAttribute("aria-pressed", String(locationOn));
   }
   if (els.settingsPushToggle) {
     els.settingsPushToggle.classList.toggle("is-on", state.pushSubscribed);
@@ -14105,3 +14194,11 @@ function clamp(value, min, max) {
 
   return Math.min(Math.max(value, min), max);
 }
+
+function setCompactHistoryTabLabel() {
+  document.querySelector("#bottom-history-tab span:last-child")?.replaceChildren("統計");
+}
+
+setCompactHistoryTabLabel();
+document.addEventListener("DOMContentLoaded", setCompactHistoryTabLabel);
+window.addEventListener("load", setCompactHistoryTabLabel);
