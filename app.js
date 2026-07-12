@@ -1087,7 +1087,7 @@ function setupTabs() {
     if (els.historicalEarthquakeButton && !quickHost.contains(els.historicalEarthquakeButton)) {
       quickHost.append(els.historicalEarthquakeButton);
     }
-    els.historicalEarthquakeButton?.querySelector("span")?.replaceChildren("プリセット地震");
+    els.historicalEarthquakeButton?.querySelector("span")?.replaceChildren("地震を選択");
     if (!quickHost.querySelector(".sheet-speech-toggle")) {
       const { speechConfirmOverlay } = setupGlobalOverlays();
       const speechButton = document.createElement("button");
@@ -1107,7 +1107,7 @@ function setupTabs() {
       quickHost.append(speechButton);
     }
     const speechButton = quickHost.querySelector(".sheet-speech-toggle");
-    speechButton?.querySelector("span")?.replaceChildren("♪");
+    speechButton?.querySelector("span")?.replaceChildren("");
     speechButton?.querySelector("strong")?.replaceChildren("読み上げ");
 
     let host = els.setupPanel.querySelector(".simulation-start-sheet-host");
@@ -1278,7 +1278,7 @@ function setupTabs() {
       const options = [...regionCounts.entries()]
         .sort((a, b) => getStationRegionSortIndexSafe(a[0]) - getStationRegionSortIndexSafe(b[0]))
         .map(([region, value]) => `<option value="${escapeHtml(region)}">${escapeHtml(region)}（${value}）</option>`);
-      regionSelect.innerHTML = `<option value="">都道府県・海域を選択</option>${options.join("")}`;
+      regionSelect.innerHTML = `<option value="">都道府県</option>${options.join("")}`;
       regionSelect.dataset.ready = "true";
     }
     if (regionSelect) {
@@ -1366,6 +1366,7 @@ function setupTabs() {
     if (toolbar && !toolbar.querySelector("#station-info-region")) {
       const regionSelect = document.createElement("select");
       regionSelect.id = "station-info-region";
+      regionSelect.setAttribute("aria-label", "都道府県");
       regionSelect.setAttribute("aria-label", "都道府県・海域を選択");
       const affiliationSelect = document.createElement("select");
       affiliationSelect.id = "station-info-affiliation";
@@ -1377,6 +1378,7 @@ function setupTabs() {
         <option value="2">防災科学技術研究所</option>
       `;
       toolbar.prepend(regionSelect, affiliationSelect);
+      regionSelect.setAttribute("aria-label", "都道府県");
       regionSelect.addEventListener("change", (event) => {
         selectedStationInfoRegion = event.target.value;
         renderInfoStationList();

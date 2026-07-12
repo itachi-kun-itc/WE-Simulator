@@ -10856,3 +10856,271 @@ body .source-info-button::after {
   box-shadow: 0 -5px 0 -1px currentColor !important;
   transform: translate(-50%, -25%) !important;
 }
+
+/* Current turn: preset picker spacing, quick buttons, and unified tab icons. */
+#setup-panel .simulation-quick-actions {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 10px !important;
+  margin: 12px 0 10px !important;
+  order: 50 !important;
+}
+
+#setup-panel .simulation-quick-actions #historical-earthquake-button,
+#setup-panel .simulation-quick-actions .sheet-speech-toggle {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  place-items: center !important;
+  width: 100% !important;
+  min-height: 44px !important;
+  padding: 0 16px !important;
+  border: 1px solid rgba(38, 217, 255, 0.34) !important;
+  border-radius: 16px !important;
+  background: linear-gradient(180deg, rgba(38, 217, 255, 0.22), rgba(38, 217, 255, 0.08)) !important;
+  color: #8ff4ff !important;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.13), 0 0 18px rgba(38, 217, 255, 0.12) !important;
+  text-align: center !important;
+  font-size: 0.9rem !important;
+  font-weight: 950 !important;
+}
+
+#setup-panel .simulation-quick-actions #historical-earthquake-button span,
+#setup-panel .simulation-quick-actions .sheet-speech-toggle strong {
+  justify-self: center !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+}
+
+#setup-panel .simulation-quick-actions .sheet-speech-toggle > span,
+#setup-panel .simulation-quick-actions .sheet-speech-toggle > span::after {
+  display: none !important;
+  content: "" !important;
+}
+
+#setup-panel .simulation-quick-actions .sheet-speech-toggle.is-muted {
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.055)) !important;
+  color: rgba(248, 250, 252, 0.72) !important;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.11) !important;
+}
+
+.preset-picker-overlay {
+  align-items: flex-start !important;
+  padding-top: max(78px, env(safe-area-inset-top) + 72px) !important;
+}
+
+.preset-picker-dialog {
+  position: relative !important;
+  margin-top: 0 !important;
+  padding-top: 62px !important;
+  max-height: calc(100dvh - 104px - env(safe-area-inset-bottom)) !important;
+}
+
+.preset-picker-head {
+  position: static !important;
+  display: block !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.preset-picker-head h2,
+.preset-picker-description {
+  display: none !important;
+}
+
+.preset-picker-close {
+  position: absolute !important;
+  left: 14px !important;
+  top: 14px !important;
+  width: 42px !important;
+  height: 42px !important;
+  border-radius: 50% !important;
+  z-index: 5 !important;
+}
+
+.preset-picker-table-wrap {
+  margin-top: 0 !important;
+  max-height: calc(100dvh - 190px - env(safe-area-inset-bottom)) !important;
+}
+
+.bottom-tab-icon {
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  min-height: 24px !important;
+}
+
+#earthquake-tab .bottom-tab-icon::before,
+#earthquake-tab .bottom-tab-icon::after,
+#bottom-history-tab .bottom-tab-icon::before,
+#bottom-history-tab .bottom-tab-icon::after,
+#bottom-info-tab .bottom-tab-icon::before,
+#bottom-info-tab .bottom-tab-icon::after,
+#bottom-learning-tab .bottom-tab-icon::before,
+#bottom-learning-tab .bottom-tab-icon::after,
+#bottom-settings-tab .bottom-tab-icon::before,
+#bottom-settings-tab .bottom-tab-icon::after {
+  position: absolute !important;
+  display: block !important;
+  content: "" !important;
+  font-size: 0 !important;
+  font-family: inherit !important;
+}
+
+#earthquake-tab .bottom-tab-icon::before {
+  left: 3px !important;
+  top: 11px !important;
+  width: 18px !important;
+  height: 3px !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: currentColor !important;
+  clip-path: polygon(0 50%, 10% 50%, 17% 0, 26% 100%, 35% 0, 44% 100%, 53% 0, 62% 100%, 71% 0, 80% 100%, 90% 50%, 100% 50%, 100% 100%, 0 100%) !important;
+  box-shadow: none !important;
+}
+
+#earthquake-tab .bottom-tab-icon::after {
+  display: none !important;
+}
+
+#bottom-history-tab .bottom-tab-icon::before {
+  left: 4px !important;
+  top: 5px !important;
+  width: 16px !important;
+  height: 14px !important;
+  border: 2px solid currentColor !important;
+  border-radius: 3px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+#bottom-history-tab .bottom-tab-icon::after {
+  left: 8px !important;
+  top: 9px !important;
+  width: 8px !important;
+  height: 2px !important;
+  background: currentColor !important;
+  box-shadow: 0 4px 0 currentColor !important;
+}
+
+#bottom-info-tab .bottom-tab-icon::before {
+  inset: 4px !important;
+  width: auto !important;
+  height: auto !important;
+  border: 2px solid currentColor !important;
+  border-radius: 50% !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+#bottom-info-tab .bottom-tab-icon::after {
+  left: 50% !important;
+  top: 50% !important;
+  width: 3px !important;
+  height: 8px !important;
+  border-radius: 999px !important;
+  background: currentColor !important;
+  box-shadow: 0 -5px 0 -1px currentColor !important;
+  transform: translate(-50%, -25%) !important;
+}
+
+#bottom-settings-tab .bottom-tab-icon::before {
+  left: 2px !important;
+  top: 2px !important;
+  width: 20px !important;
+  height: 20px !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  background:
+    radial-gradient(circle at 50% 50%, transparent 0 25%, currentColor 26% 42%, transparent 43%),
+    conic-gradient(from 0deg, currentColor 0 12deg, transparent 12deg 42deg, currentColor 42deg 54deg, transparent 54deg 84deg, currentColor 84deg 96deg, transparent 96deg 126deg, currentColor 126deg 138deg, transparent 138deg 168deg, currentColor 168deg 180deg, transparent 180deg 210deg, currentColor 210deg 222deg, transparent 222deg 252deg, currentColor 252deg 264deg, transparent 264deg 294deg, currentColor 294deg 306deg, transparent 306deg 336deg, currentColor 336deg 360deg) !important;
+  box-shadow: none !important;
+}
+
+#bottom-settings-tab .bottom-tab-icon::after {
+  left: 9px !important;
+  top: 9px !important;
+  width: 6px !important;
+  height: 6px !important;
+  border-radius: 50% !important;
+  background: currentColor !important;
+  box-shadow: none !important;
+}
+
+/* Current turn final fixes: disabled wait, info toolbar sizing, in-sheet quick buttons. */
+#simulation-start.sheet-simulation-start:disabled,
+body #simulation-start.sheet-simulation-start:disabled {
+  border-color: rgba(148, 163, 184, 0.24) !important;
+  background: linear-gradient(180deg, rgba(71, 85, 105, 0.44), rgba(30, 41, 59, 0.58)) !important;
+  color: rgba(203, 213, 225, 0.58) !important;
+  box-shadow: none !important;
+  cursor: not-allowed !important;
+  opacity: 0.82 !important;
+  filter: saturate(0.45) !important;
+}
+
+#setup-panel .simulation-quick-actions {
+  position: static !important;
+  inset: auto !important;
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  width: 100% !important;
+  margin: 12px 0 10px !important;
+  transform: none !important;
+}
+
+#setup-panel .simulation-quick-actions #historical-earthquake-button,
+#setup-panel .simulation-quick-actions .sheet-speech-toggle {
+  grid-template-columns: 1fr !important;
+  place-items: center !important;
+  text-align: center !important;
+}
+
+#setup-panel .simulation-quick-actions .sheet-speech-toggle:not(.is-muted) {
+  border-color: rgba(38, 217, 255, 0.48) !important;
+  background: linear-gradient(180deg, rgba(38, 217, 255, 0.28), rgba(38, 217, 255, 0.1)) !important;
+  color: #8ff4ff !important;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.14), 0 0 20px rgba(38, 217, 255, 0.2) !important;
+}
+
+#info-full-panel .station-info-toolbar {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding-inline: 20px !important;
+}
+
+#info-full-panel #station-info-region,
+#info-full-panel #station-info-affiliation {
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 44px !important;
+  border-radius: 16px !important;
+}
+
+#info-full-panel .station-info-search-wrap {
+  grid-column: 1 / -1 !important;
+  width: 100% !important;
+}
+
+#info-full-panel #station-info-filter {
+  width: 100% !important;
+}
+
+#info-full-panel #station-info-count {
+  grid-column: 1 / -1 !important;
+  justify-self: end !important;
+}
+
+#bottom-settings-tab .bottom-tab-icon::before {
+  left: 1px !important;
+  top: 1px !important;
+  width: 22px !important;
+  height: 22px !important;
+}
+
+#bottom-settings-tab .bottom-tab-icon::after {
+  left: 9px !important;
+  top: 9px !important;
+}
