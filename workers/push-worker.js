@@ -72,6 +72,14 @@ export default {
         return json({ presets });
       }
 
+      if (request.method === "GET" && url.pathname === "/earthquake-statistics") {
+        const statistics = await listEarthquakeStatistics(env, {
+          startYear: url.searchParams.get("startYear"),
+          endYear: url.searchParams.get("endYear"),
+        });
+        return json(statistics);
+      }
+
       if (request.method === "GET" && url.pathname.startsWith("/earthquake-presets/")) {
         const id = decodeURIComponent(url.pathname.slice("/earthquake-presets/".length));
         const preset = await readEarthquakePreset(env, id);
@@ -571,6 +579,104 @@ async function listEarthquakePresetSummaries(env) {
     magnitude: Number(row.magnitude),
     maxIntensity: String(row.maxIntensity || ""),
   }));
+}
+
+async function listEarthquakeStatistics(env, options = {}) {
+  const db = getEarthquakePresetDb(env);
+  const startYear = normalizeStatisticsYear(options.startYear) || new Date().getUTCFullYear();
+  const endYear = normalizeStatisticsYear(options.endYear) || startYear;
+  const normalizedStartYear = Math.min(startYear, endYear);
+  const normalizedEndYear = Math.max(startYear, endYear);
+  let areaResult;
+  try {
+    areaResult = await db.prepare(`
+      SELECT
+        area_name AS areaName,
+        SUM(count) AS count,
+        MAX(latest_at) AS latestAt,
+        MAX(source) AS source,
+        MAX(updated_at) AS updatedAt
+      FROM earthquake_statistics_area_years
+      WHERE year BETWEEN ?1 AND ?2
+      GROUP BY area_name
+      HAVING SUM(count) > 0
+      ORDER BY count DESC, area_name ASC
+    `).bind(normalizedStartYear, normalizedEndYear).all();
+  } catch (error) {
+    console.warn("earthquake statistics table unavailable", error);
+    return {
+      source: "USGS Earthquake Catalog API",
+      updatedAt: "",
+      period: {
+        startYear: normalizedStartYear,
+        endYear: normalizedEndYear,
+      },
+      areas: [],
+    };
+  }
+
+  const areas = areaResult.results || [];
+  if (!areas.length) {
+    return {
+      source: "USGS Earthquake Catalog API",
+      updatedAt: "",
+      period: {
+        startYear: normalizedStartYear,
+        endYear: normalizedEndYear,
+      },
+      areas: [],
+    };
+  }
+
+  const epicenterResult = await db.prepare(`
+    SELECT
+      area_name AS areaName,
+      epicenter_name AS name,
+      SUM(count) AS count,
+      MAX(latest_at) AS latestAt
+    FROM earthquake_statistics_epicenter_years
+    WHERE year BETWEEN ?1 AND ?2
+    GROUP BY area_name, epicenter_name
+    HAVING SUM(count) > 0
+    ORDER BY area_name ASC, count DESC, epicenter_name ASC
+  `).bind(normalizedStartYear, normalizedEndYear).all();
+  const epicentersByArea = new Map();
+  for (const row of epicenterResult.results || []) {
+    const areaName = String(row.areaName || "");
+    if (!areaName) {
+      continue;
+    }
+    const items = epicentersByArea.get(areaName) || [];
+    items.push({
+      name: String(row.name || ""),
+      count: Number(row.count) || 0,
+      latestAt: String(row.latestAt || ""),
+    });
+    epicentersByArea.set(areaName, items);
+  }
+
+  return {
+    source: String(areas[0]?.source || "USGS Earthquake Catalog API"),
+    updatedAt: String(areas[0]?.updatedAt || ""),
+    period: {
+      startYear: normalizedStartYear,
+      endYear: normalizedEndYear,
+    },
+    areas: areas.map((row) => ({
+      areaName: String(row.areaName || ""),
+      count: Number(row.count) || 0,
+      latestAt: String(row.latestAt || ""),
+      epicenters: epicentersByArea.get(String(row.areaName || "")) || [],
+    })),
+  };
+}
+
+function normalizeStatisticsYear(value) {
+  const year = Number(value);
+  if (!Number.isInteger(year)) {
+    return null;
+  }
+  return Math.min(Math.max(year, 1900), new Date().getUTCFullYear());
 }
 
 async function readEarthquakePreset(env, id) {

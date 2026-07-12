@@ -1,0 +1,5146 @@
+{
+  "source": "USGS Earthquake Catalog API",
+  "sourceUrl": "https://earthquake.usgs.gov/fdsnws/event/1/query",
+  "updatedAt": "2026-07-12T03:31:59.696Z",
+  "period": {
+    "start": "2025-01-01",
+    "end": "2026-12-31"
+  },
+  "bounds": {
+    "minlatitude": 20,
+    "maxlatitude": 50,
+    "minlongitude": 118,
+    "maxlongitude": 156
+  },
+  "minMagnitude": null,
+  "fetched": 2777,
+  "areas": [
+    {
+      "areaName": "三陸沖",
+      "count": 282,
+      "latestAt": "2026-06-26T07:21:59.709Z",
+      "epicenters": [
+        {
+          "name": "132 km E of Yamada, Japan",
+          "count": 7
+        },
+        {
+          "name": "131 km E of Yamada, Japan",
+          "count": 6
+        },
+        {
+          "name": "136 km E of Yamada, Japan",
+          "count": 6
+        },
+        {
+          "name": "117 km E of Yamada, Japan",
+          "count": 5
+        },
+        {
+          "name": "119 km E of Yamada, Japan",
+          "count": 5
+        },
+        {
+          "name": "109 km E of Miyako, Japan",
+          "count": 4
+        },
+        {
+          "name": "111 km E of Miyako, Japan",
+          "count": 4
+        },
+        {
+          "name": "111 km E of Yamada, Japan",
+          "count": 4
+        },
+        {
+          "name": "116 km E of Yamada, Japan",
+          "count": 4
+        },
+        {
+          "name": "118 km E of Yamada, Japan",
+          "count": 4
+        },
+        {
+          "name": "120 km E of Miyako, Japan",
+          "count": 4
+        },
+        {
+          "name": "105 km ENE of Miyako, Japan",
+          "count": 3
+        },
+        {
+          "name": "106 km E of Miyako, Japan",
+          "count": 3
+        },
+        {
+          "name": "110 km E of Miyako, Japan",
+          "count": 3
+        },
+        {
+          "name": "110 km ENE of Miyako, Japan",
+          "count": 3
+        },
+        {
+          "name": "113 km E of Miyako, Japan",
+          "count": 3
+        },
+        {
+          "name": "113 km E of Yamada, Japan",
+          "count": 3
+        },
+        {
+          "name": "115 km E of Yamada, Japan",
+          "count": 3
+        },
+        {
+          "name": "118 km E of Miyako, Japan",
+          "count": 3
+        },
+        {
+          "name": "119 km E of Miyako, Japan",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "areaName": "北西太平洋",
+      "count": 189,
+      "latestAt": "2026-07-03T08:22:53.615Z",
+      "epicenters": [
+        {
+          "name": "Kuril Islands",
+          "count": 7
+        },
+        {
+          "name": "96 km SSW of Severo-Kuril’sk, Russia",
+          "count": 5
+        },
+        {
+          "name": "east of the Kuril Islands",
+          "count": 5
+        },
+        {
+          "name": "100 km SSW of Severo-Kuril’sk, Russia",
+          "count": 3
+        },
+        {
+          "name": "107 km S of Severo-Kuril’sk, Russia",
+          "count": 3
+        },
+        {
+          "name": "125 km SSW of Severo-Kuril’sk, Russia",
+          "count": 3
+        },
+        {
+          "name": "150 km SSW of Severo-Kuril’sk, Russia",
+          "count": 3
+        },
+        {
+          "name": "208 km SSW of Severo-Kuril’sk, Russia",
+          "count": 3
+        },
+        {
+          "name": "299 km SSW of Severo-Kuril’sk, Russia",
+          "count": 3
+        },
+        {
+          "name": "85 km S of Severo-Kuril’sk, Russia",
+          "count": 3
+        },
+        {
+          "name": "89 km S of Severo-Kuril’sk, Russia",
+          "count": 3
+        },
+        {
+          "name": "93 km S of Severo-Kuril’sk, Russia",
+          "count": 3
+        },
+        {
+          "name": "94 km SSW of Severo-Kuril’sk, Russia",
+          "count": 3
+        },
+        {
+          "name": "101 km SSW of Severo-Kuril’sk, Russia",
+          "count": 2
+        },
+        {
+          "name": "103 km S of Severo-Kuril’sk, Russia",
+          "count": 2
+        },
+        {
+          "name": "106 km S of Severo-Kuril’sk, Russia",
+          "count": 2
+        },
+        {
+          "name": "133 km SSW of Severo-Kuril’sk, Russia",
+          "count": 2
+        },
+        {
+          "name": "149 km SSW of Severo-Kuril’sk, Russia",
+          "count": 2
+        },
+        {
+          "name": "160 km SSW of Severo-Kuril’sk, Russia",
+          "count": 2
+        },
+        {
+          "name": "165 km SSW of Severo-Kuril’sk, Russia",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "areaName": "台湾付近",
+      "count": 177,
+      "latestAt": "2026-07-05T19:11:34.177Z",
+      "epicenters": [
+        {
+          "name": "73 km E of Hualien City, Taiwan",
+          "count": 3
+        },
+        {
+          "name": "11 km NW of Yujing, Taiwan",
+          "count": 2
+        },
+        {
+          "name": "12 km ENE of Yujing, Taiwan",
+          "count": 2
+        },
+        {
+          "name": "20 km SSE of Yilan, Taiwan",
+          "count": 2
+        },
+        {
+          "name": "24 km SSW of Hualien City, Taiwan",
+          "count": 2
+        },
+        {
+          "name": "28 km S of Hualien City, Taiwan",
+          "count": 2
+        },
+        {
+          "name": "65 km S of Hualien City, Taiwan",
+          "count": 2
+        },
+        {
+          "name": "67 km N of Basco, Philippines",
+          "count": 2
+        },
+        {
+          "name": "8 km ESE of Hualien City, Taiwan",
+          "count": 2
+        },
+        {
+          "name": "8 km N of Yujing, Taiwan",
+          "count": 2
+        },
+        {
+          "name": "10 km E of Yongkang, Taiwan",
+          "count": 1
+        },
+        {
+          "name": "10 km NE of Yujing, Taiwan",
+          "count": 1
+        },
+        {
+          "name": "100 km N of Basco, Philippines",
+          "count": 1
+        },
+        {
+          "name": "106 km ESE of Yujing, Taiwan",
+          "count": 1
+        },
+        {
+          "name": "106 km SE of Hengchun, Taiwan",
+          "count": 1
+        },
+        {
+          "name": "108 km SSE of Hengchun, Taiwan",
+          "count": 1
+        },
+        {
+          "name": "11 km N of Yujing, Taiwan",
+          "count": 1
+        },
+        {
+          "name": "11 km NE of Yujing, Taiwan",
+          "count": 1
+        },
+        {
+          "name": "11 km SSW of Yujing, Taiwan",
+          "count": 1
+        },
+        {
+          "name": "110 km ESE of Hengchun, Taiwan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "トカラ列島近海",
+      "count": 156,
+      "latestAt": "2026-06-03T19:02:46.706Z",
+      "epicenters": [
+        {
+          "name": "102 km NNW of Tatsugō, Japan",
+          "count": 8
+        },
+        {
+          "name": "91 km N of Tatsugō, Japan",
+          "count": 7
+        },
+        {
+          "name": "101 km N of Tatsugō, Japan",
+          "count": 5
+        },
+        {
+          "name": "95 km N of Tatsugō, Japan",
+          "count": 5
+        },
+        {
+          "name": "97 km N of Tatsugō, Japan",
+          "count": 5
+        },
+        {
+          "name": "99 km NNW of Tatsugō, Japan",
+          "count": 5
+        },
+        {
+          "name": "100 km NNW of Tatsugō, Japan",
+          "count": 4
+        },
+        {
+          "name": "95 km NNW of Tatsugō, Japan",
+          "count": 4
+        },
+        {
+          "name": "96 km N of Tatsugō, Japan",
+          "count": 4
+        },
+        {
+          "name": "98 km NNW of Tatsugō, Japan",
+          "count": 4
+        },
+        {
+          "name": "99 km N of Tatsug?, Japan",
+          "count": 4
+        },
+        {
+          "name": "99 km N of Tatsugō, Japan",
+          "count": 4
+        },
+        {
+          "name": "100 km N of Tatsugō, Japan",
+          "count": 3
+        },
+        {
+          "name": "101 km NNW of Tatsugō, Japan",
+          "count": 3
+        },
+        {
+          "name": "103 km N of Tatsugō, Japan",
+          "count": 3
+        },
+        {
+          "name": "92 km N of Tatsugō, Japan",
+          "count": 3
+        },
+        {
+          "name": "93 km NNW of Tatsugō, Japan",
+          "count": 3
+        },
+        {
+          "name": "94 km N of Tatsugō, Japan",
+          "count": 3
+        },
+        {
+          "name": "94 km NNW of Tatsugō, Japan",
+          "count": 3
+        },
+        {
+          "name": "96 km NNW of Tatsugō, Japan",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "areaName": "青森県東方沖",
+      "count": 146,
+      "latestAt": "2026-06-28T23:11:24.126Z",
+      "epicenters": [
+        {
+          "name": "112 km S of Honchō, Japan",
+          "count": 4
+        },
+        {
+          "name": "128 km S of Honchō, Japan",
+          "count": 4
+        },
+        {
+          "name": "120 km S of Honchō, Japan",
+          "count": 3
+        },
+        {
+          "name": "123 km S of Honchō, Japan",
+          "count": 3
+        },
+        {
+          "name": "106 km E of Yokohama, Japan",
+          "count": 2
+        },
+        {
+          "name": "113 km S of Honchō, Japan",
+          "count": 2
+        },
+        {
+          "name": "116 km S of Honchō, Japan",
+          "count": 2
+        },
+        {
+          "name": "123 km ENE of Hachinohe, Japan",
+          "count": 2
+        },
+        {
+          "name": "125 km S of Honchō, Japan",
+          "count": 2
+        },
+        {
+          "name": "126 km NE of Kuji, Japan",
+          "count": 2
+        },
+        {
+          "name": "130 km S of Honchō, Japan",
+          "count": 2
+        },
+        {
+          "name": "41 km ENE of Hachinohe, Japan",
+          "count": 2
+        },
+        {
+          "name": "53 km NE of Misawa, Japan",
+          "count": 2
+        },
+        {
+          "name": "91 km ENE of Hachinohe, Japan",
+          "count": 2
+        },
+        {
+          "name": "98 km ENE of Yokohama, Japan",
+          "count": 2
+        },
+        {
+          "name": "101 km E of Yokohama, Japan",
+          "count": 1
+        },
+        {
+          "name": "101 km ENE of Noda, Japan",
+          "count": 1
+        },
+        {
+          "name": "101 km S of Honchō, Japan",
+          "count": 1
+        },
+        {
+          "name": "101 km SSW of Urakawa, Japan",
+          "count": 1
+        },
+        {
+          "name": "102 km SSW of Urakawa, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "鳥島近海",
+      "count": 144,
+      "latestAt": "2026-07-05T17:03:15.159Z",
+      "epicenters": [
+        {
+          "name": "Izu Islands, Japan region",
+          "count": 139
+        },
+        {
+          "name": "Bonin Islands, Japan region",
+          "count": 3
+        },
+        {
+          "name": "269 km SE of Kushimoto, Japan",
+          "count": 1
+        },
+        {
+          "name": "280 km SE of Kushimoto, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "千島列島",
+      "count": 137,
+      "latestAt": "2026-06-30T00:46:01.947Z",
+      "epicenters": [
+        {
+          "name": "Kuril Islands",
+          "count": 83
+        },
+        {
+          "name": "east of the Kuril Islands",
+          "count": 7
+        },
+        {
+          "name": "northwest of the Kuril Islands",
+          "count": 3
+        },
+        {
+          "name": "246 km E of Kuril’sk, Russia",
+          "count": 2
+        },
+        {
+          "name": "145 km E of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "168 km NE of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "172 km E of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "176 km E of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "178 km ENE of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "185 km E of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "194 km ESE of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "194 km NE of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "196 km NE of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "197 km ESE of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "198 km ESE of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "209 km ESE of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "211 km ENE of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "213 km NE of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "222 km ENE of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "223 km ENE of Kuril’sk, Russia",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "岩手県沖",
+      "count": 83,
+      "latestAt": "2026-07-08T07:35:51.628Z",
+      "epicenters": [
+        {
+          "name": "48 km ENE of Noda, Japan",
+          "count": 2
+        },
+        {
+          "name": "50 km ENE of Kuji, Japan",
+          "count": 2
+        },
+        {
+          "name": "62 km E of Noda, Japan",
+          "count": 2
+        },
+        {
+          "name": "79 km E of Noda, Japan",
+          "count": 2
+        },
+        {
+          "name": "85 km E of Noda, Japan",
+          "count": 2
+        },
+        {
+          "name": "94 km ENE of Noda, Japan",
+          "count": 2
+        },
+        {
+          "name": "103 km E of Noda, Japan",
+          "count": 1
+        },
+        {
+          "name": "103 km ENE of Miyako, Japan",
+          "count": 1
+        },
+        {
+          "name": "12 km NNE of Miyako, Japan",
+          "count": 1
+        },
+        {
+          "name": "13 km NE of Miyako, Japan",
+          "count": 1
+        },
+        {
+          "name": "14 km ESE of Yamada, Japan",
+          "count": 1
+        },
+        {
+          "name": "14 km NE of Kuji, Japan",
+          "count": 1
+        },
+        {
+          "name": "15 km ESE of Ōfunato, Japan",
+          "count": 1
+        },
+        {
+          "name": "16 km E of Noda, Japan",
+          "count": 1
+        },
+        {
+          "name": "17 km SE of Kamaishi, Japan",
+          "count": 1
+        },
+        {
+          "name": "24 km ESE of Kamaishi, Japan",
+          "count": 1
+        },
+        {
+          "name": "24 km ESE of Ōfunato, Japan",
+          "count": 1
+        },
+        {
+          "name": "25 km NE of Miyako, Japan",
+          "count": 1
+        },
+        {
+          "name": "27 km E of Iwaizumi, Japan",
+          "count": 1
+        },
+        {
+          "name": "27 km SE of Kamaishi, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "硫黄島近海",
+      "count": 74,
+      "latestAt": "2026-06-29T06:54:16.912Z",
+      "epicenters": [
+        {
+          "name": "Volcano Islands, Japan region",
+          "count": 70
+        },
+        {
+          "name": "Mariana Islands region",
+          "count": 4
+        }
+      ]
+    },
+    {
+      "areaName": "沖縄本島近海",
+      "count": 72,
+      "latestAt": "2026-06-19T19:41:52.943Z",
+      "epicenters": [
+        {
+          "name": "129 km WSW of Itoman, Japan",
+          "count": 2
+        },
+        {
+          "name": "78 km ESE of Taira, Japan",
+          "count": 2
+        },
+        {
+          "name": "83 km ESE of Taira, Japan",
+          "count": 2
+        },
+        {
+          "name": "84 km ESE of Taira, Japan",
+          "count": 2
+        },
+        {
+          "name": "11 km N of Wadomari, Japan",
+          "count": 1
+        },
+        {
+          "name": "11 km NNE of Wadomari, Japan",
+          "count": 1
+        },
+        {
+          "name": "117 km SE of Taira, Japan",
+          "count": 1
+        },
+        {
+          "name": "120 km SE of Wadomari, Japan",
+          "count": 1
+        },
+        {
+          "name": "123 km S of Itoman, Japan",
+          "count": 1
+        },
+        {
+          "name": "125 km SE of Wadomari, Japan",
+          "count": 1
+        },
+        {
+          "name": "126 km SSW of Itoman, Japan",
+          "count": 1
+        },
+        {
+          "name": "126 km WSW of Itoman, Japan",
+          "count": 1
+        },
+        {
+          "name": "127 km SSE of Itoman, Japan",
+          "count": 1
+        },
+        {
+          "name": "128 km SSE of Itoman, Japan",
+          "count": 1
+        },
+        {
+          "name": "131 km SSE of Itoman, Japan",
+          "count": 1
+        },
+        {
+          "name": "135 km SW of Itoman, Japan",
+          "count": 1
+        },
+        {
+          "name": "136 km SSE of Itoman, Japan",
+          "count": 1
+        },
+        {
+          "name": "143 km ESE of Taira, Japan",
+          "count": 1
+        },
+        {
+          "name": "143 km NE of Hirara, Japan",
+          "count": 1
+        },
+        {
+          "name": "150 km S of Itoman, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "宮古島近海",
+      "count": 70,
+      "latestAt": "2026-07-09T16:21:44.279Z",
+      "epicenters": [
+        {
+          "name": "46 km NW of Hirara, Japan",
+          "count": 2
+        },
+        {
+          "name": "51 km NNW of Hirara, Japan",
+          "count": 2
+        },
+        {
+          "name": "53 km NW of Hirara, Japan",
+          "count": 2
+        },
+        {
+          "name": "57 km NNW of Hirara, Japan",
+          "count": 2
+        },
+        {
+          "name": "59 km NNW of Hirara, Japan",
+          "count": 2
+        },
+        {
+          "name": "100 km SE of Miyakojima, Japan",
+          "count": 1
+        },
+        {
+          "name": "106 km NNE of Hirara, Japan",
+          "count": 1
+        },
+        {
+          "name": "106 km SE of Miyakojima, Japan",
+          "count": 1
+        },
+        {
+          "name": "109 km SSE of Miyakojima, Japan",
+          "count": 1
+        },
+        {
+          "name": "121 km NNE of Hirara, Japan",
+          "count": 1
+        },
+        {
+          "name": "127 km SE of Miyakojima, Japan",
+          "count": 1
+        },
+        {
+          "name": "132 km ENE of Miyakojima, Japan",
+          "count": 1
+        },
+        {
+          "name": "159 km SSE of Miyakojima, Japan",
+          "count": 1
+        },
+        {
+          "name": "164 km ESE of Miyakojima, Japan",
+          "count": 1
+        },
+        {
+          "name": "165 km E of Miyakojima, Japan",
+          "count": 1
+        },
+        {
+          "name": "17 km ESE of Tarama, Japan",
+          "count": 1
+        },
+        {
+          "name": "17 km NE of Hirara, Japan",
+          "count": 1
+        },
+        {
+          "name": "175 km SE of Miyakojima, Japan",
+          "count": 1
+        },
+        {
+          "name": "24 km NNE of Hirara, Japan",
+          "count": 1
+        },
+        {
+          "name": "28 km NNW of Hirara, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "福島県沖",
+      "count": 69,
+      "latestAt": "2026-06-18T22:33:07.640Z",
+      "epicenters": [
+        {
+          "name": "off the east coast of Honshu, Japan",
+          "count": 3
+        },
+        {
+          "name": "249 km ESE of Onagawa Chō, Japan",
+          "count": 2
+        },
+        {
+          "name": "25 km ESE of Iwaki, Japan",
+          "count": 2
+        },
+        {
+          "name": "258 km ESE of Onagawa Chō, Japan",
+          "count": 2
+        },
+        {
+          "name": "59 km ENE of Minami-Sōma, Japan",
+          "count": 2
+        },
+        {
+          "name": "81 km E of Tomioka, Japan",
+          "count": 2
+        },
+        {
+          "name": "101 km E of Tomioka, Japan",
+          "count": 1
+        },
+        {
+          "name": "109 km E of Tomioka, Japan",
+          "count": 1
+        },
+        {
+          "name": "112 km E of Namie, Japan",
+          "count": 1
+        },
+        {
+          "name": "114 km ESE of Iwaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "115 km ESE of Iwaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "122 km ESE of Tomioka, Japan",
+          "count": 1
+        },
+        {
+          "name": "124 km E of Tomioka, Japan",
+          "count": 1
+        },
+        {
+          "name": "125 km E of Namie, Japan",
+          "count": 1
+        },
+        {
+          "name": "129 km ESE of Iwaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "146 km E of Tomioka, Japan",
+          "count": 1
+        },
+        {
+          "name": "146 km ESE of Iwaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "15 km ESE of Tomioka, Japan",
+          "count": 1
+        },
+        {
+          "name": "16 km NE of Iwaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "16 km SSE of Tomioka, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "択捉島南東沖",
+      "count": 67,
+      "latestAt": "2026-07-09T11:58:39.525Z",
+      "epicenters": [
+        {
+          "name": "123 km SE of Kuril’sk, Russia",
+          "count": 3
+        },
+        {
+          "name": "137 km ESE of Kuril’sk, Russia",
+          "count": 3
+        },
+        {
+          "name": "111 km ESE of Kuril’sk, Russia",
+          "count": 2
+        },
+        {
+          "name": "125 km ESE of Kuril’sk, Russia",
+          "count": 2
+        },
+        {
+          "name": "134 km SE of Kuril’sk, Russia",
+          "count": 2
+        },
+        {
+          "name": "101 km E of Shikotan, Russia",
+          "count": 1
+        },
+        {
+          "name": "110 km SE of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "113 km SE of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "117 km SSE of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "119 km ESE of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "119 km ESE of Shikotan, Russia",
+          "count": 1
+        },
+        {
+          "name": "121 km SE of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "125 km SSE of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "126 km SE of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "127 km SE of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "128 km SSE of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "129 km SE of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "130 km ESE of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "132 km ESE of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "133 km E of Kuril’sk, Russia",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "八丈島東方沖",
+      "count": 63,
+      "latestAt": "2026-07-04T05:03:52.698Z",
+      "epicenters": [
+        {
+          "name": "Izu Islands, Japan region",
+          "count": 26
+        },
+        {
+          "name": "254 km SE of Katsuura, Japan",
+          "count": 2
+        },
+        {
+          "name": "257 km SE of Katsuura, Japan",
+          "count": 2
+        },
+        {
+          "name": "off the east coast of Honshu, Japan",
+          "count": 2
+        },
+        {
+          "name": "163 km SSE of Tateyama, Japan",
+          "count": 1
+        },
+        {
+          "name": "188 km SE of Katsuura, Japan",
+          "count": 1
+        },
+        {
+          "name": "203 km SE of Katsuura, Japan",
+          "count": 1
+        },
+        {
+          "name": "208 km SSE of Tateyama, Japan",
+          "count": 1
+        },
+        {
+          "name": "209 km SSE of Wada, Japan",
+          "count": 1
+        },
+        {
+          "name": "210 km SSE of Katsuura, Japan",
+          "count": 1
+        },
+        {
+          "name": "219 km SSE of Shimoda, Japan",
+          "count": 1
+        },
+        {
+          "name": "221 km SE of Katsuura, Japan",
+          "count": 1
+        },
+        {
+          "name": "224 km SE of Katsuura, Japan",
+          "count": 1
+        },
+        {
+          "name": "237 km SE of Katsuura, Japan",
+          "count": 1
+        },
+        {
+          "name": "238 km SE of Katsuura, Japan",
+          "count": 1
+        },
+        {
+          "name": "238 km SSE of Shimoda, Japan",
+          "count": 1
+        },
+        {
+          "name": "246 km SE of Katsuura, Japan",
+          "count": 1
+        },
+        {
+          "name": "246 km SE of Shinmachi, Japan",
+          "count": 1
+        },
+        {
+          "name": "250 km SE of Katsuura, Japan",
+          "count": 1
+        },
+        {
+          "name": "253 km SE of Katsuura, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "北海道東方沖",
+      "count": 61,
+      "latestAt": "2026-06-10T00:28:59.024Z",
+      "epicenters": [
+        {
+          "name": "108 km ESE of Shikotan, Russia",
+          "count": 3
+        },
+        {
+          "name": "103 km ESE of Shikotan, Russia",
+          "count": 2
+        },
+        {
+          "name": "66 km ESE of Shikotan, Russia",
+          "count": 2
+        },
+        {
+          "name": "99 km ESE of Shikotan, Russia",
+          "count": 2
+        },
+        {
+          "name": "100 km ESE of Shikotan, Russia",
+          "count": 1
+        },
+        {
+          "name": "100 km SE of Shikotan, Russia",
+          "count": 1
+        },
+        {
+          "name": "101 km ESE of Shikotan, Russia",
+          "count": 1
+        },
+        {
+          "name": "102 km ESE of Shikotan, Russia",
+          "count": 1
+        },
+        {
+          "name": "109 km E of Shikotan, Russia",
+          "count": 1
+        },
+        {
+          "name": "109 km ESE of Shikotan, Russia",
+          "count": 1
+        },
+        {
+          "name": "110 km SE of Shikotan, Russia",
+          "count": 1
+        },
+        {
+          "name": "112 km ESE of Shikotan, Russia",
+          "count": 1
+        },
+        {
+          "name": "114 km ESE of Shikotan, Russia",
+          "count": 1
+        },
+        {
+          "name": "117 km ESE of Shikotan, Russia",
+          "count": 1
+        },
+        {
+          "name": "118 km SE of Shikotan, Russia",
+          "count": 1
+        },
+        {
+          "name": "119 km ESE of Shikotan, Russia",
+          "count": 1
+        },
+        {
+          "name": "122 km ESE of Shikotan, Russia",
+          "count": 1
+        },
+        {
+          "name": "137 km ESE of Shikotan, Russia",
+          "count": 1
+        },
+        {
+          "name": "154 km ESE of Shikotan, Russia",
+          "count": 1
+        },
+        {
+          "name": "168 km ESE of Shikotan, Russia",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "宮城県沖",
+      "count": 57,
+      "latestAt": "2026-07-03T01:44:50.399Z",
+      "epicenters": [
+        {
+          "name": "41 km SE of Ōfunato, Japan",
+          "count": 2
+        },
+        {
+          "name": "52 km ESE of Onagawa Chō, Japan",
+          "count": 2
+        },
+        {
+          "name": "58 km SSE of Onagawa Chō, Japan",
+          "count": 2
+        },
+        {
+          "name": "106 km SE of Ōfunato, Japan",
+          "count": 1
+        },
+        {
+          "name": "20 km SE of Onagawa Chō, Japan",
+          "count": 1
+        },
+        {
+          "name": "25 km ESE of Ōfunato, Japan",
+          "count": 1
+        },
+        {
+          "name": "27 km E of Onagawa Chō, Japan",
+          "count": 1
+        },
+        {
+          "name": "27 km SE of Ōfunato, Japan",
+          "count": 1
+        },
+        {
+          "name": "27 km SE of Onagawa Chō, Japan",
+          "count": 1
+        },
+        {
+          "name": "29 km S of Ōfunato, Japan",
+          "count": 1
+        },
+        {
+          "name": "30 km ESE of Ōfunato, Japan",
+          "count": 1
+        },
+        {
+          "name": "32 km SE of Onagawa Chō, Japan",
+          "count": 1
+        },
+        {
+          "name": "33 km ESE of Onagawa Chō, Japan",
+          "count": 1
+        },
+        {
+          "name": "34 km ESE of Onagawa Chō, Japan",
+          "count": 1
+        },
+        {
+          "name": "35 km SSE of Onagawa Chō, Japan",
+          "count": 1
+        },
+        {
+          "name": "37 km ENE of Onagawa Chō, Japan",
+          "count": 1
+        },
+        {
+          "name": "40 km SE of Onagawa Chō, Japan",
+          "count": 1
+        },
+        {
+          "name": "40 km SSE of Ōfunato, Japan",
+          "count": 1
+        },
+        {
+          "name": "41 km ESE of Ōfunato, Japan",
+          "count": 1
+        },
+        {
+          "name": "41 km SSE of Ōfunato, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "奄美大島北東沖",
+      "count": 45,
+      "latestAt": "2026-06-30T12:39:56.740Z",
+      "epicenters": [
+        {
+          "name": "101 km S of Yudomari, Japan",
+          "count": 2
+        },
+        {
+          "name": "84 km S of Koshima, Japan",
+          "count": 2
+        },
+        {
+          "name": "94 km S of Koshima, Japan",
+          "count": 2
+        },
+        {
+          "name": "102 km S of Koshima, Japan",
+          "count": 1
+        },
+        {
+          "name": "103 km NE of Tatsugō, Japan",
+          "count": 1
+        },
+        {
+          "name": "109 km S of Koshima, Japan",
+          "count": 1
+        },
+        {
+          "name": "110 km NE of Tatsugō, Japan",
+          "count": 1
+        },
+        {
+          "name": "110 km S of Yudomari, Japan",
+          "count": 1
+        },
+        {
+          "name": "113 km S of Koshima, Japan",
+          "count": 1
+        },
+        {
+          "name": "114 km NE of Tatsugō, Japan",
+          "count": 1
+        },
+        {
+          "name": "117 km NE of Tatsugō, Japan",
+          "count": 1
+        },
+        {
+          "name": "118 km NE of Tatsugō, Japan",
+          "count": 1
+        },
+        {
+          "name": "118 km S of Koshima, Japan",
+          "count": 1
+        },
+        {
+          "name": "120 km S of Koshima, Japan",
+          "count": 1
+        },
+        {
+          "name": "132 km E of Tatsugō, Japan",
+          "count": 1
+        },
+        {
+          "name": "138 km ESE of Tatsug?, Japan",
+          "count": 1
+        },
+        {
+          "name": "139 km SSE of Koshima, Japan",
+          "count": 1
+        },
+        {
+          "name": "144 km ESE of Tatsugō, Japan",
+          "count": 1
+        },
+        {
+          "name": "149 km E of Tatsugō, Japan",
+          "count": 1
+        },
+        {
+          "name": "168 km SSE of Koshima, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "小笠原諸島西方沖",
+      "count": 43,
+      "latestAt": "2026-06-30T10:08:12.076Z",
+      "epicenters": [
+        {
+          "name": "Bonin Islands, Japan region",
+          "count": 42
+        },
+        {
+          "name": "Volcano Islands, Japan region",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "根室半島南東沖",
+      "count": 42,
+      "latestAt": "2026-05-24T06:51:34.656Z",
+      "epicenters": [
+        {
+          "name": "82 km SE of Nemuro, Japan",
+          "count": 2
+        },
+        {
+          "name": "103 km ESE of Nemuro, Japan",
+          "count": 1
+        },
+        {
+          "name": "106 km ESE of Nemuro, Japan",
+          "count": 1
+        },
+        {
+          "name": "107 km S of Shikotan, Russia",
+          "count": 1
+        },
+        {
+          "name": "112 km SE of Nemuro, Japan",
+          "count": 1
+        },
+        {
+          "name": "116 km SE of Nemuro, Japan",
+          "count": 1
+        },
+        {
+          "name": "126 km SE of Nemuro, Japan",
+          "count": 1
+        },
+        {
+          "name": "136 km SSE of Shikotan, Russia",
+          "count": 1
+        },
+        {
+          "name": "30 km SSE of Nemuro, Japan",
+          "count": 1
+        },
+        {
+          "name": "33 km S of Nemuro, Japan",
+          "count": 1
+        },
+        {
+          "name": "35 km ENE of Nemuro, Japan",
+          "count": 1
+        },
+        {
+          "name": "38 km ESE of Nemuro, Japan",
+          "count": 1
+        },
+        {
+          "name": "41 km SE of Nemuro, Japan",
+          "count": 1
+        },
+        {
+          "name": "41 km SSE of Nemuro, Japan",
+          "count": 1
+        },
+        {
+          "name": "42 km E of Nemuro, Japan",
+          "count": 1
+        },
+        {
+          "name": "43 km SSE of Nemuro, Japan",
+          "count": 1
+        },
+        {
+          "name": "43 km SW of Shikotan, Russia",
+          "count": 1
+        },
+        {
+          "name": "45 km ESE of Nemuro, Japan",
+          "count": 1
+        },
+        {
+          "name": "50 km E of Nemuro, Japan",
+          "count": 1
+        },
+        {
+          "name": "53 km SE of Nemuro, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "マリアナ諸島",
+      "count": 41,
+      "latestAt": "2026-06-10T11:10:39.582Z",
+      "epicenters": [
+        {
+          "name": "Mariana Islands region",
+          "count": 35
+        },
+        {
+          "name": "Maug Islands region, Northern Mariana Islands",
+          "count": 6
+        }
+      ]
+    },
+    {
+      "areaName": "釧路沖",
+      "count": 40,
+      "latestAt": "2026-06-22T23:03:37.212Z",
+      "epicenters": [
+        {
+          "name": "41 km SSW of Nemuro, Japan",
+          "count": 2
+        },
+        {
+          "name": "75 km S of Kushiro, Japan",
+          "count": 2
+        },
+        {
+          "name": "77 km S of Kushiro, Japan",
+          "count": 2
+        },
+        {
+          "name": "78 km S of Kushiro, Japan",
+          "count": 2
+        },
+        {
+          "name": "178 km SSE of Akkeshi, Japan",
+          "count": 1
+        },
+        {
+          "name": "185 km SSE of Nemuro, Japan",
+          "count": 1
+        },
+        {
+          "name": "19 km SSE of Akkeshi, Japan",
+          "count": 1
+        },
+        {
+          "name": "21 km SE of Kushiro, Japan",
+          "count": 1
+        },
+        {
+          "name": "32 km SSE of Kushiro, Japan",
+          "count": 1
+        },
+        {
+          "name": "36 km SSW of Nemuro, Japan",
+          "count": 1
+        },
+        {
+          "name": "38 km SSW of Nemuro, Japan",
+          "count": 1
+        },
+        {
+          "name": "39 km SSW of Nemuro, Japan",
+          "count": 1
+        },
+        {
+          "name": "42 km SSW of Nemuro, Japan",
+          "count": 1
+        },
+        {
+          "name": "43 km SSW of Nemuro, Japan",
+          "count": 1
+        },
+        {
+          "name": "48 km SE of Akkeshi, Japan",
+          "count": 1
+        },
+        {
+          "name": "51 km ESE of Akkeshi, Japan",
+          "count": 1
+        },
+        {
+          "name": "58 km S of Kushiro, Japan",
+          "count": 1
+        },
+        {
+          "name": "58 km SSE of Akkeshi, Japan",
+          "count": 1
+        },
+        {
+          "name": "63 km ESE of Akkeshi, Japan",
+          "count": 1
+        },
+        {
+          "name": "68 km S of Kushiro, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "父島近海",
+      "count": 38,
+      "latestAt": "2026-06-14T11:06:30.620Z",
+      "epicenters": [
+        {
+          "name": "Bonin Islands, Japan region",
+          "count": 38
+        }
+      ]
+    },
+    {
+      "areaName": "与那国島近海",
+      "count": 34,
+      "latestAt": "2026-07-02T14:44:30.397Z",
+      "epicenters": [
+        {
+          "name": "47 km NNE of Yonakuni, Japan",
+          "count": 2
+        },
+        {
+          "name": "64 km SSW of Yonakuni, Japan",
+          "count": 2
+        },
+        {
+          "name": "74 km SW of Yonakuni, Japan",
+          "count": 2
+        },
+        {
+          "name": "81 km SW of Yonakuni, Japan",
+          "count": 2
+        },
+        {
+          "name": "133 km S of Yonakuni, Japan",
+          "count": 1
+        },
+        {
+          "name": "16 km NNW of Yonakuni, Japan",
+          "count": 1
+        },
+        {
+          "name": "175 km S of Yonakuni, Japan",
+          "count": 1
+        },
+        {
+          "name": "27 km SSW of Yonakuni, Japan",
+          "count": 1
+        },
+        {
+          "name": "34 km SE of Yonakuni, Japan",
+          "count": 1
+        },
+        {
+          "name": "35 km ESE of Yonakuni, Japan",
+          "count": 1
+        },
+        {
+          "name": "43 km NE of Yonakuni, Japan",
+          "count": 1
+        },
+        {
+          "name": "46 km NNE of Yonakuni, Japan",
+          "count": 1
+        },
+        {
+          "name": "46 km WNW of Yonakuni, Japan",
+          "count": 1
+        },
+        {
+          "name": "48 km N of Yonakuni, Japan",
+          "count": 1
+        },
+        {
+          "name": "52 km N of Yonakuni, Japan",
+          "count": 1
+        },
+        {
+          "name": "53 km WSW of Yonakuni, Japan",
+          "count": 1
+        },
+        {
+          "name": "60 km SSE of Yonakuni, Japan",
+          "count": 1
+        },
+        {
+          "name": "64 km WNW of Yonakuni, Japan",
+          "count": 1
+        },
+        {
+          "name": "67 km SW of Yonakuni, Japan",
+          "count": 1
+        },
+        {
+          "name": "68 km SW of Yonakuni, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "日向灘",
+      "count": 28,
+      "latestAt": "2026-02-25T17:17:01.900Z",
+      "epicenters": [
+        {
+          "name": "45 km ESE of Takanabe, Japan",
+          "count": 2
+        },
+        {
+          "name": "51 km ESE of Tsunō, Japan",
+          "count": 2
+        },
+        {
+          "name": "12 km E of Miyazaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "15 km SE of Miyazaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "22 km ESE of Takanabe, Japan",
+          "count": 1
+        },
+        {
+          "name": "23 km E of Nichinan, Japan",
+          "count": 1
+        },
+        {
+          "name": "24 km ESE of Takanabe, Japan",
+          "count": 1
+        },
+        {
+          "name": "26 km SE of Miyazaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "31 km ESE of Miyazaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "32 km ESE of Miyazaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "32 km ESE of Takanabe, Japan",
+          "count": 1
+        },
+        {
+          "name": "34 km ESE of Takanabe, Japan",
+          "count": 1
+        },
+        {
+          "name": "36 km E of Nobeoka, Japan",
+          "count": 1
+        },
+        {
+          "name": "37 km ESE of Miyazaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "37 km ESE of Takanabe, Japan",
+          "count": 1
+        },
+        {
+          "name": "39 km ESE of Miyazaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "39 km ESE of Tsunō, Japan",
+          "count": 1
+        },
+        {
+          "name": "40 km E of Miyazaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "40 km ESE of Takanabe, Japan",
+          "count": 1
+        },
+        {
+          "name": "43 km E of Miyazaki, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "奄美大島近海",
+      "count": 24,
+      "latestAt": "2026-06-16T23:18:37.325Z",
+      "epicenters": [
+        {
+          "name": "62 km ENE of Tatsugō, Japan",
+          "count": 2
+        },
+        {
+          "name": "122 km ESE of Isen, Japan",
+          "count": 1
+        },
+        {
+          "name": "13 km NNE of Uken, Japan",
+          "count": 1
+        },
+        {
+          "name": "15 km NNE of Tatsugō, Japan",
+          "count": 1
+        },
+        {
+          "name": "151 km ESE of Tatsug?, Japan",
+          "count": 1
+        },
+        {
+          "name": "169 km SE of Isen, Japan",
+          "count": 1
+        },
+        {
+          "name": "170 km ESE of Tatsugō, Japan",
+          "count": 1
+        },
+        {
+          "name": "21 km SW of Uken, Japan",
+          "count": 1
+        },
+        {
+          "name": "22 km WSW of Isen, Japan",
+          "count": 1
+        },
+        {
+          "name": "32 km SSE of Isen, Japan",
+          "count": 1
+        },
+        {
+          "name": "33 km SE of Naze, Japan",
+          "count": 1
+        },
+        {
+          "name": "52 km NE of Tatsugō, Japan",
+          "count": 1
+        },
+        {
+          "name": "55 km ENE of Tatsugō, Japan",
+          "count": 1
+        },
+        {
+          "name": "55 km N of Tatsugō, Japan",
+          "count": 1
+        },
+        {
+          "name": "55 km SE of Isen, Japan",
+          "count": 1
+        },
+        {
+          "name": "56 km ENE of Tatsugō, Japan",
+          "count": 1
+        },
+        {
+          "name": "57 km ENE of Tatsugō, Japan",
+          "count": 1
+        },
+        {
+          "name": "57 km NE of Tatsugō, Japan",
+          "count": 1
+        },
+        {
+          "name": "63 km ENE of Tatsugō, Japan",
+          "count": 1
+        },
+        {
+          "name": "64 km ENE of Tatsugō, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "茨城県沖",
+      "count": 23,
+      "latestAt": "2026-05-20T21:27:25.947Z",
+      "epicenters": [
+        {
+          "name": "27 km ESE of Ōarai, Japan",
+          "count": 2
+        },
+        {
+          "name": "10 km E of Hitachi, Japan",
+          "count": 1
+        },
+        {
+          "name": "10 km ENE of Ōarai, Japan",
+          "count": 1
+        },
+        {
+          "name": "112 km ESE of Takahagi, Japan",
+          "count": 1
+        },
+        {
+          "name": "113 km E of Hasaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "135 km ENE of Hasaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "15 km E of Funaishikawa, Japan",
+          "count": 1
+        },
+        {
+          "name": "19 km ESE of Hitachi, Japan",
+          "count": 1
+        },
+        {
+          "name": "28 km ESE of Kitaibaraki, Japan",
+          "count": 1
+        },
+        {
+          "name": "28 km ESE of Takahagi, Japan",
+          "count": 1
+        },
+        {
+          "name": "32 km E of Ōarai, Japan",
+          "count": 1
+        },
+        {
+          "name": "45 km SE of Iwaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "47 km ESE of Takahagi, Japan",
+          "count": 1
+        },
+        {
+          "name": "51 km ENE of Kashima-shi, Japan",
+          "count": 1
+        },
+        {
+          "name": "58 km ESE of Takahagi, Japan",
+          "count": 1
+        },
+        {
+          "name": "69 km ESE of Hitachi, Japan",
+          "count": 1
+        },
+        {
+          "name": "83 km ENE of Hasaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "85 km ESE of Takahagi, Japan",
+          "count": 1
+        },
+        {
+          "name": "87 km ENE of Hasaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "89 km ENE of Hasaki, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "オホーツク海南部",
+      "count": 21,
+      "latestAt": "2026-06-22T21:20:09.839Z",
+      "epicenters": [
+        {
+          "name": "northwest of the Kuril Islands",
+          "count": 7
+        },
+        {
+          "name": "112 km E of Yuzhno-Sakhalinsk, Russia",
+          "count": 1
+        },
+        {
+          "name": "150 km E of Korsakov, Russia",
+          "count": 1
+        },
+        {
+          "name": "158 km E of Korsakov, Russia",
+          "count": 1
+        },
+        {
+          "name": "158 km N of Otrada, Russia",
+          "count": 1
+        },
+        {
+          "name": "172 km E of Korsakov, Russia",
+          "count": 1
+        },
+        {
+          "name": "179 km N of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "186 km E of Korsakov, Russia",
+          "count": 1
+        },
+        {
+          "name": "187 km ESE of Makarov, Russia",
+          "count": 1
+        },
+        {
+          "name": "230 km NNW of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "230 km NW of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "260 km ESE of Poronaysk, Russia",
+          "count": 1
+        },
+        {
+          "name": "265 km N of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "97 km SE of Korsakov, Russia",
+          "count": 1
+        },
+        {
+          "name": "Sea of Okhotsk",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "浦河沖",
+      "count": 21,
+      "latestAt": "2026-07-01T21:10:20.541Z",
+      "epicenters": [
+        {
+          "name": "33 km SW of Urakawa, Japan",
+          "count": 2
+        },
+        {
+          "name": "76 km ENE of Mutsu, Japan",
+          "count": 2
+        },
+        {
+          "name": "17 km SSW of Urakawa, Japan",
+          "count": 1
+        },
+        {
+          "name": "19 km WSW of Urakawa, Japan",
+          "count": 1
+        },
+        {
+          "name": "2 km WSW of Urakawa, Japan",
+          "count": 1
+        },
+        {
+          "name": "21 km SSW of Urakawa, Japan",
+          "count": 1
+        },
+        {
+          "name": "21 km WSW of Urakawa, Japan",
+          "count": 1
+        },
+        {
+          "name": "22 km WSW of Urakawa, Japan",
+          "count": 1
+        },
+        {
+          "name": "30 km S of Shizunai-furukawachō, Japan",
+          "count": 1
+        },
+        {
+          "name": "33 km S of Shizunai-furukawachō, Japan",
+          "count": 1
+        },
+        {
+          "name": "35 km SW of Urakawa, Japan",
+          "count": 1
+        },
+        {
+          "name": "36 km SW of Urakawa, Japan",
+          "count": 1
+        },
+        {
+          "name": "40 km S of Honchō, Japan",
+          "count": 1
+        },
+        {
+          "name": "42 km SW of Urakawa, Japan",
+          "count": 1
+        },
+        {
+          "name": "44 km SSW of Honchō, Japan",
+          "count": 1
+        },
+        {
+          "name": "51 km SSW of Honchō, Japan",
+          "count": 1
+        },
+        {
+          "name": "53 km SSW of Shizunai-furukawachō, Japan",
+          "count": 1
+        },
+        {
+          "name": "77 km ENE of Mutsu, Japan",
+          "count": 1
+        },
+        {
+          "name": "81 km ENE of Mutsu, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "フィリピン付近",
+      "count": 18,
+      "latestAt": "2026-05-02T19:16:19.196Z",
+      "epicenters": [
+        {
+          "name": "186 km SSW of Hengchun, Taiwan",
+          "count": 2
+        },
+        {
+          "name": "106 km WNW of Basco, Philippines",
+          "count": 1
+        },
+        {
+          "name": "108 km WNW of Basco, Philippines",
+          "count": 1
+        },
+        {
+          "name": "111 km WNW of Basco, Philippines",
+          "count": 1
+        },
+        {
+          "name": "115 km WNW of Basco, Philippines",
+          "count": 1
+        },
+        {
+          "name": "183 km W of Basco, Philippines",
+          "count": 1
+        },
+        {
+          "name": "31 km SW of Basco, Philippines",
+          "count": 1
+        },
+        {
+          "name": "41 km SSE of Basco, Philippines",
+          "count": 1
+        },
+        {
+          "name": "43 km NW of Basco, Philippines",
+          "count": 1
+        },
+        {
+          "name": "61 km NW of Basco, Philippines",
+          "count": 1
+        },
+        {
+          "name": "72 km SW of Basco, Philippines",
+          "count": 1
+        },
+        {
+          "name": "73 km SW of Basco, Philippines",
+          "count": 1
+        },
+        {
+          "name": "74 km WSW of Basco, Philippines",
+          "count": 1
+        },
+        {
+          "name": "77 km WNW of Basco, Philippines",
+          "count": 1
+        },
+        {
+          "name": "81 km WSW of Basco, Philippines",
+          "count": 1
+        },
+        {
+          "name": "83 km WNW of Basco, Philippines",
+          "count": 1
+        },
+        {
+          "name": "85 km WSW of Basco, Philippines",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "択捉島付近",
+      "count": 17,
+      "latestAt": "2026-06-25T16:30:48.437Z",
+      "epicenters": [
+        {
+          "name": "104 km WSW of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "28 km NE of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "45 km W of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "48 km SSE of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "51 km SE of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "62 km SSE of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "69 km NNE of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "73 km NE of Otrada, Russia",
+          "count": 1
+        },
+        {
+          "name": "76 km NNE of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "86 km NE of Otrada, Russia",
+          "count": 1
+        },
+        {
+          "name": "87 km NE of Shikotan, Russia",
+          "count": 1
+        },
+        {
+          "name": "89 km NE of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "91 km NNE of Shikotan, Russia",
+          "count": 1
+        },
+        {
+          "name": "92 km WSW of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "94 km N of Shikotan, Russia",
+          "count": 1
+        },
+        {
+          "name": "96 km E of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "97 km NE of Kuril’sk, Russia",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "岩手県沿岸北部",
+      "count": 15,
+      "latestAt": "2026-06-06T20:15:12.103Z",
+      "epicenters": [
+        {
+          "name": "10 km S of Iwaizumi, Japan",
+          "count": 1
+        },
+        {
+          "name": "10 km SE of Miyako, Japan",
+          "count": 1
+        },
+        {
+          "name": "11 km SSE of Iwaizumi, Japan",
+          "count": 1
+        },
+        {
+          "name": "12 km E of Ōtsuchi, Japan",
+          "count": 1
+        },
+        {
+          "name": "12 km W of Iwaizumi, Japan",
+          "count": 1
+        },
+        {
+          "name": "18 km SE of Kuzumaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "20 km SSE of Kuzumaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "25 km WSW of Miyako, Japan",
+          "count": 1
+        },
+        {
+          "name": "3 km SW of Miyako, Japan",
+          "count": 1
+        },
+        {
+          "name": "5 km SSW of Iwaizumi, Japan",
+          "count": 1
+        },
+        {
+          "name": "5 km WNW of Iwaizumi, Japan",
+          "count": 1
+        },
+        {
+          "name": "6 km WSW of Yamada, Japan",
+          "count": 1
+        },
+        {
+          "name": "7 km SSE of Miyako, Japan",
+          "count": 1
+        },
+        {
+          "name": "8 km SE of Miyako, Japan",
+          "count": 1
+        },
+        {
+          "name": "9 km ESE of Iwaizumi, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "十勝沖",
+      "count": 15,
+      "latestAt": "2026-05-27T07:38:54.027Z",
+      "epicenters": [
+        {
+          "name": "110 km ESE of Hiroo, Japan",
+          "count": 1
+        },
+        {
+          "name": "133 km SE of Hiroo, Japan",
+          "count": 1
+        },
+        {
+          "name": "36 km SSE of Honchō, Japan",
+          "count": 1
+        },
+        {
+          "name": "41 km SE of Honchō, Japan",
+          "count": 1
+        },
+        {
+          "name": "50 km SE of Honchō, Japan",
+          "count": 1
+        },
+        {
+          "name": "57 km SSE of Hiroo, Japan",
+          "count": 1
+        },
+        {
+          "name": "60 km SSE of Hiroo, Japan",
+          "count": 1
+        },
+        {
+          "name": "63 km SSE of Hiroo, Japan",
+          "count": 1
+        },
+        {
+          "name": "68 km SSE of Hiroo, Japan",
+          "count": 1
+        },
+        {
+          "name": "71 km SE of Honchō, Japan",
+          "count": 1
+        },
+        {
+          "name": "75 km E of Hiroo, Japan",
+          "count": 1
+        },
+        {
+          "name": "82 km S of Kushiro, Japan",
+          "count": 1
+        },
+        {
+          "name": "85 km ESE of Hiroo, Japan",
+          "count": 1
+        },
+        {
+          "name": "90 km SSE of Hiroo, Japan",
+          "count": 1
+        },
+        {
+          "name": "93 km SE of Hiroo, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "千葉県北西部",
+      "count": 15,
+      "latestAt": "2026-06-26T18:59:38.448Z",
+      "epicenters": [
+        {
+          "name": "1 km SW of Yotsukaidō, Japan",
+          "count": 1
+        },
+        {
+          "name": "1 km WSW of Chiba, Japan",
+          "count": 1
+        },
+        {
+          "name": "2 km N of Honchō, Japan",
+          "count": 1
+        },
+        {
+          "name": "2 km NW of Yotsukaidō, Japan",
+          "count": 1
+        },
+        {
+          "name": "2 km WNW of Moriya, Japan",
+          "count": 1
+        },
+        {
+          "name": "3 km ESE of Ichihara, Japan",
+          "count": 1
+        },
+        {
+          "name": "3 km NW of Ōtaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "4 km E of Honchō, Japan",
+          "count": 1
+        },
+        {
+          "name": "4 km ENE of Kemigawa, Japan",
+          "count": 1
+        },
+        {
+          "name": "4 km ESE of Shisui, Japan",
+          "count": 1
+        },
+        {
+          "name": "4 km NE of Yotsukaidō, Japan",
+          "count": 1
+        },
+        {
+          "name": "5 km NNW of Kemigawa, Japan",
+          "count": 1
+        },
+        {
+          "name": "5 km SSW of Shiroi, Japan",
+          "count": 1
+        },
+        {
+          "name": "6 km ENE of Narita, Japan",
+          "count": 1
+        },
+        {
+          "name": "7 km SE of Ichihara, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "茨城県南部",
+      "count": 14,
+      "latestAt": "2026-06-26T02:48:59.413Z",
+      "epicenters": [
+        {
+          "name": "1 km NW of Koga, Japan",
+          "count": 1
+        },
+        {
+          "name": "1 km WSW of Ryūgasaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "2 km SW of Koga, Japan",
+          "count": 1
+        },
+        {
+          "name": "2 km W of Iwase, Japan",
+          "count": 1
+        },
+        {
+          "name": "3 km NE of Chikusei, Japan",
+          "count": 1
+        },
+        {
+          "name": "3 km S of Tsukuba, Japan",
+          "count": 1
+        },
+        {
+          "name": "3 km SW of Ishige, Japan",
+          "count": 1
+        },
+        {
+          "name": "4 km W of Iwai, Japan",
+          "count": 1
+        },
+        {
+          "name": "5 km N of Inashiki, Japan",
+          "count": 1
+        },
+        {
+          "name": "5 km N of Ishige, Japan",
+          "count": 1
+        },
+        {
+          "name": "5 km NE of Noda, Japan",
+          "count": 1
+        },
+        {
+          "name": "6 km ENE of Sakai, Japan",
+          "count": 1
+        },
+        {
+          "name": "6 km ESE of Mitsukaidō, Japan",
+          "count": 1
+        },
+        {
+          "name": "6 km WSW of Tsukuba, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "沖縄本島北西沖",
+      "count": 14,
+      "latestAt": "2026-07-03T03:53:22.105Z",
+      "epicenters": [
+        {
+          "name": "100 km NW of China, Japan",
+          "count": 1
+        },
+        {
+          "name": "103 km W of Ie, Japan",
+          "count": 1
+        },
+        {
+          "name": "125 km NW of Iheya, Japan",
+          "count": 1
+        },
+        {
+          "name": "137 km WNW of Iheya, Japan",
+          "count": 1
+        },
+        {
+          "name": "141 km WNW of Ie, Japan",
+          "count": 1
+        },
+        {
+          "name": "149 km NNE of Hirara, Japan",
+          "count": 1
+        },
+        {
+          "name": "155 km WNW of Naha, Japan",
+          "count": 1
+        },
+        {
+          "name": "165 km NNE of Hirara, Japan",
+          "count": 1
+        },
+        {
+          "name": "219 km W of Ie, Japan",
+          "count": 1
+        },
+        {
+          "name": "58 km NW of Ie, Japan",
+          "count": 1
+        },
+        {
+          "name": "69 km WNW of Iheya, Japan",
+          "count": 1
+        },
+        {
+          "name": "77 km WNW of Amagi, Japan",
+          "count": 1
+        },
+        {
+          "name": "78 km NW of China, Japan",
+          "count": 1
+        },
+        {
+          "name": "92 km NW of China, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "石垣島近海",
+      "count": 13,
+      "latestAt": "2026-05-17T23:23:57.246Z",
+      "epicenters": [
+        {
+          "name": "113 km S of Ishigaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "134 km SSE of Ishigaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "146 km S of Miyakojima, Japan",
+          "count": 1
+        },
+        {
+          "name": "148 km SSW of Ishigaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "163 km SE of Ishigaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "171 km SSW of Ishigaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "40 km NW of Ishigaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "65 km NE of Yonakuni, Japan",
+          "count": 1
+        },
+        {
+          "name": "69 km NE of Yonakuni, Japan",
+          "count": 1
+        },
+        {
+          "name": "71 km NW of Ishigaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "72 km NE of Yonakuni, Japan",
+          "count": 1
+        },
+        {
+          "name": "73 km NNW of Ishigaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "90 km SW of Ishigaki, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "石垣島北西沖",
+      "count": 13,
+      "latestAt": "2026-04-19T21:08:53.354Z",
+      "epicenters": [
+        {
+          "name": "76 km NE of Yonakuni, Japan",
+          "count": 3
+        },
+        {
+          "name": "100 km NW of Tarama, Japan",
+          "count": 1
+        },
+        {
+          "name": "118 km NNE of Yonakuni, Japan",
+          "count": 1
+        },
+        {
+          "name": "60 km NNW of Yonakuni, Japan",
+          "count": 1
+        },
+        {
+          "name": "65 km NNW of Yonakuni, Japan",
+          "count": 1
+        },
+        {
+          "name": "67 km NNE of Yonakuni, Japan",
+          "count": 1
+        },
+        {
+          "name": "68 km N of Ishigaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "78 km NE of Yonakuni, Japan",
+          "count": 1
+        },
+        {
+          "name": "79 km NE of Yonakuni, Japan",
+          "count": 1
+        },
+        {
+          "name": "81 km NE of Yonakuni, Japan",
+          "count": 1
+        },
+        {
+          "name": "85 km NE of Yonakuni, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "千葉県南東沖",
+      "count": 13,
+      "latestAt": "2026-02-19T08:24:30.319Z",
+      "epicenters": [
+        {
+          "name": "11 km SW of Katsuura, Japan",
+          "count": 1
+        },
+        {
+          "name": "26 km SSE of Wada, Japan",
+          "count": 1
+        },
+        {
+          "name": "4 km WSW of Wada, Japan",
+          "count": 1
+        },
+        {
+          "name": "41 km SSE of Tateyama, Japan",
+          "count": 1
+        },
+        {
+          "name": "41 km SSE of Wada, Japan",
+          "count": 1
+        },
+        {
+          "name": "5 km SW of Wada, Japan",
+          "count": 1
+        },
+        {
+          "name": "58 km SE of Katsuura, Japan",
+          "count": 1
+        },
+        {
+          "name": "6 km ESE of Wada, Japan",
+          "count": 1
+        },
+        {
+          "name": "60 km SE of Wada, Japan",
+          "count": 1
+        },
+        {
+          "name": "62 km SSE of Katsuura, Japan",
+          "count": 1
+        },
+        {
+          "name": "74 km SSE of Katsuura, Japan",
+          "count": 1
+        },
+        {
+          "name": "76 km SE of Shinmachi, Japan",
+          "count": 1
+        },
+        {
+          "name": "77 km SE of Katsuura, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "関東東方沖",
+      "count": 12,
+      "latestAt": "2026-06-05T03:49:07.590Z",
+      "epicenters": [
+        {
+          "name": "138 km SSE of Katsuura, Japan",
+          "count": 1
+        },
+        {
+          "name": "140 km SE of Hasaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "148 km SE of Hasaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "162 km ENE of Hasaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "167 km ESE of Iwaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "177 km SE of Hasaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "209 km ESE of Hasaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "215 km ESE of Shinmachi, Japan",
+          "count": 1
+        },
+        {
+          "name": "256 km ESE of Tomioka, Japan",
+          "count": 1
+        },
+        {
+          "name": "264 km E of Hasaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "264 km ESE of Tomioka, Japan",
+          "count": 1
+        },
+        {
+          "name": "off the east coast of Honshu, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "茨城県北部",
+      "count": 11,
+      "latestAt": "2026-05-24T06:08:27.094Z",
+      "epicenters": [
+        {
+          "name": "10 km ENE of Kasama, Japan",
+          "count": 1
+        },
+        {
+          "name": "10 km W of Hanawa, Japan",
+          "count": 1
+        },
+        {
+          "name": "11 km NNE of Ōmiya, Japan",
+          "count": 1
+        },
+        {
+          "name": "11 km NNW of Ōmiya, Japan",
+          "count": 1
+        },
+        {
+          "name": "13 km NW of Hitachi, Japan",
+          "count": 1
+        },
+        {
+          "name": "4 km ESE of Ōmiya, Japan",
+          "count": 1
+        },
+        {
+          "name": "4 km NNE of Funaishikawa, Japan",
+          "count": 1
+        },
+        {
+          "name": "5 km NNE of Funaishikawa, Japan",
+          "count": 1
+        },
+        {
+          "name": "5 km SW of Daigo, Japan",
+          "count": 1
+        },
+        {
+          "name": "7 km ESE of Funaishikawa, Japan",
+          "count": 1
+        },
+        {
+          "name": "7 km NW of Hitachi-Naka, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "宮古島北西沖",
+      "count": 11,
+      "latestAt": "2026-07-03T04:04:48.066Z",
+      "epicenters": [
+        {
+          "name": "103 km N of Tarama, Japan",
+          "count": 1
+        },
+        {
+          "name": "104 km NNW of Hirara, Japan",
+          "count": 1
+        },
+        {
+          "name": "110 km NNW of Hirara, Japan",
+          "count": 1
+        },
+        {
+          "name": "136 km NNE of Hirara, Japan",
+          "count": 1
+        },
+        {
+          "name": "155 km N of Hirara, Japan",
+          "count": 1
+        },
+        {
+          "name": "184 km NNW of Hirara, Japan",
+          "count": 1
+        },
+        {
+          "name": "54 km NNW of Tarama, Japan",
+          "count": 1
+        },
+        {
+          "name": "55 km NNW of Tarama, Japan",
+          "count": 1
+        },
+        {
+          "name": "56 km NNW of Tarama, Japan",
+          "count": 1
+        },
+        {
+          "name": "75 km N of Tarama, Japan",
+          "count": 1
+        },
+        {
+          "name": "90 km NNW of Hirara, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "千葉県東方沖",
+      "count": 11,
+      "latestAt": "2026-06-18T18:43:59.710Z",
+      "epicenters": [
+        {
+          "name": "10 km NE of Hasaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "16 km SE of Ōhara, Japan",
+          "count": 1
+        },
+        {
+          "name": "16 km SSE of Asahi, Japan",
+          "count": 1
+        },
+        {
+          "name": "18 km ENE of Ōhara, Japan",
+          "count": 1
+        },
+        {
+          "name": "21 km ENE of Hasaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "38 km SE of Hasaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "41 km SSE of Hasaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "58 km SE of Hasaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "9 km ENE of Ōhara, Japan",
+          "count": 1
+        },
+        {
+          "name": "91 km ESE of Ōhara, Japan",
+          "count": 1
+        },
+        {
+          "name": "95 km ESE of Hasaki, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "種子島南東沖",
+      "count": 9,
+      "latestAt": "2026-05-09T04:07:13.764Z",
+      "epicenters": [
+        {
+          "name": "118 km ESE of Koshima, Japan",
+          "count": 1
+        },
+        {
+          "name": "158 km SE of Koshima, Japan",
+          "count": 1
+        },
+        {
+          "name": "52 km SE of Koseda, Japan",
+          "count": 1
+        },
+        {
+          "name": "55 km ESE of Koshima, Japan",
+          "count": 1
+        },
+        {
+          "name": "59 km ESE of Koshima, Japan",
+          "count": 1
+        },
+        {
+          "name": "59 km SE of Koseda, Japan",
+          "count": 1
+        },
+        {
+          "name": "61 km ESE of Koseda, Japan",
+          "count": 1
+        },
+        {
+          "name": "68 km SE of Koseda, Japan",
+          "count": 1
+        },
+        {
+          "name": "74 km ESE of Koseda, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "大隅半島東方沖",
+      "count": 9,
+      "latestAt": "2026-06-02T20:58:20.584Z",
+      "epicenters": [
+        {
+          "name": "28 km SE of Nichinan, Japan",
+          "count": 1
+        },
+        {
+          "name": "31 km SE of Kushima, Japan",
+          "count": 1
+        },
+        {
+          "name": "34 km SSE of Ōsaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "41 km SSE of Kushima, Japan",
+          "count": 1
+        },
+        {
+          "name": "46 km SSE of Kushima, Japan",
+          "count": 1
+        },
+        {
+          "name": "51 km SE of Kushima, Japan",
+          "count": 1
+        },
+        {
+          "name": "55 km SSE of Kushima, Japan",
+          "count": 1
+        },
+        {
+          "name": "56 km ENE of Nishinoomote, Japan",
+          "count": 1
+        },
+        {
+          "name": "57 km SSE of Kushima, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "東海道南方沖",
+      "count": 9,
+      "latestAt": "2026-05-01T21:13:35.747Z",
+      "epicenters": [
+        {
+          "name": "117 km S of Ōyama, Japan",
+          "count": 1
+        },
+        {
+          "name": "119 km SSE of Ōyama, Japan",
+          "count": 1
+        },
+        {
+          "name": "132 km S of Ōyama, Japan",
+          "count": 1
+        },
+        {
+          "name": "162 km S of Ōyama, Japan",
+          "count": 1
+        },
+        {
+          "name": "182 km SE of Kushimoto, Japan",
+          "count": 1
+        },
+        {
+          "name": "191 km SE of Kushimoto, Japan",
+          "count": 1
+        },
+        {
+          "name": "202 km SE of Kushimoto, Japan",
+          "count": 1
+        },
+        {
+          "name": "222 km ESE of Kushimoto, Japan",
+          "count": 1
+        },
+        {
+          "name": "244 km SE of Kushimoto, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "中国東部",
+      "count": 8,
+      "latestAt": "2026-04-13T22:52:53.625Z",
+      "epicenters": [
+        {
+          "name": "106 km SW of Donggang, Taiwan",
+          "count": 1
+        },
+        {
+          "name": "118 km NW of Longgang, China",
+          "count": 1
+        },
+        {
+          "name": "136 km SW of Hengchun, Taiwan",
+          "count": 1
+        },
+        {
+          "name": "192 km SSW of Hengchun, Taiwan",
+          "count": 1
+        },
+        {
+          "name": "36 km NE of Tangjiazhuang, China",
+          "count": 1
+        },
+        {
+          "name": "53 km SE of Dazuocun, China",
+          "count": 1
+        },
+        {
+          "name": "53 km SSE of Dazuocun, China",
+          "count": 1
+        },
+        {
+          "name": "88 km SW of Donggang, Taiwan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "日高地方東部",
+      "count": 8,
+      "latestAt": "2026-06-15T07:33:13.894Z",
+      "epicenters": [
+        {
+          "name": "18 km NNE of Honchō, Japan",
+          "count": 2
+        },
+        {
+          "name": "14 km NNE of Honchō, Japan",
+          "count": 1
+        },
+        {
+          "name": "17 km NNE of Honchō, Japan",
+          "count": 1
+        },
+        {
+          "name": "19 km NNE of Honchō, Japan",
+          "count": 1
+        },
+        {
+          "name": "20 km N of Honchō, Japan",
+          "count": 1
+        },
+        {
+          "name": "22 km WNW of Hiroo, Japan",
+          "count": 1
+        },
+        {
+          "name": "28 km SE of Honchō, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "釧路地方中南部",
+      "count": 7,
+      "latestAt": "2026-07-12T02:39:08.939Z",
+      "epicenters": [
+        {
+          "name": "15 km E of Kushiro, Japan",
+          "count": 1
+        },
+        {
+          "name": "19 km ENE of Akkeshi, Japan",
+          "count": 1
+        },
+        {
+          "name": "19 km W of Shiranuka, Japan",
+          "count": 1
+        },
+        {
+          "name": "20 km SSW of Teshikaga, Japan",
+          "count": 1
+        },
+        {
+          "name": "25 km NNW of Shiranuka, Japan",
+          "count": 1
+        },
+        {
+          "name": "27 km NNW of Kushiro, Japan",
+          "count": 1
+        },
+        {
+          "name": "7 km N of Akkeshi, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "国後島付近",
+      "count": 7,
+      "latestAt": "2026-07-05T15:06:29.282Z",
+      "epicenters": [
+        {
+          "name": "15 km WSW of Yuzhno-Kurilsk, Russia",
+          "count": 1
+        },
+        {
+          "name": "22 km E of Rausu, Japan",
+          "count": 1
+        },
+        {
+          "name": "24 km NNW of Shikotan, Russia",
+          "count": 1
+        },
+        {
+          "name": "31 km NW of Shikotan, Russia",
+          "count": 1
+        },
+        {
+          "name": "37 km N of Otrada, Russia",
+          "count": 1
+        },
+        {
+          "name": "40 km NNW of Shikotan, Russia",
+          "count": 1
+        },
+        {
+          "name": "54 km NNW of Otrada, Russia",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "十勝地方南部",
+      "count": 7,
+      "latestAt": "2026-03-04T21:44:50.610Z",
+      "epicenters": [
+        {
+          "name": "12 km W of Hiroo, Japan",
+          "count": 1
+        },
+        {
+          "name": "15 km W of Hiroo, Japan",
+          "count": 1
+        },
+        {
+          "name": "19 km NE of Honchō, Japan",
+          "count": 1
+        },
+        {
+          "name": "20 km W of Hiroo, Japan",
+          "count": 1
+        },
+        {
+          "name": "25 km WNW of Hiroo, Japan",
+          "count": 1
+        },
+        {
+          "name": "28 km WSW of Sarabetsu, Japan",
+          "count": 1
+        },
+        {
+          "name": "29 km WSW of Sarabetsu, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "西表島付近",
+      "count": 7,
+      "latestAt": "2026-05-17T23:21:20.982Z",
+      "epicenters": [
+        {
+          "name": "32 km WNW of Ishigaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "34 km W of Ishigaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "39 km WNW of Ishigaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "55 km SE of Yonakuni, Japan",
+          "count": 1
+        },
+        {
+          "name": "56 km WNW of Ishigaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "65 km WSW of Ishigaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "67 km SSE of Yonakuni, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "日本海北部",
+      "count": 7,
+      "latestAt": "2026-06-19T07:26:15.649Z",
+      "epicenters": [
+        {
+          "name": "185 km WNW of Suttsu, Japan",
+          "count": 1
+        },
+        {
+          "name": "190 km NW of Suttsu, Japan",
+          "count": 1
+        },
+        {
+          "name": "191 km WNW of Suttsu, Japan",
+          "count": 1
+        },
+        {
+          "name": "210 km ESE of Ol’ga, Russia",
+          "count": 1
+        },
+        {
+          "name": "213 km W of Kaminokuni, Japan",
+          "count": 1
+        },
+        {
+          "name": "37 km ESE of Preobrazheniye, Russia",
+          "count": 1
+        },
+        {
+          "name": "48 km ESE of Ol’ga, Russia",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "奄美大島北西沖",
+      "count": 6,
+      "latestAt": "2026-03-30T01:44:11.894Z",
+      "epicenters": [
+        {
+          "name": "102 km WNW of Uken, Japan",
+          "count": 1
+        },
+        {
+          "name": "73 km WNW of Amagi, Japan",
+          "count": 1
+        },
+        {
+          "name": "77 km WNW of Amagi, Japan",
+          "count": 1
+        },
+        {
+          "name": "81 km WNW of Amagi, Japan",
+          "count": 1
+        },
+        {
+          "name": "85 km NW of Uken, Japan",
+          "count": 1
+        },
+        {
+          "name": "87 km WNW of Amagi, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "三重県南東沖",
+      "count": 6,
+      "latestAt": "2026-07-04T02:56:15.263Z",
+      "epicenters": [
+        {
+          "name": "112 km SSW of Ōyama, Japan",
+          "count": 1
+        },
+        {
+          "name": "117 km SSE of Shima, Japan",
+          "count": 1
+        },
+        {
+          "name": "131 km SE of Kushimoto, Japan",
+          "count": 1
+        },
+        {
+          "name": "160 km SSE of Shima, Japan",
+          "count": 1
+        },
+        {
+          "name": "38 km ESE of Shingū, Japan",
+          "count": 1
+        },
+        {
+          "name": "91 km SE of Kumano, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "十勝地方中部",
+      "count": 6,
+      "latestAt": "2026-04-26T20:23:55.639Z",
+      "epicenters": [
+        {
+          "name": "10 km WSW of Obihiro, Japan",
+          "count": 1
+        },
+        {
+          "name": "14 km NNW of Sarabetsu, Japan",
+          "count": 1
+        },
+        {
+          "name": "16 km SE of Ashoro, Japan",
+          "count": 1
+        },
+        {
+          "name": "16 km SSW of Ikeda, Japan",
+          "count": 1
+        },
+        {
+          "name": "22 km W of Sarabetsu, Japan",
+          "count": 1
+        },
+        {
+          "name": "9 km NNE of Sarabetsu, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "石川県西方沖",
+      "count": 6,
+      "latestAt": "2026-02-14T08:14:55.564Z",
+      "epicenters": [
+        {
+          "name": "33 km W of Hakui, Japan",
+          "count": 1
+        },
+        {
+          "name": "34 km WNW of Hakui, Japan",
+          "count": 1
+        },
+        {
+          "name": "37 km WNW of Hakui, Japan",
+          "count": 1
+        },
+        {
+          "name": "37 km WSW of Anamizu, Japan",
+          "count": 1
+        },
+        {
+          "name": "69 km WNW of Hakui, Japan",
+          "count": 1
+        },
+        {
+          "name": "95 km NW of Mikuni, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "胆振地方中東部",
+      "count": 6,
+      "latestAt": "2026-01-11T11:11:15.081Z",
+      "epicenters": [
+        {
+          "name": "10 km NE of Muroran, Japan",
+          "count": 1
+        },
+        {
+          "name": "12 km WNW of Biratori, Japan",
+          "count": 1
+        },
+        {
+          "name": "22 km ESE of Tomakomai, Japan",
+          "count": 1
+        },
+        {
+          "name": "7 km NNW of Tomakomai, Japan",
+          "count": 1
+        },
+        {
+          "name": "7 km SW of Abira, Japan",
+          "count": 1
+        },
+        {
+          "name": "9 km ENE of Abira, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "日本海中部",
+      "count": 6,
+      "latestAt": "2026-04-04T15:18:05.685Z",
+      "epicenters": [
+        {
+          "name": "259 km WNW of Anamizu, Japan",
+          "count": 2
+        },
+        {
+          "name": "146 km NW of Mikuni, Japan",
+          "count": 1
+        },
+        {
+          "name": "178 km NW of Mikuni, Japan",
+          "count": 1
+        },
+        {
+          "name": "186 km NE of Ama, Japan",
+          "count": 1
+        },
+        {
+          "name": "246 km NNE of Ama, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "宗谷地方北部",
+      "count": 5,
+      "latestAt": "2026-01-28T01:53:42.795Z",
+      "epicenters": [
+        {
+          "name": "13 km WNW of Nakatonbetsu, Japan",
+          "count": 1
+        },
+        {
+          "name": "14 km WNW of Nakatonbetsu, Japan",
+          "count": 1
+        },
+        {
+          "name": "15 km E of Horonobe, Japan",
+          "count": 1
+        },
+        {
+          "name": "17 km WNW of Hamatonbetsu, Japan",
+          "count": 1
+        },
+        {
+          "name": "19 km NE of Horonobe, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "新島・神津島近海",
+      "count": 5,
+      "latestAt": "2026-02-23T22:34:21.130Z",
+      "epicenters": [
+        {
+          "name": "50 km ESE of Shimoda, Japan",
+          "count": 1
+        },
+        {
+          "name": "52 km ESE of Shimoda, Japan",
+          "count": 1
+        },
+        {
+          "name": "53 km ESE of Shimoda, Japan",
+          "count": 1
+        },
+        {
+          "name": "57 km SSW of Tateyama, Japan",
+          "count": 1
+        },
+        {
+          "name": "59 km SE of Shimoda, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "ウラジオストク付近",
+      "count": 4,
+      "latestAt": "2025-12-16T14:38:42.997Z",
+      "epicenters": [
+        {
+          "name": "17 km SW of Pos’yet, Russia",
+          "count": 1
+        },
+        {
+          "name": "28 km NNW of Barabash, Russia",
+          "count": 1
+        },
+        {
+          "name": "40 km NW of Slavyanka, Russia",
+          "count": 1
+        },
+        {
+          "name": "9 km E of Bol’shoy Kamen’, Russia",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "カムチャツカ半島付近",
+      "count": 4,
+      "latestAt": "2025-12-19T21:51:26.555Z",
+      "epicenters": [
+        {
+          "name": "78 km S of Severo-Kuril’sk, Russia",
+          "count": 2
+        },
+        {
+          "name": "80 km S of Severo-Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "86 km SSW of Severo-Kuril’sk, Russia",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "薩摩半島西方沖",
+      "count": 4,
+      "latestAt": "2026-03-01T09:00:07.763Z",
+      "epicenters": [
+        {
+          "name": "17 km SW of Ibusuki, Japan",
+          "count": 1
+        },
+        {
+          "name": "22 km W of Makurazaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "33 km S of Makurazaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "36 km SSW of Makurazaki, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "鹿児島県薩摩地方",
+      "count": 4,
+      "latestAt": "2026-05-24T00:18:49.467Z",
+      "epicenters": [
+        {
+          "name": "0 km ESE of Makurazaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "14 km WNW of Ibusuki, Japan",
+          "count": 1
+        },
+        {
+          "name": "3 km SW of Ibusuki, Japan",
+          "count": 1
+        },
+        {
+          "name": "9 km NNE of Kirishima, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "宗谷地方南部",
+      "count": 4,
+      "latestAt": "2026-01-28T06:34:01.580Z",
+      "epicenters": [
+        {
+          "name": "13 km NW of Nakatonbetsu, Japan",
+          "count": 1
+        },
+        {
+          "name": "5 km W of Hamatonbetsu, Japan",
+          "count": 1
+        },
+        {
+          "name": "7 km SW of Hamatonbetsu, Japan",
+          "count": 1
+        },
+        {
+          "name": "9 km NE of Nakatonbetsu, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "千葉県北東部",
+      "count": 4,
+      "latestAt": "2026-06-26T03:46:35.803Z",
+      "epicenters": [
+        {
+          "name": "1 km ENE of Sōsa, Japan",
+          "count": 1
+        },
+        {
+          "name": "3 km S of Narutō, Japan",
+          "count": 1
+        },
+        {
+          "name": "3 km SE of Yokoshiba, Japan",
+          "count": 1
+        },
+        {
+          "name": "4 km ESE of Mobara, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "長野県北部",
+      "count": 4,
+      "latestAt": "2026-04-18T05:54:30.927Z",
+      "epicenters": [
+        {
+          "name": "1 km ENE of Ōmachi, Japan",
+          "count": 1
+        },
+        {
+          "name": "10 km SSW of Hakuba, Japan",
+          "count": 1
+        },
+        {
+          "name": "12 km NNW of Ōmachi, Japan",
+          "count": 1
+        },
+        {
+          "name": "3 km ENE of Ikeda, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "津軽海峡",
+      "count": 4,
+      "latestAt": "2025-08-05T06:17:40.470Z",
+      "epicenters": [
+        {
+          "name": "1 km NNE of Kamiiso, Japan",
+          "count": 1
+        },
+        {
+          "name": "10 km WNW of Sai, Japan",
+          "count": 1
+        },
+        {
+          "name": "20 km NE of Imabetsu, Japan",
+          "count": 1
+        },
+        {
+          "name": "26 km ENE of Ōma, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "島根県東部",
+      "count": 4,
+      "latestAt": "2026-01-06T01:37:48.746Z",
+      "epicenters": [
+        {
+          "name": "10 km S of Yasugichō, Japan",
+          "count": 1
+        },
+        {
+          "name": "13 km WSW of Yasugichō, Japan",
+          "count": 1
+        },
+        {
+          "name": "17 km S of Matsue, Japan",
+          "count": 1
+        },
+        {
+          "name": "4 km S of Yasugichō, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "栃木県南部",
+      "count": 4,
+      "latestAt": "2026-05-12T00:02:39.028Z",
+      "epicenters": [
+        {
+          "name": "2 km NNW of Tatebayashi, Japan",
+          "count": 1
+        },
+        {
+          "name": "3 km SSW of Oyama, Japan",
+          "count": 1
+        },
+        {
+          "name": "5 km SSW of Tochigi, Japan",
+          "count": 1
+        },
+        {
+          "name": "6 km SW of Oyama, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "福島県会津",
+      "count": 4,
+      "latestAt": "2026-07-02T11:48:28.653Z",
+      "epicenters": [
+        {
+          "name": "10 km W of Yanaizu, Japan",
+          "count": 1
+        },
+        {
+          "name": "17 km N of Katashina, Japan",
+          "count": 1
+        },
+        {
+          "name": "20 km NNE of Katashina, Japan",
+          "count": 1
+        },
+        {
+          "name": "39 km E of Uonuma, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "福島県中通り",
+      "count": 4,
+      "latestAt": "2026-06-01T15:51:25.836Z",
+      "epicenters": [
+        {
+          "name": "2 km NE of Asakawa, Japan",
+          "count": 1
+        },
+        {
+          "name": "4 km SSW of Motomiya, Japan",
+          "count": 1
+        },
+        {
+          "name": "8 km N of Funehikimachi-funehiki, Japan",
+          "count": 1
+        },
+        {
+          "name": "9 km E of Asakawa, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "遠州灘",
+      "count": 3,
+      "latestAt": "2026-05-21T01:06:33.924Z",
+      "epicenters": [
+        {
+          "name": "39 km ESE of Shima, Japan",
+          "count": 1
+        },
+        {
+          "name": "49 km SE of Shima, Japan",
+          "count": 1
+        },
+        {
+          "name": "64 km S of Hamamatsu, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "岐阜県飛騨地方",
+      "count": 3,
+      "latestAt": "2026-05-19T23:11:56.183Z",
+      "epicenters": [
+        {
+          "name": "20 km SE of Takayama, Japan",
+          "count": 1
+        },
+        {
+          "name": "23 km WNW of Takayama, Japan",
+          "count": 1
+        },
+        {
+          "name": "25 km NW of Takayama, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "熊本県阿蘇地方",
+      "count": 3,
+      "latestAt": "2025-11-25T12:59:11.348Z",
+      "epicenters": [
+        {
+          "name": "10 km N of Aso, Japan",
+          "count": 1
+        },
+        {
+          "name": "15 km SSW of Tsukawaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "5 km NNW of Aso, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "群馬県南部",
+      "count": 3,
+      "latestAt": "2026-03-15T05:06:06.748Z",
+      "epicenters": [
+        {
+          "name": "1 km SW of Kiryū, Japan",
+          "count": 1
+        },
+        {
+          "name": "5 km N of Gyōda, Japan",
+          "count": 1
+        },
+        {
+          "name": "6 km ESE of Maebashi, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "埼玉県北部",
+      "count": 3,
+      "latestAt": "2025-09-05T12:00:10.347Z",
+      "epicenters": [
+        {
+          "name": "1 km ESE of Kukichūō, Japan",
+          "count": 1
+        },
+        {
+          "name": "1 km NW of Kukichūō, Japan",
+          "count": 1
+        },
+        {
+          "name": "2 km WNW of Menuma, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "秋田県内陸北部",
+      "count": 3,
+      "latestAt": "2026-01-09T11:35:09.814Z",
+      "epicenters": [
+        {
+          "name": "12 km NE of Hanawa, Japan",
+          "count": 1
+        },
+        {
+          "name": "6 km ESE of Kosaka, Japan",
+          "count": 1
+        },
+        {
+          "name": "9 km SE of Kosaka, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "小笠原諸島東方沖",
+      "count": 3,
+      "latestAt": "2026-07-02T15:00:32.297Z",
+      "epicenters": [
+        {
+          "name": "Bonin Islands, Japan region",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "areaName": "青森県三八上北地方",
+      "count": 3,
+      "latestAt": "2026-05-26T04:56:03.551Z",
+      "epicenters": [
+        {
+          "name": "3 km N of Yokohama, Japan",
+          "count": 1
+        },
+        {
+          "name": "8 km S of Towada, Japan",
+          "count": 1
+        },
+        {
+          "name": "9 km SSE of Hiranai, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "青森県西方沖",
+      "count": 3,
+      "latestAt": "2026-02-17T02:30:12.144Z",
+      "epicenters": [
+        {
+          "name": "112 km WNW of Fukaura, Japan",
+          "count": 1
+        },
+        {
+          "name": "17 km WNW of Imabetsu, Japan",
+          "count": 1
+        },
+        {
+          "name": "19 km NNW of Ajigasawa, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "石垣島南方沖",
+      "count": 3,
+      "latestAt": "2026-02-19T18:37:11.824Z",
+      "epicenters": [
+        {
+          "name": "156 km NNE of Basco, Philippines",
+          "count": 1
+        },
+        {
+          "name": "175 km SE of Hualien City, Taiwan",
+          "count": 1
+        },
+        {
+          "name": "232 km S of Ishigaki, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "石川県能登地方",
+      "count": 3,
+      "latestAt": "2026-02-23T23:03:41.033Z",
+      "epicenters": [
+        {
+          "name": "16 km NE of Anamizu, Japan",
+          "count": 1
+        },
+        {
+          "name": "21 km NE of Anamizu, Japan",
+          "count": 1
+        },
+        {
+          "name": "7 km E of Nanao, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "千島列島南東沖",
+      "count": 3,
+      "latestAt": "2026-02-26T17:04:49.533Z",
+      "epicenters": [
+        {
+          "name": "274 km SE of Kuril’sk, Russia",
+          "count": 1
+        },
+        {
+          "name": "289 km ESE of Shikotan, Russia",
+          "count": 1
+        },
+        {
+          "name": "east of the Kuril Islands",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "中国東北部",
+      "count": 3,
+      "latestAt": "2026-05-27T17:42:18.824Z",
+      "epicenters": [
+        {
+          "name": "19 km N of Hailar, China",
+          "count": 1
+        },
+        {
+          "name": "247 km NE of Xilin Hot, China",
+          "count": 1
+        },
+        {
+          "name": "48 km N of Wafangdian, China",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "苫小牧沖",
+      "count": 3,
+      "latestAt": "2025-10-04T04:47:26.153Z",
+      "epicenters": [
+        {
+          "name": "20 km SSE of Tomakomai, Japan",
+          "count": 1
+        },
+        {
+          "name": "39 km ENE of Ōma, Japan",
+          "count": 1
+        },
+        {
+          "name": "44 km ENE of Ōma, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "南海道南方沖",
+      "count": 3,
+      "latestAt": "2026-04-06T06:45:10.316Z",
+      "epicenters": [
+        {
+          "name": "192 km S of Kushimoto, Japan",
+          "count": 1
+        },
+        {
+          "name": "286 km S of Kushimoto, Japan",
+          "count": 1
+        },
+        {
+          "name": "Izu Islands, Japan region",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "能登半島沖",
+      "count": 3,
+      "latestAt": "2025-12-14T19:03:36.348Z",
+      "epicenters": [
+        {
+          "name": "23 km NNW of Hakui, Japan",
+          "count": 2
+        },
+        {
+          "name": "21 km NNW of Hakui, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "八丈島近海",
+      "count": 3,
+      "latestAt": "2026-03-27T02:27:58.632Z",
+      "epicenters": [
+        {
+          "name": "147 km S of Shimoda, Japan",
+          "count": 1
+        },
+        {
+          "name": "199 km SSE of Shimoda, Japan",
+          "count": 1
+        },
+        {
+          "name": "231 km SSE of Shimoda, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "福島県浜通り",
+      "count": 3,
+      "latestAt": "2026-03-10T06:28:04.928Z",
+      "epicenters": [
+        {
+          "name": "16 km S of Tomioka, Japan",
+          "count": 1
+        },
+        {
+          "name": "19 km W of Iwaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "2 km S of Namie, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "房総半島南方沖",
+      "count": 3,
+      "latestAt": "2026-03-31T15:38:47.911Z",
+      "epicenters": [
+        {
+          "name": "117 km S of Tateyama, Japan",
+          "count": 1
+        },
+        {
+          "name": "70 km SSE of Tateyama, Japan",
+          "count": 1
+        },
+        {
+          "name": "74 km SSE of Tateyama, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "伊豆大島近海",
+      "count": 2,
+      "latestAt": "2026-03-28T10:36:16.818Z",
+      "epicenters": [
+        {
+          "name": "17 km SSE of Itō, Japan",
+          "count": 1
+        },
+        {
+          "name": "22 km S of Miura, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "伊予灘",
+      "count": 2,
+      "latestAt": "2026-04-08T11:13:04.668Z",
+      "epicenters": [
+        {
+          "name": "27 km NW of Yawatahama, Japan",
+          "count": 1
+        },
+        {
+          "name": "28 km NNW of Yawatahama, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "岩手県沿岸南部",
+      "count": 2,
+      "latestAt": "2025-04-09T23:33:22.076Z",
+      "epicenters": [
+        {
+          "name": "10 km WSW of Kamaishi, Japan",
+          "count": 1
+        },
+        {
+          "name": "8 km W of Kamaishi, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "岩手県内陸南部",
+      "count": 2,
+      "latestAt": "2025-08-23T17:18:42.295Z",
+      "epicenters": [
+        {
+          "name": "19 km ENE of Ichinoseki, Japan",
+          "count": 1
+        },
+        {
+          "name": "26 km WNW of Ichinoseki, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "岩手県内陸北部",
+      "count": 2,
+      "latestAt": "2026-05-13T20:01:36.209Z",
+      "epicenters": [
+        {
+          "name": "23 km E of Morioka, Japan",
+          "count": 1
+        },
+        {
+          "name": "8 km NE of Hachimantai, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "宮城県中部",
+      "count": 2,
+      "latestAt": "2025-10-15T08:50:21.160Z",
+      "epicenters": [
+        {
+          "name": "12 km NNE of Onagawa Chō, Japan",
+          "count": 1
+        },
+        {
+          "name": "6 km SW of Onagawa Chō, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "宮城県北部",
+      "count": 2,
+      "latestAt": "2025-03-01T19:23:30.501Z",
+      "epicenters": [
+        {
+          "name": "25 km NNE of Onagawa Chō, Japan",
+          "count": 1
+        },
+        {
+          "name": "33 km SSW of Ōfunato, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "京都府北部",
+      "count": 2,
+      "latestAt": "2026-03-12T17:41:23.010Z",
+      "epicenters": [
+        {
+          "name": "5 km NNE of Ayabe, Japan",
+          "count": 1
+        },
+        {
+          "name": "8 km S of Maizuru, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "根室地方中部",
+      "count": 2,
+      "latestAt": "2025-12-14T23:44:09.253Z",
+      "epicenters": [
+        {
+          "name": "27 km W of Nemuro, Japan",
+          "count": 1
+        },
+        {
+          "name": "28 km W of Nemuro, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "根室地方北部",
+      "count": 2,
+      "latestAt": "2025-06-29T11:26:56.270Z",
+      "epicenters": [
+        {
+          "name": "14 km NNW of Nakashibetsu, Japan",
+          "count": 1
+        },
+        {
+          "name": "20 km NE of Teshikaga, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "埼玉県南部",
+      "count": 2,
+      "latestAt": "2026-02-06T15:58:26.374Z",
+      "epicenters": [
+        {
+          "name": "0 km E of Hasuda, Japan",
+          "count": 1
+        },
+        {
+          "name": "3 km E of Sugito, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "三宅島近海",
+      "count": 2,
+      "latestAt": "2025-09-09T11:08:22.931Z",
+      "epicenters": [
+        {
+          "name": "117 km SSE of Shimoda, Japan",
+          "count": 1
+        },
+        {
+          "name": "125 km SSE of Shimoda, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "山梨県東部・富士五湖",
+      "count": 2,
+      "latestAt": "2026-06-26T13:29:01.036Z",
+      "epicenters": [
+        {
+          "name": "1 km S of Ōtsuki, Japan",
+          "count": 1
+        },
+        {
+          "name": "4 km ENE of Oshino, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "種子島近海",
+      "count": 2,
+      "latestAt": "2026-03-30T18:43:24.396Z",
+      "epicenters": [
+        {
+          "name": "16 km ESE of Koshima, Japan",
+          "count": 1
+        },
+        {
+          "name": "19 km S of Nishinoomote, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "宗谷東方沖",
+      "count": 2,
+      "latestAt": "2026-01-27T02:12:51.543Z",
+      "epicenters": [
+        {
+          "name": "107 km SE of Korsakov, Russia",
+          "count": 1
+        },
+        {
+          "name": "64 km NE of Hamatonbetsu, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "上川地方北部",
+      "count": 2,
+      "latestAt": "2026-01-16T15:39:04.523Z",
+      "epicenters": [
+        {
+          "name": "0 km NNW of Nayoro, Japan",
+          "count": 1
+        },
+        {
+          "name": "8 km W of Wassamu, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "新潟県下越地方",
+      "count": 2,
+      "latestAt": "2026-02-13T04:58:57.254Z",
+      "epicenters": [
+        {
+          "name": "1 km NNW of Maki, Japan",
+          "count": 1
+        },
+        {
+          "name": "2 km NE of Suibara, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "新潟県上中越沖",
+      "count": 2,
+      "latestAt": "2026-05-31T20:54:37.702Z",
+      "epicenters": [
+        {
+          "name": "30 km N of Jōetsu, Japan",
+          "count": 1
+        },
+        {
+          "name": "51 km NNW of Itoigawa, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "新潟県中越地方",
+      "count": 2,
+      "latestAt": "2025-09-15T19:00:07.860Z",
+      "epicenters": [
+        {
+          "name": "4 km WSW of Yoshida-kasugachō, Japan",
+          "count": 1
+        },
+        {
+          "name": "6 km SSW of Ojiya, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "神奈川県西部",
+      "count": 2,
+      "latestAt": "2025-07-23T12:49:46.591Z",
+      "epicenters": [
+        {
+          "name": "1 km NE of Hakone, Japan",
+          "count": 1
+        },
+        {
+          "name": "15 km NW of Hadano, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "青森県津軽南部",
+      "count": 2,
+      "latestAt": "2026-05-13T17:32:41.183Z",
+      "epicenters": [
+        {
+          "name": "13 km W of Hirosaki, Japan",
+          "count": 1
+        },
+        {
+          "name": "15 km S of Ajigasawa, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "千葉県南部",
+      "count": 2,
+      "latestAt": "2025-04-20T06:11:07.513Z",
+      "epicenters": [
+        {
+          "name": "10 km SSW of Ichihara, Japan",
+          "count": 1
+        },
+        {
+          "name": "6 km ENE of Ōtaki, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "長野県中部",
+      "count": 2,
+      "latestAt": "2026-01-15T05:48:04.538Z",
+      "epicenters": [
+        {
+          "name": "19 km WSW of Toyoshina, Japan",
+          "count": 1
+        },
+        {
+          "name": "21 km WSW of Hotaka, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "渡島地方東部",
+      "count": 2,
+      "latestAt": "2026-06-25T03:18:06.513Z",
+      "epicenters": [
+        {
+          "name": "20 km NW of Honchō, Japan",
+          "count": 1
+        },
+        {
+          "name": "22 km WNW of Shikabe, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "東京都多摩東部",
+      "count": 2,
+      "latestAt": "2026-05-24T18:00:57.417Z",
+      "epicenters": [
+        {
+          "name": "3 km W of Fussa, Japan",
+          "count": 1
+        },
+        {
+          "name": "4 km NW of Hachiōji, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "東京湾",
+      "count": 2,
+      "latestAt": "2025-11-13T21:36:20.833Z",
+      "epicenters": [
+        {
+          "name": "7 km WNW of Ichihara, Japan",
+          "count": 1
+        },
+        {
+          "name": "9 km W of Ichihara, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "南大東島近海",
+      "count": 2,
+      "latestAt": "2026-04-11T20:04:05.868Z",
+      "epicenters": [
+        {
+          "name": "205 km SE of Isen, Japan",
+          "count": 1
+        },
+        {
+          "name": "208 km SE of Taira, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "日高地方西部",
+      "count": 2,
+      "latestAt": "2026-05-04T07:37:09.724Z",
+      "epicenters": [
+        {
+          "name": "28 km SE of Shimukappu, Japan",
+          "count": 1
+        },
+        {
+          "name": "30 km ENE of Biratori, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "福井県嶺南",
+      "count": 2,
+      "latestAt": "2025-12-26T21:09:36.451Z",
+      "epicenters": [
+        {
+          "name": "6 km SE of Takahama, Japan",
+          "count": 1
+        },
+        {
+          "name": "7 km WSW of Takahama, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "北海道南西沖",
+      "count": 2,
+      "latestAt": "2025-07-16T02:12:09.190Z",
+      "epicenters": [
+        {
+          "name": "25 km SSW of Fukushima, Japan",
+          "count": 1
+        },
+        {
+          "name": "48 km WNW of Otobe, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "本州南方沖",
+      "count": 2,
+      "latestAt": "2026-03-17T23:39:20.793Z",
+      "epicenters": [
+        {
+          "name": "east of the Philippine Islands",
+          "count": 1
+        },
+        {
+          "name": "Izu Islands, Japan region",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "サハリン近海",
+      "count": 1,
+      "latestAt": "2025-11-01T00:50:23.378Z",
+      "epicenters": [
+        {
+          "name": "138 km SW of Severo-Kuril’sk, Russia",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "シベリア南部",
+      "count": 1,
+      "latestAt": "2025-05-11T11:39:08.250Z",
+      "epicenters": [
+        {
+          "name": "45 km SE of Vostok, Russia",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "愛知県西部",
+      "count": 1,
+      "latestAt": "2025-04-08T10:26:11.377Z",
+      "epicenters": [
+        {
+          "name": "4 km E of Nishio, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "伊勢湾",
+      "count": 1,
+      "latestAt": "2025-07-31T23:24:16.518Z",
+      "epicenters": [
+        {
+          "name": "8 km N of Toba, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "宮崎県南部平野部",
+      "count": 1,
+      "latestAt": "2026-03-01T00:35:09.107Z",
+      "epicenters": [
+        {
+          "name": "3 km WSW of Kushima, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "宮崎県北部平野部",
+      "count": 1,
+      "latestAt": "2026-06-30T23:40:16.981Z",
+      "epicenters": [
+        {
+          "name": "10 km W of Hyūga, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "九州地方南東沖",
+      "count": 1,
+      "latestAt": "2026-06-15T19:21:50.348Z",
+      "epicenters": [
+        {
+          "name": "136 km E of Nishinoomote, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "熊本県熊本地方",
+      "count": 1,
+      "latestAt": "2025-03-17T20:00:35.954Z",
+      "epicenters": [
+        {
+          "name": "2 km SSW of Honmachi, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "熊本県天草・芦北地方",
+      "count": 1,
+      "latestAt": "2025-04-26T03:06:54.423Z",
+      "epicenters": [
+        {
+          "name": "19 km ENE of Amakusa, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "根室地方南部",
+      "count": 1,
+      "latestAt": "2025-03-25T10:39:27.318Z",
+      "epicenters": [
+        {
+          "name": "22 km WSW of Nemuro, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "佐渡付近",
+      "count": 1,
+      "latestAt": "2025-02-07T05:03:12.509Z",
+      "epicenters": [
+        {
+          "name": "80 km WSW of Sado, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "埼玉県秩父地方",
+      "count": 1,
+      "latestAt": "2025-08-23T10:22:11.035Z",
+      "epicenters": [
+        {
+          "name": "3 km WNW of Ogano, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "三重県南部",
+      "count": 1,
+      "latestAt": "2025-02-09T14:42:42.100Z",
+      "epicenters": [
+        {
+          "name": "5 km N of Toba, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "四国沖",
+      "count": 1,
+      "latestAt": "2026-02-25T09:07:45.997Z",
+      "epicenters": [
+        {
+          "name": "96 km S of Sukumo, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "鹿児島湾",
+      "count": 1,
+      "latestAt": "2025-02-19T10:36:24.565Z",
+      "epicenters": [
+        {
+          "name": "6 km ESE of Kagoshima, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "宗谷海峡",
+      "count": 1,
+      "latestAt": "2026-01-15T06:12:32.718Z",
+      "epicenters": [
+        {
+          "name": "83 km SSE of Korsakov, Russia",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "秋田県沿岸南部",
+      "count": 1,
+      "latestAt": "2025-07-21T22:00:57.917Z",
+      "epicenters": [
+        {
+          "name": "21 km ENE of Akita, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "秋田県沖",
+      "count": 1,
+      "latestAt": "2025-10-14T03:34:24.069Z",
+      "epicenters": [
+        {
+          "name": "52 km SW of Tennō, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "上川地方中部",
+      "count": 1,
+      "latestAt": "2026-01-01T15:56:10.776Z",
+      "epicenters": [
+        {
+          "name": "13 km SW of Wassamu, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "上川地方南部",
+      "count": 1,
+      "latestAt": "2025-02-07T03:36:01.102Z",
+      "epicenters": [
+        {
+          "name": "25 km NNW of Shintoku, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "神奈川県東部",
+      "count": 1,
+      "latestAt": "2026-04-05T23:17:53.168Z",
+      "epicenters": [
+        {
+          "name": "11 km E of Machida, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "青森県津軽北部",
+      "count": 1,
+      "latestAt": "2025-02-15T07:48:20.248Z",
+      "epicenters": [
+        {
+          "name": "5 km ESE of Hiranai, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "静岡県中部",
+      "count": 1,
+      "latestAt": "2026-05-08T03:36:10.076Z",
+      "epicenters": [
+        {
+          "name": "19 km N of Kanaya, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "石狩地方南部",
+      "count": 1,
+      "latestAt": "2025-10-12T06:13:42.528Z",
+      "epicenters": [
+        {
+          "name": "17 km NW of Shiraoi, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "大分県西部",
+      "count": 1,
+      "latestAt": "2025-07-18T09:58:32.338Z",
+      "epicenters": [
+        {
+          "name": "12 km NNE of Takedamachi, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "大分県中部",
+      "count": 1,
+      "latestAt": "2025-04-17T23:57:35.002Z",
+      "epicenters": [
+        {
+          "name": "11 km WSW of Beppu, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "大分県南部",
+      "count": 1,
+      "latestAt": "2025-08-05T17:53:46.848Z",
+      "epicenters": [
+        {
+          "name": "18 km ENE of Takedamachi, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "長崎県南西部",
+      "count": 1,
+      "latestAt": "2025-07-25T02:17:03.141Z",
+      "epicenters": [
+        {
+          "name": "10 km E of Nagasaki, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "渡島地方北部",
+      "count": 1,
+      "latestAt": "2026-03-09T15:45:43.620Z",
+      "epicenters": [
+        {
+          "name": "19 km NE of Otobe, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "東シナ海",
+      "count": 1,
+      "latestAt": "2025-11-26T11:55:31.635Z",
+      "epicenters": [
+        {
+          "name": "244 km N of Hirara, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "東京都２３区",
+      "count": 1,
+      "latestAt": "2025-05-04T03:35:42.731Z",
+      "epicenters": [
+        {
+          "name": "7 km SSW of Motoyoyogichō, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "栃木県北部",
+      "count": 1,
+      "latestAt": "2025-10-26T03:04:55.283Z",
+      "epicenters": [
+        {
+          "name": "19 km NNE of Midori, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "奈良県",
+      "count": 1,
+      "latestAt": "2026-05-02T09:28:41.537Z",
+      "epicenters": [
+        {
+          "name": "12 km SSW of Kōya, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "日高地方中部",
+      "count": 1,
+      "latestAt": "2025-03-20T10:46:08.118Z",
+      "epicenters": [
+        {
+          "name": "24 km ENE of Shizunai-furukawachō, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "日本海西部",
+      "count": 1,
+      "latestAt": "2025-03-24T07:58:01.385Z",
+      "epicenters": [
+        {
+          "name": "144 km SE of Ungsang-nodongjagu, North Korea",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "富山県東部",
+      "count": 1,
+      "latestAt": "2026-06-19T18:16:54.901Z",
+      "epicenters": [
+        {
+          "name": "19 km ESE of Nyūzen, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "富山湾",
+      "count": 1,
+      "latestAt": "2026-01-12T20:09:47.966Z",
+      "epicenters": [
+        {
+          "name": "39 km ENE of Anamizu, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "福井県沖",
+      "count": 1,
+      "latestAt": "2025-06-07T14:46:15.877Z",
+      "epicenters": [
+        {
+          "name": "33 km NE of Kameshima, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "福井県嶺北",
+      "count": 1,
+      "latestAt": "2025-08-24T16:44:24.226Z",
+      "epicenters": [
+        {
+          "name": "21 km S of Ikeda, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "兵庫県南東部",
+      "count": 1,
+      "latestAt": "2026-03-25T11:31:12.450Z",
+      "epicenters": [
+        {
+          "name": "9 km NE of Akashi, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "兵庫県北方沖",
+      "count": 1,
+      "latestAt": "2025-08-15T20:03:17.937Z",
+      "epicenters": [
+        {
+          "name": "137 km NNW of Kameshima, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "豊後水道",
+      "count": 1,
+      "latestAt": "2025-06-03T11:17:52.897Z",
+      "epicenters": [
+        {
+          "name": "25 km SW of Yawatahama, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "北海道西方沖",
+      "count": 1,
+      "latestAt": "2025-03-10T00:51:37.846Z",
+      "epicenters": [
+        {
+          "name": "77 km WNW of Furubira, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "北海道北西沖",
+      "count": 1,
+      "latestAt": "2026-02-13T13:57:08.161Z",
+      "epicenters": [
+        {
+          "name": "29 km WSW of Teshio, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "北見地方",
+      "count": 1,
+      "latestAt": "2026-05-15T18:47:19.463Z",
+      "epicenters": [
+        {
+          "name": "18 km W of Oketo, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "和歌山県南部",
+      "count": 1,
+      "latestAt": "2025-03-06T03:58:56.300Z",
+      "epicenters": [
+        {
+          "name": "29 km WNW of Shingū, Japan",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "areaName": "和歌山県南方沖",
+      "count": 1,
+      "latestAt": "2026-07-09T12:58:57.039Z",
+      "epicenters": [
+        {
+          "name": "50 km SW of Shirahama, Japan",
+          "count": 1
+        }
+      ]
+    }
+  ]
+}
