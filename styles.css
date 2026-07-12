@@ -2744,6 +2744,37 @@ body:not([data-active-bottom-tab="earthquake-tab"]) #simulation-start {
   clip-path: none !important;
 }
 
+body.community-map-mode #map::after {
+  bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) - 12px) !important;
+}
+
+#history-full-panel .history-stats-sort-row {
+  grid-template-columns: auto minmax(0, 1fr) 14px minmax(0, 1fr) 58px !important;
+  column-gap: 6px !important;
+}
+
+#history-full-panel .history-stats-sort-row label {
+  grid-template-columns: auto minmax(0, 1fr) !important;
+}
+
+#history-full-panel .history-stats-sort-row label:nth-of-type(2) {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+#history-full-panel .history-stats-sort-row label + span {
+  width: 14px !important;
+  min-width: 14px !important;
+  text-align: center !important;
+}
+
+#history-full-panel .history-stats-sort-row select,
+#history-start-year,
+#history-end-year {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+}
+
 #bottom-info-tab .bottom-tab-icon::before {
   inset: 2px !important;
   width: auto !important;
@@ -3981,6 +4012,18 @@ h1 {
   font-size: clamp(0.76rem, 1.5vw, 0.92rem);
   font-weight: 700;
   line-height: 1.4;
+}
+
+body:not(.community-admin-account) .source-admin-mode-button,
+body:not(.community-admin-account) [data-settings-target="admin"],
+body:not(.community-admin-account) #settings-admin-button {
+  display: none !important;
+}
+
+.community-account-panel button:disabled,
+.community-account-panel button.is-disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
 }
 
 .source-admin-mode-button:hover,
@@ -7600,6 +7643,12 @@ body {
   font-size: 1.08rem;
   font-weight: 800;
   text-align: left;
+}
+
+#settings-appearance-button {
+  position: relative;
+  z-index: 3;
+  pointer-events: auto !important;
 }
 
 .settings-menu-row:hover,
@@ -11947,6 +11996,830 @@ body.history-map-mode #history-full-panel .history-stats-empty.history-stats-emp
   clip-path: none !important;
 }
 
+/* Final tab role: 投稿.  Lightweight CSS-only post icon. */
+#bottom-history-tab .bottom-tab-icon {
+  position: relative !important;
+  display: inline-block !important;
+  width: 24px !important;
+  height: 24px !important;
+  overflow: visible !important;
+}
+
+#bottom-history-tab .bottom-tab-icon::before {
+  content: "" !important;
+  position: absolute !important;
+  left: 3px !important;
+  top: 4px !important;
+  width: 18px !important;
+  height: 15px !important;
+  border: 2px solid currentColor !important;
+  border-radius: 5px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  transform: none !important;
+  clip-path: none !important;
+}
+
+#bottom-history-tab .bottom-tab-icon::after {
+  content: "" !important;
+  position: absolute !important;
+  left: 11px !important;
+  top: 7px !important;
+  width: 2px !important;
+  height: 10px !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: currentColor !important;
+  box-shadow: -4px 4px 0 -1px currentColor, 4px 4px 0 -1px currentColor, 0 0 0 0 currentColor !important;
+  transform: rotate(90deg) !important;
+  clip-path: none !important;
+}
+
+#bottom-history-tab .bottom-tab-icon {
+  background:
+    linear-gradient(currentColor, currentColor) 12px 8px / 2px 10px no-repeat,
+    linear-gradient(currentColor, currentColor) 8px 12px / 10px 2px no-repeat !important;
+}
+
+/* Current request: compact community post UI and bottom-sheet post viewer. */
+body.community-map-mode #map::after {
+  bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) - 6px) !important;
+}
+
+.community-post-button {
+  min-width: 64px !important;
+  min-height: 38px !important;
+  padding: 0 12px !important;
+  font-size: 13px !important;
+  right: max(12px, env(safe-area-inset-right)) !important;
+  bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 64px) !important;
+}
+
+body.community-post-detail-open .community-post-button {
+  bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + min(48vh, 390px) + 18px) !important;
+}
+
+.community-post-sheet {
+  max-height: calc(100vh - var(--bottom-nav-height) - env(safe-area-inset-bottom) - 18px) !important;
+}
+
+.community-post-form {
+  gap: 12px !important;
+}
+
+.community-post-location-preview {
+  position: relative;
+  min-height: 74px;
+  overflow: hidden;
+  display: grid;
+  align-items: end;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 18px;
+  background:
+    linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px) 0 0 / 38px 38px,
+    linear-gradient(0deg, rgba(255,255,255,0.05) 1px, transparent 1px) 0 0 / 38px 38px,
+    radial-gradient(circle at 68% 36%, rgba(74, 223, 255, 0.16), transparent 34%),
+    linear-gradient(180deg, rgba(32, 38, 41, 0.96), rgba(8, 11, 13, 0.96));
+}
+
+.community-post-location-preview::before {
+  content: "";
+  position: absolute;
+  inset: 16px -20px auto -20px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.13);
+  box-shadow:
+    60px 24px 0 rgba(255, 255, 255, 0.10),
+    170px 42px 0 rgba(255, 255, 255, 0.08),
+    270px 12px 0 rgba(255, 255, 255, 0.08);
+  transform: rotate(-8deg);
+}
+
+.community-post-location-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.92);
+  border-radius: 50%;
+  background: rgba(120, 244, 255, 0.28);
+  box-shadow: 0 0 0 7px rgba(64, 224, 255, 0.14);
+  transform: translate(-50%, -50%) scale(0.76);
+  opacity: 0.42;
+}
+
+.community-post-location-dot.is-set {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.community-post-location-preview-text {
+  position: relative;
+  z-index: 1;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.community-post-location-actions {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 7px !important;
+}
+
+.community-post-location-actions button {
+  min-height: 36px !important;
+  border-radius: 999px !important;
+  padding: 0 8px !important;
+  font-size: 12px !important;
+}
+
+.community-post-tags {
+  display: flex !important;
+  flex-wrap: wrap;
+  gap: 8px !important;
+}
+
+.community-post-tags label {
+  min-height: 32px !important;
+  width: auto !important;
+  padding: 0 12px !important;
+  border-radius: 999px !important;
+  font-size: 12px !important;
+}
+
+.community-media-picker {
+  min-height: 118px !important;
+  border: 1.5px dashed rgba(255, 255, 255, 0.28) !important;
+  border-radius: 18px !important;
+  background: rgba(255, 255, 255, 0.045) !important;
+  gap: 5px;
+  text-align: center;
+}
+
+.community-media-picker span {
+  font-size: 14px;
+}
+
+.community-media-picker small {
+  display: block;
+  color: rgba(255, 255, 255, 0.56);
+  font-size: 11px;
+}
+
+.community-post-detail-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom));
+  z-index: 25500;
+  height: min(48vh, 390px);
+  overflow: auto;
+  padding: 38px 16px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-bottom: 0;
+  border-radius: 28px 28px 0 0;
+  background: linear-gradient(180deg, rgba(10, 12, 13, 0.96), rgba(0, 0, 0, 0.98));
+  color: #fff;
+  box-shadow: 0 -22px 58px rgba(0, 0, 0, 0.58);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.24) transparent;
+}
+
+.community-post-detail-sheet.hidden {
+  display: none;
+}
+
+.community-post-detail-close {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font: 800 20px/1 system-ui, sans-serif;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+
+.community-post-detail-body {
+  display: grid;
+  gap: 12px;
+  max-width: 620px;
+  margin: 0 auto;
+}
+
+.community-post-detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.community-post-detail-tags span {
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(64, 224, 255, 0.16);
+  color: #8ff6ff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.community-post-detail-body img,
+.community-post-detail-body video {
+  width: 100%;
+  max-height: 180px;
+  border-radius: 16px;
+  object-fit: cover;
+}
+
+.community-post-detail-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 0;
+}
+
+.community-post-detail-meta div {
+  min-width: 0;
+  padding: 10px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.community-post-detail-meta dt {
+  color: rgba(255, 255, 255, 0.54);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.community-post-detail-meta dd {
+  margin: 3px 0 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.community-post-detail-body p {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.community-post-author {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.community-post-author span {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.11);
+  font-size: 20px;
+}
+
+.community-profile-icon img,
+.community-post-author-icon img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.community-post-author-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.11);
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.community-post-author strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 16px;
+}
+
+.community-account-required {
+  position: fixed;
+  inset: 0 0 calc(var(--bottom-nav-height) + env(safe-area-inset-bottom)) 0;
+  z-index: 11800;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 50% 30%, rgba(28, 105, 122, 0.25), transparent 44%),
+    rgba(0, 0, 0, 0.72);
+  color: #fff;
+}
+
+.community-account-required.hidden {
+  display: none;
+}
+
+.community-account-required-card {
+  width: min(460px, 100%);
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+  padding: 28px 22px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 28px;
+  background: linear-gradient(180deg, rgba(21, 24, 26, 0.96), rgba(5, 7, 8, 0.97));
+  text-align: center;
+  box-shadow: 0 22px 58px rgba(0, 0, 0, 0.46);
+}
+
+.community-account-required-icon {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: rgba(64, 224, 255, 0.18);
+  color: #7ff4ff;
+  font-size: 30px;
+  font-weight: 900;
+}
+
+.community-account-required-card h2,
+.community-account-required-card p {
+  margin: 0;
+}
+
+.community-account-required-card h2 {
+  font-size: 22px;
+}
+
+.community-account-required-card p {
+  color: rgba(255, 255, 255, 0.72);
+  line-height: 1.7;
+}
+
+.community-account-required-card button,
+.community-account-panel button {
+  min-height: 42px;
+  border: 1px solid rgba(64, 224, 255, 0.55);
+  border-radius: 999px;
+  background: rgba(8, 83, 95, 0.72);
+  color: #8ff6ff;
+  padding: 0 18px;
+  font-weight: 900;
+}
+
+.community-account-panel {
+  order: -10;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.community-profile-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 82px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 85% 20%, rgba(64, 224, 255, 0.14), transparent 38%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.035));
+}
+
+.community-profile-card.is-empty {
+  border-style: dashed;
+}
+
+.community-profile-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 52px;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 28px;
+  font-weight: 900;
+}
+
+.community-profile-main {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.community-profile-main span {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.community-profile-main strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 22px;
+}
+
+.community-account-create-form,
+.community-account-login-form,
+.community-account-edit-form {
+  display: grid;
+  gap: 10px;
+}
+
+.community-account-create-form label,
+.community-account-login-form label,
+.community-account-edit-form label {
+  display: grid;
+  gap: 6px;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.community-account-create-form input,
+.community-account-login-form input,
+.community-account-edit-form input {
+  min-height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #fff;
+  padding: 0 12px;
+  font: 800 14px/1 system-ui, sans-serif;
+}
+
+.community-account-confirm {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+}
+
+.community-account-confirm input {
+  width: 18px;
+  min-height: 18px;
+}
+
+.community-account-login-form {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.community-account-note,
+.community-account-status {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.64);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.community-profile-main em {
+  width: max-content;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(64, 224, 255, 0.16);
+  color: #8ff6ff;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.community-account-button-row,
+.community-account-danger-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.community-account-wide-button {
+  width: 100%;
+}
+
+.community-account-danger-actions {
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.community-account-danger-actions button:last-child {
+  border-color: rgba(255, 76, 98, 0.54);
+  background: rgba(120, 18, 35, 0.62);
+  color: #ffb7c2;
+}
+
+.community-account-screen {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  overflow-y: auto;
+  padding: 86px 18px 22px;
+  background: linear-gradient(180deg, rgba(11, 13, 14, 0.98), rgba(0, 0, 0, 0.99));
+  color: #fff;
+}
+
+.community-account-screen.hidden {
+  display: none;
+}
+
+.community-account-screen-back {
+  position: absolute;
+  left: 18px;
+  top: 22px;
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #fff;
+  font: 900 32px/1 system-ui, sans-serif;
+}
+
+.community-account-screen h2 {
+  margin: 0 0 18px;
+  text-align: center;
+  font-size: 22px;
+}
+
+.community-account-screen-form {
+  display: grid;
+  gap: 14px;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.community-account-screen-form label {
+  display: grid;
+  gap: 7px;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.community-account-screen-form input[type="text"],
+.community-account-screen-form input[type="password"] {
+  min-height: 44px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #fff;
+  padding: 0 13px;
+  font: 900 15px/1 system-ui, sans-serif;
+}
+
+.community-icon-picker {
+  min-height: 118px;
+  place-items: center;
+  border: 1.5px dashed rgba(255, 255, 255, 0.28);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.045);
+  text-align: center;
+}
+
+.community-icon-picker input {
+  max-width: 100%;
+}
+
+.community-account-screen-form button,
+.community-post-delete-button {
+  min-height: 44px;
+  border: 1px solid rgba(64, 224, 255, 0.55);
+  border-radius: 999px;
+  background: rgba(8, 83, 95, 0.72);
+  color: #8ff6ff;
+  font-weight: 900;
+}
+
+.community-post-delete-button {
+  border-color: rgba(255, 76, 98, 0.56);
+  background: rgba(120, 18, 35, 0.68);
+  color: #ffb7c2;
+}
+
+.community-account-screen-status {
+  max-width: 520px;
+  margin: 14px auto 0;
+  color: #8ff6ff;
+  font-size: 13px;
+}
+
+.community-account-list {
+  display: grid;
+  gap: 9px;
+  max-width: 620px;
+  margin: 0 auto;
+}
+
+.community-account-list-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 10px;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.community-account-list-item strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.community-account-list-item span {
+  grid-column: 1 / -1;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 12px;
+}
+
+.community-account-list-item em {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(64, 224, 255, 0.16);
+  color: #8ff6ff;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+/* Current request fixes: source-search dropdown layout, single post tag, colored post markers, icon preview. */
+body.community-map-mode #map::after {
+  bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) - 12px) !important;
+}
+
+#history-full-panel .history-stats-toolbar {
+  overflow: visible !important;
+}
+
+#history-full-panel .history-stats-sort-row {
+  width: 100% !important;
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 112px) 20px minmax(0, 112px) minmax(64px, auto) !important;
+  align-items: center !important;
+  column-gap: 6px !important;
+}
+
+#history-full-panel .history-stats-sort-row label {
+  min-width: 0 !important;
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 112px) !important;
+  align-items: center !important;
+}
+
+#history-full-panel .history-stats-sort-row label:nth-of-type(2) {
+  grid-template-columns: minmax(0, 112px) !important;
+}
+
+#history-full-panel .history-stats-sort-row label + span {
+  width: 20px !important;
+  min-width: 20px !important;
+  text-align: center !important;
+}
+
+#history-full-panel .history-stats-sort-row select,
+#history-start-year,
+#history-end-year {
+  width: 112px !important;
+  min-width: 0 !important;
+  max-width: 112px !important;
+}
+
+#history-statistics-load {
+  min-width: 64px !important;
+  padding-inline: 10px !important;
+}
+
+.community-post-tags label {
+  user-select: none;
+}
+
+.community-post-tags input[type="radio"] + span::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.38);
+  vertical-align: 1px;
+}
+
+.community-post-tags label:has(input[value="weather"]:checked) {
+  border-color: rgba(70, 190, 255, 0.82) !important;
+  background: rgba(12, 94, 139, 0.72) !important;
+  color: #aee8ff !important;
+}
+
+.community-post-tags label:has(input[value="disaster"]:checked) {
+  border-color: rgba(255, 86, 98, 0.82) !important;
+  background: rgba(126, 25, 32, 0.72) !important;
+  color: #ffc6cc !important;
+}
+
+.community-post-tags label:has(input[value="earthquake"]:checked) {
+  border-color: rgba(86, 230, 142, 0.82) !important;
+  background: rgba(24, 109, 57, 0.72) !important;
+  color: #c3ffd9 !important;
+}
+
+.community-post-tags label:has(input[value="safety"]:checked) {
+  border-color: rgba(255, 222, 80, 0.86) !important;
+  background: rgba(128, 101, 18, 0.72) !important;
+  color: #fff0a8 !important;
+}
+
+.community-post-marker[data-community-tag="weather"] {
+  background: radial-gradient(circle at 34% 30%, #ffffff 0 12%, #7bdcff 13% 42%, #138ed3 43% 100%) !important;
+}
+
+.community-post-marker[data-community-tag="disaster"] {
+  background: radial-gradient(circle at 34% 30%, #ffffff 0 12%, #ff8a95 13% 42%, #d6263c 43% 100%) !important;
+}
+
+.community-post-marker[data-community-tag="earthquake"] {
+  background: radial-gradient(circle at 34% 30%, #ffffff 0 12%, #87f2ad 13% 42%, #26a85c 43% 100%) !important;
+}
+
+.community-post-marker[data-community-tag="safety"] {
+  background: radial-gradient(circle at 34% 30%, #ffffff 0 12%, #fff089 13% 42%, #d8ae18 43% 100%) !important;
+}
+
+.community-icon-preview {
+  width: 96px;
+  height: 96px;
+  display: grid;
+  place-items: center;
+  justify-self: center;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.community-icon-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+@media (max-width: 420px) {
+  #history-full-panel .history-stats-sort-row {
+    grid-template-columns: auto minmax(0, 94px) 16px minmax(0, 94px) minmax(56px, auto) !important;
+    column-gap: 4px !important;
+  }
+
+  #history-full-panel .history-stats-sort-row label {
+    grid-template-columns: auto minmax(0, 94px) !important;
+  }
+
+  #history-full-panel .history-stats-sort-row label:nth-of-type(2) {
+    grid-template-columns: minmax(0, 94px) !important;
+  }
+
+  #history-full-panel .history-stats-sort-row select,
+  #history-start-year,
+  #history-end-year {
+    width: 94px !important;
+    max-width: 94px !important;
+  }
+}
+
+@media (max-width: 720px) {
+  .community-post-button {
+    min-width: 58px !important;
+    min-height: 36px !important;
+    bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 58px) !important;
+  }
+
+  body.community-post-detail-open .community-post-button {
+    bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + min(48vh, 390px) + 12px) !important;
+  }
+}
+
 /* Current request: slightly larger/even bottom tabs and centered settings back button. */
 .bottom-tabs {
   display: grid !important;
@@ -12043,6 +12916,533 @@ body.history-map-mode #history-full-panel .history-stats-empty.history-stats-emp
 #settings-location-status {
   cursor: pointer !important;
   user-select: none !important;
+}
+
+/* Current request: allow the simulation sheet to be pulled higher and layer it above the legend. */
+#setup-panel.sim-panel {
+  z-index: 14500 !important;
+  max-height: min(72svh, 700px) !important;
+}
+
+#setup-panel.setup-menu-open,
+#setup-panel.sim-panel[data-sheet-state="open"] {
+  height: min(72svh, 700px) !important;
+  max-height: min(72svh, 700px) !important;
+}
+
+#setup-panel.sim-panel.is-dragging {
+  max-height: var(--sheet-drag-height, min(72svh, 700px)) !important;
+}
+
+#setup-panel .sim-panel-scroll {
+  max-height: calc(min(72svh, 700px) - 78px) !important;
+}
+
+.preset-picker-overlay {
+  z-index: 16000 !important;
+}
+
+.preset-picker-close,
+#preset-picker-close {
+  z-index: 17000 !important;
+}
+
+/* Tools tab: source-search and station-search pages live under the Tools tab. */
+body[data-active-bottom-tab="bottom-info-tab"].tool-source-search-mode #history-full-panel {
+  display: grid !important;
+  pointer-events: auto !important;
+}
+
+body[data-active-bottom-tab="bottom-info-tab"].tool-source-search-mode #info-full-panel {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+#info-full-panel .tool-home-page,
+#info-full-panel .tool-station-page {
+  min-height: 0 !important;
+}
+
+#info-full-panel .tool-home-page.hidden,
+#info-full-panel .tool-station-page.hidden {
+  display: none !important;
+}
+
+.tool-menu-list {
+  display: grid !important;
+  gap: 0 !important;
+  padding: max(18px, env(safe-area-inset-top)) 0 0 !important;
+}
+
+.tool-menu-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  width: 100% !important;
+  min-height: 58px !important;
+  padding: 0 22px !important;
+  border: 0 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.10) !important;
+  border-radius: 0 !important;
+  background: rgba(255, 255, 255, 0.035) !important;
+  color: inherit !important;
+  font: inherit !important;
+  text-align: left !important;
+}
+
+.tool-menu-row span:first-child {
+  font-weight: 900 !important;
+}
+
+.tool-menu-row span:last-child {
+  opacity: 0.72 !important;
+  font-size: 1.35rem !important;
+}
+
+.tool-page-head {
+  display: grid !important;
+  grid-template-columns: 46px minmax(0, 1fr) 46px !important;
+  align-items: center !important;
+  min-height: 54px !important;
+  padding: max(6px, env(safe-area-inset-top)) 14px 8px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.11) !important;
+}
+
+.tool-page-head h2 {
+  margin: 0 !important;
+  text-align: center !important;
+  font-size: 1.05rem !important;
+  font-weight: 950 !important;
+}
+
+.tool-page-back {
+  display: grid !important;
+  place-items: center !important;
+  width: 42px !important;
+  height: 42px !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: inherit !important;
+  font-size: 2rem !important;
+  line-height: 1 !important;
+  padding: 0 0 3px !important;
+}
+
+#history-full-panel {
+  grid-template-rows: auto auto minmax(0, 1fr) !important;
+}
+
+#history-full-panel .history-stats-toolbar {
+  min-width: 0 !important;
+}
+
+#history-full-panel .history-stats-sort-row select,
+#history-start-year,
+#history-end-year {
+  width: 104px !important;
+  min-width: 104px !important;
+  max-width: 104px !important;
+}
+
+#bottom-history-tab .bottom-tab-icon::before,
+#bottom-history-tab .bottom-tab-icon::after {
+  content: "" !important;
+  position: absolute !important;
+  display: block !important;
+  box-sizing: border-box !important;
+}
+
+#bottom-history-tab .bottom-tab-icon::before {
+  left: 3px !important;
+  top: 5px !important;
+  width: 18px !important;
+  height: 15px !important;
+  border: 2px solid currentColor !important;
+  border-radius: 3px !important;
+  background:
+    linear-gradient(90deg, transparent 0 32%, currentColor 32% 38%, transparent 38% 62%, currentColor 62% 68%, transparent 68%) !important;
+  box-shadow: none !important;
+}
+
+#bottom-history-tab .bottom-tab-icon::after {
+  left: 6px !important;
+  top: 8px !important;
+  width: 12px !important;
+  height: 9px !important;
+  border: 0 !important;
+  border-top: 2px solid currentColor !important;
+  border-bottom: 2px solid currentColor !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+body.community-map-mode #map::after {
+  content: "© OpenStreetMap contributors © CARTO";
+  position: absolute;
+  right: max(8px, env(safe-area-inset-right));
+  bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 2px);
+  z-index: 1200;
+  padding: 3px 6px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.48);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 10px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+/* Current request: legend below simulation sheet, compact year range, no epicenter X in source search, fixed bottom tabs. */
+body[data-active-bottom-tab="earthquake-tab"] .intensity-legend,
+.intensity-legend,
+body .intensity-legend {
+  z-index: 13900 !important;
+}
+
+#setup-panel.sim-panel {
+  z-index: 14500 !important;
+}
+
+body.tool-source-search-mode .epicenter-marker-shell {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+#history-full-panel .history-stats-sort-row {
+  grid-template-columns: auto minmax(0, 104px) 18px minmax(0, 104px) auto !important;
+  column-gap: 4px !important;
+  justify-content: start !important;
+}
+
+#history-full-panel .history-stats-sort-row label {
+  grid-template-columns: auto minmax(0, 104px) !important;
+  gap: 5px !important;
+}
+
+#history-full-panel .history-stats-sort-row label + span {
+  display: grid !important;
+  place-items: center !important;
+  width: 18px !important;
+  min-width: 18px !important;
+  text-align: center !important;
+}
+
+#history-full-panel .history-stats-sort-row label:nth-of-type(2) {
+  display: block !important;
+}
+
+#history-full-panel .history-stats-sort-row select,
+#history-start-year,
+#history-end-year {
+  width: 104px !important;
+  min-width: 104px !important;
+  max-width: 104px !important;
+}
+
+.bottom-tabs {
+  position: fixed !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  display: grid !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  transform: none !important;
+  translate: none !important;
+  pointer-events: auto !important;
+  z-index: 30000 !important;
+}
+
+/* Community map posting UI. */
+body.community-map-mode #map::after {
+  bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 2px) !important;
+}
+
+.community-post-button {
+  position: fixed;
+  right: max(14px, env(safe-area-inset-right));
+  bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 92px);
+  z-index: 12500;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 96px;
+  min-height: 46px;
+  padding: 0 18px;
+  border: 1px solid rgba(64, 224, 255, 0.62);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(18, 56, 64, 0.92), rgba(3, 16, 20, 0.94));
+  color: #7ff4ff;
+  font: 800 15px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.42), inset 0 1px rgba(255, 255, 255, 0.18);
+}
+
+body.community-map-mode .community-post-button {
+  display: inline-flex;
+}
+
+body.community-pick-mode .community-post-button {
+  outline: 2px solid rgba(255, 255, 255, 0.78);
+}
+
+.community-post-overlay {
+  position: fixed;
+  inset: 0 0 calc(var(--bottom-nav-height) + env(safe-area-inset-bottom)) 0;
+  z-index: 26000;
+  display: grid;
+  place-items: end center;
+  padding: 18px 14px 14px;
+  background: rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(3px);
+}
+
+.community-post-overlay.hidden {
+  display: none;
+}
+
+.community-post-sheet {
+  width: min(560px, 100%);
+  max-height: calc(100vh - var(--bottom-nav-height) - env(safe-area-inset-bottom) - 30px);
+  overflow: auto;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 28px 28px 18px 18px;
+  background: linear-gradient(180deg, rgba(20, 23, 24, 0.96), rgba(4, 6, 7, 0.97));
+  color: #f7f7f7;
+  box-shadow: 0 -22px 58px rgba(0, 0, 0, 0.56);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.24) transparent;
+}
+
+.community-post-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 46px 1fr 46px;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 18px 8px;
+  background: linear-gradient(180deg, rgba(20, 23, 24, 0.98), rgba(20, 23, 24, 0.84));
+}
+
+.community-post-head h2 {
+  margin: 0;
+  text-align: center;
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.community-post-close {
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font: 700 24px/1 system-ui, sans-serif;
+}
+
+.community-post-form {
+  display: grid;
+  gap: 14px;
+  padding: 8px 18px 18px;
+}
+
+.community-post-section {
+  display: grid;
+  gap: 10px;
+}
+
+.community-post-section h3 {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+}
+
+.community-post-location-actions,
+.community-post-tags {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.community-post-location-actions button,
+.community-post-tags label,
+.community-media-picker,
+.community-post-submit {
+  min-height: 46px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.06));
+  color: #fff;
+  font-weight: 800;
+}
+
+.community-post-tags label {
+  position: relative;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.community-post-tags input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.community-post-tags label:has(input:checked) {
+  border-color: rgba(64, 224, 255, 0.68);
+  background: rgba(8, 83, 95, 0.72);
+  color: #8ff6ff;
+}
+
+.community-post-location {
+  min-height: 20px;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 13px;
+}
+
+.community-media-picker {
+  display: grid;
+  place-items: center;
+  padding: 0 14px;
+  cursor: pointer;
+}
+
+.community-media-picker input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.community-post-preview {
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.community-post-preview img,
+.community-post-preview video {
+  display: block;
+  width: 100%;
+  max-height: 260px;
+  object-fit: contain;
+}
+
+.community-post-form textarea {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #fff;
+  padding: 12px 14px;
+  font: 700 15px/1.6 system-ui, sans-serif;
+}
+
+.community-post-status {
+  min-height: 20px;
+  margin: 0;
+  color: #7ff4ff;
+  font-size: 13px;
+}
+
+.community-post-submit {
+  min-height: 50px;
+  border-color: rgba(255, 43, 89, 0.72);
+  background: linear-gradient(180deg, #ff315f, #c70c40);
+  font-size: 16px;
+}
+
+.community-post-submit:disabled {
+  opacity: 0.58;
+  filter: grayscale(0.35);
+  cursor: not-allowed;
+}
+
+.community-media-remove {
+  width: 100%;
+  margin-top: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.community-post-marker {
+  width: 26px;
+  height: 26px;
+  border: 2px solid rgba(5, 15, 18, 0.68);
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #ffffff 0 12%, #72f0ff 13% 42%, #069fb7 43% 100%);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.34), 0 8px 16px rgba(0, 0, 0, 0.42);
+}
+
+.community-post-popup .maplibregl-popup-content {
+  width: min(280px, 74vw);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 18px;
+  background: rgba(7, 9, 10, 0.94);
+  color: #fff;
+  padding: 12px;
+}
+
+.community-post-popup-card {
+  display: grid;
+  gap: 8px;
+}
+
+.community-post-popup-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.community-post-popup-tags span {
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(64, 224, 255, 0.18);
+  color: #8ff6ff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.community-post-popup-card img,
+.community-post-popup-card video {
+  width: 100%;
+  max-height: 180px;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+.community-post-popup-card p {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.community-post-popup-card time {
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 11px;
+}
+
+@media (max-width: 720px) {
+  .community-post-button {
+    right: max(12px, env(safe-area-inset-right));
+    bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 74px);
+    min-width: 86px;
+  }
+
+  .community-post-overlay {
+    padding: 10px 10px 8px;
+  }
 }
 
 /* Current request: make the bottom tab area 4px taller and keep panels/tables clear of it. */
