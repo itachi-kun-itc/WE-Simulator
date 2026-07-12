@@ -2918,6 +2918,9 @@ function renderPastEarthquakeStatsPanel(error = null) {
   }).join("");
 
   els.historyStatsList.innerHTML = `${heading}${cards}`;
+  els.historyStatsList
+    .querySelectorAll("[data-history-clear-area], .history-epicenter-list, .history-epicenter-more")
+    .forEach((element) => element.remove());
   els.historyStatsList.querySelector("[data-history-clear-area]")?.addEventListener("click", () => {
     selectedHistoryLocalAreaName = "";
     if (map?.getSource("jma-local-areas")) {
