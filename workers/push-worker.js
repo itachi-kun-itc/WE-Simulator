@@ -1020,7 +1020,7 @@ async function createCommunityAccount(request, env) {
     .bind(id, name, icon, salt, passwordHash, isAdmin, createdAt, createdAt)
     .run();
   await createCommunitySession(db, id, token);
-  return { id, name, icon, token };
+  return { id, name, icon, isAdmin: Boolean(isAdmin), token };
 }
 
 async function loginCommunityAccount(request, env) {
@@ -1036,7 +1036,21 @@ async function loginCommunityAccount(request, env) {
   if (!account) {
     throw httpError("invalid account", 401);
   }
-  const expectedHash = await hashPassword(password, account.password_salt);
+  let expectedHash = await hashPassword(password, account.password_salt);
+  if (!safeEqual(expectedHash, String(account.password_hash || ""))) {
+    if (!isDefaultCommunityAdminCredential(name, password)) {
+      throw httpError("invalid account", 401);
+    }
+    const salt = randomBase64Url(16);
+    expectedHash = await hashPassword(password, salt);
+    await db
+      .prepare("UPDATE community_accounts SET password_salt = ?, password_hash = ?, is_admin = 1, updated_at = ? WHERE id = ?")
+      .bind(salt, expectedHash, new Date().toISOString(), account.id)
+      .run();
+    account.password_salt = salt;
+    account.password_hash = expectedHash;
+    account.is_admin = 1;
+  }
   if (!safeEqual(expectedHash, String(account.password_hash || ""))) {
     throw httpError("invalid account", 401);
   }
@@ -1230,7 +1244,7 @@ async function hashPassword(password, salt) {
       name: "PBKDF2",
       hash: "SHA-256",
       salt: new TextEncoder().encode(salt),
-      iterations: 120000,
+      iterations: 100000,
     },
     keyMaterial,
     256,
