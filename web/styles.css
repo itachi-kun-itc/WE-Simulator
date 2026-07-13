@@ -13613,6 +13613,11 @@ body .intensity-legend {
   z-index: 14500 !important;
 }
 
+/* Keep the speech confirmation above the simulation sheet and intensity legend. */
+.speech-confirm-overlay {
+  z-index: 15000 !important;
+}
+
 body.tool-source-search-mode .epicenter-marker-shell {
   display: none !important;
   pointer-events: none !important;

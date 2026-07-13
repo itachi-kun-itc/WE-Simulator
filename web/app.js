@@ -2493,6 +2493,7 @@ function setupTabs() {
     closeSettingsDetailPanel({ immediate: true });
     closeCommunityAccountScreen();
     els.settingsMenuSheet?.classList.add("hidden");
+    showMaintenanceBlockingScreen();
   };
 
   const closeFullPanels = () => {
@@ -2764,6 +2765,15 @@ function setupTabs() {
         ${buildPrivacyPolicyHtml()}
       </div>
     `;
+    els.settingsPrivacyPanel.querySelector("[data-feedback-link]")?.addEventListener("click", (event) => {
+      event.preventDefault();
+      openSettingsDetailPanel(
+        els.settingsFeedbackButton,
+        els.settingsFeedbackPanel,
+        ensureSettingsFeedbackPanel,
+        "フィードバック",
+      );
+    });
     els.settingsPrivacyPanel.dataset.ready = "true";
   };
 
@@ -2974,6 +2984,22 @@ function setupTabs() {
     els.settingsAdminButton.firstElementChild.textContent = "管理者用設定";
   }
 
+  document.querySelector(".bottom-tabs")?.addEventListener("click", (event) => {
+    const tab = event.target?.closest?.(".tab");
+    if (
+      !tab ||
+      tab.id === "bottom-settings-tab" ||
+      !document.body.classList.contains("maintenance-screen-blocking")
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    closeSettingsMenuSheet();
+    showMaintenanceBlockingScreen();
+  }, true);
+
   document.querySelectorAll(".tab").forEach((tab) => {
     tab.addEventListener("click", () => {
       if (!tab.dataset.panel) {
@@ -3054,6 +3080,7 @@ function setupTabs() {
   });
 
   document.querySelector("#bottom-settings-tab")?.addEventListener("click", () => {
+    allowMaintenanceSettingsAccess();
     setActiveBottomTab("#bottom-settings-tab");
     activateEarthquakePanel();
     closeFullPanels();
@@ -7143,11 +7170,11 @@ function setupGlobalOverlays() {
   setupMaintenanceMode(maintenanceOverlay, maintenanceBadge);
 
   const adminOverlay = createAdminModeOverlay();
-  const sourceOverlay = createSourceInfoOverlay(adminOverlay, feedbackOverlay);
+  const sourceOverlay = createSourceInfoOverlay(adminOverlay);
   const speechConfirmOverlay = createSpeechConfirmOverlay();
   const pushConfirmOverlay = createPushConfirmOverlay();
   document.body.append(sourceOverlay, speechConfirmOverlay, pushConfirmOverlay, adminOverlay);
-  setupMaintenanceLinks(maintenanceOverlay, feedbackOverlay, pushConfirmOverlay);
+  setupMaintenanceLinks(maintenanceOverlay);
 
   appOverlays = {
     adminOverlay,
@@ -8675,7 +8702,7 @@ function stripPrefectureName(name) {
   return displayName || "";
 }
 
-function createSourceInfoOverlay(adminOverlay, feedbackOverlay) {
+function createSourceInfoOverlay(adminOverlay) {
   const overlay = document.createElement("section");
   overlay.className = "source-info-overlay hidden";
   overlay.setAttribute("aria-modal", "true");
@@ -8699,11 +8726,8 @@ function createSourceInfoOverlay(adminOverlay, feedbackOverlay) {
   });
   overlay.querySelector("[data-feedback-link]")?.addEventListener("click", (event) => {
     event.preventDefault();
-    feedbackOverlay?.classList.add("from-source");
-    feedbackOverlay.dataset.returnToSource = "true";
-    feedbackOverlay?.classList.remove("hidden");
-    document.body.classList.add("source-overlay-open");
-    document.querySelector(".feedback-info-button")?.setAttribute("aria-expanded", "true");
+    closeOverlay();
+    openSettingsFeedbackPage();
   });
   overlay.addEventListener("click", (event) => {
     if (event.target === overlay) {
@@ -8897,39 +8921,46 @@ function createMaintenanceModeOverlay() {
 function buildMaintenanceOverlayLinksHtml() {
   return `
     <p class="maintenance-mode-links">
-      <a href="#feedback" data-maintenance-feedback-link>フィードバック</a><span aria-hidden="true">｜</span><a href="#notification-settings" data-maintenance-notification-link>通知設定</a>
+      <a href="#settings-menu-sheet" data-maintenance-settings-link>設定</a>
     </p>
   `;
 }
 
-function setupMaintenanceLinks(maintenanceOverlay, feedbackOverlay, pushConfirmOverlay) {
+function setupMaintenanceLinks(maintenanceOverlay) {
   maintenanceOverlay?.addEventListener("click", (event) => {
-    const feedbackLink = event.target?.closest?.("[data-maintenance-feedback-link]");
-    const notificationLink = event.target?.closest?.("[data-maintenance-notification-link]");
-    if (!feedbackLink && !notificationLink) {
+    const settingsLink = event.target?.closest?.("[data-maintenance-settings-link]");
+    if (!settingsLink) {
       return;
     }
 
     event.preventDefault();
-    if (feedbackLink) {
-      feedbackOverlay.classList.add("from-maintenance");
-      feedbackOverlay.classList.remove("hidden");
-      document.body.classList.add("source-overlay-open");
-      return;
-    }
-
-    if (pushConfirmOverlay) {
-      pushConfirmOverlay.classList.add("from-maintenance");
-      showPushConfirmOverlay(pushConfirmOverlay);
-    }
+    allowMaintenanceSettingsAccess();
+    document.querySelector("#bottom-settings-tab")?.click();
   });
+}
 
-  feedbackOverlay?.addEventListener("feedback-overlay-close", () => {
-    feedbackOverlay.classList.remove("from-maintenance");
-  });
+function allowMaintenanceSettingsAccess() {
+  const overlay = document.querySelector(".maintenance-mode-overlay");
+  if (!overlay || !document.body.classList.contains("maintenance-screen-blocking")) {
+    return;
+  }
+  overlay.dataset.settingsAccess = "true";
+  overlay.classList.add("hidden");
+}
 
-  pushConfirmOverlay?.addEventListener("push-confirm-close", () => {
-    pushConfirmOverlay.classList.remove("from-maintenance");
+function showMaintenanceBlockingScreen() {
+  const overlay = document.querySelector(".maintenance-mode-overlay");
+  if (!overlay || !document.body.classList.contains("maintenance-screen-blocking")) {
+    return;
+  }
+  delete overlay.dataset.settingsAccess;
+  overlay.classList.remove("hidden");
+}
+
+function openSettingsFeedbackPage() {
+  document.querySelector("#bottom-settings-tab")?.click();
+  requestAnimationFrame(() => {
+    document.querySelector("#settings-feedback-button")?.click();
   });
 }
 
@@ -9713,7 +9744,17 @@ function updateMaintenanceStateIndicators(overlay, badge, status) {
   }
   if (overlay) {
     updateMaintenanceOverlayMessage(overlay, reason);
-    overlay.classList.toggle("hidden", !status.maintenance || isMaintenanceExemptTerminal);
+    const settingsAccessActive =
+      overlay.dataset.settingsAccess === "true" &&
+      document.body.dataset.activeBottomTab === "bottom-settings-tab" &&
+      !document.querySelector("#settings-menu-sheet")?.classList.contains("hidden");
+    overlay.classList.toggle(
+      "hidden",
+      !status.maintenance || isMaintenanceExemptTerminal || settingsAccessActive,
+    );
+    if (!status.maintenance || isMaintenanceExemptTerminal) {
+      delete overlay.dataset.settingsAccess;
+    }
   }
   if (badge) {
     badge.classList.add("hidden");
@@ -10127,7 +10168,7 @@ function buildPrivacyPolicyHtml() {
       </section>
       <section class="source-info-section">
         <h3>問い合わせ</h3>
-        <p>本サイトに関する問い合わせは、<br /><a href="mailto:akurah3000@icloud.com">akurah3000@icloud.com</a> または <a href="#feedback" data-feedback-link>フィードバック</a> までご連絡ください。</p>
+        <p>本サイトに関する問い合わせは、<br /><a href="mailto:akurah3000@icloud.com">akurah3000@icloud.com</a> または <a href="#settings-feedback-panel" data-feedback-link>フィードバック</a> までご連絡ください。</p>
       </section>
     </div>
   `;
