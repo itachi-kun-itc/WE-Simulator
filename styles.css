@@ -14463,6 +14463,28 @@ body.community-pick-mode .community-post-button {
   display: none !important;
 }
 
+/* Keep the EEW area list on the simulation map only. */
+body:not([data-active-bottom-tab="earthquake-tab"]) .eew-forecast-panel,
+body.community-map-mode .eew-forecast-panel,
+body.history-map-mode .eew-forecast-panel,
+body.tool-source-search-mode .eew-forecast-panel {
+  display: none !important;
+}
+
+.eew-forecast-panel h2 {
+  color: #fff !important;
+}
+
+/* On iPad and desktop, place the list at the upper-left of the visible map area. */
+@media (min-width: 721px) {
+  body[data-active-bottom-tab="earthquake-tab"] .eew-forecast-panel {
+    left: 388px !important;
+    right: auto !important;
+    top: max(10px, env(safe-area-inset-top)) !important;
+    bottom: auto !important;
+  }
+}
+
 /* Keep learning content inside narrow mobile viewports. */
 #learning-full-panel,
 #learning-full-panel .learning-content,
@@ -14471,6 +14493,7 @@ body.community-pick-mode .community-post-button {
 #learning-full-panel .learning-intensity-list,
 #learning-full-panel .learning-intensity-item,
 #learning-full-panel .learning-weather-section,
+#learning-full-panel .learning-warning-kind-table-wrap,
 #learning-full-panel .learning-level-table-wrap {
   min-width: 0 !important;
   max-width: 100% !important;
