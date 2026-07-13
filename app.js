@@ -1442,7 +1442,7 @@ function setupTabs() {
             <span class="tool-menu-copy"><strong>観測点検索</strong><small>震度観測点を地域・機関・名称から検索します。</small></span><span aria-hidden="true">›</span>
           </button>
           <button class="tool-menu-row" type="button" data-tool-page="weather-quiz">
-            <span class="tool-menu-copy"><strong>気象予報士 1問1答</strong><small>一般・専門知識と年次・問題数を選び、○×で自己採点できます。</small></span><span aria-hidden="true">›</span>
+            <span class="tool-menu-copy"><strong>気象予報士 1問1答</strong><small>一般・専門知識と年次・問題数を選び、○×で回答すると自動で正誤判定されます。</small></span><span aria-hidden="true">›</span>
           </button>
         </div>
       </section>
@@ -9699,17 +9699,15 @@ function applyFeedbackPlaceholder(textarea) {
 
 function getFeedbackPlaceholderText() {
   return [
-    "例：レイアウトが見づらい。",
-    "　　バグを確認した。",
-    "　　改善要望",
+    "例：◯◯の機能を追加してほしい",
+    "　　改善要望 など",
   ].join("\n");
 }
 
 function getCleanFeedbackPlaceholderText() {
   return [
-    "例：レイアウトが見づらい。",
-    "　　バグを確認した。",
-    "　　改善要望",
+    "例：◯◯の機能を追加してほしい",
+    "　　改善要望 など",
   ].join("\n");
 }
 

@@ -14574,12 +14574,11 @@ body.tool-source-search-mode #history-full-panel .tool-page-back {
 
 /* Tool directory descriptions and weather-forecaster quick quiz. */
 #info-full-panel .tool-weather-quiz-page {
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr) !important;
   min-height: 0 !important;
   height: 100% !important;
-  overflow-x: hidden !important;
-  overflow-y: auto !important;
-  overscroll-behavior: contain !important;
-  -webkit-overflow-scrolling: touch !important;
+  overflow: hidden !important;
 }
 
 #info-full-panel .tool-weather-quiz-page.hidden {
@@ -14617,9 +14616,16 @@ body.tool-source-search-mode #history-full-panel .tool-page-back {
   display: grid !important;
   align-content: start !important;
   gap: 14px !important;
+  min-height: 0 !important;
+  height: 100% !important;
   width: min(720px, calc(100% - 28px)) !important;
   margin: 0 auto !important;
   padding: 18px 0 calc(34px + env(safe-area-inset-bottom)) !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+  scrollbar-width: thin !important;
+  -webkit-overflow-scrolling: touch !important;
 }
 
 .weather-quiz-overview {
