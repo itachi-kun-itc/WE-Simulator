@@ -42,6 +42,7 @@ const COMMUNITY_MAP_ATTRIBUTION =
 const COMMUNITY_MAP_FALLBACK_CENTER = [137.2, 37.0];
 const COMMUNITY_MAP_FALLBACK_ZOOM = 3.5;
 const COMMUNITY_MAP_DEFAULT_ZOOM = 8;
+const COMMUNITY_MAP_CURRENT_LOCATION_ZOOM = 12;
 const HISTORY_MAP_DEFAULT_CENTER = [137.2, 37.0];
 const HISTORY_MAP_DEFAULT_ZOOM = 4.2;
 let COMMUNITY_POST_TAGS = [
@@ -50,6 +51,8 @@ let COMMUNITY_POST_TAGS = [
   { id: "disaster", label: "災害報告" },
 ];
 const COMMUNITY_POST_VIDEO_MAX_SECONDS = 30;
+const COMMUNITY_POST_VAGUE_LOCATION_RADIUS_METERS = 1000;
+const COMMUNITY_POST_VAGUE_LOCATION_MAX_ATTEMPTS = 120;
 let COMMUNITY_POST_OPTIONAL_TAGS = [];
 const ADMIN_PARENT_TOKEN_KEY = "weather-earthquake-admin-parent-token";
 const COMMUNITY_ACCOUNT_STORAGE_KEY = "we-simulator-community-account";
@@ -80,7 +83,7 @@ const DEFAULT_APPEARANCE_THEME = "dark";
 const LOCAL_PARENT_UNAVAILABLE_LABEL = "Localサーバーでは\n親端末に設定できません";
 
 const INITIAL_CENTER = [139.767, 35.681];
-const INITIAL_ZOOM = 6;
+const INITIAL_ZOOM = 5.6;
 const MOBILE_INITIAL_CENTER = INITIAL_CENTER;
 const MOBILE_INITIAL_ZOOM = 6;
 const MAP_PAN_BOUNDS = [[85, -25], [180, 75]];
@@ -624,6 +627,7 @@ let weatherQuizSession = null;
 let observedStationFeatureCache = { data: null, features: [] };
 let communityPosts = [];
 let communityPostsLoadPromise = null;
+let communityWorkerBaseUrl = "";
 let communityPostMarkers = [];
 let communityPostMarkerLayoutBound = false;
 let communityMapCenterRequestId = 0;
@@ -1447,7 +1451,7 @@ function setupTabs() {
             <span class="tool-menu-copy"><strong>観測点検索</strong><small>震度観測点を地域・機関・名称から検索します。</small></span><span aria-hidden="true">›</span>
           </button>
           <button class="tool-menu-row" type="button" data-tool-page="weather-quiz">
-            <span class="tool-menu-copy"><strong>気象予報士 1問1答</strong><small>一般・専門知識と年次・問題数を選び、○×で回答すると自動で正誤判定されます。</small></span><span aria-hidden="true">›</span>
+            <span class="tool-menu-copy"><strong>気象予報士 1問1答</strong><small>一般・専門知識と年次・問題数を選び、○✕で回答すると自動で正誤判定されます。</small></span><span aria-hidden="true">›</span>
           </button>
         </div>
       </section>
@@ -1803,14 +1807,54 @@ function setupTabs() {
 
   const getWeatherQuizStage = () => els.infoFullPanel?.querySelector("#weather-quiz-stage");
 
+  const resetWeatherQuizContentScroll = (stage) => {
+    const quizContent = stage?.closest(".weather-quiz-content");
+    if (!quizContent) {
+      return;
+    }
+    quizContent.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+    requestAnimationFrame(() => {
+      quizContent.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+    });
+  };
+
+  const getUniqueWeatherQuizItems = (items) => [...new Map((items || []).map((item) => [
+    `${item.exam}|${item.category}|${item.sourceQuestion}|${item.originalQuestion || item.question}`,
+    item,
+  ])).values()];
+
+  const startWeatherQuizSession = (items) => {
+    const uniqueItems = getUniqueWeatherQuizItems(items);
+    if (!uniqueItems.length) {
+      return;
+    }
+    const correctFirst = Math.random() >= 0.5;
+    weatherQuizSession = {
+      questions: uniqueItems.map((item, index) => {
+        const shouldShowCorrectAnswer = index % 2 === (correctFirst ? 0 : 1);
+        const distractor = createWeatherQuizDistractor(item);
+        return {
+          ...item,
+          answerIsCorrect: shouldShowCorrectAnswer || !distractor,
+          presentedAnswer: shouldShowCorrectAnswer || !distractor ? item.answer : distractor,
+        };
+      }),
+      index: 0,
+      results: [],
+      completed: false,
+    };
+    renderWeatherQuizQuestion();
+  };
+
   const renderWeatherQuizSetup = () => {
     const stage = getWeatherQuizStage();
     if (!stage || !weatherForecasterQuizItems?.length) {
       return;
     }
+    stage.closest(".weather-quiz-content")?.querySelector(".weather-quiz-overview")?.classList.remove("hidden");
     weatherQuizSession = null;
     const exams = [...new Map(weatherForecasterQuizItems.map((item) => [item.exam, item.year])).entries()]
-      .sort(([left], [right]) => Number(left.match(/\d+/)?.[0]) - Number(right.match(/\d+/)?.[0]));
+      .sort(([left], [right]) => Number(right.match(/\d+/)?.[0]) - Number(left.match(/\d+/)?.[0]));
     stage.innerHTML = `
       <form class="weather-quiz-setup" data-weather-quiz-setup>
         <fieldset>
@@ -1820,7 +1864,7 @@ function setupTabs() {
               <label><input type="checkbox" name="category" value="${category}" checked /><span>${category}</span></label>
             `).join("")}
           </div>
-          <small>両方選択できます。</small>
+          <small>複数選択できます。</small>
         </fieldset>
         <fieldset>
           <legend>出題年次</legend>
@@ -1833,52 +1877,72 @@ function setupTabs() {
         </fieldset>
         <label class="weather-quiz-count-field">
           <span>問題数</span>
-          <input type="number" name="count" min="1" max="20" value="10" inputmode="numeric" required />
-          <small>1〜20問</small>
+          <input type="number" name="count" min="1" value="15" inputmode="numeric" required />
+          <small data-weather-quiz-count-range></small>
         </label>
         <p class="weather-quiz-setup-error" aria-live="polite"></p>
         <button class="weather-quiz-start" type="submit">問題を開始</button>
       </form>
     `;
-    stage.querySelector("[data-weather-quiz-setup]")?.addEventListener("submit", (event) => {
-      event.preventDefault();
-      const form = event.currentTarget;
+    const setupForm = stage.querySelector("[data-weather-quiz-setup]");
+    const getSetupSelection = (form) => {
       const categories = [...form.querySelectorAll('input[name="category"]:checked')].map((input) => input.value);
       const examsSelected = [...form.querySelectorAll('input[name="exam"]:checked')].map((input) => input.value);
-      const count = clamp(Math.round(Number(form.elements.count.value) || 10), 1, 20);
+      const candidates = getUniqueWeatherQuizItems(weatherForecasterQuizItems.filter((item) => (
+        categories.includes(item.category) && examsSelected.includes(item.exam)
+      )));
+      return { categories, examsSelected, candidates };
+    };
+    const syncSetupState = () => {
+      if (!setupForm) {
+        return;
+      }
+      const { categories, examsSelected, candidates } = getSetupSelection(setupForm);
+      const countInput = setupForm.elements.count;
+      const countRange = setupForm.querySelector("[data-weather-quiz-count-range]");
+      const startButton = setupForm.querySelector(".weather-quiz-start");
+      const maximumCount = candidates.length;
+      countInput.max = String(maximumCount);
+      countInput.disabled = maximumCount === 0;
+      if (maximumCount > 0) {
+        const currentCount = Math.round(Number(countInput.value) || 15);
+        countInput.value = String(clamp(currentCount, 1, maximumCount));
+      }
+      if (countRange) {
+        countRange.textContent = maximumCount > 0 ? `1〜${maximumCount}問` : "選択範囲：0問";
+      }
+      if (startButton) {
+        startButton.disabled = !categories.length || !examsSelected.length || maximumCount === 0;
+      }
+      const error = setupForm.querySelector(".weather-quiz-setup-error");
+      if (error) {
+        error.textContent = "";
+      }
+    };
+    setupForm?.querySelectorAll('input[name="category"], input[name="exam"]').forEach((input) => {
+      input.addEventListener("change", syncSetupState);
+    });
+    setupForm?.querySelector('input[name="count"]')?.addEventListener("change", syncSetupState);
+    syncSetupState();
+    setupForm?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const { categories, examsSelected, candidates } = getSetupSelection(form);
       const error = form.querySelector(".weather-quiz-setup-error");
       if (!categories.length || !examsSelected.length) {
         error.textContent = "出題区分と出題年次を1つ以上選択してください。";
         return;
       }
-      const candidates = weatherForecasterQuizItems.filter((item) => (
-        categories.includes(item.category) && examsSelected.includes(item.exam)
-      ));
       if (!candidates.length) {
         error.textContent = "選択条件に一致する問題がありません。";
         return;
       }
-      if (count > candidates.length) {
-        error.textContent = `選択条件では最大${candidates.length}問です。問題数を減らすか、条件を追加してください。`;
-        return;
-      }
+      const count = clamp(Math.round(Number(form.elements.count.value) || 15), 1, candidates.length);
+      form.elements.count.value = String(count);
       const selectedQuestions = shuffleWeatherQuizItems(candidates).slice(0, count);
-      const correctFirst = Math.random() >= 0.5;
-      weatherQuizSession = {
-        questions: selectedQuestions.map((item, index) => {
-          const shouldShowCorrectAnswer = index % 2 === (correctFirst ? 0 : 1);
-          const distractor = createWeatherQuizDistractor(item);
-          return {
-            ...item,
-            answerIsCorrect: shouldShowCorrectAnswer || !distractor,
-            presentedAnswer: shouldShowCorrectAnswer || !distractor ? item.answer : distractor,
-          };
-        }),
-        index: 0,
-        results: [],
-      };
-      renderWeatherQuizQuestion();
+      startWeatherQuizSession(selectedQuestions);
     });
+    resetWeatherQuizContentScroll(stage);
   };
 
   const renderWeatherQuizQuestion = () => {
@@ -1888,6 +1952,7 @@ function setupTabs() {
     if (!stage || !item) {
       return;
     }
+    stage.closest(".weather-quiz-content")?.querySelector(".weather-quiz-overview")?.classList.add("hidden");
     stage.innerHTML = `
       <div class="weather-quiz-progress-row">
         <span>${session.index + 1} / ${session.questions.length}</span>
@@ -1907,7 +1972,7 @@ function setupTabs() {
         <p>提示された答えは正しい？</p>
         <div>
           <button class="is-correct" type="button" data-weather-quiz-judge="correct"><b>○</b> 正しい</button>
-          <button class="is-wrong" type="button" data-weather-quiz-judge="wrong"><b>×</b> 誤り</button>
+          <button class="is-wrong" type="button" data-weather-quiz-judge="wrong"><b>✕</b> 誤り</button>
         </div>
       </div>
       <button class="weather-quiz-next hidden" type="button" data-weather-quiz-next>${session.index + 1 === session.questions.length ? "結果を見る" : "次の問題"}</button>
@@ -1945,8 +2010,8 @@ function setupTabs() {
       }
       session.index += 1;
       renderWeatherQuizQuestion();
-      stage.scrollIntoView?.({ block: "start", behavior: "smooth" });
     });
+    resetWeatherQuizContentScroll(stage);
   };
 
   const renderWeatherQuizResults = () => {
@@ -1955,7 +2020,12 @@ function setupTabs() {
     if (!stage) {
       return;
     }
+    stage.closest(".weather-quiz-content")?.querySelector(".weather-quiz-overview")?.classList.add("hidden");
+    if (weatherQuizSession) {
+      weatherQuizSession.completed = true;
+    }
     const correctCount = results.filter((result) => result.correct).length;
+    const incorrectResults = results.filter((result) => !result.correct);
     stage.innerHTML = `
       <section class="weather-quiz-results">
         <span>結果</span>
@@ -1966,15 +2036,21 @@ function setupTabs() {
         <h3>問題履歴</h3>
         ${results.map((result, index) => `
           <article class="${result.correct ? "is-correct" : "is-wrong"}">
-            <b>${result.correct ? "○" : "×"}</b>
+            <b>${result.correct ? "○" : "✕"}</b>
             <div><span>${index + 1}. ${escapeHtml(result.item.category)}・${escapeHtml(result.item.exam)}</span><p>${escapeHtml(result.item.question)}</p><small>正しい答え：${escapeHtml(result.item.answer)}</small></div>
           </article>
         `).join("")}
       </section>
+      ${incorrectResults.length ? `<button class="weather-quiz-restart weather-quiz-retry-wrong" type="button" data-weather-quiz-retry-wrong>間違えた${incorrectResults.length}問に再挑戦</button>` : ""}
       <button class="weather-quiz-restart" type="button" data-weather-quiz-restart>条件を選び直す</button>
     `;
-    stage.querySelector("[data-weather-quiz-restart]")?.addEventListener("click", renderWeatherQuizSetup);
-    stage.scrollIntoView?.({ block: "start", behavior: "smooth" });
+    stage.querySelector("[data-weather-quiz-retry-wrong]")?.addEventListener("click", () => {
+      startWeatherQuizSession(shuffleWeatherQuizItems(incorrectResults.map((result) => result.item)));
+    });
+    stage.querySelector("[data-weather-quiz-restart]")?.addEventListener("click", () => {
+      renderWeatherQuizSetup();
+    });
+    resetWeatherQuizContentScroll(stage);
   };
 
   const renderRandomWeatherQuizQuestion = () => {
@@ -1995,12 +2071,12 @@ function setupTabs() {
       <div class="weather-quiz-content">
         <div class="weather-quiz-overview">
           <strong>このツールについて</strong>
-          <p>問題と提示された答えを読み、○（正しい）か×（誤り）を選ぶと自動で正誤判定します。</p>
+          <p>問題と提示された答えを読み、○（正しい）か✕（誤り）を選ぶと自動で正誤判定します。</p>
           <p>無断複製禁止の記載があるため、問題文をそのまま転載せず、各設問で問われている知識を短いオリジナルの一問一答へ言い換えて収録しています。</p>
         </div>
         <p class="weather-quiz-loading" role="status">問題を読み込んでいます...</p>
         <div id="weather-quiz-stage"></div>
-        <p class="weather-quiz-note">第62回・第63回・第64回・第65回の学科問題を参考に、内容を一問一答形式へ再構成しています。</p>
+        <p class="weather-quiz-note">第56回～第65回の学科問題を参考に、内容を一問一答形式へ再構成しています。</p>
       </div>
     `;
     page.dataset.ready = "true";
@@ -2307,6 +2383,120 @@ function setupTabs() {
       </section>
     `;
     content.append(weatherSection);
+
+    const typhoonSection = document.createElement("section");
+    typhoonSection.className = "learning-typhoon-section";
+    typhoonSection.innerHTML = `
+      <div class="learning-section-heading">
+        <span class="learning-kicker">台風を知る</span>
+        <h2>台風情報・予想進路図の見方</h2>
+        <p>円や線が何を表すかを知り、進路だけでなく風・雨・高潮・高波の影響まで確認しましょう。</p>
+      </div>
+
+      <section class="learning-card learning-typhoon-basic-card">
+        <h3>台風とは</h3>
+        <p>北西太平洋または南シナ海にある熱帯低気圧のうち、最大風速（10分間平均）がおよそ17m/s以上のものです。雨は中心付近だけで強くなるとは限らず、台風から離れた場所でも大雨になることがあります。</p>
+        <div class="learning-typhoon-fact-grid">
+          <article><strong>強風域</strong><span>平均風速15m/s以上の風が吹く、または吹く可能性がある範囲</span></article>
+          <article><strong>暴風域</strong><span>平均風速25m/s以上の風が吹く、または吹く可能性がある範囲</span></article>
+        </div>
+      </section>
+
+      <section class="learning-card learning-typhoon-route-card">
+        <h3>予想進路図を読み解く</h3>
+        <div class="learning-typhoon-route-diagram" role="img" aria-label="予報円、強風域、暴風域、暴風警戒域を示す台風進路図の模式図">
+          <svg viewBox="0 0 600 410" aria-hidden="true">
+            <defs>
+              <marker id="typhoon-arrow-white" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L8 4L0 8Z" fill="#ffffff" /></marker>
+              <marker id="typhoon-arrow-yellow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L8 4L0 8Z" fill="#ffe500" /></marker>
+              <marker id="typhoon-arrow-red" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L8 4L0 8Z" fill="#e20b22" /></marker>
+            </defs>
+            <g transform="translate(80 40)">
+              <path class="typhoon-warning-envelope" d="M111 254 C128 226 147 198 165 180 C188 150 209 122 231 98 C256 69 282 38 309 18 C331 2 360 1 382 15 C405 29 415 55 409 80 C405 94 396 103 383 110 C354 132 323 151 293 168 C267 187 241 208 215 230 C190 251 167 273 146 286" />
+              <path class="typhoon-past-route" d="M18 324 C57 306 91 287 128 270" />
+              <path class="typhoon-forecast-guide" d="M128 270 L169.5 184.5 M128 270 L210.5 225.5" />
+              <path class="typhoon-forecast-circle-links" d="M169.5 184.5 L234 103 M210.5 225.5 L292 161 M237 100 L312.4 23 M289 164 L379.6 105" />
+              <path class="typhoon-forecast-route" d="M128 270 C148 244 166 220 190 205 C217 181 238 154 263 132 C292 103 320 79 346 64" />
+              <circle class="typhoon-strong-wind-area" cx="128" cy="270" r="66" />
+              <circle class="typhoon-storm-area" cx="128" cy="270" r="24" />
+              <circle class="typhoon-forecast-circle" cx="190" cy="205" r="29" />
+              <circle class="typhoon-forecast-circle" cx="263" cy="132" r="41" />
+              <circle class="typhoon-forecast-circle" cx="346" cy="64" r="53" />
+              <circle class="typhoon-forecast-center" cx="190" cy="205" r="3.5" />
+              <circle class="typhoon-forecast-center" cx="263" cy="132" r="3.5" />
+              <circle class="typhoon-forecast-center" cx="346" cy="64" r="3.5" />
+              <path class="typhoon-current-mark" d="M119 261l18 18m0-18-18 18" />
+            </g>
+            <g class="typhoon-callout typhoon-callout-forecast">
+              <rect x="225" y="10" width="112" height="40" rx="8" />
+              <text x="281" y="35">予報円</text>
+              <path d="M337 31 L386 66" marker-end="url(#typhoon-arrow-white)" />
+            </g>
+            <g class="typhoon-callout typhoon-callout-strong">
+              <rect x="8" y="222" width="124" height="40" rx="8" />
+              <text x="70" y="247">強風域</text>
+              <path d="M132 243 L160 270" marker-end="url(#typhoon-arrow-yellow)" />
+            </g>
+            <g class="typhoon-callout typhoon-callout-storm">
+              <rect x="8" y="286" width="124" height="40" rx="8" />
+              <text x="70" y="311">暴風域</text>
+              <path d="M132 306 L184 310" marker-end="url(#typhoon-arrow-red)" />
+            </g>
+            <g class="typhoon-callout typhoon-callout-warning">
+              <rect x="446" y="204" width="146" height="40" rx="8" />
+              <text x="519" y="229">暴風警戒域</text>
+              <path d="M446 224 L457 165" marker-end="url(#typhoon-arrow-red)" />
+            </g>
+          </svg>
+        </div>
+        <div class="learning-typhoon-symbol-list">
+          <article><span class="is-current">×</span><div><strong>現在の中心位置</strong><p>実況の台風中心。青い実線はこれまでの経路です。</p></div></article>
+          <article><span class="is-strong-wind"></span><div><strong>黄色の実線：強風域</strong><p>平均風速15m/s以上の強風が吹く可能性がある範囲です。</p></div></article>
+          <article><span class="is-storm"></span><div><strong>赤色の太実線：暴風域</strong><p>平均風速25m/s以上の暴風が吹く可能性がある範囲です。</p></div></article>
+          <article><span class="is-forecast"></span><div><strong>白い破線：予報円</strong><p>予報時刻に台風の中心が入る確率が70％の範囲。円の大きさは台風の大きさではなく、進路予報の不確実性です。</p></div></article>
+          <article><span class="is-warning-area"></span><div><strong>赤色の実線：暴風警戒域</strong><p>台風中心が予報円内を進んだ場合に、暴風域へ入るおそれがある範囲全体です。</p></div></article>
+          <article><span class="is-center-line"></span><div><strong>予報円の中心を結ぶ線</strong><p>代表的な進路ですが、台風が必ず線上を進むわけではありません。</p></div></article>
+        </div>
+      </section>
+
+      <section class="learning-card learning-typhoon-scale-card">
+        <h3>「大きさ」と「強さ」は別の指標</h3>
+        <p>大きさは強風域の半径、強さは最大風速で決まります。中心気圧だけで強さの階級は決まりません。</p>
+        <div class="learning-typhoon-scale-grid">
+          <div>
+            <h4>強さ（最大風速）</h4>
+            <table><tbody>
+              <tr><th>表現なし</th><td>17m/s以上～33m/s未満</td></tr>
+              <tr><th>強い</th><td>33m/s以上～44m/s未満</td></tr>
+              <tr><th>非常に強い</th><td>44m/s以上～54m/s未満</td></tr>
+              <tr><th>猛烈な</th><td>54m/s以上</td></tr>
+            </tbody></table>
+          </div>
+          <div>
+            <h4>大きさ（強風域の半径）</h4>
+            <table><tbody>
+              <tr><th>表現なし</th><td>500km未満</td></tr>
+              <tr><th>大型</th><td>500km以上～800km未満</td></tr>
+              <tr><th>超大型</th><td>800km以上</td></tr>
+            </tbody></table>
+          </div>
+        </div>
+      </section>
+
+      <section class="learning-card learning-typhoon-action-card">
+        <h3>接近前に確認すること</h3>
+        <div class="learning-typhoon-action-list">
+          <article><span>1</span><div><strong>数日前</strong><p>予報円と暴風警戒域、ハザードマップ、避難先を確認。屋外の飛びやすい物を片付ける。</p></div></article>
+          <article><span>2</span><div><strong>警報級の可能性が高まったら</strong><p>大雨・暴風・高潮・波浪の情報、交通機関、自治体の避難情報を確認。充電や備蓄を済ませる。</p></div></article>
+          <article><span>3</span><div><strong>風雨が強まる前</strong><p>危険な場所にいる場合は明るいうちに移動。暴風中の屋外移動や海・川・用水路の確認はしない。</p></div></article>
+        </div>
+        <p class="learning-safety-note">台風が温帯低気圧や熱帯低気圧に変わっても、強風や大雨が続くことがあります。名称が変わっただけで安全になったとは限りません。</p>
+        <a href="https://www.jma.go.jp/jma/kishou/know/typhoon/1-1.html" target="_blank" rel="noopener noreferrer">気象庁「台風とは」</a>
+        <a href="https://www.jma.go.jp/jma/kishou/know/typhoon/1-3.html" target="_blank" rel="noopener noreferrer">気象庁「台風の大きさと強さ」</a>
+        <a href="https://www.jma.go.jp/jma/kishou/know/typhoon/7-1.html" target="_blank" rel="noopener noreferrer">気象庁「台風情報の種類と表現方法」</a>
+      </section>
+    `;
+    content.append(typhoonSection);
   };
 
   const activateEarthquakePanel = () => {
@@ -2984,6 +3174,67 @@ function setupTabs() {
     els.settingsAdminButton.firstElementChild.textContent = "管理者用設定";
   }
 
+  const isWeatherQuizInProgress = () => Boolean(
+    document.body.classList.contains("tool-weather-quiz-mode")
+    && weatherQuizSession?.questions?.length
+    && !weatherQuizSession.completed
+  );
+  const showWeatherQuizLeaveConfirm = (targetTab) => {
+    const overlay = document.createElement("section");
+    overlay.className = "weather-quiz-leave-overlay";
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.setAttribute("aria-labelledby", "weather-quiz-leave-title");
+    overlay.innerHTML = `
+      <div class="weather-quiz-leave-dialog">
+        <h2 id="weather-quiz-leave-title">問題を終了しますか？</h2>
+        <p>別のタブへ移動すると、現在の回答状況は破棄されます。本当に移動しますか？</p>
+        <div class="weather-quiz-leave-actions">
+          <button type="button" data-weather-quiz-leave-yes>はい</button>
+          <button type="button" data-weather-quiz-leave-no>いいえ</button>
+        </div>
+      </div>
+    `;
+    const close = () => {
+      overlay.remove();
+      document.body.classList.remove("weather-quiz-leave-open");
+      document.querySelector("#bottom-info-tab")?.focus?.({ preventScroll: true });
+    };
+    overlay.querySelector("[data-weather-quiz-leave-no]")?.addEventListener("click", close);
+    overlay.querySelector("[data-weather-quiz-leave-yes]")?.addEventListener("click", () => {
+      overlay.remove();
+      document.body.classList.remove("weather-quiz-leave-open");
+      weatherQuizSession = null;
+      targetTab.click();
+    });
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) {
+        close();
+      }
+    });
+    overlay.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        close();
+      }
+    });
+    document.body.append(overlay);
+    document.body.classList.add("weather-quiz-leave-open");
+    overlay.querySelector("[data-weather-quiz-leave-no]")?.focus();
+  };
+
+  document.querySelector(".bottom-tabs")?.addEventListener("click", (event) => {
+    const tab = event.target?.closest?.(".tab");
+    if (!tab || tab.id === document.body.dataset.activeBottomTab || !isWeatherQuizInProgress()) {
+      return;
+    }
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (!document.querySelector(".weather-quiz-leave-overlay")) {
+      showWeatherQuizLeaveConfirm(tab);
+    }
+  }, true);
+
   document.querySelector(".bottom-tabs")?.addEventListener("click", (event) => {
     const tab = event.target?.closest?.(".tab");
     if (
@@ -3043,10 +3294,13 @@ function setupTabs() {
           setSetupMenuOpen(true);
           setSheetState(els.setupPanel, "open");
         }
-        if (previousTabId && previousTabId !== tab.id) {
-          fitInitialMapBounds(getInitialJapanBounds());
-        }
-        requestAnimationFrame(() => safelyResizeMap());
+        const shouldResetInitialView = previousTabId && previousTabId !== tab.id;
+        requestAnimationFrame(() => {
+          safelyResizeMap();
+          if (shouldResetInitialView) {
+            fitInitialMapBounds(getInitialJapanBounds());
+          }
+        });
       }
     });
   });
@@ -4363,6 +4617,75 @@ async function centerCommunityMapOnDefaultLocation() {
   }
 }
 
+async function centerCommunityMapOnRequestedCurrentLocation(control) {
+  if (!navigator.geolocation) {
+    setCommunityMapControlResult(control, "error", "現在地を取得できませんでした");
+    return;
+  }
+
+  const requestId = ++communityMapCenterRequestId;
+  setCommunityMapControlBusy(control, true);
+  try {
+    const position = await new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 30000,
+      });
+    });
+    const latitude = Number(position.coords?.latitude);
+    const longitude = Number(position.coords?.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      throw new Error("Invalid current location");
+    }
+    if (requestId !== communityMapCenterRequestId || !document.body.classList.contains("community-map-mode")) {
+      return;
+    }
+    syncCurrentLocationSettingFromCoordinates(latitude, longitude);
+    moveCommunityMapTo([longitude, latitude], false, COMMUNITY_MAP_CURRENT_LOCATION_ZOOM);
+    setCommunityMapControlResult(control, "success", "現在地付近へ移動しました");
+  } catch (error) {
+    console.warn("Community map current-location request failed", error);
+    setCommunityMapControlResult(control, "error", "現在地を取得できませんでした");
+  } finally {
+    setCommunityMapControlBusy(control, false);
+  }
+}
+
+async function syncCurrentLocationSettingFromCoordinates(latitude, longitude) {
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || !els.currentLocationToggle) {
+    return;
+  }
+
+  const requestId = ++currentLocationRequestId;
+  els.currentLocationToggle.checked = true;
+  localStorage.setItem(CURRENT_LOCATION_ENABLED_KEY, "true");
+  state.currentLocationEnabled = true;
+  state.currentLocation = {
+    latitude: Number(latitude.toFixed(5)),
+    longitude: Number(longitude.toFixed(5)),
+  };
+  state.currentLocationName = "位置情報を取得中...";
+  state.currentLocationStatus = "loading";
+  saveLastKnownCurrentLocation(state.currentLocation);
+  updateSettingsScreenNotificationState();
+  updateCurrentLocationMarker();
+  updateCurrentLocationForecast(getSimulationStationElapsedSec());
+
+  const resolvedLocationName = await resolveMunicipalityNameAt(
+    state.currentLocation.longitude,
+    state.currentLocation.latitude,
+  );
+  if (requestId !== currentLocationRequestId || !els.currentLocationToggle.checked) {
+    return;
+  }
+  state.currentLocationName = resolvedLocationName;
+  state.currentLocationStatus = "ready";
+  updateCurrentLocationMarker();
+  updateCurrentLocationForecast(getSimulationStationElapsedSec());
+  updateSettingsScreenNotificationState();
+}
+
 function setCommunityMapModeActive(active) {
   const wasActive = document.body.classList.contains("community-map-mode");
   document.body.classList.toggle("community-map-mode", Boolean(active));
@@ -4939,8 +5262,12 @@ async function loadPushConfig() {
 }
 
 async function getWorkerBaseUrl() {
+  if (communityWorkerBaseUrl) {
+    return communityWorkerBaseUrl;
+  }
   const config = await loadPushConfig();
-  return String(config.workerUrl || "").replace(/\/+$/, "");
+  communityWorkerBaseUrl = String(config.workerUrl || "").replace(/\/+$/, "");
+  return communityWorkerBaseUrl;
 }
 
 function setupCommunityCustomTagEditor(overlay) {
@@ -5385,34 +5712,84 @@ async function submitCommunityPost() {
   }
 }
 
-async function loadCommunityPosts({ force = false } = {}) {
-  if (communityPostsLoadPromise && !force) {
-    return communityPostsLoadPromise;
+async function loadCommunityPosts({ force = false, rejectOnError = false } = {}) {
+  if (communityPostsLoadPromise) {
+    if (!force) {
+      return communityPostsLoadPromise;
+    }
+    await communityPostsLoadPromise;
   }
   const workerUrl = await getWorkerBaseUrl();
   if (!workerUrl) {
     communityPosts = [];
     renderCommunityPostMarkers();
+    if (rejectOnError) {
+      throw new Error("投稿サーバーが設定されていません");
+    }
     return [];
   }
-  communityPostsLoadPromise = fetch(`${workerUrl}/community-posts?limit=120`, { cache: "no-store" })
-    .then(async (response) => {
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(data?.error || "community posts load failed");
-      }
+  communityPostsLoadPromise = fetchCommunityPostsFromWorker(workerUrl)
+    .then((data) => {
       communityPosts = Array.isArray(data.posts) ? data.posts : [];
       renderCommunityPostMarkers();
       return communityPosts;
     })
     .catch((error) => {
       console.warn("community posts load failed", error);
+      if (rejectOnError) {
+        throw error;
+      }
       return [];
     })
     .finally(() => {
       communityPostsLoadPromise = null;
     });
   return communityPostsLoadPromise;
+}
+
+async function fetchCommunityPostsFromWorker(workerUrl) {
+  let lastError = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const url = `${workerUrl}/community-posts?limit=120&ts=${Date.now()}`;
+      const response = await fetch(url, { cache: "no-store" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.error || `community posts load failed (${response.status})`);
+      }
+      return data;
+    } catch (error) {
+      lastError = error;
+      if (attempt === 0) {
+        await new Promise((resolve) => window.setTimeout(resolve, 250));
+      }
+    }
+  }
+  throw lastError || new Error("community posts load failed");
+}
+
+function setCommunityMapControlBusy(control, busy) {
+  if (!control) {
+    return;
+  }
+  control.disabled = Boolean(busy);
+  control.classList.toggle("is-loading", Boolean(busy));
+  control.setAttribute("aria-busy", String(Boolean(busy)));
+}
+
+function setCommunityMapControlResult(control, result, message) {
+  if (!control) {
+    return;
+  }
+  control.classList.remove("is-success", "is-error");
+  control.classList.add(result === "success" ? "is-success" : "is-error");
+  control.title = message;
+  window.setTimeout(() => {
+    control.classList.remove("is-success", "is-error");
+    control.title = control.classList.contains("community-map-refresh")
+      ? "投稿を更新"
+      : "現在地付近を表示";
+  }, 1800);
 }
 
 function getCommunityPostMarkerOffsets(posts) {
@@ -5581,6 +5958,35 @@ function ensureCommunityPostUi() {
   button.textContent = "投稿";
   button.addEventListener("click", () => openCommunityPostOverlay());
 
+  const mapControls = document.createElement("div");
+  mapControls.className = "community-map-controls";
+  mapControls.setAttribute("aria-label", "投稿マップ操作");
+  mapControls.innerHTML = `
+    <button class="community-map-control community-map-refresh" type="button" aria-label="投稿を更新" title="投稿を更新">
+      <span aria-hidden="true"></span>
+    </button>
+    <button class="community-map-control community-map-current-location" type="button" aria-label="現在地付近を表示" title="現在地付近を表示">
+      <span aria-hidden="true"></span>
+    </button>
+  `;
+  const refreshControl = mapControls.querySelector(".community-map-refresh");
+  const currentLocationControl = mapControls.querySelector(".community-map-current-location");
+  refreshControl?.addEventListener("click", async () => {
+    setCommunityMapControlBusy(refreshControl, true);
+    try {
+      await loadCommunityPosts({ force: true, rejectOnError: true });
+      setCommunityMapControlResult(refreshControl, "success", "投稿を更新しました");
+    } catch (error) {
+      console.warn("Community posts refresh failed", error);
+      setCommunityMapControlResult(refreshControl, "error", "投稿を更新できませんでした");
+    } finally {
+      setCommunityMapControlBusy(refreshControl, false);
+    }
+  });
+  currentLocationControl?.addEventListener("click", () => {
+    centerCommunityMapOnRequestedCurrentLocation(currentLocationControl);
+  });
+
   const overlay = document.createElement("section");
   overlay.id = "community-post-overlay";
   overlay.className = "community-post-overlay hidden";
@@ -5658,7 +6064,7 @@ function ensureCommunityPostUi() {
     </div>
   `;
 
-  document.body.append(button, overlay);
+  document.body.append(button, mapControls, overlay);
 
   const form = overlay.querySelector("#community-post-form");
   const close = overlay.querySelector(".community-post-close");
@@ -5690,7 +6096,19 @@ function ensureCommunityPostUi() {
     submitCommunityPost();
   });
 
-  communityPostOverlayElements = { button, overlay, form, locationStatus, locationPreview, mediaInput, preview, status };
+  communityPostOverlayElements = {
+    button,
+    mapControls,
+    refreshControl,
+    currentLocationControl,
+    overlay,
+    form,
+    locationStatus,
+    locationPreview,
+    mediaInput,
+    preview,
+    status,
+  };
   updateCommunityPostLocationStatus();
   updateCommunityPostSubmitState();
   return communityPostOverlayElements;
@@ -5737,12 +6155,17 @@ function selectCommunityPostCurrentLocation(mode = "current") {
   }
   ui.status.textContent = mode === "vague" ? "曖昧な現在地を作成中..." : "現在地を取得中...";
   navigator.geolocation.getCurrentPosition(
-    (position) => {
+    async (position) => {
       const base = {
         latitude: Number(position.coords.latitude),
         longitude: Number(position.coords.longitude),
       };
-      const point = mode === "vague" ? randomizeLocationWithinRadius(base, 1000) : base;
+      const point = mode === "vague"
+        ? await randomizeLocationWithinCurrentMunicipality(
+          base,
+          COMMUNITY_POST_VAGUE_LOCATION_RADIUS_METERS,
+        )
+        : base;
       communityPostLocation = {
         mode,
         latitude: point.latitude,
@@ -5756,6 +6179,24 @@ function selectCommunityPostCurrentLocation(mode = "current") {
     },
     { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 },
   );
+}
+
+async function randomizeLocationWithinCurrentMunicipality(location, radiusMeters) {
+  const actualPoint = [Number(location.longitude), Number(location.latitude)];
+  const municipality = await findMunicipalityAtPoint(actualPoint[0], actualPoint[1]);
+  if (!municipality) {
+    return location;
+  }
+
+  for (let attempt = 0; attempt < COMMUNITY_POST_VAGUE_LOCATION_MAX_ATTEMPTS; attempt += 1) {
+    const radiusScale = 0.5 ** Math.floor(attempt / 30);
+    const candidate = randomizeLocationWithinRadius(location, radiusMeters * radiusScale);
+    if (pointInFeature([candidate.longitude, candidate.latitude], municipality)) {
+      return candidate;
+    }
+  }
+
+  return location;
 }
 
 function randomizeLocationWithinRadius(location, radiusMeters) {
@@ -11374,15 +11815,19 @@ function fitInitialMapBounds(bounds) {
   map.jumpTo({
     center: initialView.center,
     zoom: initialView.zoom,
-    padding: getInitialMapPaddingForViewport(),
+    padding: getSimulationInitialMapPadding(),
   });
   updateMapPanConstraints();
 }
 
 function getInitialMapView() {
-  return isCompactViewport()
+  return isCompactViewport() && !isIpadLikeDevice()
     ? { center: MOBILE_INITIAL_CENTER, zoom: MOBILE_INITIAL_ZOOM }
     : { center: INITIAL_CENTER, zoom: INITIAL_ZOOM };
+}
+
+function getSimulationInitialMapPadding() {
+  return { top: 0, right: 0, bottom: 0, left: 0 };
 }
 
 function getInitialMapPaddingForViewport() {
@@ -11509,7 +11954,7 @@ function resetMapViewToInitial() {
   return animateMapViewTo({
     center: initialView.center,
     zoom: initialView.zoom,
-    padding: getInitialMapPaddingForViewport(),
+    padding: getSimulationInitialMapPadding(),
     duration: RESET_VIEW_ANIMATION_MS,
     easing: smoothResetMapEasing,
   });
