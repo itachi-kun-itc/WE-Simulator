@@ -27,7 +27,7 @@ const EARTHQUAKE_PRESET_DETAIL_COLUMNS = `
 `;
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, context) {
     if (request.method === "OPTIONS") {
       return new Response(null, { headers: CORS_HEADERS });
     }
@@ -63,7 +63,7 @@ export default {
 
       if (request.method === "POST" && url.pathname === "/maintenance-action") {
         const body = await readRequestBody(request);
-        const result = await handleMaintenanceAction(body, env, request);
+        const result = await handleMaintenanceAction(body, env, request, context);
         return json(result);
       }
 
@@ -363,6 +363,7 @@ async function appendNotificationHistory(env, notification) {
 
 async function readMaintenanceStatus(env) {
   const db = getAppDb(env);
+  await ensureMaintenanceSchema(db);
   const row = await db.prepare(`
     SELECT maintenance, reason
     FROM maintenance_state
@@ -382,6 +383,7 @@ async function readMaintenanceStatus(env) {
 
 async function writeMaintenanceStatus(env, maintenance, reason) {
   const db = getAppDb(env);
+  await ensureMaintenanceSchema(db);
   await db.prepare(`
     INSERT INTO maintenance_state (
       id,
@@ -401,12 +403,13 @@ async function writeMaintenanceStatus(env, maintenance, reason) {
   ).run();
 }
 
-async function handleMaintenanceAction(body, env, request = null) {
+async function handleMaintenanceAction(body, env, request = null, context = null) {
   const action = String(body?.action || "").trim();
   if (!action) {
     return { ok: false, message: "action is required" };
   }
   const hasCommunityAdmin = request ? await isCommunityAdminRequest(request, env) : false;
+  const hasWorkerAdmin = request ? isWorkerAdminRequest(request, env) : false;
 
   if (action === "adminLogin") {
     const result = await forwardToAppsScript(env, body);
@@ -420,12 +423,12 @@ async function handleMaintenanceAction(body, env, request = null) {
   if (action === "forceReleaseInvalidParent") {
     const token = String(body?.token || "").trim();
     await deleteParentToken(env, token);
-    await logMaintenanceAction(env, body);
+    scheduleMaintenanceActionLog(env, body, context);
     return { ok: true };
   }
 
   const token = String(body?.token || "").trim();
-  const hasValidToken = hasCommunityAdmin || await isValidParentToken(env, token);
+  const hasValidToken = hasCommunityAdmin || hasWorkerAdmin || await isValidParentToken(env, token);
   if (!hasValidToken) {
     return {
       ok: false,
@@ -438,7 +441,7 @@ async function handleMaintenanceAction(body, env, request = null) {
     const maintenance = parseBoolean(body?.maintenance);
     const reason = maintenance ? normalizeMaintenanceReason(body) : "";
     await writeMaintenanceStatus(env, maintenance, reason);
-    await logMaintenanceAction(env, body);
+    scheduleMaintenanceActionLog(env, body, context);
     return { ok: true, maintenance, reason };
   }
 
@@ -448,7 +451,7 @@ async function handleMaintenanceAction(body, env, request = null) {
       const currentStatus = await readMaintenanceStatus(env);
       if (currentStatus.maintenance) {
         await writeMaintenanceStatus(env, false, "");
-        await logMaintenanceAction(env, {
+        scheduleMaintenanceActionLog(env, {
           ...body,
           action: "setMaintenance",
           maintenance: false,
@@ -458,11 +461,11 @@ async function handleMaintenanceAction(body, env, request = null) {
           maintenanceReason: "",
           maintenanceDetail: "",
           details: "",
-        });
+        }, context);
       }
     }
     await deleteParentToken(env, token);
-    await logMaintenanceAction(env, body);
+    scheduleMaintenanceActionLog(env, body, context);
     return { ok: true };
   }
 
@@ -470,8 +473,10 @@ async function handleMaintenanceAction(body, env, request = null) {
 }
 
 async function storeParentToken(env, token) {
+  const db = getAppDb(env);
+  await ensureMaintenanceSchema(db);
   const now = new Date().toISOString();
-  await getAppDb(env).prepare(`
+  await db.prepare(`
     INSERT INTO admin_parent_tokens (
       token,
       created_at,
@@ -487,7 +492,9 @@ async function isValidParentToken(env, token) {
     return false;
   }
 
-  const row = await getAppDb(env).prepare(`
+  const db = getAppDb(env);
+  await ensureMaintenanceSchema(db);
+  const row = await db.prepare(`
     SELECT token
     FROM admin_parent_tokens
     WHERE token = ?
@@ -497,7 +504,7 @@ async function isValidParentToken(env, token) {
     return false;
   }
 
-  await getAppDb(env).prepare(`
+  await db.prepare(`
     UPDATE admin_parent_tokens
     SET last_seen_at = ?
     WHERE token = ?
@@ -510,10 +517,30 @@ async function deleteParentToken(env, token) {
   if (!token) {
     return;
   }
-  await getAppDb(env).prepare(`
+  const db = getAppDb(env);
+  await ensureMaintenanceSchema(db);
+  await db.prepare(`
     DELETE FROM admin_parent_tokens
     WHERE token = ?
   `).bind(token).run();
+}
+
+async function ensureMaintenanceSchema(db) {
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS maintenance_state (
+      id TEXT PRIMARY KEY CHECK (id = 'global'),
+      maintenance INTEGER NOT NULL DEFAULT 0,
+      reason TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL
+    )
+  `).run();
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS admin_parent_tokens (
+      token TEXT PRIMARY KEY,
+      created_at TEXT NOT NULL,
+      last_seen_at TEXT NOT NULL
+    )
+  `).run();
 }
 
 async function logMaintenanceAction(env, body) {
@@ -522,6 +549,15 @@ async function logMaintenanceAction(env, body) {
   } catch (error) {
     console.warn("maintenance log failed", error);
   }
+}
+
+function scheduleMaintenanceActionLog(env, body, context) {
+  const task = logMaintenanceAction(env, body);
+  if (context?.waitUntil) {
+    context.waitUntil(task);
+    return;
+  }
+  task.catch((error) => console.warn("maintenance log scheduling failed", error));
 }
 
 async function forwardToAppsScript(env, body) {
@@ -872,8 +908,9 @@ async function createCommunityPost(request, env) {
   if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
     throw httpError("longitude is invalid", 400);
   }
-  if (tags.length !== 1) {
-    throw httpError("one tag is required", 400);
+  const primaryTags = tags.filter((tag) => !String(tag).startsWith("optional:"));
+  if (primaryTags.length !== 1) {
+    throw httpError("exactly one required tag is allowed", 400);
   }
   if (!text) {
     throw httpError("text is required", 400);
@@ -1304,10 +1341,21 @@ function buildCommunityMediaUrl(requestUrl, key) {
 
 function normalizeCommunityPostTags(values) {
   const allowed = new Set(["weather", "disaster", "earthquake", "safety"]);
-  return [...new Set(values.flatMap((value) => String(value || "").split(",")))]
+  const allowedOptional = new Set(["typhoon", "heat", "landslide"]);
+  const normalized = [...new Set(values.flatMap((value) => {
+    const text = String(value || "");
+    return text.startsWith("optional:") ? [text] : text.split(",");
+  }))]
     .map((value) => value.trim())
-    .filter((value) => allowed.has(value))
-    .slice(0, 1);
+    .filter(Boolean);
+  const primary = normalized.filter((value) => allowed.has(value));
+  const optional = normalized
+    .filter((value) => value.startsWith("optional:"))
+    .map((value) => value.slice("optional:".length).trim().slice(0, 24))
+    .map((value) => allowedOptional.has(value) ? value : value.replace(/[<>"'`\\]/g, ""))
+    .filter(Boolean)
+    .map((value) => `optional:${value}`);
+  return [...new Set([...primary, ...optional])];
 }
 
 async function ensureCommunitySchema(db) {
@@ -1523,6 +1571,12 @@ function requireAdmin(request, env) {
   if (!expectedToken || actualToken !== expectedToken) {
     throw httpError("unauthorized", 401);
   }
+}
+
+function isWorkerAdminRequest(request, env) {
+  const expectedToken = String(env.ADMIN_NOTIFY_TOKEN || "");
+  const actualToken = request.headers.get("Authorization")?.replace(/^Bearer\s+/i, "") || "";
+  return Boolean(expectedToken) && actualToken === expectedToken;
 }
 
 async function subscriptionKey(endpoint) {

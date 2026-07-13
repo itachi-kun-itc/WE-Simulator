@@ -39,14 +39,22 @@ const COMMUNITY_MAP_TILE_URLS = [
 ];
 const COMMUNITY_MAP_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+const COMMUNITY_MAP_FALLBACK_CENTER = [137.2, 37.0];
+const COMMUNITY_MAP_FALLBACK_ZOOM = 3.5;
+const COMMUNITY_MAP_DEFAULT_ZOOM = 8;
+const HISTORY_MAP_DEFAULT_CENTER = [137.2, 37.0];
+const HISTORY_MAP_DEFAULT_ZOOM = 4.2;
 let COMMUNITY_POST_TAGS = [
   { id: "safety", label: "防災共有" },
   { id: "weather", label: "気象報告" },
   { id: "disaster", label: "災害報告" },
 ];
 const COMMUNITY_POST_VIDEO_MAX_SECONDS = 30;
+let COMMUNITY_POST_OPTIONAL_TAGS = [];
 const ADMIN_PARENT_TOKEN_KEY = "weather-earthquake-admin-parent-token";
 const COMMUNITY_ACCOUNT_STORAGE_KEY = "we-simulator-community-account";
+const CURRENT_LOCATION_ENABLED_KEY = "weather-earthquake-current-location-enabled";
+const CURRENT_LOCATION_LAST_COORDS_KEY = "weather-earthquake-current-location-last-coords";
 const NOTIFICATION_HISTORY_READ_IDS_KEY = "weather-earthquake-notification-history-read-ids";
 const NOTIFICATION_HISTORY_DB_NAME = "we-simulator-notification-history";
 const NOTIFICATION_HISTORY_DB_VERSION = 1;
@@ -63,6 +71,9 @@ const LEGACY_NOTIFICATION_HISTORY_ITEMS = [
     source: "backfill",
   },
 ];
+const WEATHER_FORECASTER_QUIZ_URL = "./data/weather_forecaster_quiz.json";
+let weatherForecasterQuizItems = null;
+let weatherForecasterQuizLoadPromise = null;
 const MAINTENANCE_STATUS_POLL_MS = 60000;
 const APPEARANCE_THEME_KEY = "weather-earthquake-appearance-theme";
 const DEFAULT_APPEARANCE_THEME = "dark";
@@ -609,12 +620,17 @@ let earthquakeStatisticsRange = { startYear: "2026", endYear: "2026" };
 let earthquakeStatisticsLoading = false;
 let selectedStationInfoRegion = "";
 let stationInfoAffiliationFilter = "";
+let weatherQuizSession = null;
 let observedStationFeatureCache = { data: null, features: [] };
 let communityPosts = [];
 let communityPostsLoadPromise = null;
 let communityPostMarkers = [];
+let communityPostMarkerLayoutBound = false;
+let communityMapCenterRequestId = 0;
 let communityPostLocation = null;
+let communityPostLocationResolveRequestId = 0;
 let communityPostOverlayElements = null;
+let activeCommunityPostDetail = null;
 let communityAccount = loadCommunityAccountFromStorage();
 document.body?.classList.toggle("community-admin-account", Boolean(communityAccount?.isAdmin));
 document.body?.classList.toggle("community-local-account", Boolean(communityAccount?.localOnly));
@@ -638,6 +654,9 @@ let pmtilesProtocolRegistered = false;
 let japanPmtilesProtocolUrl = "";
 const SOURCE_LINKS = [
   { label: "気象庁", href: "https://www.jma.go.jp/" },
+  { label: "気象庁 気象警報・注意報", href: "https://www.jma.go.jp/jma/kishou/know/bosai/warning.html" },
+  { label: "気象庁 津波警報・注意報", href: "https://www.jma.go.jp/jma/kishou/know/jishin/joho/tsunamiinfo.html" },
+  { label: "気象予報士試験 試験問題と解答例", href: "https://www.jmbsc.or.jp/jp/examination/examination-7.html" },
   { label: "気象庁 予報区等GISデータ", href: "https://www.data.jma.go.jp/developer/gis.html" },
   { label: "気象庁 震度観測点", href: "https://www.jma.go.jp/jma/kishou/know/jishin/intens-st/index.html" },
   { label: "国土数値情報", href: "https://nlftp.mlit.go.jp/ksj/" },
@@ -650,7 +669,7 @@ const SOURCE_LINKS = [
   { label: "OpenStreetMap", href: "https://www.openstreetmap.org/copyright" },
   { label: "CARTO", href: "https://carto.com/attributions" },
 ];
-const SOURCE_UPDATED_AT = "2026 07 11";
+const SOURCE_UPDATED_AT = "2026 07 13";
 const SOURCE_SECTIONS = [
   {
     title: "気象庁",
@@ -672,6 +691,24 @@ const SOURCE_SECTIONS = [
       {
         label: "予報区等GISデータの一覧",
         href: "https://www.data.jma.go.jp/developer/gis.html",
+      },
+      {
+        label: "気象警報・注意報（2026年5月29日からの体系）",
+        href: "https://www.jma.go.jp/jma/kishou/know/bosai/warning.html",
+      },
+      {
+        label: "津波警報・注意報",
+        href: "https://www.jma.go.jp/jma/kishou/know/jishin/joho/tsunamiinfo.html",
+      },
+    ],
+  },
+  {
+    title: "気象予報士試験",
+    description: "気象予報士1問1答の知識範囲と学科解答の確認に使用している一次資料。問題文は転載せず、内容を短い独自表現へ言い換えています。",
+    links: [
+      {
+        label: "気象業務支援センター 試験問題と解答例",
+        href: "https://www.jmbsc.or.jp/jp/examination/examination-7.html",
       },
     ],
   },
@@ -752,6 +789,8 @@ bootstrapApplication();
 
 async function bootstrapApplication() {
   await disableLocalDevelopmentServiceWorker();
+  setupSystemPermissionSync();
+  restoreCurrentLocationPreference();
   recoverPmtilesByteServingIfNeeded().catch((error) => {
     console.warn("PMTiles byte serving recovery failed", error);
   });
@@ -879,7 +918,7 @@ function setupTabs() {
       group.append(notificationCard);
     }
 
-    notificationCard.querySelector(".settings-notification-row span")?.replaceChildren("現在の通知");
+    notificationCard.querySelector(".settings-notification-row span")?.replaceChildren("通知設定");
     els.settingsPushToggle?.remove();
 
     if (!els.settingsLocationStatus) {
@@ -898,21 +937,10 @@ function setupTabs() {
   };
 
   const ensureSettingsAppearanceElements = () => {
-    if (!els.settingsAppearanceButton && els.settingsPushButton) {
-      els.settingsAppearanceButton = document.createElement("button");
-      els.settingsAppearanceButton.className = "settings-menu-row";
-      els.settingsAppearanceButton.id = "settings-appearance-button";
-      els.settingsAppearanceButton.type = "button";
-      els.settingsAppearanceButton.innerHTML = `<span>外観</span><span aria-hidden="true">›</span>`;
-      els.settingsPushButton.insertAdjacentElement("afterend", els.settingsAppearanceButton);
-    }
-    if (!els.settingsAppearancePanel && els.settingsPushPanel) {
-      els.settingsAppearancePanel = document.createElement("section");
-      els.settingsAppearancePanel.className = "settings-inline-panel hidden";
-      els.settingsAppearancePanel.id = "settings-appearance-panel";
-      els.settingsAppearancePanel.setAttribute("aria-label", "外観");
-      els.settingsPushPanel.insertAdjacentElement("afterend", els.settingsAppearancePanel);
-    }
+    els.settingsMenuSheet?.querySelector("#settings-appearance-button")?.remove();
+    els.settingsMenuSheet?.querySelector("#settings-appearance-panel")?.remove();
+    els.settingsAppearanceButton = null;
+    els.settingsAppearancePanel = null;
   };
 
   const ensureSettingsAppearancePanel = () => {
@@ -930,6 +958,7 @@ function setupTabs() {
 
     els.settingsAppearancePanel.replaceChildren();
     els.settingsAppearancePanel.insertAdjacentHTML("beforeend", `
+      <div class="settings-appearance-content">
       <section class="settings-appearance-section">
         <h4>表示テーマ</h4>
         <div class="settings-theme-options" role="radiogroup" aria-label="表示テーマ">
@@ -941,6 +970,7 @@ function setupTabs() {
       <section class="settings-appearance-section settings-appearance-color-section">
         <h4>震度配色</h4>
       </section>
+      </div>
     `);
     const appearanceHeadings = els.settingsAppearancePanel.querySelectorAll(".settings-appearance-section h4");
     if (appearanceHeadings[0]) {
@@ -1406,28 +1436,34 @@ function setupTabs() {
       <section class="tool-home-page" id="tool-home-page" aria-label="ツール">
         <div class="tool-menu-list">
           <button class="tool-menu-row" type="button" data-tool-page="source">
-            <span>震源地検索</span><span aria-hidden="true">›</span>
+            <span class="tool-menu-copy"><strong>震源地検索</strong><small>地図から地域を選び、過去の地震回数を調べます。</small></span><span aria-hidden="true">›</span>
           </button>
           <button class="tool-menu-row" type="button" data-tool-page="station">
-            <span>観測点検索</span><span aria-hidden="true">›</span>
+            <span class="tool-menu-copy"><strong>観測点検索</strong><small>震度観測点を地域・機関・名称から検索します。</small></span><span aria-hidden="true">›</span>
+          </button>
+          <button class="tool-menu-row" type="button" data-tool-page="weather-quiz">
+            <span class="tool-menu-copy"><strong>気象予報士 1問1答</strong><small>一般・専門知識と年次・問題数を選び、○×で自己採点できます。</small></span><span aria-hidden="true">›</span>
           </button>
         </div>
       </section>
       <section class="tool-station-page hidden" id="tool-station-page" aria-label="観測点検索"></section>
+      <section class="tool-weather-quiz-page hidden" id="tool-weather-quiz-page" aria-label="気象予報士1問1答"></section>
     `;
     els.infoFullPanel.querySelector('[data-tool-page="source"]')?.addEventListener("click", () => openInfoSourceSearchPage());
     els.infoFullPanel.querySelector('[data-tool-page="station"]')?.addEventListener("click", () => openInfoStationSearchPage());
+    els.infoFullPanel.querySelector('[data-tool-page="weather-quiz"]')?.addEventListener("click", () => openInfoWeatherQuizPage());
     els.infoFullPanel.dataset.toolShellReady = "true";
     delete els.infoFullPanel.dataset.stationReady;
   };
 
   const showInfoToolHome = () => {
     ensureInfoToolShell();
-    document.body.classList.remove("tool-source-search-mode", "tool-station-search-mode");
+    document.body.classList.remove("tool-source-search-mode", "tool-station-search-mode", "tool-weather-quiz-mode");
     setHistoryMapModeActive(false);
     els.historyFullPanel?.classList.add("hidden");
     els.infoFullPanel?.querySelector("#tool-home-page")?.classList.remove("hidden");
     els.infoFullPanel?.querySelector("#tool-station-page")?.classList.add("hidden");
+    els.infoFullPanel?.querySelector("#tool-weather-quiz-page")?.classList.add("hidden");
     els.infoFullPanel?.classList.remove("hidden");
   };
 
@@ -1482,11 +1518,13 @@ function setupTabs() {
     els.historyFullPanel?.classList.add("hidden");
     els.learningFullPanel?.classList.add("hidden");
     document.body.classList.remove("tool-source-search-mode");
+    document.body.classList.remove("tool-weather-quiz-mode");
     document.body.classList.add("tool-station-search-mode");
     const stationPage = els.infoFullPanel?.querySelector("#tool-station-page");
     ensureInfoStationPanel();
     ensureToolPageHeader(stationPage, "観測点検索", showInfoToolHome);
     els.infoFullPanel?.querySelector("#tool-home-page")?.classList.add("hidden");
+    els.infoFullPanel?.querySelector("#tool-weather-quiz-page")?.classList.add("hidden");
     stationPage?.classList.remove("hidden");
     els.infoFullPanel?.classList.remove("hidden");
     renderInfoStationList();
@@ -1495,6 +1533,297 @@ function setupTabs() {
       .catch((error) => {
         console.warn("Failed to load station information", error);
       });
+  };
+
+  const loadWeatherForecasterQuizItems = async () => {
+    if (weatherForecasterQuizItems?.length) {
+      return weatherForecasterQuizItems;
+    }
+    if (!weatherForecasterQuizLoadPromise) {
+      weatherForecasterQuizLoadPromise = fetch(WEATHER_FORECASTER_QUIZ_URL, { cache: "no-store" })
+        .then(async (response) => {
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          const items = await response.json();
+          if (!Array.isArray(items) || !items.length) {
+            throw new Error("問題データが空です。");
+          }
+          weatherForecasterQuizItems = items
+            .filter((item) => item?.category && item?.question && item?.answer)
+            .map((item, index) => ({
+              exam: item.exam || "第65回",
+              year: item.year || "令和7年度第2回",
+              sourceQuestion: Number(item.sourceQuestion) || (index % 15) + 1,
+              ...item,
+            }));
+          if (!weatherForecasterQuizItems.length) {
+            throw new Error("有効な問題がありません。");
+          }
+          return weatherForecasterQuizItems;
+        })
+        .finally(() => {
+          weatherForecasterQuizLoadPromise = null;
+        });
+    }
+    return weatherForecasterQuizLoadPromise;
+  };
+
+  const shuffleWeatherQuizItems = (items) => {
+    const shuffled = [...items];
+    for (let index = shuffled.length - 1; index > 0; index -= 1) {
+      const swapIndex = Math.floor(Math.random() * (index + 1));
+      [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+    }
+    return shuffled;
+  };
+
+  const getWeatherQuizStage = () => els.infoFullPanel?.querySelector("#weather-quiz-stage");
+
+  const renderWeatherQuizSetup = () => {
+    const stage = getWeatherQuizStage();
+    if (!stage || !weatherForecasterQuizItems?.length) {
+      return;
+    }
+    weatherQuizSession = null;
+    const exams = [...new Map(weatherForecasterQuizItems.map((item) => [item.exam, item.year])).entries()]
+      .sort(([left], [right]) => Number(left.match(/\d+/)?.[0]) - Number(right.match(/\d+/)?.[0]));
+    stage.innerHTML = `
+      <form class="weather-quiz-setup" data-weather-quiz-setup>
+        <fieldset>
+          <legend>出題区分</legend>
+          <div class="weather-quiz-choice-grid">
+            ${["一般知識", "専門知識"].map((category) => `
+              <label><input type="checkbox" name="category" value="${category}" checked /><span>${category}</span></label>
+            `).join("")}
+          </div>
+          <small>両方選択できます。</small>
+        </fieldset>
+        <fieldset>
+          <legend>出題年次</legend>
+          <div class="weather-quiz-choice-grid weather-quiz-year-grid">
+            ${exams.map(([exam, year]) => `
+              <label><input type="checkbox" name="exam" value="${escapeHtml(exam)}" checked /><span>${escapeHtml(year)}（一部改変）<small>${escapeHtml(exam)}</small></span></label>
+            `).join("")}
+          </div>
+          <small>複数選択できます。</small>
+        </fieldset>
+        <label class="weather-quiz-count-field">
+          <span>問題数</span>
+          <input type="number" name="count" min="1" max="20" value="10" inputmode="numeric" required />
+          <small>1〜20問</small>
+        </label>
+        <p class="weather-quiz-setup-error" aria-live="polite"></p>
+        <button class="weather-quiz-start" type="submit">問題を開始</button>
+      </form>
+    `;
+    stage.querySelector("[data-weather-quiz-setup]")?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const categories = [...form.querySelectorAll('input[name="category"]:checked')].map((input) => input.value);
+      const examsSelected = [...form.querySelectorAll('input[name="exam"]:checked')].map((input) => input.value);
+      const count = clamp(Math.round(Number(form.elements.count.value) || 10), 1, 20);
+      const error = form.querySelector(".weather-quiz-setup-error");
+      if (!categories.length || !examsSelected.length) {
+        error.textContent = "出題区分と出題年次を1つ以上選択してください。";
+        return;
+      }
+      const candidates = weatherForecasterQuizItems.filter((item) => (
+        categories.includes(item.category) && examsSelected.includes(item.exam)
+      ));
+      if (!candidates.length) {
+        error.textContent = "選択条件に一致する問題がありません。";
+        return;
+      }
+      if (count > candidates.length) {
+        error.textContent = `選択条件では最大${candidates.length}問です。問題数を減らすか、条件を追加してください。`;
+        return;
+      }
+      const selectedQuestions = shuffleWeatherQuizItems(candidates).slice(0, count);
+      const correctFirst = Math.random() >= 0.5;
+      weatherQuizSession = {
+        questions: selectedQuestions.map((item, index) => {
+          const answerIsCorrect = index % 2 === (correctFirst ? 0 : 1);
+          const distractors = candidates.filter((candidate) => (
+            candidate !== item
+            && candidate.category === item.category
+            && candidate.answer !== item.answer
+          ));
+          const distractor = distractors[Math.floor(Math.random() * distractors.length)];
+          return {
+            ...item,
+            answerIsCorrect: answerIsCorrect || !distractor,
+            presentedAnswer: answerIsCorrect || !distractor ? item.answer : distractor.answer,
+          };
+        }),
+        index: 0,
+        results: [],
+      };
+      renderWeatherQuizQuestion();
+    });
+  };
+
+  const renderWeatherQuizQuestion = () => {
+    const stage = getWeatherQuizStage();
+    const session = weatherQuizSession;
+    const item = session?.questions?.[session.index];
+    if (!stage || !item) {
+      return;
+    }
+    stage.innerHTML = `
+      <div class="weather-quiz-progress-row">
+        <span>${session.index + 1} / ${session.questions.length}</span>
+        <div class="weather-quiz-progress"><i style="width:${((session.index + 1) / session.questions.length) * 100}%"></i></div>
+      </div>
+      <div class="weather-quiz-meta"><span>${escapeHtml(item.category)}</span><span>${escapeHtml(item.year)}</span><span>${escapeHtml(item.exam)}</span></div>
+      <article class="weather-quiz-card">
+        <span class="weather-quiz-label">問題</span>
+        <p class="weather-quiz-question">${escapeHtml(item.question)}</p>
+        <div class="weather-quiz-proposed-answer">
+          <span class="weather-quiz-label">提示された答え</span>
+          <p class="weather-quiz-answer-text">${escapeHtml(item.presentedAnswer)}</p>
+        </div>
+        <div class="weather-quiz-answer hidden" aria-live="polite"></div>
+      </article>
+      <div class="weather-quiz-judgment" aria-label="正誤を回答">
+        <p>提示された答えは正しい？</p>
+        <div>
+          <button class="is-correct" type="button" data-weather-quiz-judge="correct"><b>○</b> 正しい</button>
+          <button class="is-wrong" type="button" data-weather-quiz-judge="wrong"><b>×</b> 誤り</button>
+        </div>
+      </div>
+      <button class="weather-quiz-next hidden" type="button" data-weather-quiz-next>${session.index + 1 === session.questions.length ? "結果を見る" : "次の問題"}</button>
+    `;
+    stage.querySelectorAll("[data-weather-quiz-judge]").forEach((button) => {
+      button.addEventListener("click", () => {
+        if (session.results[session.index]) {
+          return;
+        }
+        const selectedCorrect = button.dataset.weatherQuizJudge === "correct";
+        const correct = selectedCorrect === item.answerIsCorrect;
+        session.results[session.index] = { item, correct };
+        stage.querySelectorAll("[data-weather-quiz-judge]").forEach((choice) => {
+          choice.disabled = true;
+          choice.classList.toggle("is-selected", choice === button);
+        });
+        const answer = stage.querySelector(".weather-quiz-answer");
+        if (answer) {
+          answer.classList.remove("hidden");
+          answer.classList.toggle("is-correct", correct);
+          answer.classList.toggle("is-wrong", !correct);
+          answer.innerHTML = `
+            <strong>${correct ? "正解" : "不正解"}</strong>
+            <span>正しい答え</span>
+            <p>${escapeHtml(item.answer)}</p>
+          `;
+        }
+        stage.querySelector("[data-weather-quiz-next]")?.classList.remove("hidden");
+      });
+    });
+    stage.querySelector("[data-weather-quiz-next]")?.addEventListener("click", () => {
+      if (session.index + 1 >= session.questions.length) {
+        renderWeatherQuizResults();
+        return;
+      }
+      session.index += 1;
+      renderWeatherQuizQuestion();
+      stage.scrollIntoView?.({ block: "start", behavior: "smooth" });
+    });
+  };
+
+  const renderWeatherQuizResults = () => {
+    const stage = getWeatherQuizStage();
+    const results = weatherQuizSession?.results || [];
+    if (!stage) {
+      return;
+    }
+    const correctCount = results.filter((result) => result.correct).length;
+    stage.innerHTML = `
+      <section class="weather-quiz-results">
+        <span>結果</span>
+        <strong>${correctCount}<small> / ${results.length}問正解</small></strong>
+        <p>正答率 ${results.length ? Math.round(correctCount / results.length * 100) : 0}%</p>
+      </section>
+      <section class="weather-quiz-history">
+        <h3>問題履歴</h3>
+        ${results.map((result, index) => `
+          <article class="${result.correct ? "is-correct" : "is-wrong"}">
+            <b>${result.correct ? "○" : "×"}</b>
+            <div><span>${index + 1}. ${escapeHtml(result.item.category)}・${escapeHtml(result.item.exam)}</span><p>${escapeHtml(result.item.question)}</p><small>正しい答え：${escapeHtml(result.item.answer)}</small></div>
+          </article>
+        `).join("")}
+      </section>
+      <button class="weather-quiz-restart" type="button" data-weather-quiz-restart>条件を選び直す</button>
+    `;
+    stage.querySelector("[data-weather-quiz-restart]")?.addEventListener("click", renderWeatherQuizSetup);
+    stage.scrollIntoView?.({ block: "start", behavior: "smooth" });
+  };
+
+  const renderRandomWeatherQuizQuestion = () => {
+    const page = els.infoFullPanel?.querySelector("#tool-weather-quiz-page");
+    if (!page || !weatherForecasterQuizItems?.length) {
+      return;
+    }
+    page.querySelector(".weather-quiz-loading")?.classList.add("hidden");
+    renderWeatherQuizSetup();
+  };
+
+  const ensureInfoWeatherQuizPanel = () => {
+    const page = els.infoFullPanel?.querySelector("#tool-weather-quiz-page");
+    if (!page || page.dataset.ready === "true") {
+      return page;
+    }
+    page.innerHTML = `
+      <div class="weather-quiz-content">
+        <div class="weather-quiz-overview">
+          <strong>このツールについて</strong>
+          <p>問題と提示された答えを読み、○（正しい）か×（誤り）を選ぶと自動で正誤判定します。</p>
+          <p>無断複製禁止の記載があるため、問題文をそのまま転載せず、各設問で問われている知識を短いオリジナルの一問一答へ言い換えて収録しています。</p>
+        </div>
+        <p class="weather-quiz-loading" role="status">問題を読み込んでいます...</p>
+        <div id="weather-quiz-stage"></div>
+        <p class="weather-quiz-note">第62回・第63回・第64回・第65回の学科問題を参考に、内容を一問一答形式へ再構成しています。</p>
+      </div>
+    `;
+    page.dataset.ready = "true";
+    return page;
+  };
+
+  const openInfoWeatherQuizPage = async () => {
+    ensureInfoToolShell();
+    closeEarthquakePresetPicker({ restoreTab: false, skipFocus: true });
+    closeSettingsMenuSheet();
+    setSetupMenuOpen(false);
+    setHistoryMapModeActive(false);
+    els.historyFullPanel?.classList.add("hidden");
+    els.learningFullPanel?.classList.add("hidden");
+    document.body.classList.remove("tool-source-search-mode", "tool-station-search-mode");
+    document.body.classList.add("tool-weather-quiz-mode");
+    const page = ensureInfoWeatherQuizPanel();
+    ensureToolPageHeader(page, "気象予報士 1問1答", showInfoToolHome);
+    els.infoFullPanel?.querySelector("#tool-home-page")?.classList.add("hidden");
+    els.infoFullPanel?.querySelector("#tool-station-page")?.classList.add("hidden");
+    page?.classList.remove("hidden");
+    page?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+    els.infoFullPanel?.classList.remove("hidden");
+    if (weatherForecasterQuizItems?.length) {
+      renderRandomWeatherQuizQuestion();
+      return;
+    }
+    const loading = page?.querySelector(".weather-quiz-loading");
+    loading?.classList.remove("hidden");
+    if (loading) {
+      loading.textContent = "問題を読み込んでいます...";
+    }
+    try {
+      await loadWeatherForecasterQuizItems();
+      renderRandomWeatherQuizQuestion();
+    } catch (error) {
+      console.warn("Failed to load weather forecaster quiz", error);
+      if (loading) {
+        loading.textContent = "問題を読み込めませんでした。画面を開き直してください。";
+      }
+    }
   };
 
   const ensureInfoStationPanel = () => {
@@ -1665,6 +1994,60 @@ function setupTabs() {
       <a href="https://www.jma.go.jp/jma/kishou/know/jishin/ltpgm/index.html" target="_blank" rel="noopener noreferrer">\u6c17\u8c61\u5e81\u300c\u9577\u5468\u671f\u5730\u9707\u52d5\u306b\u3064\u3044\u3066\u300d</a>
     `;
     content.append(section);
+
+    const weatherSection = document.createElement("section");
+    weatherSection.className = "learning-weather-section";
+    weatherSection.innerHTML = `
+      <div class="learning-section-heading">
+        <span class="learning-kicker">防災気象情報を知る</span>
+        <h2>防災気象情報の見方</h2>
+        <p>2026年5月29日からの気象庁の区分に合わせ、危険度と行動を短く整理しています。</p>
+      </div>
+
+      <section class="learning-card learning-tsunami-card">
+        <h3>津波情報</h3>
+        <p>海辺で強い揺れ、または弱くても長い揺れを感じたら、発表を待たずに高い場所へ避難してください。</p>
+        <div class="learning-alert-grid">
+          <article class="learning-alert-item is-tsunami-advisory">
+            <strong>津波注意報</strong>
+            <span>予想される高さ 0.2m以上〜1m以下</span>
+            <p>海から上がり、海岸から離れる。</p>
+          </article>
+          <article class="learning-alert-item is-tsunami-warning">
+            <strong>津波警報</strong>
+            <span>予想される高さ 1m超〜3m以下</span>
+            <p>沿岸部や川沿いから、直ちに高台や避難ビルへ。</p>
+          </article>
+          <article class="learning-alert-item is-major-tsunami">
+            <strong>大津波警報</strong>
+            <span>予想される高さ 3m超</span>
+            <p>可能な限り高く安全な場所へ直ちに避難する。</p>
+          </article>
+        </div>
+        <p class="learning-safety-note">津波は繰り返し襲います。警報・注意報が解除されるまで安全な場所を離れないでください。</p>
+        <a href="https://www.jma.go.jp/jma/kishou/know/jishin/joho/tsunamiinfo.html" target="_blank" rel="noopener noreferrer">気象庁「津波警報・注意報」</a>
+      </section>
+
+      <section class="learning-card learning-level-card">
+        <h3>レベル付き気象警報・注意報</h3>
+        <p>2026年5月29日から、大雨・土砂災害・河川氾濫・高潮の情報名に対応するレベルが付きます。</p>
+        <div class="learning-level-table-wrap">
+          <table class="learning-level-table">
+            <thead><tr><th>レベル</th><th>大雨</th><th>土砂災害</th><th>河川氾濫</th><th>高潮</th><th>行動</th></tr></thead>
+            <tbody>
+              <tr class="is-level-5"><th>5</th><td>レベル5<br>大雨特別警報</td><td>レベル5<br>土砂災害特別警報</td><td>レベル5<br>氾濫特別警報</td><td>レベル5<br>高潮特別警報</td><td>命の危険。直ちに安全確保</td></tr>
+              <tr class="is-level-4"><th>4</th><td>レベル4<br>大雨危険警報</td><td>レベル4<br>土砂災害危険警報</td><td>レベル4<br>氾濫危険警報</td><td>レベル4<br>高潮危険警報</td><td>危険な場所から全員避難</td></tr>
+              <tr class="is-level-3"><th>3</th><td>レベル3<br>大雨警報</td><td>レベル3<br>土砂災害警報</td><td>レベル3<br>氾濫警報</td><td>レベル3<br>高潮警報</td><td>高齢者等は避難</td></tr>
+              <tr class="is-level-2"><th>2</th><td>レベル2<br>大雨注意報</td><td>レベル2<br>土砂災害注意報</td><td>レベル2<br>氾濫注意報</td><td>レベル2<br>高潮注意報</td><td>避難場所・経路を確認</td></tr>
+              <tr class="is-level-1"><th>1</th><td>早期注意情報</td><td>早期注意情報</td><td>早期注意情報</td><td>早期注意情報</td><td>災害への心構えを高める</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="learning-safety-note">暴風・波浪・大雪・暴風雪などにも警報・特別警報がありますが、この表の警戒レベルには直接対応しません。自治体の避難情報を優先し、レベル5を待たずレベル4までに避難してください。</p>
+        <a href="https://www.jma.go.jp/jma/kishou/know/bosai/warning.html" target="_blank" rel="noopener noreferrer">気象庁「警戒レベルに対応した気象警報・注意報」</a>
+      </section>
+    `;
+    content.append(weatherSection);
   };
 
   const activateEarthquakePanel = () => {
@@ -1693,11 +2076,85 @@ function setupTabs() {
   };
 
   const resetInfoTabState = () => {
-    document.body.classList.remove("tool-source-search-mode", "tool-station-search-mode");
+    document.body.classList.remove("tool-source-search-mode", "tool-station-search-mode", "tool-weather-quiz-mode");
     selectedStationInfoRegion = "";
     stationInfoAffiliationFilter = "";
     els.infoFullPanel?.querySelectorAll("#station-info-filter, #station-info-region, #station-info-affiliation").forEach((control) => {
       control.value = "";
+    });
+  };
+
+  const resetCommunityPostScrollPosition = () => {
+    const ui = communityPostOverlayElements;
+    ui?.overlay?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+    ui?.overlay?.querySelector(".community-post-sheet")?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+    ui?.form?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+  };
+
+  const resetSimulationMenuState = () => {
+    activateSettingsTab("primary");
+    setSetupMenuOpen(false);
+    setSheetState(els.setupPanel, "collapsed");
+    els.setupPanel?.classList.remove("is-dragging");
+    els.setupPanel?.style.removeProperty("--sheet-drag-height");
+    els.setupPanel?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+    els.setupPanel?.querySelector(".sim-panel-scroll")?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+  };
+
+  const resetBottomTabScrollPosition = (tabId) => {
+    const selectorsByTab = {
+      "earthquake-tab": [
+        "#setup-panel",
+        "#setup-panel .sim-panel-scroll",
+        "#simulation-panel",
+        "#simulation-panel .sim-panel-scroll",
+      ],
+      "bottom-history-tab": [
+        "#history-full-panel",
+        "#history-full-panel .history-stats-list",
+        ".community-post-overlay",
+        ".community-post-sheet",
+        ".community-post-form",
+        ".community-post-detail-overlay",
+        ".community-post-detail-sheet",
+        ".community-post-detail-body",
+      ],
+      "bottom-info-tab": [
+        "#info-full-panel",
+        "#info-full-panel .tool-home-page",
+        "#info-full-panel .tool-station-page",
+        "#info-full-panel .tool-weather-quiz-page",
+        "#info-full-panel .weather-quiz-content",
+        "#info-full-panel .station-info-list",
+        "#history-full-panel",
+        "#history-full-panel .history-stats-list",
+      ],
+      "bottom-learning-tab": [
+        "#learning-full-panel",
+        "#learning-full-panel .learning-content",
+      ],
+      "bottom-settings-tab": [
+        "#settings-menu-sheet",
+        "#settings-menu-sheet .settings-menu-list",
+        "#settings-menu-sheet .settings-inline-panel",
+        "#settings-menu-sheet .source-info-overlay-content",
+        "#settings-menu-sheet .settings-privacy-content",
+        "#settings-menu-sheet .settings-feedback-form",
+        "#settings-menu-sheet .push-confirm-panel",
+        "#settings-menu-sheet .push-history-list",
+        "#settings-menu-sheet .settings-admin-embedded",
+        "#settings-menu-sheet .settings-appearance-content",
+        "#community-account-screen",
+      ],
+    };
+    const selectors = selectorsByTab[tabId] || [];
+    if (!selectors.length) {
+      return;
+    }
+    document.querySelectorAll(selectors.join(",")).forEach((element) => {
+      element.scrollTop = 0;
+      element.scrollLeft = 0;
+      element.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
     });
   };
 
@@ -1707,6 +2164,21 @@ function setupTabs() {
     const activeTab = document.querySelector(selector);
     activeTab?.classList.add("active");
     document.body.dataset.activeBottomTab = activeTab?.id || "";
+    if (previousTabId && previousTabId !== activeTab?.id) {
+      resetBottomTabScrollPosition(previousTabId);
+      if (previousTabId === "bottom-history-tab") {
+        closeCommunityPostOverlay();
+        resetCommunityPostScrollPosition();
+      }
+      if (previousTabId === "earthquake-tab") {
+        resetSimulationMenuState();
+      }
+      if (activeTab?.id === "bottom-history-tab") {
+        resetCommunityPostScrollPosition();
+      }
+      resetBottomTabScrollPosition(activeTab?.id);
+      requestAnimationFrame(() => resetBottomTabScrollPosition(activeTab?.id));
+    }
     if (previousTabId && previousTabId !== activeTab?.id && state.simulationRunning) {
       stopSimulation();
     }
@@ -1741,6 +2213,7 @@ function setupTabs() {
   };
 
   const openSettingsMenuSheet = () => {
+    closeSettingsDetailPanel({ immediate: true });
     closeEarthquakePresetPicker({ restoreTab: false, skipFocus: true });
     setSetupMenuOpen(false);
     ensureSettingsStatusCards();
@@ -1754,16 +2227,18 @@ function setupTabs() {
     });
     els.settingsMenuSheet?.classList.remove("hidden");
     updateSettingsScreenNotificationState();
+    refreshSystemPermissionStates();
   };
 
   const closeSettingsMenuSheet = () => {
+    closeSettingsDetailPanel({ immediate: true });
     closeCommunityAccountScreen();
     els.settingsMenuSheet?.classList.add("hidden");
   };
 
   const closeFullPanels = () => {
     setHistoryMapModeActive(false);
-    document.body.classList.remove("tool-source-search-mode", "tool-station-search-mode");
+    document.body.classList.remove("tool-source-search-mode", "tool-station-search-mode", "tool-weather-quiz-mode");
     els.historyFullPanel?.classList.add("hidden");
     els.infoFullPanel?.classList.add("hidden");
     els.learningFullPanel?.classList.add("hidden");
@@ -1835,14 +2310,14 @@ function setupTabs() {
       els.settingsAdminButton.className = "settings-menu-row";
       els.settingsAdminButton.id = "settings-admin-button";
       els.settingsAdminButton.type = "button";
-      els.settingsAdminButton.innerHTML = `<span>管理者モード</span><span aria-hidden="true">›</span>`;
+      els.settingsAdminButton.innerHTML = `<span>管理者用設定</span><span aria-hidden="true">›</span>`;
       els.settingsFeedbackButton.insertAdjacentElement("afterend", els.settingsAdminButton);
     }
     if (!els.settingsAdminPanel && els.settingsFeedbackPanel) {
       els.settingsAdminPanel = document.createElement("section");
       els.settingsAdminPanel.className = "settings-inline-panel hidden";
       els.settingsAdminPanel.id = "settings-admin-panel";
-      els.settingsAdminPanel.setAttribute("aria-label", "管理者モード");
+      els.settingsAdminPanel.setAttribute("aria-label", "管理者用設定");
       els.settingsFeedbackPanel.insertAdjacentElement("afterend", els.settingsAdminPanel);
     }
     if (els.settingsSourceButton?.firstElementChild) {
@@ -1858,7 +2333,7 @@ function setupTabs() {
       els.settingsPrivacyButton.setAttribute("aria-expanded", "false");
     }
     if (els.settingsAdminButton?.firstElementChild) {
-      els.settingsAdminButton.firstElementChild.textContent = "管理者モード";
+      els.settingsAdminButton.firstElementChild.textContent = "管理者用設定";
       els.settingsAdminButton.lastElementChild.textContent = "›";
       els.settingsAdminButton.setAttribute("aria-controls", "settings-admin-panel");
       els.settingsAdminButton.setAttribute("aria-expanded", "false");
@@ -2177,7 +2652,7 @@ function setupTabs() {
     activeSettingsDetailPanel = panel;
     els.settingsMenuSheet?.classList.add("settings-detail-open");
     panel.classList.remove("hidden", "is-leaving");
-    panel.classList.add("settings-detail-panel");
+    panel.classList.add("settings-detail-panel", "is-active");
     panel.scrollTop = 0;
     panel.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
     els.settingsMenuSheet?.querySelector(".settings-menu-list")?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
@@ -2216,7 +2691,7 @@ function setupTabs() {
   document.querySelector("#bottom-settings-tab span:last-child")?.replaceChildren("設定");
   document.querySelector("#earthquake-tab span:last-child")?.replaceChildren("シミュレーション");
   els.settingsMenuSheet?.querySelector(".settings-menu-head h2")?.replaceChildren("設定");
-  els.settingsPushStatus?.closest(".settings-notification-row")?.querySelector("span")?.replaceChildren("現在の通知");
+  els.settingsPushStatus?.closest(".settings-notification-row")?.querySelector("span")?.replaceChildren("通知設定");
   els.settingsLocationStatus?.closest(".settings-notification-row")?.querySelector("span")?.replaceChildren("位置情報");
   if (els.settingsPushButton?.firstElementChild) {
     els.settingsPushButton.firstElementChild.textContent = "通知設定";
@@ -2237,7 +2712,7 @@ function setupTabs() {
     els.settingsAppearanceButton.firstElementChild.textContent = "外観";
   }
   if (els.settingsAdminButton?.firstElementChild) {
-    els.settingsAdminButton.firstElementChild.textContent = "管理者モード";
+    els.settingsAdminButton.firstElementChild.textContent = "管理者用設定";
   }
 
   document.querySelectorAll(".tab").forEach((tab) => {
@@ -2252,6 +2727,10 @@ function setupTabs() {
       const previousTabId = document.body.dataset.activeBottomTab || "";
       tab.classList.add("active");
       document.body.dataset.activeBottomTab = tab.id || "";
+      if (previousTabId === "bottom-history-tab" && previousTabId !== tab.id) {
+        closeCommunityPostOverlay();
+        resetCommunityPostScrollPosition();
+      }
       if (previousTabId && previousTabId !== tab.id && state.simulationRunning) {
         stopSimulation();
       }
@@ -2269,13 +2748,18 @@ function setupTabs() {
         closeEarthquakePresetPicker({ restoreTab: false, skipFocus: true });
         els.settingsMenuSheet?.classList.add("hidden");
         closeFullPanels();
-        activateSettingsTab("primary");
         ensureSimulationStartInsideSheet();
-        if (els.setupPanel?.classList.contains("setup-menu-open") && els.setupPanel?.dataset.sheetState === "open") {
+        if (previousTabId && previousTabId !== tab.id) {
+          resetSimulationMenuState();
+        } else if (els.setupPanel?.classList.contains("setup-menu-open") && els.setupPanel?.dataset.sheetState === "open") {
           setSheetState(els.setupPanel, "collapsed");
         } else {
+          activateSettingsTab("primary");
           setSetupMenuOpen(true);
           setSheetState(els.setupPanel, "open");
+        }
+        if (previousTabId && previousTabId !== tab.id) {
+          fitInitialMapBounds(getInitialJapanBounds());
         }
         requestAnimationFrame(() => safelyResizeMap());
       }
@@ -2353,6 +2837,9 @@ function setupTabs() {
       return;
     }
     const row = event.target?.closest?.(".settings-menu-row");
+    if (activeSettingsDetailPanel && !els.settingsMenuSheet?.classList.contains("settings-detail-open")) {
+      activeSettingsDetailPanel = null;
+    }
     if (!row || activeSettingsDetailPanel) {
       return;
     }
@@ -2360,7 +2847,7 @@ function setupTabs() {
       "settings-source-button": [els.settingsSourceButton, els.settingsSourcePanel, ensureSettingsSourcePanel, "出典"],
       "settings-privacy-button": [els.settingsPrivacyButton, els.settingsPrivacyPanel, ensureSettingsPrivacyPanel, "プライバシーポリシー"],
       "settings-feedback-button": [els.settingsFeedbackButton, els.settingsFeedbackPanel, ensureSettingsFeedbackPanel, "フィードバック"],
-      "settings-admin-button": [els.settingsAdminButton, els.settingsAdminPanel, ensureSettingsAdminPanel, "管理者モード"],
+      "settings-admin-button": [els.settingsAdminButton, els.settingsAdminPanel, ensureSettingsAdminPanel, "管理者用設定"],
       "settings-push-button": [els.settingsPushButton, els.settingsPushPanel, ensureSettingsPushPanel, "通知設定"],
       "settings-appearance-button": [els.settingsAppearanceButton, els.settingsAppearancePanel, ensureSettingsAppearancePanel, "外観"],
       "settings-push-history-button": [els.settingsPushHistoryButton, els.settingsPushHistoryPanel, ensureSettingsPushHistoryPanel, "通知履歴"],
@@ -2400,13 +2887,10 @@ function setupTabs() {
     openSettingsDetailPanel(els.settingsFeedbackButton, els.settingsFeedbackPanel, ensureSettingsFeedbackPanel, "フィードバック");
   });
   els.settingsAdminButton?.addEventListener("click", () => {
-    openSettingsDetailPanel(els.settingsAdminButton, els.settingsAdminPanel, ensureSettingsAdminPanel, "管理者モード");
+    openSettingsDetailPanel(els.settingsAdminButton, els.settingsAdminPanel, ensureSettingsAdminPanel, "管理者用設定");
   });
   els.settingsPushButton?.addEventListener("click", () => {
     openSettingsDetailPanel(els.settingsPushButton, els.settingsPushPanel, ensureSettingsPushPanel, "通知設定");
-  });
-  els.settingsAppearanceButton?.addEventListener("click", () => {
-    openSettingsDetailPanel(els.settingsAppearanceButton, els.settingsAppearancePanel, ensureSettingsAppearancePanel, "外観");
   });
   els.settingsPushHistoryButton?.addEventListener("click", () => {
     openSettingsDetailPanel(els.settingsPushHistoryButton, els.settingsPushHistoryPanel, ensureSettingsPushHistoryPanel, "通知履歴");
@@ -2692,10 +3176,11 @@ function ensurePresetPickerCloseButton() {
   button.id = "preset-picker-close";
   button.className = "preset-picker-close";
   button.type = "button";
-  button.setAttribute("aria-label", "閉じる");
-  button.textContent = "×";
-  if (button.parentElement !== overlay) {
-    overlay.insertAdjacentElement("afterbegin", button);
+  button.setAttribute("aria-label", "戻る");
+  button.textContent = "‹";
+  const dialog = overlay.querySelector(".preset-picker-dialog");
+  if (dialog && button.parentElement !== dialog) {
+    dialog.insertAdjacentElement("afterbegin", button);
   }
   els.presetPickerClose = button;
   return button;
@@ -3458,11 +3943,21 @@ function getUsgsMonthRanges(startYear, endYear) {
 }
 
 function setHistoryMapModeActive(active) {
+  const wasActive = document.body.classList.contains("history-map-mode");
   document.body.classList.toggle("history-map-mode", Boolean(active));
   if (!map) {
     return;
   }
   map.setMaxZoom?.(active ? 7.2 : 14);
+
+  if (active && !wasActive) {
+    map.jumpTo({
+      center: HISTORY_MAP_DEFAULT_CENTER,
+      zoom: HISTORY_MAP_DEFAULT_ZOOM,
+      padding: { top: 0, right: 0, bottom: 0, left: 0 },
+    });
+    updateMapPanConstraints();
+  }
 
   if (active && localAreaData?.features?.length) {
     setGeoJsonSourceData("jma-local-areas", buildHistoryLocalAreaMapData());
@@ -3488,7 +3983,102 @@ function setHistoryMapModeActive(active) {
   updateDisplayMode();
 }
 
+function moveCommunityMapTo(center, immediate = false, zoom = COMMUNITY_MAP_DEFAULT_ZOOM) {
+  if (!map || !Array.isArray(center) || center.length < 2) {
+    return;
+  }
+  map[immediate ? "jumpTo" : "easeTo"]({
+    center,
+    zoom,
+    padding: { top: 0, right: 0, bottom: 0, left: 0 },
+    ...(immediate ? {} : { duration: 550 }),
+  });
+}
+
+function loadLastKnownCurrentLocation() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(CURRENT_LOCATION_LAST_COORDS_KEY) || "null");
+    const latitude = Number(saved?.latitude);
+    const longitude = Number(saved?.longitude);
+    return Number.isFinite(latitude) && Number.isFinite(longitude)
+      ? { latitude, longitude }
+      : null;
+  } catch (error) {
+    console.warn("Could not read the last known current location.", error);
+    return null;
+  }
+}
+
+function saveLastKnownCurrentLocation(location) {
+  const latitude = Number(location?.latitude);
+  const longitude = Number(location?.longitude);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return;
+  }
+  localStorage.setItem(CURRENT_LOCATION_LAST_COORDS_KEY, JSON.stringify({ latitude, longitude }));
+}
+
+async function centerCommunityMapOnDefaultLocation() {
+  const requestId = ++communityMapCenterRequestId;
+  const locationEnabled = localStorage.getItem(CURRENT_LOCATION_ENABLED_KEY) === "true";
+  const knownLocation = state.currentLocationEnabled && state.currentLocation
+    ? state.currentLocation
+    : locationEnabled
+      ? loadLastKnownCurrentLocation()
+      : null;
+
+  if (knownLocation) {
+    moveCommunityMapTo([knownLocation.longitude, knownLocation.latitude], true);
+  } else if (!locationEnabled) {
+    moveCommunityMapTo(COMMUNITY_MAP_FALLBACK_CENTER, false, COMMUNITY_MAP_FALLBACK_ZOOM);
+  }
+
+  if (!locationEnabled || (state.currentLocationEnabled && state.currentLocation)) {
+    return;
+  }
+  if (!navigator.geolocation || !navigator.permissions?.query) {
+    if (!knownLocation) {
+      moveCommunityMapTo(COMMUNITY_MAP_FALLBACK_CENTER, false, COMMUNITY_MAP_FALLBACK_ZOOM);
+    }
+    return;
+  }
+
+  try {
+    const permission = await navigator.permissions.query({ name: "geolocation" });
+    if (permission.state !== "granted" || requestId !== communityMapCenterRequestId) {
+      if (!knownLocation && requestId === communityMapCenterRequestId) {
+        moveCommunityMapTo(COMMUNITY_MAP_FALLBACK_CENTER, false, COMMUNITY_MAP_FALLBACK_ZOOM);
+      }
+      return;
+    }
+    const position = await new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true,
+        timeout: 7000,
+        maximumAge: 60000,
+      });
+    });
+    const latitude = Number(position.coords?.latitude);
+    const longitude = Number(position.coords?.longitude);
+    if (
+      requestId === communityMapCenterRequestId
+      && document.body.classList.contains("community-map-mode")
+      && Number.isFinite(latitude)
+      && Number.isFinite(longitude)
+    ) {
+      saveLastKnownCurrentLocation({ latitude, longitude });
+      moveCommunityMapTo([longitude, latitude]);
+    }
+  } catch (error) {
+    console.warn("Community map could not use the current location.", error);
+    if (!knownLocation && requestId === communityMapCenterRequestId) {
+      moveCommunityMapTo(COMMUNITY_MAP_FALLBACK_CENTER, false, COMMUNITY_MAP_FALLBACK_ZOOM);
+    }
+  }
+}
+
 function setCommunityMapModeActive(active) {
+  const wasActive = document.body.classList.contains("community-map-mode");
   document.body.classList.toggle("community-map-mode", Boolean(active));
   if (!map) {
     return;
@@ -3526,6 +4116,17 @@ function setCommunityMapModeActive(active) {
   map.setMaxZoom?.(active ? 18 : 14);
   if (active) {
     hiddenLayers.forEach((layerId) => updateLayerVisibility(layerId, false));
+    if (!wasActive) {
+      centerCommunityMapOnDefaultLocation();
+    }
+    if (!communityPostMarkerLayoutBound) {
+      map.on("zoomend", () => {
+        if (document.body.classList.contains("community-map-mode")) {
+          renderCommunityPostMarkers();
+        }
+      });
+      communityPostMarkerLayoutBound = true;
+    }
     ensureCommunityPostUi();
     loadCommunityPosts().catch((error) => console.warn("community posts load failed", error));
     renderCommunityPostMarkers();
@@ -3533,6 +4134,7 @@ function setCommunityMapModeActive(active) {
     scheduleStationCanvasRender({ force: true });
     return;
   }
+  communityMapCenterRequestId += 1;
   document.body.classList.remove("community-pick-mode");
   closeCommunityPostOverlay();
   closeCommunityPostDetail();
@@ -3661,7 +4263,10 @@ function bindHistoryMapEvents() {
 
   historyMapEventsBound = true;
   map.on("click", "history-local-area-fill", (event) => {
-    if (document.body.dataset.activeBottomTab !== "bottom-history-tab") {
+    if (
+      document.body.dataset.activeBottomTab !== "bottom-history-tab"
+      && !document.body.classList.contains("tool-source-search-mode")
+    ) {
       return;
     }
     const feature = event.features?.[0];
@@ -3678,7 +4283,10 @@ function bindHistoryMapEvents() {
     renderPastEarthquakeStatsPanel();
   });
   map.on("click", "history-epicenter-area-fill", (event) => {
-    if (document.body.dataset.activeBottomTab !== "bottom-history-tab") {
+    if (
+      document.body.dataset.activeBottomTab !== "bottom-history-tab"
+      && !document.body.classList.contains("tool-source-search-mode")
+    ) {
       return;
     }
     const feature = event.features?.[0];
@@ -3973,7 +4581,7 @@ function resetEpicenterToInitialState(options = {}) {
   syncInputs();
   updateEpicenterEditMode();
   updateDisplayMode();
-  clearCurrentLocationLink();
+  clearCurrentLocationLink({ preserveEnabled: true });
   updateEpicenter({ resolveLocation: true, enforceManagedArea: true });
   resetViewAnimating = true;
   updateSimulationAvailability();
@@ -4015,11 +4623,12 @@ async function setupPushNotifications() {
     }
 
     const subscription = await registration.pushManager.getSubscription();
-    state.pushSubscribed = Boolean(subscription);
+    state.pushSubscribed = Boolean(subscription) && Notification.permission === "granted";
     setPushNotificationStatus(
-      subscription ? "通知は有効です。" : "通知を有効にできます。",
+      state.pushSubscribed ? "通知は有効です。" : "通知を有効にできます。",
       { disabled: false },
     );
+    updateSettingsScreenNotificationState();
   } catch (error) {
     console.warn("push notification setup failed", error);
     setPushNotificationStatus("通知の初期化に失敗しました。", { disabled: false });
@@ -4048,6 +4657,61 @@ async function getWorkerBaseUrl() {
   return String(config.workerUrl || "").replace(/\/+$/, "");
 }
 
+function setupCommunityCustomTagEditor(overlay) {
+  const toggle = overlay?.querySelector("[data-community-custom-tag-toggle]");
+  const editor = overlay?.querySelector("[data-community-custom-tag-editor]");
+  const input = overlay?.querySelector("#community-post-custom-tag");
+  const addButton = overlay?.querySelector("[data-community-custom-tag-add]");
+  const list = overlay?.querySelector("[data-community-custom-tag-list]");
+  if (!toggle || !editor || !input || !addButton || !list || editor.dataset.ready === "true") {
+    return;
+  }
+
+  const addTag = () => {
+    const value = String(input.value || "").trim().slice(0, 24);
+    if (!value) {
+      input.focus();
+      return;
+    }
+    const duplicate = [...list.querySelectorAll("[data-community-custom-tag]")]
+      .some((item) => item.dataset.communityCustomTag === value);
+    if (!duplicate) {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "community-post-custom-tag-chip";
+      chip.dataset.communityCustomTag = value;
+      chip.textContent = `${value} ×`;
+      chip.setAttribute("aria-label", `${value}を削除`);
+      list.append(chip);
+    }
+    toggle.checked = true;
+    editor.classList.remove("hidden");
+    input.value = "";
+    input.focus();
+    updateCommunityPostSubmitState();
+  };
+
+  toggle.addEventListener("change", () => {
+    editor.classList.toggle("hidden", !toggle.checked);
+    if (toggle.checked) {
+      input.focus();
+    }
+    updateCommunityPostSubmitState();
+  });
+  addButton.addEventListener("click", addTag);
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      addTag();
+    }
+  });
+  list.addEventListener("click", (event) => {
+    event.target?.closest?.("[data-community-custom-tag]")?.remove();
+    updateCommunityPostSubmitState();
+  });
+  editor.dataset.ready = "true";
+}
+
 function ensureCommunityPostUi() {
   if (communityPostOverlayElements) {
     return communityPostOverlayElements;
@@ -4067,7 +4731,7 @@ function ensureCommunityPostUi() {
   overlay.innerHTML = `
     <div class="community-post-sheet" role="dialog" aria-modal="false">
       <div class="community-post-head">
-        <button class="community-post-close" type="button" aria-label="閉じる">×</button>
+        <button class="community-post-close" type="button" aria-label="戻る">‹</button>
         <h2>投稿する</h2>
         <span></span>
       </div>
@@ -4089,6 +4753,28 @@ function ensureCommunityPostUi() {
                 <span>${tag.label}</span>
               </label>
             `).join("")}
+          </div>
+        </section>
+        <section class="community-post-section community-post-optional-tag-section">
+          <h3>任意タグ</h3>
+          <div class="community-post-tags community-post-optional-tags">
+            ${COMMUNITY_POST_OPTIONAL_TAGS.map((tag) => `
+              <label>
+                <input type="checkbox" name="optionalTag" value="${tag.id}" />
+                <span>${tag.label}</span>
+              </label>
+            `).join("")}
+            <label>
+              <input type="checkbox" name="optionalTag" value="custom" data-community-custom-tag-toggle />
+              <span>その他</span>
+            </label>
+          </div>
+          <div class="community-post-custom-tag-editor hidden" data-community-custom-tag-editor>
+            <div class="community-post-custom-tag-entry">
+              <input id="community-post-custom-tag" class="community-post-custom-tag" type="text" maxlength="24" placeholder="任意タグ名" />
+              <button type="button" data-community-custom-tag-add>追加</button>
+            </div>
+            <div class="community-post-custom-tag-list" data-community-custom-tag-list aria-live="polite"></div>
           </div>
         </section>
         <section class="community-post-section">
@@ -4135,7 +4821,7 @@ function ensureCommunityPostUi() {
   overlay.querySelector(".community-post-submit")?.replaceChildren("投稿する");
   overlay.querySelector("#community-post-text")?.setAttribute("placeholder", "状況、見えたもの、危険箇所など");
   overlay.querySelectorAll(".community-post-section h3").forEach((heading, index) => {
-    const labels = ["投稿場所", "タグ", "写真・動画", "投稿文"];
+    const labels = ["投稿場所", "タグ", "任意タグ", "写真・動画", "投稿文"];
     if (labels[index]) {
       heading.textContent = labels[index];
     }
@@ -4149,6 +4835,7 @@ function ensureCommunityPostUi() {
   });
   currentLocationButton?.addEventListener("click", () => selectCommunityPostCurrentLocation());
   mapLocationButton?.addEventListener("click", () => beginCommunityPostMapPick());
+  setupCommunityCustomTagEditor(overlay);
   mediaInput?.addEventListener("change", () => validateAndPreviewCommunityMedia());
   form?.addEventListener("input", updateCommunityPostSubmitState);
   form?.addEventListener("change", updateCommunityPostSubmitState);
@@ -4166,8 +4853,11 @@ function openCommunityPostOverlay() {
   const ui = ensureCommunityPostUi();
   document.body.classList.add("community-post-overlay-open");
   ui.overlay.classList.remove("hidden");
+  ui.overlay.scrollTop = 0;
+  ui.overlay.querySelector(".community-post-sheet")?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+  ui.form?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
   updateCommunityPostLocationStatus();
-  ui.overlay.querySelector("textarea, input, button")?.focus?.();
+  ui.overlay.querySelector(".community-post-close")?.focus?.({ preventScroll: true });
 }
 
 function closeCommunityPostOverlay() {
@@ -4178,6 +4868,8 @@ function closeCommunityPostOverlay() {
 function resetCommunityPostForm() {
   const ui = ensureCommunityPostUi();
   ui.form?.reset();
+  ui.form?.querySelector("[data-community-custom-tag-list]")?.replaceChildren();
+  ui.form?.querySelector("[data-community-custom-tag-editor]")?.classList.add("hidden");
   ui.preview?.classList.add("hidden");
   if (ui.preview) {
     ui.preview.innerHTML = "";
@@ -4318,6 +5010,21 @@ function updateCommunityPostSubmitState() {
   }
 }
 
+function getSelectedCommunityOptionalTags(form) {
+  const selected = [...(form?.querySelectorAll('input[name="optionalTag"]:checked') || [])]
+    .map((input) => input.value)
+    .filter((value) => value && value !== "custom");
+  const customToggle = form?.querySelector("[data-community-custom-tag-toggle]");
+  if (customToggle?.checked) {
+    form.querySelectorAll("[data-community-custom-tag]").forEach((item) => {
+      selected.push(item.dataset.communityCustomTag || "");
+    });
+    selected.push(String(form.querySelector("#community-post-custom-tag")?.value || "").trim().slice(0, 24));
+  }
+  return [...new Set(selected.map((value) => String(value || "").trim()).filter(Boolean))]
+    .map((value) => `optional:${value}`);
+}
+
 async function submitCommunityPost() {
   const ui = ensureCommunityPostUi();
   if (!hasCommunityAccount()) {
@@ -4338,6 +5045,16 @@ async function submitCommunityPost() {
     ui.status.textContent = "タグを1つ以上選択してください。";
     return;
   }
+  const optionalTags = getSelectedCommunityOptionalTags(ui.form);
+  const customTagSelected = Boolean(ui.form.querySelector("[data-community-custom-tag-toggle]:checked"));
+  const hasCustomTag = Boolean(
+    ui.form.querySelector("[data-community-custom-tag]")
+    || String(ui.form.querySelector("#community-post-custom-tag")?.value || "").trim(),
+  );
+  if (customTagSelected && !hasCustomTag) {
+    ui.status.textContent = "任意タグ名を入力してください。";
+    return;
+  }
   const postText = String(ui.form.querySelector("#community-post-text")?.value || "").trim();
   if (!postText) {
     ui.status.textContent = "投稿文を入力してください。";
@@ -4354,7 +5071,10 @@ async function submitCommunityPost() {
     formData.set("longitude", String(communityPostLocation.longitude));
     formData.set("locationMode", communityPostLocation.mode);
     formData.delete("tags");
+    formData.delete("optionalTag");
+    formData.delete("customTag");
     checkedTags.forEach((tag) => formData.append("tags", tag));
+    optionalTags.forEach((tag) => formData.append("tags", tag));
     const response = await fetch(`${workerUrl}/community-posts`, {
       method: "POST",
       headers: {
@@ -4409,13 +5129,74 @@ async function loadCommunityPosts({ force = false } = {}) {
   return communityPostsLoadPromise;
 }
 
+function getCommunityPostMarkerOffsets(posts) {
+  return new Map((Array.isArray(posts) ? posts : []).map((post) => [post, [0, 0]]));
+}
+
+const COMMUNITY_POST_COUNT_MAX_ZOOM = 9;
+const COMMUNITY_POST_OVERLAP_DISTANCE_PX = 18;
+
+function getCommunityPostMarkerGroups(posts) {
+  const validPosts = (Array.isArray(posts) ? posts : []).filter((post) => {
+    return Number.isFinite(Number(post?.latitude)) && Number.isFinite(Number(post?.longitude));
+  });
+  if (!map || map.getZoom() >= COMMUNITY_POST_COUNT_MAX_ZOOM || validPosts.length < 2) {
+    return validPosts.map((post) => [post]);
+  }
+
+  const points = validPosts.map((post) => map.project([
+    Number(post.longitude),
+    Number(post.latitude),
+  ]));
+  const parents = validPosts.map((_, index) => index);
+  const find = (index) => {
+    while (parents[index] !== index) {
+      parents[index] = parents[parents[index]];
+      index = parents[index];
+    }
+    return index;
+  };
+  const unite = (left, right) => {
+    const leftRoot = find(left);
+    const rightRoot = find(right);
+    if (leftRoot !== rightRoot) {
+      parents[rightRoot] = leftRoot;
+    }
+  };
+
+  for (let left = 0; left < points.length; left += 1) {
+    for (let right = left + 1; right < points.length; right += 1) {
+      const distance = Math.hypot(
+        points[left].x - points[right].x,
+        points[left].y - points[right].y,
+      );
+      if (distance <= COMMUNITY_POST_OVERLAP_DISTANCE_PX) {
+        unite(left, right);
+      }
+    }
+  }
+
+  const groups = new Map();
+  validPosts.forEach((post, index) => {
+    const root = find(index);
+    if (!groups.has(root)) {
+      groups.set(root, []);
+    }
+    groups.get(root).push(post);
+  });
+  return [...groups.values()];
+}
+
 function renderCommunityPostMarkers() {
   communityPostMarkers.forEach((marker) => marker.remove());
   communityPostMarkers = [];
   if (!map || !document.body.classList.contains("community-map-mode")) {
     return;
   }
-  communityPosts.forEach((post) => {
+  const markerGroups = getCommunityPostMarkerGroups(communityPosts);
+  markerGroups.forEach((group) => {
+    const post = group[0];
+    const postCount = group.length;
     const latitude = Number(post.latitude);
     const longitude = Number(post.longitude);
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
@@ -4432,7 +5213,11 @@ function renderCommunityPostMarkers() {
       className: "community-post-popup",
       offset: 16,
     }).setHTML(buildCommunityPostPopupHtml(post));
-    const marker = new maplibregl.Marker({ element: markerElement, anchor: "center" })
+    const marker = new maplibregl.Marker({
+      element: markerElement,
+      anchor: "center",
+      offset: markerOffsets.get(post) || [0, 0],
+    })
       .setLngLat([longitude, latitude])
       .setPopup(popup)
       .addTo(map);
@@ -4440,11 +5225,35 @@ function renderCommunityPostMarkers() {
   });
 }
 
-function buildCommunityPostPopupHtml(post) {
-  const tags = (Array.isArray(post.tags) ? post.tags : [])
-    .map((tag) => COMMUNITY_POST_TAGS.find((item) => item.id === tag)?.label || tag)
-    .map((tag) => `<span>${escapeHtml(tag)}</span>`)
+function isCommunityPostOptionalTag(tag) {
+  return String(tag || "").startsWith("optional:");
+}
+
+function getCommunityPostTagLabel(tag) {
+  const value = String(tag || "").trim();
+  const primary = COMMUNITY_POST_TAGS.find((item) => item.id === value);
+  if (primary) {
+    return primary.label;
+  }
+  if (isCommunityPostOptionalTag(value)) {
+    const optionalId = value.slice("optional:".length);
+    const optional = COMMUNITY_POST_OPTIONAL_TAGS.find((item) => item.id === optionalId);
+    return optional?.label || optionalId || "その他";
+  }
+  return value;
+}
+
+function renderCommunityPostTagPills(tags) {
+  return (Array.isArray(tags) ? tags : [])
+    .map((tag) => {
+      const optional = isCommunityPostOptionalTag(tag);
+      return `<span data-community-tag-pill="${optional ? "optional" : "primary"}">${escapeHtml(getCommunityPostTagLabel(tag))}</span>`;
+    })
     .join("");
+}
+
+function buildCommunityPostPopupHtml(post) {
+  const tags = renderCommunityPostTagPills(post.tags);
   const media = post.mediaUrl
     ? post.mediaType === "video/mp4"
       ? `<video controls playsinline src="${escapeHtml(post.mediaUrl)}"></video>`
@@ -4493,7 +5302,7 @@ function ensureCommunityPostUi() {
   overlay.innerHTML = `
     <div class="community-post-sheet" role="dialog" aria-modal="false">
       <div class="community-post-head">
-        <button class="community-post-close" type="button" aria-label="閉じる">×</button>
+        <button class="community-post-close" type="button" aria-label="戻る">‹</button>
         <h2>投稿する</h2>
         <span></span>
       </div>
@@ -4520,6 +5329,28 @@ function ensureCommunityPostUi() {
                 <span>${tag.label}</span>
               </label>
             `).join("")}
+          </div>
+        </section>
+        <section class="community-post-section community-post-optional-tag-section">
+          <h3>任意タグ</h3>
+          <div class="community-post-tags community-post-optional-tags">
+            ${COMMUNITY_POST_OPTIONAL_TAGS.map((tag) => `
+              <label>
+                <input type="checkbox" name="optionalTag" value="${tag.id}" />
+                <span>${tag.label}</span>
+              </label>
+            `).join("")}
+            <label>
+              <input type="checkbox" name="optionalTag" value="custom" data-community-custom-tag-toggle />
+              <span>その他</span>
+            </label>
+          </div>
+          <div class="community-post-custom-tag-editor hidden" data-community-custom-tag-editor>
+            <div class="community-post-custom-tag-entry">
+              <input id="community-post-custom-tag" class="community-post-custom-tag" type="text" maxlength="24" placeholder="任意タグ名" />
+              <button type="button" data-community-custom-tag-add>追加</button>
+            </div>
+            <div class="community-post-custom-tag-list" data-community-custom-tag-list aria-live="polite"></div>
           </div>
         </section>
         <section class="community-post-section">
@@ -4564,6 +5395,7 @@ function ensureCommunityPostUi() {
     selectCommunityPostCurrentLocation("vague");
   });
   overlay.querySelector('[data-community-location="map"]')?.addEventListener("click", () => beginCommunityPostMapPick());
+  setupCommunityCustomTagEditor(overlay);
   mediaInput?.addEventListener("change", () => validateAndPreviewCommunityMedia());
   form?.addEventListener("input", updateCommunityPostSubmitState);
   form?.addEventListener("change", updateCommunityPostSubmitState);
@@ -4578,10 +5410,11 @@ function ensureCommunityPostUi() {
   return communityPostOverlayElements;
 }
 
-function updateCommunityPostLocationStatus() {
+async function updateCommunityPostLocationStatus() {
   const ui = ensureCommunityPostUi();
   const text = ui.locationPreview?.querySelector(".community-post-location-preview-text");
   const dot = ui.locationPreview?.querySelector(".community-post-location-dot");
+  const requestId = ++communityPostLocationResolveRequestId;
   if (!communityPostLocation) {
     if (ui.locationStatus) {
       ui.locationStatus.textContent = "場所を選択してください";
@@ -4589,7 +5422,7 @@ function updateCommunityPostLocationStatus() {
     if (text) {
       text.textContent = "場所を選択してください";
     }
-    dot?.classList.remove("is-set");
+    dot?.classList.remove("is-set", "is-vague");
     return;
   }
   const labels = {
@@ -4597,15 +5430,17 @@ function updateCommunityPostLocationStatus() {
     vague: "曖昧な現在地",
     map: "マップ指定",
   };
-  const label = labels[communityPostLocation.mode] || "投稿場所";
+  const location = communityPostLocation;
+  const label = labels[location.mode] || "投稿場所";
   const locationText = `${label}を設定済み`;
   if (ui.locationStatus) {
-    ui.locationStatus.textContent = `${locationText}（${communityPostLocation.latitude.toFixed(5)}, ${communityPostLocation.longitude.toFixed(5)}）`;
+    ui.locationStatus.textContent = `${locationText}（場所を確認中...）`;
   }
   if (text) {
     text.textContent = locationText;
   }
   dot?.classList.add("is-set");
+  dot?.classList.toggle("is-vague", communityPostLocation.mode === "vague");
 }
 
 function selectCommunityPostCurrentLocation(mode = "current") {
@@ -4679,7 +5514,10 @@ function renderCommunityPostMarkers() {
   if (!map || !document.body.classList.contains("community-map-mode")) {
     return;
   }
-  communityPosts.forEach((post) => {
+  const markerGroups = getCommunityPostMarkerGroups(communityPosts);
+  markerGroups.forEach((group) => {
+    const post = group[0];
+    const postCount = group.length;
     const latitude = Number(post.latitude);
     const longitude = Number(post.longitude);
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
@@ -4688,13 +5526,42 @@ function renderCommunityPostMarkers() {
     const markerElement = document.createElement("button");
     markerElement.type = "button";
     markerElement.className = "community-post-marker";
+    markerElement.classList.toggle("is-count", postCount > 1);
+    markerElement.textContent = postCount > 1 ? String(postCount) : "";
+    if (postCount > 1) {
+      markerElement.classList.add("is-tag-group");
+      const postsByTag = new Map();
+      group.forEach((groupPost) => {
+        const primaryTag = Array.isArray(groupPost.tags) ? String(groupPost.tags[0] || "") : "";
+        postsByTag.set(primaryTag, (postsByTag.get(primaryTag) || 0) + 1);
+      });
+      markerElement.replaceChildren(...[...postsByTag.entries()].map(([tag, count]) => {
+        const countDot = document.createElement("span");
+        countDot.className = "community-post-marker-count";
+        countDot.dataset.communityTag = tag;
+        countDot.textContent = String(count);
+        countDot.setAttribute("aria-hidden", "true");
+        return countDot;
+      }));
+    }
     markerElement.dataset.communityTag = Array.isArray(post.tags) ? String(post.tags[0] || "") : "";
-    markerElement.setAttribute("aria-label", "投稿を開く");
+    markerElement.setAttribute("aria-label", postCount > 1 ? `${postCount}件の投稿を表示` : "投稿を開く");
     markerElement.addEventListener("click", (event) => {
       event.stopPropagation();
+      if (postCount > 1) {
+        map.easeTo({
+          center: [longitude, latitude],
+          zoom: Math.max(COMMUNITY_POST_COUNT_MAX_ZOOM, map.getZoom() + 2),
+        });
+        return;
+      }
       openCommunityPostDetail(post);
     });
-    const marker = new maplibregl.Marker({ element: markerElement, anchor: "center" })
+    const marker = new maplibregl.Marker({
+      element: markerElement,
+      anchor: "center",
+      offset: [0, 0],
+    })
       .setLngLat([longitude, latitude])
       .addTo(map);
     communityPostMarkers.push(marker);
@@ -4711,7 +5578,7 @@ function ensureCommunityPostDetailUi() {
   sheet.className = "community-post-detail-sheet hidden";
   sheet.setAttribute("aria-label", "投稿内容");
   sheet.innerHTML = `
-    <button class="community-post-detail-close" type="button" aria-label="閉じる">×</button>
+    <button class="community-post-detail-close" type="button" aria-label="戻る">‹</button>
     <div class="community-post-detail-body"></div>
   `;
   sheet.querySelector(".community-post-detail-close")?.addEventListener("click", () => closeCommunityPostDetail());
@@ -4722,18 +5589,27 @@ function ensureCommunityPostDetailUi() {
 
 async function openCommunityPostDetail(post) {
   const sheet = ensureCommunityPostDetailUi();
+  activeCommunityPostDetail = post;
   document.body.classList.add("community-post-detail-open");
   sheet.classList.remove("hidden");
   renderCommunityPostDetail(post, "場所を判定中...");
+  resetCommunityPostDetailScroll(sheet);
+  requestAnimationFrame(() => resetCommunityPostDetailScroll(sheet));
   const placeName = await resolveCommunityPostPlaceName(post);
   if (!sheet.classList.contains("hidden")) {
     renderCommunityPostDetail(post, placeName);
   }
 }
 
+function resetCommunityPostDetailScroll(sheet) {
+  sheet?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+  sheet?.querySelector(".community-post-detail-body")?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+}
+
 function closeCommunityPostDetail() {
   document.body.classList.remove("community-post-detail-open");
   communityPostOverlayElements?.detailSheet?.classList.add("hidden");
+  activeCommunityPostDetail = null;
 }
 
 function renderCommunityPostDetail(post, placeName = "") {
@@ -4742,10 +5618,7 @@ function renderCommunityPostDetail(post, placeName = "") {
   if (!body) {
     return;
   }
-  const tags = (Array.isArray(post.tags) ? post.tags : [])
-    .map((tag) => COMMUNITY_POST_TAGS.find((item) => item.id === tag)?.label || tag)
-    .map((tag) => `<span>${escapeHtml(tag)}</span>`)
-    .join("");
+  const tags = renderCommunityPostTagPills(post.tags);
   const media = post.mediaUrl
     ? post.mediaType === "video/mp4"
       ? `<video controls playsinline src="${escapeHtml(post.mediaUrl)}"></video>`
@@ -4806,15 +5679,16 @@ async function resolveCommunityPostPlaceName(post) {
   }
   const name = await resolveMunicipalityNameAt(longitude, latitude);
   if (name && name !== "-") {
-    return name;
+    return post?.locationMode === "vague" ? `${name}内` : name;
   }
   return `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
 }
 
-function updateCommunityPostLocationStatus() {
+async function updateCommunityPostLocationStatus() {
   const ui = ensureCommunityPostUi();
   const text = ui.locationPreview?.querySelector(".community-post-location-preview-text");
   const dot = ui.locationPreview?.querySelector(".community-post-location-dot");
+  const requestId = ++communityPostLocationResolveRequestId;
   if (!communityPostLocation) {
     if (ui.locationStatus) {
       ui.locationStatus.textContent = "場所を選択してください";
@@ -4822,7 +5696,7 @@ function updateCommunityPostLocationStatus() {
     if (text) {
       text.textContent = "場所を選択してください";
     }
-    dot?.classList.remove("is-set");
+    dot?.classList.remove("is-set", "is-vague");
     updateCommunityPostSubmitState();
     return;
   }
@@ -4831,16 +5705,29 @@ function updateCommunityPostLocationStatus() {
     vague: "曖昧な現在地",
     map: "マップ指定",
   };
-  const label = labels[communityPostLocation.mode] || "投稿場所";
+  const location = communityPostLocation;
+  const label = labels[location.mode] || "投稿場所";
   const locationText = `${label}を設定済み`;
   if (ui.locationStatus) {
-    ui.locationStatus.textContent = `${locationText}（${communityPostLocation.latitude.toFixed(5)}, ${communityPostLocation.longitude.toFixed(5)}）`;
+    ui.locationStatus.textContent = `${locationText}（場所を確認中...）`;
   }
   if (text) {
     text.textContent = locationText;
   }
   dot?.classList.add("is-set");
+  dot?.classList.toggle("is-vague", location.mode === "vague");
   updateCommunityPostSubmitState();
+
+  const placeName = await resolveMunicipalityNameAt(location.longitude, location.latitude);
+  if (requestId !== communityPostLocationResolveRequestId || communityPostLocation !== location) {
+    return;
+  }
+  if (ui.locationStatus) {
+    const resolvedPlaceName = placeName && placeName !== "-"
+      ? `${placeName}${location.mode === "vague" ? "内" : ""}`
+      : "所在地を特定できません";
+    ui.locationStatus.textContent = `${locationText}（${resolvedPlaceName}）`;
+  }
 }
 
 COMMUNITY_POST_TAGS = [
@@ -4848,6 +5735,12 @@ COMMUNITY_POST_TAGS = [
   { id: "disaster", label: "災害" },
   { id: "earthquake", label: "地震" },
   { id: "safety", label: "防災" },
+];
+
+COMMUNITY_POST_OPTIONAL_TAGS = [
+  { id: "typhoon", label: "台風" },
+  { id: "heat", label: "猛暑" },
+  { id: "landslide", label: "土砂災害" },
 ];
 
 function loadCommunityAccountFromStorage() {
@@ -5436,8 +6329,8 @@ function setupMobileSheets() {
     let dragCurrentY = 0;
     let dragging = false;
     let suppressHandleClick = false;
-    let dragStartCollapsed = false;
     let dragStartHeight = 0;
+    let dragCurrentHeight = 0;
 
     if (handle) {
       handle.addEventListener("click", (event) => {
@@ -5464,8 +6357,8 @@ function setupMobileSheets() {
       dragging = true;
       dragStartY = event.clientY;
       dragCurrentY = event.clientY;
-      dragStartCollapsed = panel.dataset.sheetState === "collapsed";
       dragStartHeight = panelRect.height;
+      dragCurrentHeight = dragStartHeight;
       panel.classList.add("is-dragging");
       panel.setPointerCapture?.(event.pointerId);
     };
@@ -5478,9 +6371,10 @@ function setupMobileSheets() {
       dragCurrentY = event.clientY;
       const deltaY = dragCurrentY - dragStartY;
       const viewportHeight = window.visualViewport?.height || window.innerHeight || 720;
-      const minHeight = Math.min(viewportHeight * 0.26, 260);
+      const minHeight = 56;
       const maxHeight = Math.min(viewportHeight * 0.72, 700);
       const nextHeight = clamp(dragStartHeight - deltaY, minHeight, maxHeight);
+      dragCurrentHeight = nextHeight;
       panel.style.setProperty("--sheet-drag-height", `${nextHeight}px`);
     };
 
@@ -5495,9 +6389,18 @@ function setupMobileSheets() {
       panel.style.removeProperty("--sheet-drag-height");
       const deltaY = dragCurrentY - dragStartY;
       suppressHandleClick = Math.abs(deltaY) > 8;
-      setSheetState(panel, dragStartCollapsed
-        ? (deltaY < -40 ? "open" : "collapsed")
-        : (deltaY > 60 ? "collapsed" : "open"));
+      const viewportHeight = window.visualViewport?.height || window.innerHeight || 720;
+      const closedHeight = 56;
+      const collapsedHeight = Math.min(viewportHeight * 0.24, 233);
+      const openHeight = Math.min(viewportHeight * 0.72, 700);
+      const finalHeight = dragCurrentHeight || dragStartHeight;
+      let nextState = "collapsed";
+      if (finalHeight >= (collapsedHeight + openHeight) / 2 || deltaY < -120) {
+        nextState = "open";
+      } else if (finalHeight <= (closedHeight + collapsedHeight) / 2 || deltaY > 120) {
+        nextState = "closed";
+      }
+      setSheetState(panel, nextState);
     };
 
     panel.addEventListener("pointerdown", beginDrag);
@@ -6214,7 +7117,7 @@ function createPushConfirmOverlay() {
   overlay.setAttribute("role", "dialog");
   overlay.setAttribute("aria-label", "\u901a\u77e5\u306e\u8a31\u53ef");
   overlay.innerHTML = `
-    <button class="source-info-close push-confirm-close" type="button" aria-label="\u901a\u77e5\u30e1\u30cb\u30e5\u30fc\u3092\u9589\u3058\u308b">\u00d7</button>
+    <button class="source-info-close push-confirm-close" type="button" aria-label="戻る">‹</button>
     <div class="source-info-overlay-content push-confirm-dialog">
       <header class="source-info-header push-confirm-header">
         <p>Notifications</p>
@@ -7778,7 +8681,7 @@ function createMaintenanceReasonOverlay() {
   overlay.setAttribute("role", "dialog");
   overlay.setAttribute("aria-label", "メンテナンス理由");
   overlay.innerHTML = `
-    <button class="source-info-close maintenance-reason-cancel" type="button" aria-label="メンテナンス理由の入力を閉じる">×</button>
+    <button class="source-info-close maintenance-reason-cancel" type="button" aria-label="戻る">‹</button>
     <form class="maintenance-reason-dialog" id="maintenance-reason-form">
       <h2>メンテナンス理由</h2>
       <label class="maintenance-reason-field">
@@ -7881,19 +8784,19 @@ function createAdminModeOverlay() {
   overlay.className = "source-info-overlay admin-mode-overlay hidden";
   overlay.setAttribute("aria-modal", "true");
   overlay.setAttribute("role", "dialog");
-  overlay.setAttribute("aria-label", "管理者モード");
+  overlay.setAttribute("aria-label", "管理者用設定");
   overlay.innerHTML = `
-    <button class="source-info-close" type="button" aria-label="管理者モードを閉じる">×</button>
+    <button class="source-info-close" type="button" aria-label="戻る">‹</button>
     <div class="admin-mode-dialog" id="admin-mode-form">
-      <h2>管理者モード</h2>
+      <h2>管理者用設定</h2>
       <div class="admin-mode-actions">
-        <button class="admin-mode-maintenance" id="admin-maintenance-toggle" type="button" disabled>メンテナンスモード</button>
+        <button class="admin-mode-maintenance" id="admin-maintenance-toggle" type="button" disabled>メンテナンス開始</button>
       </div>
       <section class="admin-notification-panel" aria-label="通知送信">
         <h3>通知送信</h3>
         <label class="admin-mode-field">
           <span>タイトル</span>
-          <input id="admin-notification-title" type="text" maxlength="80" value="WE-Simulator" />
+          <input id="admin-notification-title" type="text" maxlength="80" placeholder="タイトルを入力" />
         </label>
         <label class="admin-mode-field">
           <span>本文</span>
@@ -8069,13 +8972,13 @@ function createAdminModeOverlay() {
     if (maintenanceReason === null) {
       setAdminMaintenanceActionPending(overlay, false);
       updateAdminModeControls(overlay, current);
-      setAdminModeStatus(status, "メンテナンスモード設定をキャンセルしました。");
+      setAdminModeStatus(status, "メンテナンス開始をキャンセルしました。");
       return;
     }
-    setAdminModeStatus(status, nextMaintenance ? "設定中..." : "解除中...");
+    setAdminModeStatus(status, nextMaintenance ? "開始中..." : "終了中...");
     if (toggleButton) {
       toggleButton.disabled = true;
-      toggleButton.textContent = nextMaintenance ? "設定中..." : "解除中...";
+      toggleButton.textContent = nextMaintenance ? "開始中..." : "終了中...";
     }
     if (loginButton) {
       loginButton.disabled = true;
@@ -8096,12 +8999,19 @@ function createAdminModeOverlay() {
     }
 
     setAdminMaintenanceActionPending(overlay, false);
-    const confirmedReason = nextMaintenance
+    const savedStatus = await fetchMaintenanceStatus();
+    if (savedStatus.ok === false || Boolean(savedStatus.maintenance) !== nextMaintenance) {
+      updateAdminModeControls(overlay, current);
+      setAdminModeStatus(status, savedStatus.message || "メンテナンス状態を保存できませんでした。", true);
+      return;
+    }
+    const confirmedMaintenance = Boolean(savedStatus.maintenance);
+    const confirmedReason = confirmedMaintenance
       ? extractMaintenanceReason(result) || maintenanceReason
       : "";
-    updateAdminModeControls(overlay, { maintenance: nextMaintenance, reason: confirmedReason });
-    notifyMaintenanceStatusChange({ maintenance: nextMaintenance, reason: confirmedReason });
-    setAdminModeStatus(status, nextMaintenance ? "メンテナンスモードに切り替えました。" : "メンテナンスモードを解除しました。");
+    updateAdminModeControls(overlay, { maintenance: confirmedMaintenance, reason: confirmedReason });
+    notifyMaintenanceStatusChange({ maintenance: confirmedMaintenance, reason: confirmedReason });
+    setAdminModeStatus(status, confirmedMaintenance ? "メンテナンスを開始しました。" : "メンテナンスを終了しました。");
   });
 
   notificationSendButton?.addEventListener("click", () => sendAdminNotification(overlay));
@@ -8126,8 +9036,13 @@ async function sendAdminNotification(overlay) {
     return;
   }
 
-  const title = String(titleInput?.value || "WE-Simulator").trim().slice(0, 80) || "WE-Simulator";
+  const title = String(titleInput?.value || "").trim().slice(0, 80);
   const body = String(bodyInput?.value || "").trim().slice(0, 300);
+  if (!title) {
+    setAdminNotificationStatus(status, "タイトルを入力してください。", true);
+    titleInput?.focus();
+    return;
+  }
   if (!body) {
     setAdminNotificationStatus(status, "本文を入力してください。", true);
     return;
@@ -8349,7 +9264,7 @@ function updateAdminModeControls(overlay, maintenanceStatus = null) {
     }
     if (toggleButton) {
       toggleButton.disabled = true;
-      toggleButton.textContent = "メンテナンスモード";
+      toggleButton.textContent = "メンテナンス開始";
     }
     return;
   }
@@ -8376,17 +9291,18 @@ function updateAdminModeControls(overlay, maintenanceStatus = null) {
   if (toggleButton) {
     toggleButton.disabled = !isParentTerminal;
     if (!isParentTerminal) {
-      toggleButton.textContent = "メンテナンスモード";
+      toggleButton.textContent = "メンテナンス開始";
     } else if (maintenanceStatus && typeof maintenanceStatus.maintenance === "boolean") {
-      toggleButton.textContent = maintenanceStatus.maintenance ? "メンテナンスモード解除" : "メンテナンスモード";
+      toggleButton.textContent = maintenanceStatus.maintenance ? "メンテナンス終了" : "メンテナンス開始";
     } else {
       toggleButton.textContent = "確認中...";
       toggleButton.disabled = true;
       setAdminPasswordInputUnavailable(passwordInput);
       fetchMaintenanceStatus().then((status) => {
-        const isStillParentTerminal = Boolean(localStorage.getItem(ADMIN_PARENT_TOKEN_KEY));
+        const isStillParentTerminal = Boolean(localStorage.getItem(ADMIN_PARENT_TOKEN_KEY))
+          || Boolean(communityAccount?.isAdmin);
         if (!isStillParentTerminal) {
-          toggleButton.textContent = "メンテナンスモード";
+          toggleButton.textContent = "メンテナンス開始";
           toggleButton.disabled = true;
           if (!isAdminParentActionPending(overlay) && !isAdminMaintenanceActionPending(overlay)) {
             setAdminPasswordInputAvailable(passwordInput);
@@ -8398,7 +9314,7 @@ function updateAdminModeControls(overlay, maintenanceStatus = null) {
           setAdminPasswordInputUnavailable(passwordInput);
           return;
         }
-        toggleButton.textContent = status.maintenance ? "メンテナンスモード解除" : "メンテナンスモード";
+        toggleButton.textContent = status.maintenance ? "メンテナンス終了" : "メンテナンス開始";
         toggleButton.disabled = false;
         setAdminPasswordInputUnavailable(passwordInput);
         notifyMaintenanceStatusChange(status);
@@ -8604,28 +9520,33 @@ function extractMaintenanceReason(payload) {
 }
 
 async function fetchMaintenanceStatus() {
-  if (isLocalDevelopmentHost()) {
-    return { maintenance: false };
-  }
-
   try {
-    const workerUrl = await getWorkerBaseUrl();
-    if (!workerUrl) {
-      return { maintenance: false };
+    const isLocalServer = isLocalDevelopmentHost();
+    const workerUrl = isLocalServer ? "" : await getWorkerBaseUrl();
+    if (!isLocalServer && !workerUrl) {
+      return { ok: false, maintenance: false, message: "Cloudflare Worker URLが未設定です。" };
     }
-    const url = `${workerUrl}/maintenance-status?ts=${Date.now()}`;
+    const url = isLocalServer
+      ? `/api/maintenance-status?ts=${Date.now()}`
+      : `${workerUrl}/maintenance-status?ts=${Date.now()}`;
     const response = await fetch(url, { cache: "no-store" });
     if (!response.ok) {
-      return { maintenance: false };
+      const data = await response.json().catch(() => ({}));
+      return {
+        ok: false,
+        maintenance: false,
+        message: data.message || data.error || `状態確認に失敗しました（${response.status}）。`,
+      };
     }
     const data = await response.json();
     return {
+      ok: data.ok !== false,
       maintenance: Boolean(data.maintenance),
       reason: extractMaintenanceReason(data),
     };
   } catch (error) {
     console.warn(error);
-    return { maintenance: false };
+    return { ok: false, maintenance: false, message: "メンテナンス状態を確認できませんでした。" };
   }
 }
 
@@ -8641,8 +9562,9 @@ function isLocalDevelopmentHost() {
 
 async function postMaintenanceAction(action, payload = {}) {
   try {
-    const workerUrl = await getWorkerBaseUrl();
-    if (!workerUrl) {
+    const isLocalServer = isLocalDevelopmentHost();
+    const workerUrl = isLocalServer ? "" : await getWorkerBaseUrl();
+    if (!isLocalServer && !workerUrl) {
       return { ok: false, message: "Cloudflare Worker URLが未設定です。" };
     }
 
@@ -8650,7 +9572,7 @@ async function postMaintenanceAction(action, payload = {}) {
     if (communityAccount?.isAdmin && communityAccount?.token && !communityAccount.localOnly) {
       headers.Authorization = `Bearer ${communityAccount.token}`;
     }
-    const response = await fetch(`${workerUrl}/maintenance-action`, {
+    const response = await fetch(isLocalServer ? "/api/maintenance-action" : `${workerUrl}/maintenance-action`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -8663,13 +9585,24 @@ async function postMaintenanceAction(action, payload = {}) {
       }),
     });
     const data = await response.json().catch(() => ({}));
+    const ok = response.ok && data.ok !== false;
+    const localAdminAuthMessage = isLocalServer && data.invalidParentToken
+      ? "Workerが管理用TOKENを認証できませんでした。Worker secretの一致とWorkerの再デプロイを確認してください。"
+      : "";
     return {
-      ok: response.ok && data.ok !== false,
       ...data,
+      ok,
+      message: localAdminAuthMessage
+        || data.message
+        || data.error
+        || (!ok ? `メンテナンスの切り替えに失敗しました（HTTP ${response.status}）` : ""),
     };
   } catch (error) {
     console.warn(error);
-    return { ok: false };
+    return {
+      ok: false,
+      message: "メンテナンス用サーバーに接続できませんでした。開発サーバーを再起動してからお試しください。",
+    };
   }
 }
 
@@ -8766,22 +9699,23 @@ function applyFeedbackPlaceholder(textarea) {
 
 function getFeedbackPlaceholderText() {
   return [
-    "例：スマホでメニューが少し開きにくい。",
-    "　　震度表示を見やすくしてほしい。",
-    "　　など",
+    "例：レイアウトが見づらい。",
+    "　　バグを確認した。",
+    "　　改善要望",
   ].join("\n");
 }
 
 function getCleanFeedbackPlaceholderText() {
   return [
-    "例：スマホでメニューが少し開きにくい",
-    "　　震度表示を見やすくしてほしい",
+    "例：レイアウトが見づらい。",
+    "　　バグを確認した。",
+    "　　改善要望",
   ].join("\n");
 }
 
 function buildFeedbackOverlayHtml() {
   return `
-    <button class="source-info-close" type="button" aria-label="フィードバックを閉じる">×</button>
+    <button class="source-info-close" type="button" aria-label="戻る">‹</button>
     <form class="source-info-overlay-content feedback-form" id="feedback-form">
       <header class="source-info-header">
         <p>Feedback</p>
@@ -8858,7 +9792,7 @@ function buildSourceInfoOverlayHtml() {
   }).join("");
 
   return `
-    <button class="source-info-close" type="button" aria-label="出典を閉じる">×</button>
+    <button class="source-info-close" type="button" aria-label="戻る">‹</button>
     <div class="source-info-overlay-content">
       <header class="source-info-header">
         <p>Sources and Privacy-policy</p>
@@ -8876,7 +9810,7 @@ function buildSourceInfoOverlayHtml() {
       </div>
     </div>
     <div class="source-info-footer">
-      <button class="source-admin-mode-button" type="button">管理者モード</button>
+      <button class="source-admin-mode-button" type="button">管理者用設定</button>
       <p class="source-info-updated">最終更新：${formatSourceUpdatedAt(SOURCE_UPDATED_AT)}</p>
     </div>
   `;
@@ -10781,6 +11715,8 @@ async function toggleCurrentLocationLink() {
   const requestId = (currentLocationRequestId += 1);
 
   if (!els.currentLocationToggle?.checked) {
+    localStorage.removeItem(CURRENT_LOCATION_ENABLED_KEY);
+    localStorage.removeItem(CURRENT_LOCATION_LAST_COORDS_KEY);
     state.currentLocationEnabled = false;
     state.currentLocation = null;
     state.currentLocationName = "-";
@@ -10789,6 +11725,8 @@ async function toggleCurrentLocationLink() {
     updateCurrentLocationForecast(getSimulationStationElapsedSec());
     return;
   }
+
+  localStorage.setItem(CURRENT_LOCATION_ENABLED_KEY, "true");
 
   state.currentLocationEnabled = false;
   state.currentLocation = null;
@@ -10805,11 +11743,18 @@ async function toggleCurrentLocationLink() {
       return;
     }
     console.warn(error);
+    const permissionDenied = error?.code === 1 || error?.code === error?.PERMISSION_DENIED;
     state.currentLocationEnabled = false;
     state.currentLocation = null;
-    state.currentLocationName = "位置情報の取得に失敗しました。再度お試しください。";
+    state.currentLocationName = permissionDenied
+      ? "OSの設定で位置情報を許可してください。"
+      : "位置情報の取得に失敗しました。再度お試しください。";
     state.currentLocationStatus = "error";
-    els.currentLocationToggle.checked = false;
+    if (permissionDenied) {
+      els.currentLocationToggle.checked = false;
+      localStorage.removeItem(CURRENT_LOCATION_ENABLED_KEY);
+      localStorage.removeItem(CURRENT_LOCATION_LAST_COORDS_KEY);
+    }
     removeCurrentLocationMarker();
     updateCurrentLocationForecast(getSimulationStationElapsedSec());
     return;
@@ -10827,7 +11772,6 @@ async function toggleCurrentLocationLink() {
     state.currentLocation = null;
     state.currentLocationName = "位置情報の取得に失敗しました。再度お試しください。";
     state.currentLocationStatus = "error";
-    els.currentLocationToggle.checked = false;
     removeCurrentLocationMarker();
     updateCurrentLocationForecast(getSimulationStationElapsedSec());
     return;
@@ -10838,6 +11782,7 @@ async function toggleCurrentLocationLink() {
     latitude: Number(latitude.toFixed(5)),
     longitude: Number(longitude.toFixed(5)),
   };
+  saveLastKnownCurrentLocation(state.currentLocation);
   state.currentLocationName = "位置情報を取得中...";
   state.currentLocationStatus = "loading";
   updateCurrentLocationForecast(getSimulationStationElapsedSec());
@@ -10854,8 +11799,87 @@ async function toggleCurrentLocationLink() {
   updateCurrentLocationForecast(getSimulationStationElapsedSec());
 }
 
+async function restoreCurrentLocationPreference() {
+  if (localStorage.getItem(CURRENT_LOCATION_ENABLED_KEY) !== "true" || !els.currentLocationToggle) {
+    return;
+  }
+
+  if (!navigator.geolocation || !navigator.permissions?.query) {
+    els.currentLocationToggle.checked = false;
+    updateSettingsScreenNotificationState();
+    return;
+  }
+
+  try {
+    const permission = await navigator.permissions.query({ name: "geolocation" });
+    if (permission.state !== "granted") {
+      els.currentLocationToggle.checked = false;
+      updateSettingsScreenNotificationState();
+      return;
+    }
+    els.currentLocationToggle.checked = true;
+    updateSettingsScreenNotificationState();
+    await toggleCurrentLocationLink();
+    updateSettingsScreenNotificationState();
+  } catch (error) {
+    console.warn("location permission restore failed", error);
+  }
+}
+
+async function refreshSystemPermissionStates() {
+  if (navigator.permissions?.query && els.currentLocationToggle) {
+    try {
+      const permission = await navigator.permissions.query({ name: "geolocation" });
+      if (permission.state === "denied" && els.currentLocationToggle.checked) {
+        clearCurrentLocationLink();
+      } else if (
+        permission.state === "granted"
+        && localStorage.getItem(CURRENT_LOCATION_ENABLED_KEY) === "true"
+        && !els.currentLocationToggle.checked
+      ) {
+        els.currentLocationToggle.checked = true;
+        await toggleCurrentLocationLink();
+      }
+    } catch (error) {
+      console.warn("location permission check failed", error);
+    }
+  }
+
+  if (!IS_LOCAL_DEV && "serviceWorker" in navigator && "Notification" in window) {
+    try {
+      const registration = await navigator.serviceWorker.getRegistration();
+      const subscription = await registration?.pushManager?.getSubscription();
+      state.pushSubscribed = Notification.permission === "granted" && Boolean(subscription);
+    } catch (error) {
+      console.warn("notification permission check failed", error);
+    }
+  }
+  updateSettingsScreenNotificationState();
+}
+
+function setupSystemPermissionSync() {
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      refreshSystemPermissionStates();
+    }
+  });
+
+  if (navigator.permissions?.query) {
+    navigator.permissions.query({ name: "geolocation" }).then((permission) => {
+      permission.addEventListener?.("change", () => refreshSystemPermissionStates());
+    }).catch((error) => console.warn("location permission listener setup failed", error));
+  }
+}
+
 function clearCurrentLocationLink(options = {}) {
   currentLocationRequestId += 1;
+  if (options.preserveEnabled && els.currentLocationToggle?.checked) {
+    removeCurrentLocationMarker();
+    if (options.updateForecast !== false) {
+      updateCurrentLocationForecast(getSimulationStationElapsedSec());
+    }
+    return;
+  }
   state.currentLocationEnabled = false;
   state.currentLocation = null;
   state.currentLocationName = "-";
@@ -11305,7 +12329,7 @@ function stopSimulation() {
   activateSettingsTab("primary");
   setSetupMenuOpen(false);
   updateSettingsMenuButtonVisibility();
-  clearCurrentLocationLink();
+  clearCurrentLocationLink({ preserveEnabled: true });
   resetWaveRenderCache();
   setWaveRadiusData(0, 0);
   updateIntensityLayer();
@@ -11420,7 +12444,7 @@ function tickSimulation(now) {
     maxStationListItemCache.clear();
     maxStationListEmptyItem = null;
     cancelPendingMaxStationListRender();
-    clearCurrentLocationLink({ updateForecast: false });
+    clearCurrentLocationLink({ updateForecast: false, preserveEnabled: true });
     resetWaveRenderCache();
     setWaveRadiusData(0, 0);
     visibleAreaDataSyncBucket = null;
@@ -15563,6 +16587,19 @@ function saveCommunityAccount(account) {
   }
   document.body.classList.toggle("community-admin-account", Boolean(communityAccount?.isAdmin));
   document.body.classList.toggle("community-local-account", Boolean(communityAccount?.localOnly));
+  if (communityAccount?.id) {
+    communityPosts.forEach((post) => {
+      if (String(post.accountId || "") === communityAccount.id) {
+        post.authorName = communityAccount.name;
+        post.authorIcon = communityAccount.icon;
+      }
+    });
+    if (activeCommunityPostDetail && String(activeCommunityPostDetail.accountId || "") === communityAccount.id) {
+      const placeName = communityPostOverlayElements?.detailSheet
+        ?.querySelector(".community-post-detail-meta dd")?.textContent || "";
+      renderCommunityPostDetail(activeCommunityPostDetail, placeName);
+    }
+  }
   updateCommunityAccountSettingsCard();
   if (communityAccount && document.body.dataset.activeBottomTab === "bottom-history-tab") {
     closeCommunityAccountRequiredPanel();
@@ -15660,6 +16697,12 @@ function updateCommunityAccountSettingsCard() {
     const iconButton = communityAccountPanel.querySelector('[data-community-account-screen="icon"]');
     if (iconButton) {
       iconButton.textContent = "アイコンを編集";
+      iconButton.disabled = Boolean(communityAccount.localOnly);
+      iconButton.setAttribute("aria-disabled", String(Boolean(communityAccount.localOnly)));
+      iconButton.classList.toggle("is-disabled", Boolean(communityAccount.localOnly));
+      if (communityAccount.localOnly) {
+        iconButton.title = "Localアカウントではアイコンを変更できません";
+      }
     }
     const accountsButton = communityAccountPanel.querySelector('[data-community-account-screen="accounts"]');
     if (accountsButton) {
@@ -15685,6 +16728,9 @@ function updateCommunityAccountSettingsCard() {
 function openCommunityAccountScreen(type) {
   const sheet = els.settingsMenuSheet;
   if (!sheet) {
+    return;
+  }
+  if (type === "icon" && communityAccount?.localOnly) {
     return;
   }
   let screen = sheet.querySelector("#community-account-screen");

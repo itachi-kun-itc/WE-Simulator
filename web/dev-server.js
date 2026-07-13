@@ -29,6 +29,11 @@ const server = http.createServer((request, response) => {
     return;
   }
 
+  if (url.pathname === "/api/maintenance-status" || url.pathname === "/api/maintenance-action") {
+    handleMaintenanceProxy(request, response, url.pathname);
+    return;
+  }
+
   const requestPath =
     url.pathname === "/" ? "index.html" : decodeURIComponent(url.pathname).replace(/^\/+/, "");
   const filePath = path.resolve(root, requestPath);
@@ -179,6 +184,48 @@ async function handleNotificationProxy(request, response) {
     response.end(text);
   } catch (error) {
     sendJson(response, 500, { ok: false, message: error.message || "Notification proxy failed" });
+  }
+}
+
+async function handleMaintenanceProxy(request, response, pathname) {
+  const isStatusRequest = pathname === "/api/maintenance-status";
+  const expectedMethod = isStatusRequest ? "GET" : "POST";
+  if (request.method !== expectedMethod) {
+    sendJson(response, 405, { ok: false, message: "Method not allowed" });
+    return;
+  }
+
+  try {
+    const [config, env] = await Promise.all([readPushConfig(), readLocalEnv()]);
+    const workerUrl = String(config.workerUrl || "").replace(/\/+$/, "");
+    if (!workerUrl) {
+      sendJson(response, 500, { ok: false, message: "Worker URL is not configured" });
+      return;
+    }
+
+    const headers = { "Content-Type": "application/json; charset=utf-8" };
+    let body;
+    if (!isStatusRequest) {
+      if (!env.ADMIN_NOTIFY_TOKEN) {
+        sendJson(response, 500, { ok: false, message: "ADMIN_NOTIFY_TOKEN is not configured" });
+        return;
+      }
+      headers.Authorization = `Bearer ${env.ADMIN_NOTIFY_TOKEN}`;
+      body = await readRequestBody(request);
+    }
+
+    const workerResponse = await fetch(
+      `${workerUrl}${isStatusRequest ? "/maintenance-status" : "/maintenance-action"}`,
+      { method: expectedMethod, headers, body },
+    );
+    const text = await workerResponse.text();
+    response.writeHead(workerResponse.status, {
+      "Cache-Control": "no-store",
+      "Content-Type": workerResponse.headers.get("content-type") || "application/json; charset=utf-8",
+    });
+    response.end(text);
+  } catch (error) {
+    sendJson(response, 500, { ok: false, message: error.message || "Maintenance proxy failed" });
   }
 }
 
