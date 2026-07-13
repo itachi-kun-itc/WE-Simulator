@@ -14737,6 +14737,72 @@ body.tool-source-search-mode #history-full-panel .tool-page-back {
   border-radius: 14px !important;
 }
 
+.learning-warning-kind-table-wrap {
+  margin-top: 12px !important;
+  overflow-x: auto !important;
+  overscroll-behavior-inline: contain !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 14px !important;
+}
+
+.learning-warning-kind-table {
+  width: 100% !important;
+  min-width: 760px !important;
+  border-collapse: collapse !important;
+  font-size: 0.76rem !important;
+}
+
+.learning-warning-kind-table th,
+.learning-warning-kind-table td {
+  padding: 12px 11px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: rgba(255, 255, 255, 0.78) !important;
+  line-height: 1.65 !important;
+  text-align: left !important;
+  vertical-align: middle !important;
+}
+
+.learning-warning-kind-table thead th {
+  background: rgba(255, 255, 255, 0.055) !important;
+  color: #fff !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+}
+
+.learning-warning-kind-table tbody th {
+  width: 132px !important;
+  text-align: center !important;
+}
+
+.learning-warning-kind-table tbody th span,
+.learning-warning-kind-table tbody th small {
+  display: block !important;
+}
+
+.learning-warning-kind-table tbody th span {
+  color: var(--learning-warning-kind-color, #e2e8f0) !important;
+  font-size: 0.84rem !important;
+  font-weight: 950 !important;
+}
+
+.learning-warning-kind-table tbody th small {
+  margin-top: 2px !important;
+  color: rgba(255, 255, 255, 0.52) !important;
+  font-size: 0.65rem !important;
+  font-weight: 750 !important;
+}
+
+.learning-warning-kind-table tr.is-early { --learning-warning-kind-color: #dbeafe; }
+.learning-warning-kind-table tr.is-advisory { --learning-warning-kind-color: #facc15; }
+.learning-warning-kind-table tr.is-warning { --learning-warning-kind-color: #fb7185; }
+.learning-warning-kind-table tr.is-danger { --learning-warning-kind-color: #c084fc; }
+.learning-warning-kind-table tr.is-special { --learning-warning-kind-color: #d8b4fe; }
+
+.learning-warning-kind-table tbody tr:last-child th,
+.learning-warning-kind-table tbody tr:last-child td {
+  border-bottom: 0 !important;
+}
+
 .learning-level-table {
   width: 100% !important;
   min-width: 940px !important;
@@ -14782,6 +14848,8 @@ html[data-resolved-theme="light"] .weather-quiz-loading,
 html[data-resolved-theme="light"] .learning-section-heading p,
 html[data-resolved-theme="light"] .learning-safety-note,
 html[data-resolved-theme="light"] .learning-alert-item p,
+html[data-resolved-theme="light"] .learning-warning-kind-table th,
+html[data-resolved-theme="light"] .learning-warning-kind-table td,
 html[data-resolved-theme="light"] .learning-level-table th,
 html[data-resolved-theme="light"] .learning-level-table td {
   color: rgba(15, 23, 42, 0.76) !important;
@@ -14789,9 +14857,14 @@ html[data-resolved-theme="light"] .learning-level-table td {
 
 html[data-resolved-theme="light"] .learning-section-heading h2,
 html[data-resolved-theme="light"] .learning-alert-item strong,
+html[data-resolved-theme="light"] .learning-warning-kind-table thead th,
 html[data-resolved-theme="light"] .learning-level-table thead th,
 html[data-resolved-theme="light"] .learning-level-table tbody th {
   color: #111827 !important;
+}
+
+html[data-resolved-theme="light"] .learning-warning-kind-table tbody th small {
+  color: rgba(15, 23, 42, 0.56) !important;
 }
 
 /* Learning headings and focus-only slim scrollbar. */
