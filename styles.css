@@ -466,6 +466,13 @@ body.simulation-running #simulation-start::before {
   display: none !important;
 }
 
+/* Remove the divider above logout and reclaim its vertical space. */
+.community-account-danger-actions {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+  border-top: 0 !important;
+}
+
 .settings-inline-panel .source-info-overlay-content {
   width: 100%;
   max-width: none;
@@ -12061,6 +12068,354 @@ body.history-map-mode #history-full-panel .history-stats-empty.history-stats-emp
   clip-path: none !important;
 }
 
+/* Final community-post placement and tag polish. */
+body.community-map-mode #map::after {
+  position: fixed !important;
+  right: max(8px, env(safe-area-inset-right)) !important;
+  bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 4px) !important;
+  z-index: 12490 !important;
+}
+
+body.community-map-mode .community-post-button {
+  right: max(12px, env(safe-area-inset-right)) !important;
+  bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 28px) !important;
+  gap: 8px !important;
+  min-width: 92px !important;
+  min-height: 42px !important;
+  padding: 0 14px !important;
+  border-color: rgba(64, 224, 255, 0.78) !important;
+  background: linear-gradient(180deg, rgba(20, 92, 104, 0.96), rgba(3, 24, 31, 0.96)) !important;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.44), inset 0 1px rgba(255, 255, 255, 0.2) !important;
+}
+
+.community-post-button::before {
+  content: "" !important;
+  display: inline-block !important;
+  width: 18px !important;
+  height: 18px !important;
+  border: 2px solid currentColor !important;
+  border-radius: 6px !important;
+  background:
+    linear-gradient(currentColor, currentColor) center / 10px 2px no-repeat,
+    linear-gradient(currentColor, currentColor) center / 2px 10px no-repeat !important;
+  box-sizing: border-box !important;
+}
+
+.preset-picker-close,
+#preset-picker-close,
+.community-post-close,
+.community-post-detail-close {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.community-post-custom-tag {
+  width: 100% !important;
+  min-height: 42px !important;
+  border: 1px solid rgba(255, 169, 64, 0.34) !important;
+  border-radius: 14px !important;
+  background: rgba(255, 169, 64, 0.08) !important;
+  color: #fff !important;
+  padding: 9px 12px !important;
+  font: 800 0.9rem/1.25 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+}
+
+.community-post-optional-tags label:has(input:checked) {
+  border-color: rgba(255, 169, 64, 0.88) !important;
+  background: rgba(168, 92, 18, 0.72) !important;
+  color: #ffd3a0 !important;
+}
+
+.community-post-detail-tags span[data-community-tag-pill="optional"],
+.community-post-popup-tags span[data-community-tag-pill="optional"] {
+  background: rgba(255, 169, 64, 0.22) !important;
+  color: #ffd3a0 !important;
+}
+
+/* Settings detail scroll isolation: keep the page fixed and let only each detail body scroll. */
+.settings-menu-sheet.settings-detail-open .settings-menu-list {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+}
+
+.settings-menu-sheet.settings-detail-open .settings-inline-panel.settings-detail-panel {
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr) !important;
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  padding: 0 !important;
+  scroll-padding-bottom: 0 !important;
+}
+
+.settings-menu-sheet.settings-detail-open .settings-detail-panel > :not(.settings-detail-head) {
+  align-self: stretch !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+}
+
+.settings-menu-sheet.settings-detail-open .settings-detail-panel .source-info-overlay-content,
+.settings-menu-sheet.settings-detail-open .settings-detail-panel .settings-privacy-content,
+.settings-menu-sheet.settings-detail-open .settings-detail-panel .settings-feedback-form,
+.settings-menu-sheet.settings-detail-open .settings-detail-panel .push-confirm-panel:not([data-push-panel="history"]),
+.settings-menu-sheet.settings-detail-open .settings-detail-panel .settings-admin-embedded,
+.settings-menu-sheet.settings-detail-open .settings-detail-panel .settings-appearance-content {
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom)) !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+#settings-push-history-panel.settings-detail-panel {
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr) !important;
+  overflow: hidden !important;
+  padding-bottom: 0 !important;
+  overscroll-behavior: none !important;
+}
+
+#settings-push-history-panel.settings-detail-panel > .push-confirm-panel[data-push-panel="history"] {
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+}
+
+#settings-push-history-panel.settings-detail-panel .push-history-list {
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+}
+
+/* Community post sheet: keep the whole overlay fixed; only the form body scrolls. */
+.community-post-overlay {
+  place-items: stretch center !important;
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  padding: max(8px, env(safe-area-inset-top)) 14px 10px !important;
+}
+
+.community-post-sheet {
+  align-self: stretch !important;
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr) !important;
+  width: min(560px, 100%) !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+}
+
+.community-post-head {
+  position: relative !important;
+  top: auto !important;
+  z-index: 3 !important;
+  flex: 0 0 auto !important;
+}
+
+.community-post-form {
+  min-height: 0 !important;
+  max-height: 100% !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+  padding-bottom: calc(18px + env(safe-area-inset-bottom)) !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+/* App-wide back buttons: replace close-X visuals with a larger chevron. */
+.source-info-close,
+.preset-picker-close,
+#preset-picker-close,
+.settings-menu-close,
+.community-post-close,
+.community-post-detail-close,
+.settings-detail-back,
+.tool-page-back,
+.community-account-screen-back {
+  display: grid !important;
+  place-items: center !important;
+  color: rgba(255, 255, 255, 0.92) !important;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  font-size: 2.25rem !important;
+  font-weight: 850 !important;
+  line-height: 1 !important;
+  text-align: center !important;
+  text-indent: 0 !important;
+}
+
+.source-info-close::before,
+.source-info-close::after,
+.preset-picker-close::before,
+.preset-picker-close::after,
+#preset-picker-close::before,
+#preset-picker-close::after {
+  content: none !important;
+  display: none !important;
+}
+
+.preset-picker-close,
+#preset-picker-close {
+  width: 42px !important;
+  height: 42px !important;
+  color: rgba(255, 255, 255, 0.94) !important;
+  font-size: 2.3rem !important;
+  line-height: 1 !important;
+  border-radius: 999px !important;
+}
+
+.settings-detail-back,
+.tool-page-back,
+.community-account-screen-back {
+  font-size: 2.35rem !important;
+}
+
+.community-post-close,
+.community-post-detail-close,
+.settings-menu-close,
+.source-info-close {
+  font-size: 2.3rem !important;
+}
+
+/* Preset/post back buttons are chevrons only, without the old circular frame. */
+.preset-picker-close,
+#preset-picker-close,
+.community-post-close,
+.community-post-detail-close {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Community optional tags: orange secondary chips. */
+.community-post-custom-tag {
+  width: 100% !important;
+  min-height: 42px !important;
+  border: 1px solid rgba(255, 169, 64, 0.34) !important;
+  border-radius: 14px !important;
+  background: rgba(255, 169, 64, 0.08) !important;
+  color: #fff !important;
+  padding: 9px 12px !important;
+  font: 800 0.9rem/1.25 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+}
+
+.community-post-optional-tags label:has(input:checked) {
+  border-color: rgba(255, 169, 64, 0.88) !important;
+  background: rgba(168, 92, 18, 0.72) !important;
+  color: #ffd3a0 !important;
+}
+
+.community-post-detail-tags span[data-community-tag-pill="optional"],
+.community-post-popup-tags span[data-community-tag-pill="optional"] {
+  background: rgba(255, 169, 64, 0.22) !important;
+  color: #ffd3a0 !important;
+}
+
+body.community-map-mode #map::after {
+  position: fixed !important;
+  right: max(8px, env(safe-area-inset-right)) !important;
+  bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 4px) !important;
+  z-index: 12490 !important;
+}
+
+body.community-map-mode .community-post-button {
+  right: max(12px, env(safe-area-inset-right)) !important;
+  bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 28px) !important;
+  gap: 8px !important;
+  min-width: 92px !important;
+  min-height: 42px !important;
+  padding: 0 14px !important;
+  border-color: rgba(64, 224, 255, 0.78) !important;
+  background: linear-gradient(180deg, rgba(20, 92, 104, 0.96), rgba(3, 24, 31, 0.96)) !important;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.44), inset 0 1px rgba(255, 255, 255, 0.2) !important;
+}
+
+.community-post-button::before {
+  content: "" !important;
+  display: inline-block !important;
+  width: 18px !important;
+  height: 18px !important;
+  border: 2px solid currentColor !important;
+  border-radius: 6px !important;
+  background:
+    linear-gradient(currentColor, currentColor) center / 10px 2px no-repeat,
+    linear-gradient(currentColor, currentColor) center / 2px 10px no-repeat !important;
+  box-sizing: border-box !important;
+}
+
+/* Simulation sheet: default peek is about one third of max, with a smooth closed state. */
+#setup-panel.sim-panel {
+  height: min(72svh, 700px) !important;
+  max-height: min(72svh, 700px) !important;
+  transform: translate(-50%, 0) !important;
+  transition:
+    height 220ms cubic-bezier(0.22, 0.9, 0.24, 1),
+    max-height 220ms cubic-bezier(0.22, 0.9, 0.24, 1),
+    transform 220ms cubic-bezier(0.22, 0.9, 0.24, 1) !important;
+}
+
+#setup-panel.setup-menu-open,
+#setup-panel.sim-panel[data-sheet-state="open"] {
+  height: min(72svh, 700px) !important;
+  max-height: min(72svh, 700px) !important;
+  transform: translate(-50%, 0) !important;
+}
+
+#setup-panel.setup-menu-closed,
+#setup-panel.sim-panel[data-sheet-state="collapsed"] {
+  height: min(24svh, 233px) !important;
+  max-height: min(24svh, 233px) !important;
+  transform: translate(-50%, 0) !important;
+}
+
+#setup-panel.sim-panel[data-sheet-state="closed"] {
+  height: 56px !important;
+  max-height: 56px !important;
+  transform: translate(-50%, 0) !important;
+}
+
+#setup-panel.sim-panel.is-dragging {
+  height: var(--sheet-drag-height, min(24svh, 233px)) !important;
+  max-height: var(--sheet-drag-height, min(24svh, 233px)) !important;
+  transform: translate(-50%, 0) !important;
+  transition: none !important;
+}
+
+#setup-panel.sim-panel[data-sheet-state="closed"] .sim-panel-scroll {
+  overflow: hidden !important;
+}
+
+#setup-panel .sim-panel-scroll {
+  max-height: calc(100% - 32px) !important;
+}
+
+.preset-sort-buttons {
+  align-items: stretch !important;
+}
+
+.preset-sort-choice {
+  display: grid !important;
+  place-items: center !important;
+  text-align: center !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+.preset-sort-choice[data-preset-sort^="magnitude"] {
+  padding-inline: 2px !important;
+  font-size: 0.72rem !important;
+  letter-spacing: -0.055em !important;
+  white-space: nowrap !important;
+}
+
 /* Final tab role: 投稿.  Lightweight CSS-only post icon. */
 #bottom-history-tab .bottom-tab-icon {
   position: relative !important;
@@ -12178,6 +12533,10 @@ body.community-post-detail-open .community-post-button {
 .community-post-location-dot.is-set {
   opacity: 1;
   transform: translate(-50%, -50%) scale(1);
+}
+
+.community-post-location-dot.is-set.is-vague {
+  box-shadow: 0 0 0 18px rgba(64, 224, 255, 0.14);
 }
 
 .community-post-location-preview-text {
@@ -12803,7 +13162,8 @@ body.community-map-mode #map::after {
   user-select: none;
 }
 
-.community-post-tags input[type="radio"] + span::before {
+.community-post-tags input[type="radio"] + span::before,
+.community-post-tags input[type="checkbox"] + span::before {
   content: "";
   display: inline-block;
   width: 8px;
@@ -12836,6 +13196,68 @@ body.community-map-mode #map::after {
   border-color: rgba(255, 222, 80, 0.86) !important;
   background: rgba(128, 101, 18, 0.72) !important;
   color: #fff0a8 !important;
+}
+
+.community-post-tags label:has(input:checked) {
+  color: #fff !important;
+}
+
+.community-post-custom-tag-editor {
+  display: grid;
+  gap: 9px;
+}
+
+.community-post-custom-tag-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 286px;
+}
+
+.community-post-custom-tag-entry .community-post-custom-tag {
+  min-width: 0;
+  width: min(204px, calc(100% - 72px)) !important;
+  min-height: 36px !important;
+  flex: 1 1 204px;
+  padding: 6px 10px !important;
+}
+
+.community-post-custom-tag-entry button,
+.community-post-custom-tag-chip {
+  min-height: 42px;
+  border: 1px solid rgba(255, 169, 64, 0.7);
+  border-radius: 14px;
+  background: rgba(168, 92, 18, 0.72);
+  color: #fff;
+  padding: 0 14px;
+  font-weight: 900;
+}
+
+.community-post-custom-tag-entry button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  min-height: 36px;
+  flex: 0 0 auto;
+  padding: 0 13px;
+  border-radius: 12px;
+  white-space: nowrap;
+  writing-mode: horizontal-tb;
+  line-height: 1;
+}
+
+.community-post-custom-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.community-post-custom-tag-chip {
+  min-height: 32px;
+  border-radius: 999px;
+  padding: 0 11px;
+  font-size: 12px;
 }
 
 .community-post-marker[data-community-tag="weather"] {
@@ -13619,4 +14041,1421 @@ body.community-pick-mode .community-post-button {
   box-shadow: none !important;
   transform: none !important;
   clip-path: none !important;
+}
+
+/* Compact settings headings so the menu controls can use more vertical space. */
+.settings-menu-sheet {
+  padding-top: max(8px, env(safe-area-inset-top)) !important;
+}
+
+.settings-detail-head {
+  grid-template-columns: 46px minmax(0, 1fr) 46px !important;
+  min-height: 48px !important;
+  padding: 3px 8px 5px !important;
+}
+
+.settings-detail-back {
+  width: 34px !important;
+  height: 34px !important;
+}
+
+.settings-detail-panel .push-confirm-panel,
+.settings-detail-panel .source-info-overlay-content,
+.settings-detail-panel .settings-feedback-form {
+  margin-top: 10px !important;
+}
+
+/* Bottom navigation sizing aligned with the visual weight of the reference. */
+:root {
+  --bottom-nav-height: 73px !important;
+}
+
+@media (max-width: 720px) {
+  :root {
+    --bottom-nav-height: 71px !important;
+  }
+}
+
+.bottom-tabs {
+  padding: 6px 4px calc(5px + env(safe-area-inset-bottom)) !important;
+}
+
+.bottom-tabs .tab,
+.tab {
+  grid-template-rows: 32px auto !important;
+  align-content: center !important;
+  gap: 4px !important;
+  padding: 2px 1px 0 !important;
+  font-size: clamp(0.7rem, 1.35vw, 0.82rem) !important;
+  font-weight: 850 !important;
+  line-height: 1.05 !important;
+  transform: translateY(-3px) !important;
+}
+
+.bottom-tabs .bottom-tab-icon {
+  left: 2px !important;
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  transform: scale(1.22) !important;
+  transform-origin: 12px 12px !important;
+}
+
+/* Compact feedback action and predictable post-detail navigation. */
+.settings-inline-panel.settings-detail-panel .settings-feedback-form .feedback-submit {
+  width: auto !important;
+  min-width: 76px !important;
+  min-height: 36px !important;
+  justify-self: end !important;
+  padding: 0 16px !important;
+  border-radius: 10px !important;
+  font-size: 0.84rem !important;
+}
+
+.community-post-detail-close {
+  left: max(8px, env(safe-area-inset-left)) !important;
+  right: auto !important;
+  top: 0 !important;
+}
+
+/* Keep the source-search year range and load action in four non-overlapping tracks. */
+#history-full-panel .history-stats-sort-row {
+  grid-template-columns: max-content 18px 104px 64px !important;
+  column-gap: 6px !important;
+  justify-content: start !important;
+}
+
+#history-full-panel .history-stats-sort-row label:first-of-type {
+  grid-template-columns: auto 104px !important;
+  gap: 6px !important;
+}
+
+#history-full-panel .history-stats-sort-row label:nth-of-type(2) {
+  display: block !important;
+  width: 104px !important;
+}
+
+#history-full-panel #history-statistics-load {
+  width: 64px !important;
+  min-width: 64px !important;
+  padding-inline: 8px !important;
+}
+
+@media (max-width: 420px) {
+  #history-full-panel .history-stats-sort-row {
+    grid-template-columns: max-content 16px 88px 56px !important;
+    column-gap: 4px !important;
+  }
+
+  #history-full-panel .history-stats-sort-row label:first-of-type {
+    grid-template-columns: auto 88px !important;
+    gap: 4px !important;
+  }
+
+  #history-full-panel .history-stats-sort-row label:nth-of-type(2),
+  #history-full-panel #history-start-year,
+  #history-full-panel #history-end-year {
+    width: 88px !important;
+    min-width: 88px !important;
+    max-width: 88px !important;
+  }
+
+  #history-full-panel #history-statistics-load {
+    width: 56px !important;
+    min-width: 56px !important;
+    padding-inline: 6px !important;
+  }
+}
+
+/* Preset earthquakes: compact bottom sheet with an independently scrolling table. */
+.preset-picker-overlay {
+  position: fixed !important;
+  inset: 0 0 calc(var(--bottom-nav-height) + env(safe-area-inset-bottom)) !important;
+  z-index: 16000 !important;
+  display: grid !important;
+  align-items: end !important;
+  justify-items: center !important;
+  padding: 0 !important;
+  background: rgba(0, 0, 0, 0.34) !important;
+  backdrop-filter: blur(2px) !important;
+  -webkit-backdrop-filter: blur(2px) !important;
+}
+
+.preset-picker-overlay.hidden {
+  display: none !important;
+}
+
+.preset-picker-dialog {
+  position: relative !important;
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr) !important;
+  width: min(860px, 100vw) !important;
+  height: min(60dvh, 620px) !important;
+  max-height: min(60dvh, 620px) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-bottom: 0 !important;
+  border-radius: 28px 28px 0 0 !important;
+  background: linear-gradient(180deg, rgba(17, 19, 20, 0.985), rgba(5, 6, 7, 0.995)) !important;
+  box-shadow: 0 -20px 52px rgba(0, 0, 0, 0.54) !important;
+  animation: preset-picker-sheet-in 220ms cubic-bezier(0.22, 0.9, 0.24, 1) both;
+}
+
+.preset-picker-head {
+  position: relative !important;
+  z-index: 2 !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows: 34px 34px !important;
+  gap: 7px !important;
+  width: auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 12px 12px 10px 56px !important;
+  transform: none !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important;
+  background: rgba(12, 14, 15, 0.98) !important;
+}
+
+.preset-filter-input {
+  width: 100% !important;
+  height: 34px !important;
+  min-height: 34px !important;
+}
+
+.preset-sort-buttons {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 6px !important;
+  margin: 0 !important;
+}
+
+.preset-sort-choice {
+  min-width: 0 !important;
+  min-height: 34px !important;
+  height: 34px !important;
+}
+
+.preset-picker-close,
+#preset-picker-close {
+  position: absolute !important;
+  left: 10px !important;
+  right: auto !important;
+  top: 9px !important;
+  z-index: 4 !important;
+  display: grid !important;
+  width: 40px !important;
+  height: 40px !important;
+  place-items: center !important;
+  color: rgba(255, 255, 255, 0.94) !important;
+  font-size: 2.25rem !important;
+  line-height: 1 !important;
+  background: transparent !important;
+}
+
+.preset-picker-description {
+  display: none !important;
+}
+
+.preset-picker-table-wrap {
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: none !important;
+  padding: 0 6px 12px !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+  touch-action: pan-y !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+@keyframes preset-picker-sheet-in {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preset-picker-dialog {
+    animation: none !important;
+  }
+}
+
+/* Clearer bottom-tab metaphors: compose a post and learn from an open book. */
+#bottom-history-tab .bottom-tab-icon {
+  background: none !important;
+}
+
+#bottom-history-tab .bottom-tab-icon::before {
+  left: 3px !important;
+  top: 3px !important;
+  width: 17px !important;
+  height: 19px !important;
+  border: 2px solid currentColor !important;
+  border-radius: 3px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+#bottom-history-tab .bottom-tab-icon::after {
+  left: 11px !important;
+  top: 5px !important;
+  width: 13px !important;
+  height: 3px !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: currentColor !important;
+  box-shadow: none !important;
+  clip-path: polygon(0 0, 80% 0, 100% 50%, 80% 100%, 0 100%) !important;
+  transform: rotate(-45deg) !important;
+  transform-origin: left center !important;
+}
+
+#bottom-learning-tab .bottom-tab-icon::before,
+#bottom-learning-tab .bottom-tab-icon::after {
+  content: "" !important;
+  position: absolute !important;
+  display: block !important;
+  top: 4px !important;
+  width: 11px !important;
+  height: 17px !important;
+  border: 2px solid currentColor !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  box-sizing: border-box !important;
+}
+
+#bottom-learning-tab .bottom-tab-icon::before {
+  left: 1px !important;
+  border-right-width: 1px !important;
+  border-radius: 4px 1px 5px 3px !important;
+  transform: skewY(7deg) !important;
+}
+
+#bottom-learning-tab .bottom-tab-icon::after {
+  left: 12px !important;
+  border-left-width: 1px !important;
+  border-radius: 1px 4px 3px 5px !important;
+  transform: skewY(-7deg) !important;
+}
+
+/* Keep the account divider clearly above the notification settings card. */
+.community-account-panel {
+  margin-bottom: 10px !important;
+}
+
+/* Legible vector icons for simulation, posting and learning at small sizes. */
+#earthquake-tab .bottom-tab-icon::before,
+#bottom-history-tab .bottom-tab-icon::before,
+#bottom-learning-tab .bottom-tab-icon::before {
+  content: "" !important;
+  position: absolute !important;
+  display: block !important;
+  left: 1px !important;
+  top: 1px !important;
+  width: 24px !important;
+  height: 24px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: currentColor !important;
+  box-shadow: none !important;
+  transform: none !important;
+  clip-path: none !important;
+  mask-position: center !important;
+  mask-repeat: no-repeat !important;
+  mask-size: contain !important;
+  -webkit-mask-position: center !important;
+  -webkit-mask-repeat: no-repeat !important;
+  -webkit-mask-size: contain !important;
+}
+
+#earthquake-tab .bottom-tab-icon::before {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 12h4l2.2-6 3.2 12 3-9 2.2 6H22'/%3E%3C/svg%3E") !important;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 12h4l2.2-6 3.2 12 3-9 2.2 6H22'/%3E%3C/svg%3E") !important;
+}
+
+#bottom-history-tab .bottom-tab-icon::before {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='14' height='17' rx='2'/%3E%3Cpath d='m10 16 1-4 8-8 3 3-8 8-4 1Z'/%3E%3C/svg%3E") !important;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='14' height='17' rx='2'/%3E%3Cpath d='m10 16 1-4 8-8 3 3-8 8-4 1Z'/%3E%3C/svg%3E") !important;
+}
+
+#bottom-learning-tab .bottom-tab-icon::before {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 5c3-.5 6 .5 9 3v13c-3-2.5-6-3.5-9-3V5Z'/%3E%3Cpath d='M21 5c-3-.5-6 .5-9 3v13c3-2.5 6-3.5 9-3V5Z'/%3E%3C/svg%3E") !important;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 5c3-.5 6 .5 9 3v13c-3-2.5-6-3.5-9-3V5Z'/%3E%3Cpath d='M21 5c-3-.5-6 .5-9 3v13c3-2.5 6-3.5 9-3V5Z'/%3E%3C/svg%3E") !important;
+}
+
+#earthquake-tab .bottom-tab-icon::after,
+#bottom-history-tab .bottom-tab-icon::after,
+#bottom-learning-tab .bottom-tab-icon::after {
+  content: none !important;
+  display: none !important;
+}
+
+/* Precisely align every bottom-tab icon and label on the same visual grid. */
+.bottom-tabs .tab,
+.tab {
+  align-content: center !important;
+  justify-items: center !important;
+}
+
+.bottom-tabs .tab > .bottom-tab-icon {
+  position: relative !important;
+  left: auto !important;
+  top: auto !important;
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  place-self: center !important;
+  transform: scale(1.1) !important;
+  transform-origin: center !important;
+}
+
+.bottom-tabs .tab > span:last-child {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  margin: 0 !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  transform: none !important;
+}
+
+#earthquake-tab .bottom-tab-icon::before,
+#bottom-history-tab .bottom-tab-icon::before,
+#bottom-learning-tab .bottom-tab-icon::before {
+  left: 2px !important;
+  top: 2px !important;
+}
+
+/* A compact, conventional gear that stays recognizable at tab size. */
+#bottom-settings-tab .bottom-tab-icon::before {
+  content: "" !important;
+  position: absolute !important;
+  display: block !important;
+  left: 2px !important;
+  top: 2px !important;
+  width: 24px !important;
+  height: 24px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: currentColor !important;
+  box-shadow: none !important;
+  transform: none !important;
+  clip-path: none !important;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='6.5'/%3E%3Ccircle cx='12' cy='12' r='2.2'/%3E%3Cpath d='M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M19.4 4.6l-2.1 2.1M6.7 17.3l-2.1 2.1'/%3E%3C/svg%3E") !important;
+  mask-position: center !important;
+  mask-repeat: no-repeat !important;
+  mask-size: contain !important;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='6.5'/%3E%3Ccircle cx='12' cy='12' r='2.2'/%3E%3Cpath d='M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M19.4 4.6l-2.1 2.1M6.7 17.3l-2.1 2.1'/%3E%3C/svg%3E") !important;
+  -webkit-mask-position: center !important;
+  -webkit-mask-repeat: no-repeat !important;
+  -webkit-mask-size: contain !important;
+}
+
+#bottom-settings-tab .bottom-tab-icon::after {
+  content: none !important;
+  display: none !important;
+}
+
+/* Keep learning content inside narrow mobile viewports. */
+#learning-full-panel,
+#learning-full-panel .learning-content,
+#learning-full-panel .learning-content > *,
+#learning-full-panel .learning-card,
+#learning-full-panel .learning-intensity-list,
+#learning-full-panel .learning-intensity-item,
+#learning-full-panel .learning-weather-section,
+#learning-full-panel .learning-level-table-wrap {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+#learning-full-panel {
+  width: 100% !important;
+  overflow-x: hidden !important;
+}
+
+#learning-full-panel .learning-content {
+  width: 100% !important;
+}
+
+#learning-full-panel .learning-intensity-item p,
+#learning-full-panel .learning-card p,
+#learning-full-panel .learning-section-heading p {
+  min-width: 0 !important;
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
+}
+
+#learning-full-panel .learning-level-table-wrap {
+  width: 100% !important;
+  overflow-x: auto !important;
+  overscroll-behavior-inline: contain !important;
+}
+
+#learning-full-panel .learning-level-table thead th {
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+#learning-full-panel .learning-level-table thead th:not(:first-child) {
+  text-align: left !important;
+}
+
+#learning-full-panel .learning-level-table tbody th {
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+#learning-full-panel .learning-level-table tbody td {
+  text-align: left !important;
+  vertical-align: middle !important;
+}
+
+/* Compact tool detail headers and give the content below more height. */
+body.tool-station-search-mode #info-full-panel .tool-page-head,
+body.tool-weather-quiz-mode #info-full-panel .tool-page-head {
+  grid-template-columns: 40px minmax(0, 1fr) 40px !important;
+  min-height: 44px !important;
+  padding: max(2px, env(safe-area-inset-top)) 12px 3px !important;
+}
+
+body.tool-station-search-mode #info-full-panel .tool-page-head h2,
+body.tool-weather-quiz-mode #info-full-panel .tool-page-head h2 {
+  font-size: 0.98rem !important;
+}
+
+body.tool-station-search-mode #info-full-panel .tool-page-back,
+body.tool-weather-quiz-mode #info-full-panel .tool-page-back {
+  width: 36px !important;
+  height: 36px !important;
+  font-size: 1.75rem !important;
+}
+
+body.tool-source-search-mode #history-full-panel .tool-page-head {
+  grid-template-columns: 42px minmax(0, 1fr) 42px !important;
+  min-height: 48px !important;
+  padding: max(3px, env(safe-area-inset-top)) 10px 5px !important;
+}
+
+body.tool-source-search-mode #history-full-panel .tool-page-head h2 {
+  font-size: 1rem !important;
+}
+
+body.tool-source-search-mode #history-full-panel .tool-page-back {
+  width: 38px !important;
+  height: 38px !important;
+  font-size: 1.8rem !important;
+}
+
+@media (max-width: 640px) {
+  #learning-full-panel .learning-content {
+    padding-right: 10px !important;
+    padding-left: 10px !important;
+  }
+
+  #learning-full-panel .learning-card,
+  #learning-full-panel .learning-intensity-item {
+    border-radius: 16px !important;
+  }
+
+  #learning-full-panel .learning-intensity-item {
+    gap: 10px !important;
+    padding: 10px !important;
+  }
+}
+
+/* Tool directory descriptions and weather-forecaster quick quiz. */
+#info-full-panel .tool-weather-quiz-page {
+  min-height: 0 !important;
+  height: 100% !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+#info-full-panel .tool-weather-quiz-page.hidden {
+  display: none !important;
+}
+
+.tool-menu-row {
+  min-height: 76px !important;
+  padding: 11px 22px !important;
+}
+
+.tool-menu-copy {
+  display: grid !important;
+  min-width: 0 !important;
+  gap: 5px !important;
+  padding-right: 14px !important;
+}
+
+.tool-menu-copy strong {
+  color: rgba(255, 255, 255, 0.95) !important;
+  font-size: 0.96rem !important;
+  font-weight: 950 !important;
+  line-height: 1.2 !important;
+}
+
+.tool-menu-copy small {
+  color: rgba(255, 255, 255, 0.58) !important;
+  font-size: 0.74rem !important;
+  font-weight: 700 !important;
+  line-height: 1.45 !important;
+  overflow-wrap: anywhere !important;
+}
+
+.weather-quiz-content {
+  display: grid !important;
+  align-content: start !important;
+  gap: 14px !important;
+  width: min(720px, calc(100% - 28px)) !important;
+  margin: 0 auto !important;
+  padding: 18px 0 calc(34px + env(safe-area-inset-bottom)) !important;
+}
+
+.weather-quiz-overview {
+  display: grid !important;
+  gap: 7px !important;
+  border: 1px solid rgba(38, 217, 255, 0.18) !important;
+  border-radius: 16px !important;
+  padding: 14px !important;
+  background: rgba(38, 217, 255, 0.055) !important;
+}
+
+.weather-quiz-overview strong {
+  color: #8ff4ff !important;
+  font-size: 0.82rem !important;
+}
+
+.weather-quiz-overview p,
+.weather-quiz-loading {
+  margin: 0 !important;
+  color: rgba(255, 255, 255, 0.72) !important;
+  font-size: 0.76rem !important;
+  line-height: 1.65 !important;
+}
+
+.weather-quiz-loading {
+  padding: 18px 4px !important;
+  text-align: center !important;
+}
+
+.weather-quiz-loading.hidden,
+.weather-quiz-card.hidden,
+.weather-quiz-actions.hidden {
+  display: none !important;
+}
+
+.learning-weather-section {
+  display: grid !important;
+  gap: 14px !important;
+}
+
+.learning-section-heading {
+  padding: 18px 2px 2px !important;
+}
+
+.learning-section-heading h2 {
+  margin: 6px 0 8px !important;
+  color: #fff !important;
+  font-size: 1.08rem !important;
+}
+
+.learning-section-heading p,
+.learning-safety-note {
+  margin: 0 !important;
+  color: rgba(255, 255, 255, 0.68) !important;
+  font-size: 0.8rem !important;
+  line-height: 1.65 !important;
+}
+
+.learning-alert-grid {
+  display: grid !important;
+  gap: 9px !important;
+  margin-top: 12px !important;
+}
+
+.learning-alert-item {
+  display: grid !important;
+  gap: 5px !important;
+  border: 1px solid color-mix(in srgb, var(--learning-alert-color, #38bdf8) 42%, transparent) !important;
+  border-left-width: 5px !important;
+  border-radius: 14px !important;
+  padding: 12px 13px !important;
+  background: color-mix(in srgb, var(--learning-alert-color, #38bdf8) 9%, transparent) !important;
+}
+
+.learning-alert-item strong {
+  color: #fff !important;
+  font-size: 0.9rem !important;
+}
+
+.learning-alert-item span {
+  color: var(--learning-alert-color, #7dd3fc) !important;
+  font-size: 0.72rem !important;
+  font-weight: 850 !important;
+}
+
+.learning-alert-item p {
+  margin: 0 !important;
+  color: rgba(255, 255, 255, 0.74) !important;
+  font-size: 0.8rem !important;
+  line-height: 1.55 !important;
+}
+
+.learning-alert-item.is-tsunami-advisory,
+.learning-alert-item.is-level-2 { --learning-alert-color: #facc15; }
+.learning-alert-item.is-tsunami-warning,
+.learning-alert-item.is-level-3 { --learning-alert-color: #ef3340; }
+.learning-alert-item.is-level-4 { --learning-alert-color: #c084fc; }
+.learning-alert-item.is-major-tsunami,
+.learning-alert-item.is-level-5 { --learning-alert-color: #a855f7; }
+
+.learning-safety-note {
+  margin-top: 12px !important;
+}
+
+.learning-level-table-wrap {
+  margin-top: 12px !important;
+  overflow-x: auto !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 14px !important;
+}
+
+.learning-level-table {
+  width: 100% !important;
+  min-width: 940px !important;
+  border-collapse: collapse !important;
+  font-size: 0.76rem !important;
+}
+
+.learning-level-table th,
+.learning-level-table td {
+  padding: 11px 10px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: rgba(255, 255, 255, 0.78) !important;
+  text-align: left !important;
+  vertical-align: top !important;
+}
+
+.learning-level-table thead th {
+  background: rgba(255, 255, 255, 0.055) !important;
+  color: #fff !important;
+  white-space: nowrap !important;
+}
+
+.learning-level-table tbody th {
+  width: 58px !important;
+  color: #fff !important;
+  font-size: 0.9rem !important;
+  text-align: center !important;
+}
+
+.learning-level-table tbody tr.is-level-5 th { color: #d8b4fe !important; }
+.learning-level-table tbody tr.is-level-4 th { color: #c084fc !important; }
+.learning-level-table tbody tr.is-level-3 th { color: #fb7185 !important; }
+.learning-level-table tbody tr.is-level-2 th { color: #facc15 !important; }
+.learning-level-table tbody tr.is-level-1 th { color: #f8fafc !important; }
+
+.learning-level-table tbody tr:last-child th,
+.learning-level-table tbody tr:last-child td {
+  border-bottom: 0 !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-overview p,
+html[data-resolved-theme="light"] .weather-quiz-loading,
+html[data-resolved-theme="light"] .learning-section-heading p,
+html[data-resolved-theme="light"] .learning-safety-note,
+html[data-resolved-theme="light"] .learning-alert-item p,
+html[data-resolved-theme="light"] .learning-level-table th,
+html[data-resolved-theme="light"] .learning-level-table td {
+  color: rgba(15, 23, 42, 0.76) !important;
+}
+
+html[data-resolved-theme="light"] .learning-section-heading h2,
+html[data-resolved-theme="light"] .learning-alert-item strong,
+html[data-resolved-theme="light"] .learning-level-table thead th,
+html[data-resolved-theme="light"] .learning-level-table tbody th {
+  color: #111827 !important;
+}
+
+/* Learning headings and focus-only slim scrollbar. */
+#learning-full-panel {
+  scrollbar-width: none !important;
+}
+
+#learning-full-panel:hover,
+#learning-full-panel:focus-within {
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(38, 217, 255, 0.48) transparent !important;
+}
+
+#learning-full-panel::-webkit-scrollbar {
+  width: 0 !important;
+}
+
+#learning-full-panel:hover::-webkit-scrollbar,
+#learning-full-panel:focus-within::-webkit-scrollbar {
+  width: 4px !important;
+}
+
+#learning-full-panel::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+#learning-full-panel::-webkit-scrollbar-thumb {
+  border-radius: 999px !important;
+  background: rgba(38, 217, 255, 0.48) !important;
+}
+
+.learning-hero {
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 4px 2px 2px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Weather forecaster quiz setup, self-grading, and results. */
+#weather-quiz-stage {
+  display: grid !important;
+  gap: 14px !important;
+}
+
+.weather-quiz-setup {
+  display: grid !important;
+  gap: 14px !important;
+}
+
+.weather-quiz-setup fieldset {
+  display: grid !important;
+  gap: 9px !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 17px !important;
+  padding: 14px !important;
+  background: rgba(255, 255, 255, 0.035) !important;
+}
+
+.weather-quiz-setup legend,
+.weather-quiz-count-field > span {
+  padding: 0 5px !important;
+  color: rgba(255, 255, 255, 0.92) !important;
+  font-size: 0.86rem !important;
+  font-weight: 900 !important;
+}
+
+.weather-quiz-setup fieldset > small,
+.weather-quiz-count-field > small {
+  color: rgba(255, 255, 255, 0.48) !important;
+  font-size: 0.69rem !important;
+}
+
+.weather-quiz-choice-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+}
+
+.weather-quiz-year-grid {
+  grid-template-columns: 1fr !important;
+}
+
+.weather-quiz-choice-grid label {
+  position: relative !important;
+  min-width: 0 !important;
+  cursor: pointer !important;
+}
+
+.weather-quiz-choice-grid input {
+  position: absolute !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.weather-quiz-choice-grid label > span {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+  min-height: 42px !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 13px !important;
+  padding: 9px 11px !important;
+  background: rgba(255, 255, 255, 0.035) !important;
+  color: rgba(255, 255, 255, 0.68) !important;
+  font-size: 0.8rem !important;
+  font-weight: 850 !important;
+}
+
+.weather-quiz-choice-grid label > span::before {
+  content: "" !important;
+  flex: 0 0 auto !important;
+  width: 15px !important;
+  height: 15px !important;
+  border: 1px solid rgba(255, 255, 255, 0.34) !important;
+  border-radius: 5px !important;
+}
+
+.weather-quiz-choice-grid input:checked + span {
+  border-color: rgba(38, 217, 255, 0.52) !important;
+  background: rgba(38, 217, 255, 0.11) !important;
+  color: #eaffff !important;
+}
+
+.weather-quiz-choice-grid input:checked + span::before {
+  border-color: #26d9ff !important;
+  background: #26d9ff !important;
+  box-shadow: inset 0 0 0 3px #08232a !important;
+}
+
+.weather-quiz-choice-grid span small {
+  margin-left: auto !important;
+  color: rgba(255, 255, 255, 0.46) !important;
+  font-size: 0.66rem !important;
+}
+
+.weather-quiz-count-field {
+  display: grid !important;
+  grid-template-columns: 1fr 84px auto !important;
+  align-items: center !important;
+  gap: 9px !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 17px !important;
+  padding: 13px !important;
+  background: rgba(255, 255, 255, 0.035) !important;
+}
+
+.weather-quiz-count-field input {
+  width: 84px !important;
+  height: 40px !important;
+  border: 1px solid rgba(38, 217, 255, 0.32) !important;
+  border-radius: 12px !important;
+  padding: 0 10px !important;
+  background: rgba(0, 0, 0, 0.24) !important;
+  color: #fff !important;
+  font-weight: 900 !important;
+  text-align: center !important;
+}
+
+.weather-quiz-start,
+.weather-quiz-next,
+.weather-quiz-restart {
+  min-height: 44px !important;
+  border: 1px solid rgba(38, 217, 255, 0.42) !important;
+  border-radius: 14px !important;
+  padding: 9px 16px !important;
+  background: linear-gradient(180deg, rgba(38, 217, 255, 0.28), rgba(38, 217, 255, 0.14)) !important;
+  color: #dffcff !important;
+  font-weight: 900 !important;
+}
+
+.weather-quiz-setup-error {
+  min-height: 1em !important;
+  margin: -5px 3px !important;
+  color: #ff8da1 !important;
+  font-size: 0.73rem !important;
+}
+
+.weather-quiz-progress-row {
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 10px !important;
+  color: rgba(255, 255, 255, 0.58) !important;
+  font-size: 0.72rem !important;
+  font-weight: 850 !important;
+}
+
+.weather-quiz-progress {
+  height: 5px !important;
+  overflow: hidden !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.09) !important;
+}
+
+.weather-quiz-progress i {
+  display: block !important;
+  height: 100% !important;
+  border-radius: inherit !important;
+  background: #26d9ff !important;
+}
+
+.weather-quiz-meta {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 6px !important;
+}
+
+.weather-quiz-meta span {
+  border: 1px solid rgba(38, 217, 255, 0.24) !important;
+  border-radius: 999px !important;
+  padding: 4px 9px !important;
+  background: rgba(38, 217, 255, 0.075) !important;
+  color: #8ff4ff !important;
+  font-size: 0.67rem !important;
+  font-weight: 850 !important;
+}
+
+.weather-quiz-judgment {
+  display: grid !important;
+  gap: 8px !important;
+}
+
+.weather-quiz-judgment > p {
+  margin: 0 !important;
+  color: rgba(255, 255, 255, 0.58) !important;
+  font-size: 0.73rem !important;
+  text-align: center !important;
+}
+
+.weather-quiz-judgment > div {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 9px !important;
+}
+
+.weather-quiz-judgment button {
+  min-height: 50px !important;
+  border: 1px solid rgba(255, 255, 255, 0.13) !important;
+  border-radius: 15px !important;
+  background: rgba(255, 255, 255, 0.045) !important;
+  color: rgba(255, 255, 255, 0.82) !important;
+  font-weight: 900 !important;
+}
+
+.weather-quiz-judgment button b {
+  margin-right: 5px !important;
+  font-size: 1.25rem !important;
+}
+
+.weather-quiz-judgment button.is-correct b { color: #35e09a !important; }
+.weather-quiz-judgment button.is-wrong b { color: #ff667f !important; }
+.weather-quiz-judgment button.is-selected.is-correct { border-color: #35e09a !important; background: rgba(53, 224, 154, 0.12) !important; }
+.weather-quiz-judgment button.is-selected.is-wrong { border-color: #ff667f !important; background: rgba(255, 102, 127, 0.12) !important; }
+.weather-quiz-judgment button:disabled { opacity: 0.68 !important; }
+
+.weather-quiz-judgment.hidden,
+.weather-quiz-next.hidden,
+.weather-quiz-actions button.hidden {
+  display: none !important;
+}
+
+.weather-quiz-results {
+  display: grid !important;
+  justify-items: center !important;
+  gap: 5px !important;
+  border: 1px solid rgba(38, 217, 255, 0.24) !important;
+  border-radius: 20px !important;
+  padding: 22px 16px !important;
+  background: rgba(38, 217, 255, 0.065) !important;
+}
+
+.weather-quiz-results > span,
+.weather-quiz-results > p {
+  margin: 0 !important;
+  color: rgba(255, 255, 255, 0.56) !important;
+  font-size: 0.76rem !important;
+}
+
+.weather-quiz-results > strong {
+  color: #8ff4ff !important;
+  font-size: 2.25rem !important;
+}
+
+.weather-quiz-results > strong small {
+  color: rgba(255, 255, 255, 0.7) !important;
+  font-size: 0.82rem !important;
+}
+
+.weather-quiz-history {
+  display: grid !important;
+  gap: 8px !important;
+}
+
+.weather-quiz-history h3 {
+  margin: 3px 0 !important;
+  color: #fff !important;
+  font-size: 0.92rem !important;
+}
+
+.weather-quiz-history article {
+  display: grid !important;
+  grid-template-columns: 32px minmax(0, 1fr) !important;
+  gap: 9px !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 14px !important;
+  padding: 11px !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+}
+
+.weather-quiz-history article > b {
+  color: #35e09a !important;
+  font-size: 1.25rem !important;
+  text-align: center !important;
+}
+
+.weather-quiz-history article.is-wrong > b { color: #ff667f !important; }
+.weather-quiz-history article span { color: rgba(255, 255, 255, 0.52) !important; font-size: 0.66rem !important; }
+.weather-quiz-history article p { margin: 5px 0 !important; color: rgba(255, 255, 255, 0.88) !important; font-size: 0.78rem !important; line-height: 1.55 !important; }
+.weather-quiz-history article small { color: #9ceef8 !important; font-size: 0.72rem !important; line-height: 1.5 !important; }
+
+html[data-resolved-theme="light"] .weather-quiz-setup legend,
+html[data-resolved-theme="light"] .weather-quiz-count-field > span,
+html[data-resolved-theme="light"] .weather-quiz-choice-grid label > span,
+html[data-resolved-theme="light"] .weather-quiz-count-field input,
+html[data-resolved-theme="light"] .weather-quiz-history h3,
+html[data-resolved-theme="light"] .weather-quiz-history article p {
+  color: #111827 !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-setup fieldset,
+html[data-resolved-theme="light"] .weather-quiz-count-field,
+html[data-resolved-theme="light"] .weather-quiz-history article {
+  border-color: rgba(15, 23, 42, 0.13) !important;
+  background: rgba(255, 255, 255, 0.72) !important;
+}
+
+.weather-quiz-category {
+  justify-self: start !important;
+  margin: 0 !important;
+  border: 1px solid rgba(38, 217, 255, 0.35) !important;
+  border-radius: 999px !important;
+  padding: 5px 11px !important;
+  background: rgba(38, 217, 255, 0.12) !important;
+  color: #7ceeff !important;
+  font-size: 0.74rem !important;
+  font-weight: 900 !important;
+}
+
+.weather-quiz-card {
+  display: grid !important;
+  gap: 14px !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 20px !important;
+  padding: 18px !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.025)) !important;
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.2) !important;
+}
+
+.weather-quiz-label {
+  color: rgba(255, 255, 255, 0.5) !important;
+  font-size: 0.68rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.1em !important;
+}
+
+.weather-quiz-question,
+.weather-quiz-answer-text {
+  margin: 0 !important;
+  color: rgba(255, 255, 255, 0.94) !important;
+  font-size: clamp(0.98rem, 2.8vw, 1.12rem) !important;
+  font-weight: 850 !important;
+  line-height: 1.75 !important;
+  overflow-wrap: anywhere !important;
+}
+
+.weather-quiz-answer {
+  display: grid !important;
+  gap: 8px !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.12) !important;
+  padding-top: 14px !important;
+}
+
+.weather-quiz-proposed-answer {
+  display: grid !important;
+  gap: 8px !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.12) !important;
+  padding-top: 14px !important;
+}
+
+.weather-quiz-answer strong {
+  color: #35e09a !important;
+  font-size: 0.9rem !important;
+}
+
+.weather-quiz-answer.is-wrong strong {
+  color: #ff667f !important;
+}
+
+.weather-quiz-answer span {
+  color: rgba(255, 255, 255, 0.52) !important;
+  font-size: 0.68rem !important;
+  font-weight: 900 !important;
+}
+
+.weather-quiz-answer p {
+  margin: 0 !important;
+  color: #a4f5ff !important;
+  font-size: 0.86rem !important;
+  line-height: 1.65 !important;
+}
+
+.weather-quiz-answer.hidden {
+  display: none !important;
+}
+
+.weather-quiz-answer-text {
+  color: #a4f5ff !important;
+}
+
+.weather-quiz-actions {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+}
+
+.weather-quiz-actions button {
+  min-height: 44px !important;
+  border: 1px solid rgba(38, 217, 255, 0.34) !important;
+  border-radius: 14px !important;
+  padding: 8px 12px !important;
+  background: rgba(38, 217, 255, 0.12) !important;
+  color: #e8fbff !important;
+  font-size: 0.84rem !important;
+  font-weight: 900 !important;
+}
+
+.weather-quiz-actions button:last-child {
+  background: linear-gradient(180deg, rgba(38, 217, 255, 0.28), rgba(38, 217, 255, 0.14)) !important;
+  color: #8ff4ff !important;
+}
+
+.weather-quiz-actions button:disabled {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  color: rgba(255, 255, 255, 0.38) !important;
+}
+
+.weather-quiz-note {
+  margin: 0 !important;
+  color: rgba(255, 255, 255, 0.44) !important;
+  font-size: 0.68rem !important;
+  line-height: 1.6 !important;
+}
+
+html[data-resolved-theme="light"] .tool-menu-copy strong,
+html[data-resolved-theme="light"] .weather-quiz-question,
+html[data-resolved-theme="light"] .weather-quiz-answer-text {
+  color: rgba(15, 23, 42, 0.94) !important;
+}
+
+html[data-resolved-theme="light"] .tool-menu-copy small,
+html[data-resolved-theme="light"] .weather-quiz-label,
+html[data-resolved-theme="light"] .weather-quiz-note {
+  color: rgba(15, 23, 42, 0.58) !important;
+}
+
+/* The question view has one primary reveal action. */
+.weather-quiz-actions {
+  grid-template-columns: 1fr !important;
+}
+
+/* Flat required-tag colors with a clear marker outline. */
+.community-post-marker {
+  border: 2px solid rgba(255, 255, 255, 0.86) !important;
+  background: #069fb7 !important;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.72), 0 5px 12px rgba(0, 0, 0, 0.38) !important;
+}
+
+.community-post-marker[data-community-tag="weather"] {
+  background: #138ed3 !important;
+}
+
+.community-post-marker[data-community-tag="disaster"] {
+  background: #d6263c !important;
+}
+
+.community-post-marker[data-community-tag="earthquake"] {
+  background: #26a85c !important;
+}
+
+.community-post-marker[data-community-tag="safety"] {
+  background: #d8ae18 !important;
+}
+
+.community-post-marker.is-count {
+  width: 22px !important;
+  height: 22px !important;
+  min-width: 22px !important;
+  min-height: 22px !important;
+  display: grid !important;
+  place-items: center !important;
+  color: #fff !important;
+  font-size: 11px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  letter-spacing: -0.02em !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.72) !important;
+}
+
+.community-post-marker.is-count.is-tag-group {
+  width: auto !important;
+  height: 22px !important;
+  min-width: 0 !important;
+  min-height: 22px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 3px !important;
+  overflow: visible !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+}
+
+.community-post-marker-count {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  flex: 0 0 22px;
+  place-items: center;
+  border: 2px solid rgba(255, 255, 255, 0.86);
+  border-radius: 50%;
+  background: #069fb7;
+  color: #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.72), 0 5px 12px rgba(0, 0, 0, 0.38);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.72);
+}
+
+.community-post-marker-count[data-community-tag="weather"] {
+  background: #138ed3;
+}
+
+.community-post-marker-count[data-community-tag="disaster"] {
+  background: #d6263c;
+}
+
+.community-post-marker-count[data-community-tag="earthquake"] {
+  background: #26a85c;
+}
+
+.community-post-marker-count[data-community-tag="safety"] {
+  background: #d8ae18;
+}
+
+/* Place one divider exactly halfway between account actions and status cards. */
+.community-account-panel {
+  margin-bottom: 0 !important;
+  padding-bottom: 0 !important;
+  border-bottom: 0 !important;
+}
+
+.community-account-status:empty {
+  display: none !important;
+}
+
+.settings-status-group {
+  position: relative !important;
+  margin-top: 28px !important;
+}
+
+.settings-status-group::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -14px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  pointer-events: none;
+}
+
+/* Optically center the three long settings pages within the visible viewport. */
+.settings-menu-sheet.settings-detail-open #settings-source-panel .source-info-overlay-content,
+.settings-menu-sheet.settings-detail-open #settings-privacy-panel .settings-privacy-content,
+.settings-menu-sheet.settings-detail-open #settings-admin-panel .settings-admin-embedded {
+  width: calc(100% - 32px) !important;
+  max-width: none !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  box-sizing: border-box !important;
+  transform: translateX(3px) !important;
+}
+
+/* Keep the first admin action clear of the detail header. */
+.settings-menu-sheet.settings-detail-open #settings-admin-panel .settings-admin-embedded {
+  padding-top: 16px !important;
+}
+
+/* Use a short, clearly horizontal feedback action. */
+.settings-inline-panel.settings-detail-panel .settings-feedback-form .feedback-submit {
+  width: 156px !important;
+  min-width: 156px !important;
+  max-width: 156px !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  max-height: 34px !important;
+  padding: 0 26px !important;
+  justify-self: end !important;
+  line-height: 1 !important;
+}
+
+/* Single clean vectors: no fallback glyphs or overlapping icon layers on iOS. */
+#bottom-history-tab .bottom-tab-icon,
+#bottom-info-tab .bottom-tab-icon,
+#bottom-settings-tab .bottom-tab-icon {
+  font-size: 0 !important;
+  line-height: 0 !important;
+}
+
+#bottom-history-tab .bottom-tab-icon::before,
+#bottom-info-tab .bottom-tab-icon::before,
+#bottom-settings-tab .bottom-tab-icon::before {
+  content: "" !important;
+  position: absolute !important;
+  display: block !important;
+  inset: auto !important;
+  left: 2px !important;
+  top: 2px !important;
+  width: 24px !important;
+  height: 24px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: currentColor !important;
+  box-shadow: none !important;
+  transform: none !important;
+  clip-path: none !important;
+  mask-position: center !important;
+  mask-repeat: no-repeat !important;
+  mask-size: contain !important;
+  -webkit-mask-position: center !important;
+  -webkit-mask-repeat: no-repeat !important;
+  -webkit-mask-size: contain !important;
+}
+
+#bottom-history-tab .bottom-tab-icon::before {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='3'/%3E%3Cpath d='M12 8v8M8 12h8'/%3E%3C/svg%3E") !important;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='3'/%3E%3Cpath d='M12 8v8M8 12h8'/%3E%3C/svg%3E") !important;
+}
+
+#bottom-info-tab .bottom-tab-icon::before {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.1' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M3 12h18M12 3c3 3.5 3 14 0 18M12 3c-3 3.5-3 14 0 18'/%3E%3C/svg%3E") !important;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.1' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M3 12h18M12 3c3 3.5 3 14 0 18M12 3c-3 3.5-3 14 0 18'/%3E%3C/svg%3E") !important;
+}
+
+#bottom-settings-tab .bottom-tab-icon::before {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 6h7M14 6h7M3 12h3M10 12h11M3 18h9M16 18h5'/%3E%3Ccircle cx='12' cy='6' r='2'/%3E%3Ccircle cx='8' cy='12' r='2'/%3E%3Ccircle cx='14' cy='18' r='2'/%3E%3C/svg%3E") !important;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 6h7M14 6h7M3 12h3M10 12h11M3 18h9M16 18h5'/%3E%3Ccircle cx='12' cy='6' r='2'/%3E%3Ccircle cx='8' cy='12' r='2'/%3E%3Ccircle cx='14' cy='18' r='2'/%3E%3C/svg%3E") !important;
+}
+
+#bottom-history-tab .bottom-tab-icon::after,
+#bottom-info-tab .bottom-tab-icon::after,
+#bottom-settings-tab .bottom-tab-icon::after {
+  content: none !important;
+  display: none !important;
 }
