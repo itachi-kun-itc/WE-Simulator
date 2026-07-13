@@ -14468,6 +14468,456 @@ body.community-pick-mode .community-post-button {
   display: none !important;
 }
 
+/* Typhoon learning guide and forecast-track diagram. */
+.learning-typhoon-section {
+  display: grid !important;
+  min-width: 0 !important;
+  gap: 14px !important;
+}
+
+.learning-typhoon-fact-grid,
+.learning-typhoon-scale-grid,
+.learning-typhoon-symbol-list {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 9px !important;
+  margin-top: 12px !important;
+}
+
+.learning-typhoon-fact-grid article,
+.learning-typhoon-symbol-list article,
+.learning-typhoon-action-list article {
+  min-width: 0 !important;
+  border: 1px solid rgba(255, 255, 255, 0.085) !important;
+  border-radius: 13px !important;
+  background: rgba(255, 255, 255, 0.025) !important;
+}
+
+.learning-typhoon-fact-grid article {
+  display: grid !important;
+  gap: 5px !important;
+  padding: 12px !important;
+  border-color: rgba(69, 220, 241, 0.18) !important;
+  background: rgba(36, 177, 200, 0.055) !important;
+}
+
+.learning-typhoon-fact-grid strong,
+.learning-typhoon-scale-grid h4 {
+  color: #8ff4ff !important;
+  font-size: 0.84rem !important;
+}
+
+.learning-typhoon-fact-grid span {
+  color: rgba(255, 255, 255, 0.7) !important;
+  font-size: 0.76rem !important;
+  line-height: 1.6 !important;
+}
+
+.learning-typhoon-route-diagram {
+  width: 100% !important;
+  max-width: 680px !important;
+  margin: 14px auto 4px !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(117, 229, 245, 0.2) !important;
+  border-radius: 16px !important;
+  background:
+    linear-gradient(rgba(98, 208, 224, 0.055) 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(90deg, rgba(98, 208, 224, 0.055) 1px, transparent 1px) 0 0 / 24px 24px,
+    radial-gradient(circle at 18% 84%, rgba(25, 116, 132, 0.18), transparent 36%),
+    #081216 !important;
+}
+
+.learning-typhoon-route-diagram svg {
+  display: block !important;
+  width: 100% !important;
+  height: auto !important;
+}
+
+.learning-typhoon-route-diagram path,
+.learning-typhoon-route-diagram circle,
+.learning-typhoon-route-diagram ellipse,
+.learning-typhoon-route-diagram rect {
+  vector-effect: non-scaling-stroke !important;
+}
+
+.learning-typhoon-route-diagram text {
+  fill: rgba(255, 255, 255, 0.72) !important;
+  font: 700 10px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+}
+
+.typhoon-warning-envelope {
+  fill: none !important;
+  stroke: #ff334f !important;
+  stroke-width: 2.2 !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+}
+
+.typhoon-past-route {
+  fill: none !important;
+  stroke: #38bdf8 !important;
+  stroke-width: 3 !important;
+  stroke-linecap: round !important;
+}
+
+.typhoon-forecast-route {
+  fill: none !important;
+  stroke: rgba(255, 255, 255, 0.86) !important;
+  stroke-width: 2 !important;
+  stroke-dasharray: 6 6 !important;
+  stroke-linecap: round !important;
+}
+
+.typhoon-forecast-guide,
+.typhoon-forecast-circle-links {
+  fill: none !important;
+  stroke: rgba(255, 255, 255, 0.58) !important;
+  stroke-width: 1.25 !important;
+  stroke-linecap: round !important;
+}
+
+.typhoon-forecast-circle-links {
+  stroke: rgba(255, 255, 255, 0.72) !important;
+}
+
+.typhoon-strong-wind-area {
+  fill: rgba(250, 204, 21, 0.17) !important;
+  stroke: #facc15 !important;
+  stroke-width: 2.2 !important;
+}
+
+.typhoon-storm-area {
+  fill: rgba(255, 55, 85, 0.18) !important;
+  stroke: #ff405f !important;
+  stroke-width: 3 !important;
+}
+
+.typhoon-forecast-circle {
+  fill: rgba(255, 255, 255, 0.025) !important;
+  stroke: rgba(255, 255, 255, 0.9) !important;
+  stroke-width: 2 !important;
+  stroke-dasharray: 5 5 !important;
+}
+
+.typhoon-current-mark {
+  fill: none !important;
+  stroke: #fff !important;
+  stroke-width: 3 !important;
+  stroke-linecap: round !important;
+}
+
+.typhoon-forecast-center {
+  fill: #fff !important;
+  stroke: #071216 !important;
+  stroke-width: 1.5 !important;
+}
+
+.typhoon-callout rect {
+  stroke: rgba(0, 0, 0, 0.32) !important;
+  stroke-width: 1.25 !important;
+}
+
+.typhoon-callout text {
+  text-anchor: middle !important;
+  dominant-baseline: middle !important;
+  font-size: 18px !important;
+  font-weight: 950 !important;
+}
+
+.typhoon-callout > path {
+  fill: none !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+}
+
+.typhoon-callout-forecast rect {
+  fill: #f8fafc !important;
+}
+
+.typhoon-callout-forecast text {
+  fill: #101827 !important;
+}
+
+.typhoon-callout-forecast > path {
+  stroke: #fff !important;
+  stroke-width: 4 !important;
+}
+
+.typhoon-callout-strong rect {
+  fill: #ffe500 !important;
+}
+
+.typhoon-callout-strong text {
+  fill: #101010 !important;
+}
+
+.typhoon-callout-strong > path {
+  stroke: #ffe500 !important;
+  stroke-width: 7 !important;
+}
+
+.typhoon-callout-storm rect,
+.typhoon-callout-warning rect {
+  fill: #e20b22 !important;
+}
+
+.typhoon-callout-storm text,
+.typhoon-callout-warning text {
+  fill: #fff !important;
+}
+
+.typhoon-callout-storm > path,
+.typhoon-callout-warning > path {
+  stroke: #e20b22 !important;
+  stroke-width: 7 !important;
+}
+
+.learning-typhoon-symbol-list article {
+  display: grid !important;
+  grid-template-columns: 34px minmax(0, 1fr) !important;
+  align-items: start !important;
+  gap: 9px !important;
+  padding: 10px !important;
+}
+
+.learning-typhoon-symbol-list article > span {
+  position: relative !important;
+  display: grid !important;
+  width: 30px !important;
+  height: 30px !important;
+  place-items: center !important;
+  box-sizing: border-box !important;
+  color: #fff !important;
+  font-size: 1.35rem !important;
+  font-weight: 900 !important;
+}
+
+.learning-typhoon-symbol-list .is-strong-wind,
+.learning-typhoon-symbol-list .is-storm,
+.learning-typhoon-symbol-list .is-forecast,
+.learning-typhoon-symbol-list .is-warning-area {
+  border-radius: 50% !important;
+}
+
+.learning-typhoon-symbol-list .is-strong-wind { border: 2px solid #facc15 !important; }
+.learning-typhoon-symbol-list .is-storm { border: 3px solid #ff405f !important; }
+.learning-typhoon-symbol-list .is-forecast { border: 2px dashed rgba(255, 255, 255, 0.92) !important; }
+.learning-typhoon-symbol-list .is-warning-area {
+  border: 2px solid #ff526d !important;
+  background: rgba(255, 82, 109, 0.08) !important;
+}
+
+.learning-typhoon-symbol-list .is-center-line::before {
+  content: "" !important;
+  width: 28px !important;
+  border-top: 2px dashed rgba(255, 255, 255, 0.9) !important;
+}
+
+.learning-typhoon-symbol-list strong,
+.learning-typhoon-action-list strong {
+  display: block !important;
+  color: rgba(255, 255, 255, 0.94) !important;
+  font-size: 0.79rem !important;
+  line-height: 1.4 !important;
+}
+
+.learning-typhoon-symbol-list p,
+.learning-typhoon-action-list p {
+  margin: 3px 0 0 !important;
+  color: rgba(255, 255, 255, 0.67) !important;
+  font-size: 0.73rem !important;
+  line-height: 1.57 !important;
+}
+
+.learning-typhoon-scale-grid > div {
+  min-width: 0 !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(255, 255, 255, 0.09) !important;
+  border-radius: 13px !important;
+}
+
+.learning-typhoon-scale-grid h4 {
+  margin: 0 !important;
+  padding: 10px 11px !important;
+  background: rgba(255, 255, 255, 0.055) !important;
+}
+
+.learning-typhoon-scale-grid table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  font-size: 0.72rem !important;
+}
+
+.learning-typhoon-scale-grid th,
+.learning-typhoon-scale-grid td {
+  padding: 9px 10px !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.07) !important;
+  color: rgba(255, 255, 255, 0.72) !important;
+  text-align: left !important;
+  vertical-align: middle !important;
+}
+
+.learning-typhoon-scale-grid th {
+  width: 42% !important;
+  color: rgba(255, 255, 255, 0.92) !important;
+}
+
+.learning-typhoon-action-list {
+  display: grid !important;
+  gap: 9px !important;
+  margin-top: 12px !important;
+}
+
+.learning-typhoon-action-list article {
+  display: grid !important;
+  grid-template-columns: 32px minmax(0, 1fr) !important;
+  gap: 10px !important;
+  align-items: start !important;
+  padding: 11px 12px !important;
+}
+
+.learning-typhoon-action-list article > span {
+  display: grid !important;
+  width: 30px !important;
+  height: 30px !important;
+  place-items: center !important;
+  border-radius: 10px !important;
+  background: rgba(38, 217, 255, 0.14) !important;
+  color: #8ff4ff !important;
+  font-size: 0.8rem !important;
+  font-weight: 950 !important;
+}
+
+html[data-resolved-theme="light"] .learning-typhoon-fact-grid span,
+html[data-resolved-theme="light"] .learning-typhoon-symbol-list p,
+html[data-resolved-theme="light"] .learning-typhoon-scale-grid th,
+html[data-resolved-theme="light"] .learning-typhoon-scale-grid td,
+html[data-resolved-theme="light"] .learning-typhoon-action-list p {
+  color: rgba(15, 23, 42, 0.74) !important;
+}
+
+html[data-resolved-theme="light"] .learning-typhoon-symbol-list strong,
+html[data-resolved-theme="light"] .learning-typhoon-action-list strong,
+html[data-resolved-theme="light"] .learning-typhoon-scale-grid th {
+  color: #111827 !important;
+}
+
+@media (max-width: 640px) {
+  .learning-typhoon-fact-grid,
+  .learning-typhoon-scale-grid,
+  .learning-typhoon-symbol-list {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+/* Community-map refresh and current-location controls. */
+.community-map-controls {
+  position: fixed;
+  left: max(12px, env(safe-area-inset-left));
+  bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 18px);
+  z-index: 12520;
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+}
+
+body.community-map-mode .community-map-controls {
+  display: flex;
+}
+
+body.community-pick-mode .community-map-controls {
+  display: none !important;
+}
+
+.community-map-control {
+  position: relative;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid rgba(118, 224, 240, 0.48);
+  border-radius: 12px;
+  background: rgba(8, 18, 22, 0.94);
+  color: #b7f7ff;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.38), inset 0 1px rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+  transition: border-color 150ms ease, color 150ms ease, transform 150ms ease;
+}
+
+.community-map-control:hover,
+.community-map-control:focus-visible {
+  border-color: rgba(89, 231, 250, 0.9);
+  color: #54eaff;
+  outline: none;
+}
+
+.community-map-control:active {
+  transform: scale(0.95);
+}
+
+.community-map-control:disabled {
+  cursor: wait;
+  opacity: 0.82;
+}
+
+.community-map-control.is-success {
+  border-color: rgba(67, 222, 154, 0.92);
+  color: #5ff0ad;
+}
+
+.community-map-control.is-error {
+  border-color: rgba(255, 92, 118, 0.92);
+  color: #ff718a;
+}
+
+.community-map-control > span {
+  position: relative;
+  display: block;
+  width: 22px;
+  height: 22px;
+  box-sizing: border-box;
+  background: currentColor;
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-size: contain;
+  -webkit-mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+}
+
+.community-map-refresh > span {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='white' d='M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.75 10h-2.1A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35Z'/%3E%3C/svg%3E");
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='white' d='M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.75 10h-2.1A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35Z'/%3E%3C/svg%3E");
+}
+
+.community-map-current-location > span {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='white' fill-rule='evenodd' d='M11 1h2v2.06A9 9 0 0 1 20.94 11H23v2h-2.06A9 9 0 0 1 13 20.94V23h-2v-2.06A9 9 0 0 1 3.06 13H1v-2h2.06A9 9 0 0 1 11 3.06V1Zm1 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14Zm0 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z'/%3E%3C/svg%3E");
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='white' fill-rule='evenodd' d='M11 1h2v2.06A9 9 0 0 1 20.94 11H23v2h-2.06A9 9 0 0 1 13 20.94V23h-2v-2.06A9 9 0 0 1 3.06 13H1v-2h2.06A9 9 0 0 1 11 3.06V1Zm1 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14Zm0 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z'/%3E%3C/svg%3E");
+}
+
+.community-map-control.is-loading > span {
+  animation: community-map-control-spin 700ms linear infinite;
+}
+
+@keyframes community-map-control-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 720px) {
+  .community-map-controls {
+    left: max(10px, env(safe-area-inset-left));
+    bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 14px);
+  }
+
+  .community-map-control {
+    width: 42px;
+    height: 42px;
+  }
+}
+
 /* Keep the EEW area list on the simulation map only. */
 body:not([data-active-bottom-tab="earthquake-tab"]) .eew-forecast-panel,
 body.community-map-mode .eew-forecast-panel,
@@ -14498,6 +14948,7 @@ body.tool-source-search-mode .eew-forecast-panel {
 #learning-full-panel .learning-intensity-list,
 #learning-full-panel .learning-intensity-item,
 #learning-full-panel .learning-weather-section,
+#learning-full-panel .learning-typhoon-section,
 #learning-full-panel .learning-warning-kind-table-wrap,
 #learning-full-panel .learning-level-table-wrap {
   min-width: 0 !important;
@@ -14663,6 +15114,10 @@ body.tool-source-search-mode #history-full-panel .tool-page-back {
   border-radius: 16px !important;
   padding: 14px !important;
   background: rgba(38, 217, 255, 0.055) !important;
+}
+
+.weather-quiz-overview.hidden {
+  display: none !important;
 }
 
 .weather-quiz-overview strong {
@@ -15065,6 +15520,80 @@ html[data-resolved-theme="light"] .learning-warning-kind-table tbody th small {
   background: linear-gradient(180deg, rgba(38, 217, 255, 0.28), rgba(38, 217, 255, 0.14)) !important;
   color: #dffcff !important;
   font-weight: 900 !important;
+}
+
+.weather-quiz-start:disabled {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  background: rgba(255, 255, 255, 0.045) !important;
+  color: rgba(255, 255, 255, 0.32) !important;
+  cursor: not-allowed !important;
+}
+
+.weather-quiz-count-field input:disabled {
+  opacity: 0.42 !important;
+  cursor: not-allowed !important;
+}
+
+.weather-quiz-leave-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 30050 !important;
+  display: grid !important;
+  place-items: center !important;
+  box-sizing: border-box !important;
+  padding: 22px !important;
+  background: rgba(0, 5, 8, 0.76) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+}
+
+.weather-quiz-leave-dialog {
+  width: min(100%, 390px) !important;
+  box-sizing: border-box !important;
+  border: 1px solid rgba(80, 224, 245, 0.28) !important;
+  border-radius: 20px !important;
+  padding: 22px 20px 18px !important;
+  background: linear-gradient(160deg, rgba(23, 31, 35, 0.98), rgba(8, 12, 14, 0.99)) !important;
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.56) !important;
+  color: #fff !important;
+}
+
+.weather-quiz-leave-dialog h2 {
+  margin: 0 !important;
+  font-size: 1.08rem !important;
+  line-height: 1.45 !important;
+}
+
+.weather-quiz-leave-dialog p {
+  margin: 10px 0 18px !important;
+  color: rgba(255, 255, 255, 0.7) !important;
+  font-size: 0.86rem !important;
+  line-height: 1.7 !important;
+}
+
+.weather-quiz-leave-actions {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+}
+
+.weather-quiz-leave-actions button {
+  min-height: 44px !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 13px !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: rgba(255, 255, 255, 0.82) !important;
+  font-weight: 900 !important;
+}
+
+.weather-quiz-leave-actions [data-weather-quiz-leave-yes] {
+  border-color: rgba(255, 82, 109, 0.48) !important;
+  background: rgba(255, 65, 93, 0.14) !important;
+  color: #ffb3bf !important;
+}
+
+body.weather-quiz-leave-open {
+  overflow: hidden !important;
 }
 
 .weather-quiz-setup-error {
