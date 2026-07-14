@@ -17568,6 +17568,19 @@ body[data-active-bottom-tab="earthquake-tab"] .intensity-scale span {
   padding: 4px 2px 2px !important;
 }
 
+@media (max-width: 720px) {
+  #setup-panel.setup-menu-open,
+  #setup-panel.sim-panel[data-sheet-state="open"] {
+    top: auto !important;
+    height: min(67svh, calc(100svh - var(--bottom-nav-height) - env(safe-area-inset-bottom) - 16px)) !important;
+    max-height: min(67svh, calc(100svh - var(--bottom-nav-height) - env(safe-area-inset-bottom) - 16px)) !important;
+  }
+
+  #setup-panel.sim-panel.is-dragging {
+    max-height: min(67svh, var(--sheet-drag-height, 67svh)) !important;
+  }
+}
+
 html[data-resolved-theme="light"] .learning-category-switch {
   background: rgba(248, 250, 252, 0.98);
 }

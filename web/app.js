@@ -7929,7 +7929,9 @@ function setupMobileSheets() {
 
 function getSetupSheetOpenHeight(viewportHeight = window.visualViewport?.height || window.innerHeight || 720) {
   const bottomTabsHeight = document.querySelector(".bottom-tabs")?.getBoundingClientRect().height || 64;
-  return Math.max(56, viewportHeight - bottomTabsHeight - 16);
+  const availableHeight = viewportHeight - bottomTabsHeight - 16;
+  const preferredHeight = isCompactViewport() ? viewportHeight * 0.67 : availableHeight;
+  return Math.max(56, Math.min(availableHeight, preferredHeight));
 }
 
 function setupTransientPanelScrollbars() {
