@@ -1019,6 +1019,7 @@ async function listCommunityPosts(env, request) {
         p.latitude,
         p.longitude,
         p.location_mode AS locationMode,
+        p.place_name AS placeName,
         p.tags_json AS tagsJson,
         p.text,
         p.media_key AS mediaKey,
@@ -1059,6 +1060,7 @@ async function createCommunityPost(request, env, context) {
   const locationMode = ["current", "vague", "map"].includes(String(formData.get("locationMode")))
     ? String(formData.get("locationMode"))
     : "map";
+  const placeName = String(formData.get("placeName") || "").trim().slice(0, 120);
   const tags = normalizeCommunityPostTags(formData.getAll("tags"));
   const text = String(formData.get("text") || "").trim().slice(0, 1200);
   const media = formData.get("media");
@@ -1112,6 +1114,7 @@ async function createCommunityPost(request, env, context) {
         latitude,
         longitude,
         location_mode,
+        place_name,
         tags_json,
         text,
         media_key,
@@ -1122,13 +1125,14 @@ async function createCommunityPost(request, env, context) {
         author_icon,
         created_at,
         updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       id,
       latitude,
       longitude,
       locationMode,
+      placeName,
       JSON.stringify(tags),
       text,
       mediaKey,
@@ -1156,6 +1160,7 @@ async function createCommunityPost(request, env, context) {
     latitude,
     longitude,
     locationMode,
+    placeName,
     tagsJson: JSON.stringify(tags),
     text,
     mediaKey,
@@ -1685,6 +1690,7 @@ function normalizeCommunityPostRow(row, requestUrl) {
     latitude: Number(row.latitude),
     longitude: Number(row.longitude),
     locationMode: String(row.locationMode || "map"),
+    placeName: String(row.placeName || ""),
     tags,
     text: String(row.text || ""),
     mediaType: String(row.mediaType || ""),
@@ -1808,6 +1814,7 @@ async function ensureCommunityPostsSchema(db) {
         latitude REAL NOT NULL,
         longitude REAL NOT NULL,
         location_mode TEXT NOT NULL DEFAULT 'map',
+        place_name TEXT NOT NULL DEFAULT '',
         tags_json TEXT NOT NULL DEFAULT '[]',
         text TEXT NOT NULL DEFAULT '',
         media_key TEXT,
@@ -1824,6 +1831,7 @@ async function ensureCommunityPostsSchema(db) {
   await ensureColumn(db, "community_posts", "account_id", "TEXT");
   await ensureColumn(db, "community_posts", "author_name", "TEXT");
   await ensureColumn(db, "community_posts", "author_icon", "TEXT");
+  await ensureColumn(db, "community_posts", "place_name", "TEXT NOT NULL DEFAULT ''");
   await db
     .prepare("CREATE INDEX IF NOT EXISTS idx_community_posts_created_at ON community_posts(created_at DESC)")
     .run();
