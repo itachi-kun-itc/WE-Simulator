@@ -162,6 +162,15 @@
 
             <section class="settings-section setup-result-section" aria-labelledby="setup-result-title" data-settings-section="result" hidden>
               <h3 id="setup-result-title">結果・シミュレーション</h3>
+            <div class="simulation-progress-panel" aria-label="シミュレーション進行状況">
+              <div class="simulation-progress-head">
+                <span>進行状況</span>
+                <strong id="simulation-progress-time">0.0 / 0.0 秒</strong>
+              </div>
+              <div class="simulation-progress-track" id="simulation-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <i id="simulation-progress-fill"></i>
+              </div>
+            </div>
             <dl class="result-list">
               <div>
                 <dt>震央市町村</dt>
@@ -257,7 +266,7 @@
 
             <div class="simulation-actions">
               <button class="simulation-pause" id="simulation-pause" type="button">一時停止</button>
-              <button class="simulation-stop" id="simulation-stop" type="button">シミュレーション中止</button>
+              <button class="simulation-stop" id="simulation-stop" type="button">シミュレーション終了</button>
             </div>
             </section>
 
