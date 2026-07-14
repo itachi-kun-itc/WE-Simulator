@@ -12702,7 +12702,7 @@ body.community-post-detail-open .community-post-button {
   min-width: 0;
 }
 
-.community-post-author span {
+.community-post-author > span {
   display: grid;
   place-items: center;
   width: 34px;
@@ -12739,6 +12739,61 @@ body.community-post-detail-open .community-post-button {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 16px;
+}
+
+.community-post-author-actions {
+  margin-left: auto;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+}
+
+.community-post-like-button,
+.community-post-follow-button {
+  min-height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  padding: 0 11px;
+  font: 900 12px/1 system-ui, sans-serif;
+}
+
+.community-post-like-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #ffb5c2;
+  font-size: 20px;
+}
+
+.community-post-like-button span {
+  width: auto;
+  height: auto;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 11px;
+}
+
+.community-post-like-button.is-liked {
+  border-color: rgba(255, 91, 122, 0.55);
+  background: rgba(142, 24, 53, 0.4);
+  color: #ff5b7a;
+}
+
+.community-post-follow-button {
+  border-color: rgba(64, 224, 255, 0.5);
+  color: #8ff6ff;
+}
+
+.community-post-follow-button.is-following {
+  background: rgba(17, 111, 126, 0.48);
+}
+
+.community-post-like-button:disabled,
+.community-post-follow-button:disabled {
+  opacity: 0.55;
 }
 
 .community-account-required {
@@ -12862,6 +12917,44 @@ body.community-post-detail-open .community-post-button {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 22px;
+}
+
+.community-profile-follow-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 2px;
+}
+
+.community-profile-main .community-profile-follow-counts button {
+  min-height: auto;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  padding: 2px 0;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: rgba(143, 246, 255, 0.42);
+  text-underline-offset: 3px;
+}
+
+.community-profile-follow-counts b {
+  color: #fff;
+  font-size: 13px;
+}
+
+.community-profile-follow-counts button:active {
+  color: #8ff6ff;
+}
+
+.community-profile-follow-counts button:disabled {
+  color: #fff;
+  opacity: 1;
+  cursor: default;
+  text-decoration: none;
 }
 
 .community-account-create-form,
@@ -13109,6 +13202,89 @@ body.community-post-detail-open .community-post-button {
   font-style: normal;
   font-size: 11px;
   font-weight: 900;
+}
+
+.community-connection-list {
+  display: grid;
+  gap: 9px;
+  max-width: 620px;
+  margin: 0 auto;
+}
+
+.community-connection-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 66px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.community-connection-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.11);
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.community-connection-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.community-connection-name {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  flex: 1 1 auto;
+}
+
+.community-connection-name strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.community-connection-name span {
+  width: max-content;
+  color: #8ff6ff;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.community-connection-follow {
+  min-height: 36px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(64, 224, 255, 0.55);
+  border-radius: 999px;
+  background: rgba(8, 83, 95, 0.72);
+  color: #8ff6ff;
+  padding: 0 13px;
+  font-weight: 900;
+}
+
+.community-connection-follow.is-following {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.community-connection-follow:disabled {
+  opacity: 0.55;
+}
+
+.community-connection-empty {
+  margin: 24px 0;
+  color: rgba(255, 255, 255, 0.62);
+  text-align: center;
 }
 
 /* Current request fixes: source-search dropdown layout, single post tag, colored post markers, icon preview. */
@@ -14751,6 +14927,47 @@ html[data-resolved-theme="light"] .learning-typhoon-scale-grid th {
 }
 
 /* Community-map refresh and current-location controls. */
+.community-map-style-controls {
+  position: fixed;
+  left: max(12px, env(safe-area-inset-left));
+  top: max(12px, env(safe-area-inset-top));
+  z-index: 12520;
+  display: none;
+  overflow: hidden;
+  padding: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 12px;
+  background: rgba(8, 18, 22, 0.9);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(10px);
+}
+
+body.community-map-mode .community-map-style-controls {
+  display: flex;
+}
+
+.community-map-style-controls button {
+  min-width: 62px;
+  height: 34px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  padding: 0 10px;
+  font: 900 12px/1 system-ui, sans-serif;
+}
+
+.community-map-style-controls button.is-active {
+  background: #eafcff;
+  color: #083a43;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+}
+
+.community-map-style-controls button:focus-visible {
+  outline: 2px solid #54eaff;
+  outline-offset: -2px;
+}
+
 .community-map-controls {
   position: fixed;
   left: max(12px, env(safe-area-inset-left));
@@ -14847,6 +15064,17 @@ body.community-pick-mode .community-map-controls {
 }
 
 @media (max-width: 720px) {
+  .community-map-style-controls {
+    left: max(10px, env(safe-area-inset-left));
+    top: max(10px, env(safe-area-inset-top));
+  }
+
+  .community-map-style-controls button {
+    min-width: 58px;
+    height: 32px;
+    padding: 0 8px;
+  }
+
   .community-map-controls {
     left: max(10px, env(safe-area-inset-left));
     bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 14px);
@@ -14951,6 +15179,10 @@ body.tool-weather-quiz-mode #info-full-panel .tool-page-head h2 {
   font-size: 0.98rem !important;
 }
 
+body.tool-weather-quiz-mode #info-full-panel .tool-page-head h2 {
+  white-space: nowrap !important;
+}
+
 body.tool-station-search-mode #info-full-panel .tool-page-back,
 body.tool-weather-quiz-mode #info-full-panel .tool-page-back {
   width: 36px !important;
@@ -15021,6 +15253,10 @@ body.tool-source-search-mode #history-full-panel .tool-page-back {
   font-size: 0.96rem !important;
   font-weight: 950 !important;
   line-height: 1.2 !important;
+}
+
+.tool-menu-row[data-tool-page="weather-quiz"] .tool-menu-copy strong {
+  white-space: nowrap !important;
 }
 
 .tool-menu-copy small {
@@ -15373,6 +15609,16 @@ html[data-resolved-theme="light"] .learning-warning-kind-table tbody th small {
   grid-template-columns: 1fr !important;
 }
 
+.weather-quiz-choice-grid.weather-quiz-category-grid label > span {
+  justify-content: flex-start !important;
+  text-align: left !important;
+}
+
+.weather-quiz-mode-grid label > span {
+  justify-content: flex-start !important;
+  white-space: nowrap !important;
+}
+
 .weather-quiz-choice-grid label {
   position: relative !important;
   min-width: 0 !important;
@@ -15621,6 +15867,36 @@ body.weather-quiz-leave-open {
 .weather-quiz-judgment button.is-selected.is-wrong { border-color: #ff667f !important; background: rgba(255, 102, 127, 0.12) !important; }
 .weather-quiz-judgment button:disabled { opacity: 0.68 !important; }
 
+.weather-quiz-fill-options {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+.weather-quiz-fill-options button {
+  min-height: 56px !important;
+  padding: 9px 12px !important;
+  line-height: 1.4 !important;
+}
+
+.weather-quiz-fill-options button.is-correct-answer {
+  border-color: #35e09a !important;
+  background: rgba(53, 224, 154, 0.12) !important;
+  color: #b9ffdf !important;
+  opacity: 1 !important;
+}
+
+.weather-quiz-fill-options button.is-selected.is-wrong {
+  border-color: #ff667f !important;
+  background: rgba(255, 102, 127, 0.12) !important;
+  color: #ffc1cb !important;
+  opacity: 1 !important;
+}
+
+@media (max-width: 520px) {
+  .weather-quiz-fill-options {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
 .weather-quiz-judgment.hidden,
 .weather-quiz-next.hidden,
 .weather-quiz-actions button.hidden {
@@ -15739,6 +16015,10 @@ html[data-resolved-theme="light"] .weather-quiz-history article {
   font-weight: 850 !important;
   line-height: 1.75 !important;
   overflow-wrap: anywhere !important;
+}
+
+.weather-quiz-question {
+  white-space: pre-line;
 }
 
 .weather-quiz-answer {

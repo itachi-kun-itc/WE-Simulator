@@ -31,12 +31,19 @@ const FEEDBACK_ENDPOINT_URL =
 const PUSH_CONFIG_URL = "./push-config.json";
 const EARTHQUAKE_STATISTICS_FALLBACK_URL = "./data/earthquake_statistics.json";
 const USGS_EARTHQUAKE_QUERY_URL = "https://earthquake.usgs.gov/fdsnws/event/1/query";
-const COMMUNITY_MAP_TILE_URLS = [
+const COMMUNITY_MAP_LIGHT_TILE_URLS = [
+  "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
+  "https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
+  "https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
+  "https://d.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
+];
+const COMMUNITY_MAP_DARK_TILE_URLS = [
   "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
   "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
   "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
   "https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
 ];
+const COMMUNITY_MAP_STYLE_STORAGE_KEY = "we-simulator-community-map-style";
 const COMMUNITY_MAP_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
 const COMMUNITY_MAP_FALLBACK_CENTER = [137.2, 37.0];
@@ -635,11 +642,13 @@ let communityPostLocation = null;
 let communityPostLocationResolveRequestId = 0;
 let communityPostOverlayElements = null;
 let activeCommunityPostDetail = null;
+let communityMapStyle = loadCommunityMapStylePreference();
 let communityAccount = loadCommunityAccountFromStorage();
 document.body?.classList.toggle("community-admin-account", Boolean(communityAccount?.isAdmin));
 document.body?.classList.toggle("community-local-account", Boolean(communityAccount?.localOnly));
 let communityAccountRequiredPanel = null;
 let communityAccountPanel = null;
+let communityAccountStatsPromise = null;
 
 function updateHistoryStatisticsLoadButtonState() {
   const button = document.querySelector("#history-statistics-load");
@@ -713,7 +722,7 @@ const SOURCE_SECTIONS = [
   },
   {
     title: "気象予報士試験",
-    description: "気象予報士1問1答の知識範囲と学科解答の確認に使用している一次資料。問題文は転載せず、内容を短い独自表現へ言い換えています。",
+    description: "気象予報士試験 対策問題集の出題範囲と正答内容の確認に使用している一次資料。問題文は転載せず、学習用の独自問題へ再構成しています。",
     links: [
       {
         label: "気象業務支援センター 試験問題と解答例",
@@ -1451,12 +1460,12 @@ function setupTabs() {
             <span class="tool-menu-copy"><strong>観測点検索</strong><small>震度観測点を地域・機関・名称から検索します。</small></span><span aria-hidden="true">›</span>
           </button>
           <button class="tool-menu-row" type="button" data-tool-page="weather-quiz">
-            <span class="tool-menu-copy"><strong>気象予報士 1問1答</strong><small>一般・専門知識と年次・問題数を選び、○✕で回答すると自動で正誤判定されます。</small></span><span aria-hidden="true">›</span>
+            <span class="tool-menu-copy"><strong>気象予報士試験 対策問題集</strong><small>一般・専門知識と年次・問題数・問題形式を選び、○×問題または4択問題で学習できます。</small></span><span aria-hidden="true">›</span>
           </button>
         </div>
       </section>
       <section class="tool-station-page hidden" id="tool-station-page" aria-label="観測点検索"></section>
-      <section class="tool-weather-quiz-page hidden" id="tool-weather-quiz-page" aria-label="気象予報士1問1答"></section>
+      <section class="tool-weather-quiz-page hidden" id="tool-weather-quiz-page" aria-label="気象予報士試験 対策問題集"></section>
     `;
     els.infoFullPanel.querySelector('[data-tool-page="source"]')?.addEventListener("click", () => openInfoSourceSearchPage());
     els.infoFullPanel.querySelector('[data-tool-page="station"]')?.addEventListener("click", () => openInfoStationSearchPage());
@@ -1807,6 +1816,71 @@ function setupTabs() {
 
   const getWeatherQuizStage = () => els.infoFullPanel?.querySelector("#weather-quiz-stage");
 
+  const WEATHER_QUIZ_FILL_TERM_GROUPS = [
+    ["露点温度", "湿球温度", "仮温度", "相当温位"],
+    ["衝突・併合過程", "凝結過程", "昇華過程", "蒸発過程"],
+    ["断熱膨張", "断熱圧縮", "放射冷却", "顕熱加熱"],
+    ["海上保安官", "市町村長", "都道府県知事", "気象庁長官"],
+    ["融解層", "混合層", "逆転層", "対流圏界面"],
+    ["地衡風", "傾度風", "旋衡風", "摩擦風"],
+    ["寒冷前線", "温暖前線", "停滞前線", "閉塞前線"],
+    ["海風", "陸風", "谷風", "山風"],
+    ["対流圏", "成層圏", "中間圏", "熱圏"],
+    ["積乱雲", "積雲", "層雲", "巻雲"],
+    ["上層雲", "中・下層雲", "対流雲", "層状雲"],
+    ["系統誤差", "ランダム誤差", "平均誤差", "二乗平均平方根誤差"],
+    ["捕捉率", "空振り率", "見逃し率", "適中率"],
+    ["相対湿度", "水蒸気混合比", "比湿", "飽和水蒸気圧"],
+    ["ドップラー効果", "反射強度", "偏波間位相差", "偏波間相関係数"],
+    ["第一推定値", "解析値", "予報値", "観測値"],
+    ["寒帯前線ジェット", "亜熱帯ジェット", "偏東風ジェット", "下層ジェット"],
+    ["ユーラシアパターン", "PNAパターン", "PJパターン", "北極振動"],
+    ["沈降性逆転層", "前線性逆転層", "接地逆転層", "乱流逆転層"],
+    ["ラジオゾンデ", "ウィンドプロファイラ", "気象レーダー", "ライダー"],
+    ["可視画像", "赤外画像", "水蒸気画像", "マイクロ波画像"],
+    ["流域雨量指数", "土壌雨量指数", "表面雨量指数", "降水短時間予報"],
+    ["エルニーニョ現象", "ラニーニャ現象", "ダイポールモード現象", "北極振動"],
+    ["相対渦度", "発散", "収束", "鉛直流"],
+    ["大気境界層", "自由大気", "対流圏界面", "成層圏"],
+    ["水蒸気", "二酸化炭素", "酸素", "窒素"],
+    ["オゾン", "酸素分子", "酸素原子", "水蒸気"],
+    ["気圧傾度力", "コリオリ力", "遠心力", "摩擦力"],
+    ["温位", "相当温位", "仮温度", "露点温度"],
+    ["放射霧", "移流霧", "蒸気霧", "前線霧"],
+    ["暖気移流", "寒気移流", "水平発散", "水平収束"],
+    ["短波放射", "長波放射", "顕熱輸送", "潜熱輸送"],
+  ];
+
+  const createWeatherQuizFillItem = (item) => {
+    if (item?.quizMode === "fill" && Array.isArray(item.options)) {
+      return { ...item, options: shuffleWeatherQuizItems(item.options) };
+    }
+    const answer = String(item?.answer || "").trim();
+    for (const terms of WEATHER_QUIZ_FILL_TERM_GROUPS) {
+      const correctTerm = terms.find((term) => answer.includes(term));
+      if (!correctTerm) {
+        continue;
+      }
+      const answerBlank = "【　　　】";
+      const blankedAnswer = answer
+        .split(correctTerm)
+        .join(answerBlank)
+        // 空欄の直後に略称が残ると、選択肢を見ただけで正解できてしまうため一緒に隠す。
+        .replace(/【　　　】\s*[（(][^）)\n]{1,24}[）)]/gu, answerBlank);
+      if (terms.some((term) => term !== correctTerm && blankedAnswer.includes(term))) {
+        continue;
+      }
+      return {
+        ...item,
+        quizMode: "fill",
+        question: `次の問いに対する正しい用語を選んでください。\n${item.question}\n\n回答文：${blankedAnswer}`,
+        correctTerm,
+        options: shuffleWeatherQuizItems(terms),
+      };
+    }
+    return null;
+  };
+
   const resetWeatherQuizContentScroll = (stage) => {
     const quizContent = stage?.closest(".weather-quiz-content");
     if (!quizContent) {
@@ -1823,20 +1897,102 @@ function setupTabs() {
     item,
   ])).values()];
 
-  const startWeatherQuizSession = (items) => {
-    const uniqueItems = getUniqueWeatherQuizItems(items);
+  const createWeatherQuizTrueFalseStatement = (item, claim) => {
+    const question = String(item?.question || "").trim().replace(/[？?。]+$/, "");
+    const normalizedClaim = String(claim || "")
+      .trim()
+      .replace(/^(?:はい|いいえ)[、,。\s]*/u, "");
+
+    // 「必要ですか」「発生しますか」などの諾否問題は、回答の極性に合わせて
+    // 質問文そのものを断定文へ変える。これにより「問題＋提示された回答」ではなく、
+    // 「○○は必要である」のように、表示された一文だけを○×判定できる。
+    const hasQuestionWord = /(?:何|どれ|どちら|どのよう|いくつ|答えて)/u.test(question);
+    const predicateMatches = question.match(/(?:ですか|ますか)/gu) || [];
+    const firstClaimSentence = normalizedClaim.split("。")[0];
+    const auxiliaryPredicate = question.match(/(なり|あり|でき)ますか$/u)?.[1] || "";
+    const verbPredicate = question.match(/([一-龠々]{2,4}(?:し|され))ますか$/u)?.[1] || "";
+    const nominalPredicate = question.match(/(必要|不要|有効|可能|対象)ですか$/u)?.[1] || "";
+    const claimMatchesPredicate = auxiliaryPredicate
+      ? firstClaimSentence.startsWith(auxiliaryPredicate)
+      : Boolean(
+        (verbPredicate && firstClaimSentence.includes(verbPredicate))
+        || (nominalPredicate && firstClaimSentence.includes(nominalPredicate)),
+      );
+    if (
+      !hasQuestionWord
+      && predicateMatches.length === 1
+      && /(?:ですか|ますか)$/u.test(question)
+      && claimMatchesPredicate
+    ) {
+      const negativeClaim = /(?:ありません|ではありません|できません|なりません|しません|されません|不要です|必要ない|わけではありません|とは限りません|判断できません)/u
+        .test(firstClaimSentence);
+      if (/ですか$/u.test(question)) {
+        return `${question.replace(/ですか$/u, negativeClaim ? "ではありません" : "です")}。`;
+      }
+      return `${question.replace(/ますか$/u, negativeClaim ? "ません" : "ます")}。`;
+    }
+
+    const comparisonChoice = question.match(
+      /^(.+?は、?.+?と比べて)(?:速い|遅い|高い|低い|大きい|小さい|多い|少ない)ですか、(?:速い|遅い|高い|低い|大きい|小さい|多い|少ない)ですか$/u,
+    );
+    if (comparisonChoice) {
+      return `${comparisonChoice[1]}${normalizedClaim}`;
+    }
+
+    // 回答自体に主語・論点が含まれる場合は、それをそのまま判定文として使う。
+    // 複数の問いを無理につないで不自然な文章になることも防ぐ。
+    const claimHasOwnTopic = /^[^。、]{2,32}(?:は|が|には|では|によって|の場合)/u.test(firstClaimSentence);
+    if (claimHasOwnTopic || predicateMatches.length > 1) {
+      return normalizedClaim;
+    }
+
+    // 数値・用語・比較を尋ねる問題では、質問文側の主題と回答をつないで
+    // 「気圧差は約7.0hPaです」のような、意味の完結した断定文にする。
+    const topicEnd = question.lastIndexOf("は");
+    if (topicEnd >= 2) {
+      const topic = question.slice(0, topicEnd + 1);
+      const topicSubject = topic.slice(0, -1).split(/[、。]/u).pop()?.trim() || "";
+      if (topicSubject && firstClaimSentence.startsWith(`${topicSubject}は`)) {
+        return normalizedClaim;
+      }
+      if (!/[？?]/u.test(topic) && !/(?:こと|場合|もの)は$/u.test(topic)) {
+        return `${topic}${normalizedClaim}`;
+      }
+    }
+
+    // 主題を安全に補えない問題でも、括弧書きの元質問は併記せず、
+    // 回答に含まれる説明を一つの断定文として提示する。
+    return normalizedClaim;
+  };
+
+  const startWeatherQuizSession = (items, mode = "truefalse") => {
+    const quizMode = mode === "fill" ? "fill" : "truefalse";
+    const preparedItems = quizMode === "fill"
+      ? items.map(createWeatherQuizFillItem).filter(Boolean)
+      : items;
+    const uniqueItems = getUniqueWeatherQuizItems(preparedItems);
     if (!uniqueItems.length) {
       return;
     }
     const correctFirst = Math.random() >= 0.5;
     weatherQuizSession = {
+      mode: quizMode,
       questions: uniqueItems.map((item, index) => {
+        if (quizMode === "fill") {
+          return {
+            ...item,
+            options: shuffleWeatherQuizItems(item.options),
+          };
+        }
         const shouldShowCorrectAnswer = index % 2 === (correctFirst ? 0 : 1);
         const distractor = createWeatherQuizDistractor(item);
+        const answerIsCorrect = shouldShowCorrectAnswer || !distractor;
+        const presentedStatement = answerIsCorrect ? item.answer : distractor;
         return {
           ...item,
-          answerIsCorrect: shouldShowCorrectAnswer || !distractor,
-          presentedAnswer: shouldShowCorrectAnswer || !distractor ? item.answer : distractor,
+          answerIsCorrect,
+          presentedAnswer: presentedStatement,
+          statement: createWeatherQuizTrueFalseStatement(item, presentedStatement),
         };
       }),
       index: 0,
@@ -1858,8 +2014,16 @@ function setupTabs() {
     stage.innerHTML = `
       <form class="weather-quiz-setup" data-weather-quiz-setup>
         <fieldset>
+          <legend>問題形式</legend>
+          <div class="weather-quiz-choice-grid weather-quiz-mode-grid">
+            <label><input type="radio" name="mode" value="truefalse" checked /><span><b>○×問題</b></span></label>
+            <label><input type="radio" name="mode" value="fill" /><span><b>4択問題</b></span></label>
+          </div>
+          <small>どちらか一方を選択してください。</small>
+        </fieldset>
+        <fieldset>
           <legend>出題区分</legend>
-          <div class="weather-quiz-choice-grid">
+          <div class="weather-quiz-choice-grid weather-quiz-category-grid">
             ${["一般知識", "専門知識"].map((category) => `
               <label><input type="checkbox" name="category" value="${category}" checked /><span>${category}</span></label>
             `).join("")}
@@ -1886,12 +2050,16 @@ function setupTabs() {
     `;
     const setupForm = stage.querySelector("[data-weather-quiz-setup]");
     const getSetupSelection = (form) => {
+      const mode = form.elements.mode?.value === "fill" ? "fill" : "truefalse";
       const categories = [...form.querySelectorAll('input[name="category"]:checked')].map((input) => input.value);
       const examsSelected = [...form.querySelectorAll('input[name="exam"]:checked')].map((input) => input.value);
-      const candidates = getUniqueWeatherQuizItems(weatherForecasterQuizItems.filter((item) => (
+      const sourceCandidates = getUniqueWeatherQuizItems(weatherForecasterQuizItems.filter((item) => (
         categories.includes(item.category) && examsSelected.includes(item.exam)
       )));
-      return { categories, examsSelected, candidates };
+      const candidates = mode === "fill"
+        ? sourceCandidates.map(createWeatherQuizFillItem).filter(Boolean)
+        : sourceCandidates;
+      return { mode, categories, examsSelected, candidates };
     };
     const syncSetupState = () => {
       if (!setupForm) {
@@ -1919,7 +2087,7 @@ function setupTabs() {
         error.textContent = "";
       }
     };
-    setupForm?.querySelectorAll('input[name="category"], input[name="exam"]').forEach((input) => {
+    setupForm?.querySelectorAll('input[name="mode"], input[name="category"], input[name="exam"]').forEach((input) => {
       input.addEventListener("change", syncSetupState);
     });
     setupForm?.querySelector('input[name="count"]')?.addEventListener("change", syncSetupState);
@@ -1927,7 +2095,7 @@ function setupTabs() {
     setupForm?.addEventListener("submit", (event) => {
       event.preventDefault();
       const form = event.currentTarget;
-      const { categories, examsSelected, candidates } = getSetupSelection(form);
+      const { mode, categories, examsSelected, candidates } = getSetupSelection(form);
       const error = form.querySelector(".weather-quiz-setup-error");
       if (!categories.length || !examsSelected.length) {
         error.textContent = "出題区分と出題年次を1つ以上選択してください。";
@@ -1940,7 +2108,7 @@ function setupTabs() {
       const count = clamp(Math.round(Number(form.elements.count.value) || 15), 1, candidates.length);
       form.elements.count.value = String(count);
       const selectedQuestions = shuffleWeatherQuizItems(candidates).slice(0, count);
-      startWeatherQuizSession(selectedQuestions);
+      startWeatherQuizSession(selectedQuestions, mode);
     });
     resetWeatherQuizContentScroll(stage);
   };
@@ -1953,28 +2121,38 @@ function setupTabs() {
       return;
     }
     stage.closest(".weather-quiz-content")?.querySelector(".weather-quiz-overview")?.classList.add("hidden");
-    stage.innerHTML = `
-      <div class="weather-quiz-progress-row">
-        <span>${session.index + 1} / ${session.questions.length}</span>
-        <div class="weather-quiz-progress"><i style="width:${((session.index + 1) / session.questions.length) * 100}%"></i></div>
-      </div>
-      <div class="weather-quiz-meta"><span>${escapeHtml(item.category)}</span><span>${escapeHtml(item.year)}</span><span>${escapeHtml(item.exam)}</span></div>
-      <article class="weather-quiz-card">
-        <span class="weather-quiz-label">問題</span>
-        <p class="weather-quiz-question">${escapeHtml(item.question)}</p>
-        <div class="weather-quiz-proposed-answer">
-          <span class="weather-quiz-label">提示された答え</span>
-          <p class="weather-quiz-answer-text">${escapeHtml(item.presentedAnswer)}</p>
+    const isFillQuestion = session.mode === "fill";
+    const displayedQuestion = isFillQuestion ? item.question : item.statement;
+    const responseControlsHtml = isFillQuestion ? `
+      <div class="weather-quiz-judgment weather-quiz-fill-judgment" aria-label="正しい用語を回答">
+        <p>正しい用語はどれ？</p>
+        <div class="weather-quiz-fill-options">
+          ${item.options.map((option) => `
+            <button type="button" data-weather-quiz-option="${escapeHtml(option)}">${escapeHtml(option)}</button>
+          `).join("")}
         </div>
-        <div class="weather-quiz-answer hidden" aria-live="polite"></div>
-      </article>
+      </div>
+    ` : `
       <div class="weather-quiz-judgment" aria-label="正誤を回答">
-        <p>提示された答えは正しい？</p>
+        <p>この記述は正しい？</p>
         <div>
           <button class="is-correct" type="button" data-weather-quiz-judge="correct"><b>○</b> 正しい</button>
           <button class="is-wrong" type="button" data-weather-quiz-judge="wrong"><b>✕</b> 誤り</button>
         </div>
       </div>
+    `;
+    stage.innerHTML = `
+      <div class="weather-quiz-progress-row">
+        <span>${session.index + 1} / ${session.questions.length}</span>
+        <div class="weather-quiz-progress"><i style="width:${((session.index + 1) / session.questions.length) * 100}%"></i></div>
+      </div>
+      <div class="weather-quiz-meta"><span>${isFillQuestion ? "4択問題" : "○×問題"}</span><span>${escapeHtml(item.category)}</span><span>${escapeHtml(item.year)}</span><span>${escapeHtml(item.exam)}</span></div>
+      <article class="weather-quiz-card">
+        <span class="weather-quiz-label">問題</span>
+        <p class="weather-quiz-question">${escapeHtml(displayedQuestion)}</p>
+        <div class="weather-quiz-answer hidden" aria-live="polite"></div>
+      </article>
+      ${responseControlsHtml}
       <button class="weather-quiz-next hidden" type="button" data-weather-quiz-next>${session.index + 1 === session.questions.length ? "結果を見る" : "次の問題"}</button>
     `;
     stage.querySelectorAll("[data-weather-quiz-judge]").forEach((button) => {
@@ -1996,7 +2174,41 @@ function setupTabs() {
           answer.classList.toggle("is-wrong", !correct);
           answer.innerHTML = `
             <strong>${correct ? "正解" : "不正解"}</strong>
-            <span>正しい答え</span>
+            <span>解説</span>
+            <p>${escapeHtml(item.answer)}</p>
+            <p>${item.answerIsCorrect
+              ? `この問題の論点は「${escapeHtml(item.question)}」です。問題文の記述は正しい内容と一致しています。結論だけでなく、上に示した条件や理由もあわせて確認してください。`
+              : `この問題の論点は「${escapeHtml(item.question)}」です。問題文では「${escapeHtml(item.presentedAnswer)}」としていましたが、この部分が正しい内容と一致しません。上に示した内容が正しい説明です。`}</p>
+          `;
+        }
+        stage.querySelector("[data-weather-quiz-next]")?.classList.remove("hidden");
+      });
+    });
+    stage.querySelectorAll("[data-weather-quiz-option]").forEach((button) => {
+      button.addEventListener("click", () => {
+        if (session.results[session.index]) {
+          return;
+        }
+        const selectedTerm = button.dataset.weatherQuizOption || "";
+        const correct = selectedTerm === item.correctTerm;
+        session.results[session.index] = { item, correct, selectedTerm };
+        stage.querySelectorAll("[data-weather-quiz-option]").forEach((choice) => {
+          choice.disabled = true;
+          const choiceTerm = choice.dataset.weatherQuizOption || "";
+          choice.classList.toggle("is-selected", choice === button);
+          choice.classList.toggle("is-correct-answer", choiceTerm === item.correctTerm);
+          choice.classList.toggle("is-wrong", choice === button && !correct);
+        });
+        const answer = stage.querySelector(".weather-quiz-answer");
+        if (answer) {
+          answer.classList.remove("hidden");
+          answer.classList.toggle("is-correct", correct);
+          answer.classList.toggle("is-wrong", !correct);
+          answer.innerHTML = `
+            <strong>${correct ? "正解" : "不正解"}</strong>
+            <span>正しい用語</span>
+            <p>${escapeHtml(item.correctTerm)}</p>
+            <span>解説</span>
             <p>${escapeHtml(item.answer)}</p>
           `;
         }
@@ -2037,15 +2249,18 @@ function setupTabs() {
         ${results.map((result, index) => `
           <article class="${result.correct ? "is-correct" : "is-wrong"}">
             <b>${result.correct ? "○" : "✕"}</b>
-            <div><span>${index + 1}. ${escapeHtml(result.item.category)}・${escapeHtml(result.item.exam)}</span><p>${escapeHtml(result.item.question)}</p><small>正しい答え：${escapeHtml(result.item.answer)}</small></div>
+            <div><span>${index + 1}. ${escapeHtml(result.item.category)}・${escapeHtml(result.item.exam)}</span><p>${escapeHtml(result.item.quizMode === "fill" ? result.item.question : result.item.statement)}</p><small>${result.item.quizMode === "fill" ? `正しい用語：${escapeHtml(result.item.correctTerm)}／解説：${escapeHtml(result.item.answer)}` : `解説：${escapeHtml(result.item.answer)}`}</small></div>
           </article>
         `).join("")}
       </section>
-      ${incorrectResults.length ? `<button class="weather-quiz-restart weather-quiz-retry-wrong" type="button" data-weather-quiz-retry-wrong>間違えた${incorrectResults.length}問に再挑戦</button>` : ""}
+      ${incorrectResults.length ? `<button class="weather-quiz-restart weather-quiz-retry-wrong" type="button" data-weather-quiz-retry-wrong>${weatherQuizSession?.mode === "fill" ? `間違えた${incorrectResults.length}問だけ復習` : `間違えた${incorrectResults.length}問に再挑戦`}</button>` : ""}
       <button class="weather-quiz-restart" type="button" data-weather-quiz-restart>条件を選び直す</button>
     `;
     stage.querySelector("[data-weather-quiz-retry-wrong]")?.addEventListener("click", () => {
-      startWeatherQuizSession(shuffleWeatherQuizItems(incorrectResults.map((result) => result.item)));
+      startWeatherQuizSession(
+        shuffleWeatherQuizItems(incorrectResults.map((result) => result.item)),
+        weatherQuizSession?.mode || "truefalse",
+      );
     });
     stage.querySelector("[data-weather-quiz-restart]")?.addEventListener("click", () => {
       renderWeatherQuizSetup();
@@ -2070,13 +2285,13 @@ function setupTabs() {
     page.innerHTML = `
       <div class="weather-quiz-content">
         <div class="weather-quiz-overview">
-          <strong>このツールについて</strong>
-          <p>問題と提示された答えを読み、○（正しい）か✕（誤り）を選ぶと自動で正誤判定します。</p>
-          <p>無断複製禁止の記載があるため、問題文をそのまま転載せず、各設問で問われている知識を短いオリジナルの一問一答へ言い換えて収録しています。</p>
+          <strong>気象予報士試験の学科対策</strong>
+          <p>一般知識・専門知識を、記述の正誤を判断する○×問題と、問いに対応する用語を選ぶ4択問題で学習できます。出題区分・年次・問題数・問題形式は開始前に選択できます。</p>
+          <p>試験問題の無断複製を避けるため、原文は転載せず、確認すべき知識と正答内容を基に独自の問題文と解説へ再構成しています。</p>
         </div>
         <p class="weather-quiz-loading" role="status">問題を読み込んでいます...</p>
         <div id="weather-quiz-stage"></div>
-        <p class="weather-quiz-note">第56回～第65回の学科問題を参考に、内容を一問一答形式へ再構成しています。</p>
+        <p class="weather-quiz-note">出典：一般財団法人気象業務支援センター「気象予報士試験 試験問題と解答例」。第56回～第65回の学科問題を参考に、学習用の独自問題へ再構成しています。</p>
       </div>
     `;
     page.dataset.ready = "true";
@@ -2094,7 +2309,7 @@ function setupTabs() {
     document.body.classList.remove("tool-source-search-mode", "tool-station-search-mode");
     document.body.classList.add("tool-weather-quiz-mode");
     const page = ensureInfoWeatherQuizPanel();
-    ensureToolPageHeader(page, "気象予報士 1問1答", showInfoToolHome);
+    ensureToolPageHeader(page, "気象予報士試験 対策問題集", showInfoToolHome);
     els.infoFullPanel?.querySelector("#tool-home-page")?.classList.add("hidden");
     els.infoFullPanel?.querySelector("#tool-station-page")?.classList.add("hidden");
     page?.classList.remove("hidden");
@@ -3316,6 +3531,7 @@ function setupTabs() {
     setHistoryMapModeActive(false);
     openSettingsMenuSheet();
     ensureCommunityAccountSettingsCard();
+    refreshCommunityAccountStats();
   });
 
   const toggleSettingsStatusCard = (statusCard) => {
@@ -4694,9 +4910,7 @@ function setCommunityMapModeActive(active) {
   if (active) {
     ensureCommunityMapLayer();
   }
-  if (map.getLayer("community-dark-map")) {
-    updateLayerVisibility("community-dark-map", Boolean(active));
-  }
+  updateCommunityMapStyleLayers(Boolean(active));
   map.setMaxZoom?.(active ? 18 : 14);
   if (active) {
     hiddenLayers.forEach((layerId) => updateLayerVisibility(layerId, false));
@@ -4740,37 +4954,98 @@ function restoreSimulationMapLayersAfterCommunityMode() {
     "jma-local-area-boundaries",
     "municipality-boundaries",
   ].forEach((layerId) => updateLayerVisibility(layerId, true));
-  if (map?.getLayer("community-dark-map")) {
-    updateLayerVisibility("community-dark-map", false);
-  }
+  updateLayerVisibility("community-light-map", false);
+  updateLayerVisibility("community-dark-map", false);
 }
 
 function ensureCommunityMapLayer() {
   if (!map) {
     return;
   }
-  if (!map.getSource("community-dark-map")) {
-    map.addSource("community-dark-map", {
+  if (!map.getSource("community-light-map")) {
+    map.addSource("community-light-map", {
       type: "raster",
-      tiles: COMMUNITY_MAP_TILE_URLS,
+      tiles: COMMUNITY_MAP_LIGHT_TILE_URLS,
       tileSize: 256,
       minzoom: 0,
       maxzoom: 19,
       attribution: COMMUNITY_MAP_ATTRIBUTION,
     });
   }
+  if (!map.getSource("community-dark-map")) {
+    map.addSource("community-dark-map", {
+      type: "raster",
+      tiles: COMMUNITY_MAP_DARK_TILE_URLS,
+      tileSize: 256,
+      minzoom: 0,
+      maxzoom: 19,
+      attribution: COMMUNITY_MAP_ATTRIBUTION,
+    });
+  }
+  const beforeId = map.getLayer("plate-boundaries") ? "plate-boundaries" : undefined;
+  if (!map.getLayer("community-light-map")) {
+    map.addLayer({
+      id: "community-light-map",
+      type: "raster",
+      source: "community-light-map",
+      paint: {
+        "raster-opacity": 1,
+        "raster-contrast": 0.12,
+        "raster-fade-duration": 120,
+      },
+    }, beforeId);
+  }
   if (!map.getLayer("community-dark-map")) {
-    const beforeId = map.getLayer("plate-boundaries") ? "plate-boundaries" : undefined;
     map.addLayer({
       id: "community-dark-map",
       type: "raster",
       source: "community-dark-map",
       paint: {
         "raster-opacity": 1,
+        "raster-contrast": 0,
         "raster-fade-duration": 120,
       },
     }, beforeId);
   }
+  updateCommunityMapStyleLayers(document.body.classList.contains("community-map-mode"));
+}
+
+function loadCommunityMapStylePreference() {
+  try {
+    return localStorage.getItem(COMMUNITY_MAP_STYLE_STORAGE_KEY) === "light" ? "light" : "dark";
+  } catch {
+    return "dark";
+  }
+}
+
+function setCommunityMapStyle(style, { persist = true } = {}) {
+  communityMapStyle = style === "dark" ? "dark" : "light";
+  document.body.dataset.communityMapStyle = communityMapStyle;
+  if (persist) {
+    try {
+      localStorage.setItem(COMMUNITY_MAP_STYLE_STORAGE_KEY, communityMapStyle);
+    } catch {
+      // 保存できない環境でも、その場での切り替えは維持します。
+    }
+  }
+  updateCommunityMapStyleLayers(document.body.classList.contains("community-map-mode"));
+  updateCommunityMapStyleButtons();
+}
+
+function updateCommunityMapStyleLayers(active = true) {
+  if (!map) {
+    return;
+  }
+  updateLayerVisibility("community-light-map", Boolean(active && communityMapStyle === "light"));
+  updateLayerVisibility("community-dark-map", Boolean(active && communityMapStyle === "dark"));
+}
+
+function updateCommunityMapStyleButtons() {
+  document.querySelectorAll("[data-community-map-style]").forEach((button) => {
+    const selected = button.dataset.communityMapStyle === communityMapStyle;
+    button.classList.toggle("is-active", selected);
+    button.setAttribute("aria-pressed", selected ? "true" : "false");
+  });
 }
 
 function updateHistoryMapIsolation() {
@@ -5208,6 +5483,11 @@ async function setupPushNotifications() {
 
     const subscription = await registration.pushManager.getSubscription();
     state.pushSubscribed = Boolean(subscription) && Notification.permission === "granted";
+    if (subscription) {
+      syncCommunityPushSubscriptionAccount(registration, subscription).catch((error) => {
+        console.warn("push subscription account sync failed", error);
+      });
+    }
     setPushNotificationStatus(
       state.pushSubscribed ? "通知は有効です。" : "通知を有効にできます。",
       { disabled: false },
@@ -5727,7 +6007,12 @@ async function fetchCommunityPostsFromWorker(workerUrl) {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       const url = `${workerUrl}/community-posts?limit=120&ts=${Date.now()}`;
-      const response = await fetch(url, { cache: "no-store" });
+      const response = await fetch(url, {
+        cache: "no-store",
+        headers: communityAccount?.token && !communityAccount.localOnly
+          ? { Authorization: `Bearer ${communityAccount.token}` }
+          : {},
+      });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(data?.error || `community posts load failed (${response.status})`);
@@ -5962,6 +6247,17 @@ function ensureCommunityPostUi() {
     centerCommunityMapOnRequestedCurrentLocation(currentLocationControl);
   });
 
+  const styleControls = document.createElement("div");
+  styleControls.className = "community-map-style-controls";
+  styleControls.setAttribute("aria-label", "投稿マップの配色");
+  styleControls.innerHTML = `
+    <button type="button" data-community-map-style="light" aria-pressed="false">ライト</button>
+    <button type="button" data-community-map-style="dark" aria-pressed="false">ダーク</button>
+  `;
+  styleControls.querySelectorAll("[data-community-map-style]").forEach((styleButton) => {
+    styleButton.addEventListener("click", () => setCommunityMapStyle(styleButton.dataset.communityMapStyle));
+  });
+
   const overlay = document.createElement("section");
   overlay.id = "community-post-overlay";
   overlay.className = "community-post-overlay hidden";
@@ -6039,7 +6335,8 @@ function ensureCommunityPostUi() {
     </div>
   `;
 
-  document.body.append(button, mapControls, overlay);
+  document.body.append(button, mapControls, styleControls, overlay);
+  setCommunityMapStyle(communityMapStyle, { persist: false });
 
   const form = overlay.querySelector("#community-post-form");
   const close = overlay.querySelector(".community-post-close");
@@ -6074,6 +6371,7 @@ function ensureCommunityPostUi() {
   communityPostOverlayElements = {
     button,
     mapControls,
+    styleControls,
     refreshControl,
     currentLocationControl,
     overlay,
@@ -6326,10 +6624,19 @@ function renderCommunityPostDetail(post, placeName = "") {
       ? `<video controls playsinline src="${escapeHtml(post.mediaUrl)}"></video>`
       : `<img alt="投稿写真" src="${escapeHtml(post.mediaUrl)}" />`
     : "";
+  const isOwnPost = Boolean(communityAccount?.id && post.accountId === communityAccount.id);
+  const likeLabel = post.liked ? "♥" : "♡";
+  const followButton = post.accountId && !isOwnPost
+    ? `<button class="community-post-follow-button${post.following ? " is-following" : ""}" type="button" data-community-follow-account="${escapeHtml(post.accountId)}">${post.following ? "フォロー中" : "フォロー"}</button>`
+    : "";
   body.innerHTML = `
     <div class="community-post-author">
       ${renderCommunityAccountIcon({ icon: post.authorIcon || "", name: post.authorName || "" }, "community-post-author-icon")}
       <strong>${escapeHtml(post.authorName || "匿名ユーザー")}</strong>
+      <div class="community-post-author-actions">
+        <button class="community-post-like-button${post.liked ? " is-liked" : ""}" type="button" data-community-like-post="${escapeHtml(post.id)}" aria-label="いいね">${likeLabel}<span>${Number(post.likeCount || 0).toLocaleString("ja-JP")}</span></button>
+        ${followButton}
+      </div>
     </div>
     <div class="community-post-detail-tags">${tags}</div>
     ${media}
@@ -6341,6 +6648,74 @@ function renderCommunityPostDetail(post, placeName = "") {
     ${canDeleteCommunityPost(post) ? `<button class="community-post-delete-button" type="button" data-community-post-delete="${escapeHtml(post.id)}">投稿を削除</button>` : ""}
   `;
   body.querySelector("[data-community-post-delete]")?.addEventListener("click", () => deleteCommunityPost(post));
+  body.querySelector("[data-community-like-post]")?.addEventListener("click", (event) => toggleCommunityPostLike(post, event.currentTarget));
+  body.querySelector("[data-community-follow-account]")?.addEventListener("click", (event) => toggleCommunityAuthorFollow(post, event.currentTarget));
+}
+
+async function toggleCommunityPostLike(post, button) {
+  if (!hasCommunityAccount() || communityAccount.localOnly) {
+    window.alert("いいねするにはアカウントへログインしてください。");
+    return;
+  }
+  const workerUrl = await getWorkerBaseUrl();
+  button.disabled = true;
+  try {
+    const response = await fetch(`${workerUrl}/community-posts/${encodeURIComponent(post.id)}/like`, {
+      method: post.liked ? "DELETE" : "PUT",
+      headers: { Authorization: `Bearer ${communityAccount.token}` },
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data?.error || "いいねを更新できませんでした。");
+    }
+    post.liked = Boolean(data.liked);
+    post.likeCount = Number(data.likeCount || 0);
+    renderCommunityPostDetail(post, getActiveCommunityPostPlaceName());
+  } catch (error) {
+    window.alert(error?.message || "いいねを更新できませんでした。");
+    button.disabled = false;
+  }
+}
+
+async function toggleCommunityAuthorFollow(post, button) {
+  if (!hasCommunityAccount() || communityAccount.localOnly) {
+    window.alert("フォローするにはアカウントへログインしてください。");
+    return;
+  }
+  if (!post.accountId || post.accountId === communityAccount.id) {
+    return;
+  }
+  const workerUrl = await getWorkerBaseUrl();
+  button.disabled = true;
+  try {
+    const response = await fetch(`${workerUrl}/community-accounts/${encodeURIComponent(post.accountId)}/follow`, {
+      method: post.following ? "DELETE" : "PUT",
+      headers: { Authorization: `Bearer ${communityAccount.token}` },
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data?.error || "フォロー状態を更新できませんでした。");
+    }
+    communityPosts.forEach((item) => {
+      if (item.accountId === post.accountId) {
+        item.following = Boolean(data.following);
+      }
+    });
+    post.following = Boolean(data.following);
+    saveCommunityAccount({
+      ...communityAccount,
+      followingCount: Number(data.followingCount || 0),
+    });
+    renderCommunityPostDetail(post, getActiveCommunityPostPlaceName());
+  } catch (error) {
+    window.alert(error?.message || "フォロー状態を更新できませんでした。");
+    button.disabled = false;
+  }
+}
+
+function getActiveCommunityPostPlaceName() {
+  return communityPostOverlayElements?.detailSheet
+    ?.querySelector(".community-post-detail-meta dd")?.textContent || "";
 }
 
 function canDeleteCommunityPost(post) {
@@ -6522,7 +6897,33 @@ function ensureCommunityAccountSettingsCard() {
     list.insertAdjacentElement("afterbegin", communityAccountPanel);
   }
   updateCommunityAccountSettingsCard();
+  refreshCommunityAccountStats();
   return communityAccountPanel;
+}
+
+function refreshCommunityAccountStats() {
+  if (!communityAccount?.token || communityAccount.localOnly || communityAccountStatsPromise) {
+    return communityAccountStatsPromise;
+  }
+  communityAccountStatsPromise = getWorkerBaseUrl()
+    .then(async (workerUrl) => {
+      if (!workerUrl) {
+        return;
+      }
+      const response = await fetch(`${workerUrl}/community-account`, {
+        headers: { Authorization: `Bearer ${communityAccount.token}` },
+        cache: "no-store",
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && data.account && communityAccount) {
+        saveCommunityAccount({ ...communityAccount, ...data.account, token: communityAccount.token });
+      }
+    })
+    .catch((error) => console.warn("community account stats refresh failed", error))
+    .finally(() => {
+      communityAccountStatsPromise = null;
+    });
+  return communityAccountStatsPromise;
 }
 
 function updateCommunityAccountSettingsCard() {
@@ -8042,6 +8443,9 @@ async function enablePushNotificationsFromOverlay(statusElement = null) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...(communityAccount?.token && !communityAccount.localOnly
+          ? { Authorization: `Bearer ${communityAccount.token}` }
+          : {}),
       },
       body: JSON.stringify(subscription),
     });
@@ -8050,6 +8454,8 @@ async function enablePushNotificationsFromOverlay(statusElement = null) {
       throw new Error(`subscription save failed: ${saveResponse.status}`);
     }
 
+    const savedSubscription = await saveResponse.json().catch(() => ({}));
+    await savePushSubscriptionKey(registration, savedSubscription.key);
     state.pushConfigured = true;
     state.pushSubscribed = true;
     setPushPermissionStatus(statusElement, "通知を有効にしました。");
@@ -8059,6 +8465,46 @@ async function enablePushNotificationsFromOverlay(statusElement = null) {
     setPushPermissionStatus(statusElement, "通知の設定に失敗しました。", true);
     return false;
   }
+}
+
+async function syncCommunityPushSubscriptionAccount(registration = null, subscription = null) {
+  if (IS_LOCAL_DEV || !state.pushSubscribed || !("serviceWorker" in navigator)) {
+    return;
+  }
+  const activeRegistration = registration || await navigator.serviceWorker.ready;
+  const activeSubscription = subscription || await activeRegistration.pushManager?.getSubscription();
+  if (!activeSubscription) {
+    return;
+  }
+  const config = await loadPushConfig();
+  const workerUrl = String(config.workerUrl || "").replace(/\/+$/, "");
+  if (!workerUrl) {
+    return;
+  }
+  const response = await fetch(`${workerUrl}/subscriptions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(communityAccount?.token && !communityAccount.localOnly
+        ? { Authorization: `Bearer ${communityAccount.token}` }
+        : {}),
+    },
+    body: JSON.stringify(activeSubscription),
+  });
+  if (!response.ok) {
+    throw new Error(`subscription account sync failed: ${response.status}`);
+  }
+  const data = await response.json().catch(() => ({}));
+  await savePushSubscriptionKey(activeRegistration, data.key);
+}
+
+async function savePushSubscriptionKey(registration, key) {
+  if (!key) {
+    return;
+  }
+  const readyRegistration = registration || await navigator.serviceWorker.ready;
+  const worker = readyRegistration.active || readyRegistration.waiting || readyRegistration.installing;
+  worker?.postMessage({ type: "set-push-subscription-key", key });
 }
 
 async function disablePushNotificationsFromOverlay(statusElement = null) {
@@ -17281,6 +17727,8 @@ function loadCommunityAccountFromStorage() {
         icon: String(parsed.icon || ""),
         token: String(parsed.token || ""),
         isAdmin: Boolean(parsed.isAdmin),
+        followingCount: Number(parsed.followingCount || 0),
+        followerCount: Number(parsed.followerCount || 0),
       };
     }
   } catch (error) {
@@ -17297,6 +17745,8 @@ function saveCommunityAccount(account) {
     token: String(account.token || ""),
     isAdmin: Boolean(account.isAdmin),
     localOnly: Boolean(account.localOnly),
+    followingCount: Number(account.followingCount || 0),
+    followerCount: Number(account.followerCount || 0),
   } : null;
   if (communityAccount && !communityAccount.localOnly) {
     localStorage.setItem(COMMUNITY_ACCOUNT_STORAGE_KEY, JSON.stringify(communityAccount));
@@ -17319,6 +17769,9 @@ function saveCommunityAccount(account) {
     }
   }
   updateCommunityAccountSettingsCard();
+  syncCommunityPushSubscriptionAccount().catch((error) => {
+    console.warn("push subscription account sync failed", error);
+  });
   if (communityAccount && document.body.dataset.activeBottomTab === "bottom-history-tab") {
     closeCommunityAccountRequiredPanel();
     setCommunityMapModeActive(true);
@@ -17364,6 +17817,10 @@ function updateCommunityAccountSettingsCard() {
         <div class="community-profile-main">
           <span>プロフィール</span>
           <strong>${escapeHtml(communityAccount.name)}</strong>
+          <div class="community-profile-follow-counts">
+            <button type="button" data-community-account-screen="following" ${Number(communityAccount.followingCount || 0) === 0 ? "disabled" : ""}>フォロー <b>${Number(communityAccount.followingCount || 0).toLocaleString("ja-JP")}</b>人</button>
+            <button type="button" data-community-account-screen="followers" ${Number(communityAccount.followerCount || 0) === 0 ? "disabled" : ""}>フォロワー <b>${Number(communityAccount.followerCount || 0).toLocaleString("ja-JP")}</b>人</button>
+          </div>
           ${communityAccount.isAdmin ? `<em>管理者アカウント</em>` : ""}
         </div>
       </div>
@@ -17374,7 +17831,7 @@ function updateCommunityAccountSettingsCard() {
       ${communityAccount.isAdmin ? `<button class="community-account-wide-button" type="button" data-community-account-screen="accounts">アカウント情報</button>` : ""}
       <div class="community-account-danger-actions">
         <button type="button" data-community-account-action="logout">ログアウト</button>
-        ${communityAccount.localOnly ? "" : `<button type="button" data-community-account-action="delete">アカウント削除</button>`}
+        <button type="button" data-community-account-action="delete">アカウント削除</button>
       </div>
       <p class="community-account-status" aria-live="polite"></p>
     `;
@@ -17434,6 +17891,12 @@ function updateCommunityAccountSettingsCard() {
     const deleteButton = communityAccountPanel.querySelector('[data-community-account-action="delete"]');
     if (deleteButton) {
       deleteButton.textContent = "アカウント削除";
+      deleteButton.disabled = Boolean(communityAccount.localOnly);
+      deleteButton.setAttribute("aria-disabled", String(Boolean(communityAccount.localOnly)));
+      deleteButton.classList.toggle("is-disabled", Boolean(communityAccount.localOnly));
+      if (communityAccount.localOnly) {
+        deleteButton.title = "Local管理者アカウントは削除できません";
+      }
     }
   }
   communityAccountPanel.querySelectorAll("[data-community-account-screen]").forEach((button) => {
@@ -17525,6 +17988,12 @@ function getCommunityAccountScreenHtml(type) {
       </form>
     `;
   }
+  if (type === "following" || type === "followers") {
+    return `
+      <h2>${type === "following" ? "フォロー" : "フォロワー"}</h2>
+      <div class="community-connection-list" id="community-connection-list" data-community-connection-kind="${type}">読み込み中...</div>
+    `;
+  }
   return `
     <h2>アカウント情報</h2>
     <div class="community-account-list" id="community-account-list">読み込み中...</div>
@@ -17569,6 +18038,85 @@ function bindCommunityAccountScreen(type, screen) {
   }
   if (type === "accounts") {
     loadCommunityAccountList(screen);
+  }
+  if (type === "following" || type === "followers") {
+    loadCommunityConnectionList(screen, type);
+  }
+}
+
+async function loadCommunityConnectionList(screen, kind) {
+  const list = screen.querySelector("#community-connection-list");
+  if (!list || !communityAccount?.id) {
+    return;
+  }
+  const workerUrl = await getWorkerBaseUrl();
+  try {
+    const response = await fetch(
+      `${workerUrl}/community-accounts/${encodeURIComponent(communityAccount.id)}/${kind}`,
+      {
+        headers: communityAccount.localOnly
+          ? {}
+          : { Authorization: `Bearer ${communityAccount.token}` },
+        cache: "no-store",
+      },
+    );
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data?.error || "一覧を読み込めませんでした。");
+    }
+    const accounts = Array.isArray(data.accounts) ? data.accounts : [];
+    list.innerHTML = accounts.map((account) => `
+      <article class="community-connection-item">
+        ${renderCommunityAccountIcon(account, "community-connection-icon")}
+        <div class="community-connection-name">
+          <strong>${escapeHtml(account.name || "名前なし")}</strong>
+          ${account.isAdmin ? "<span>管理者</span>" : ""}
+        </div>
+        ${account.id === communityAccount.id ? "" : `
+          <button class="community-connection-follow${account.following ? " is-following" : ""}" type="button" data-community-connection-account="${escapeHtml(account.id)}" data-community-connection-following="${account.following ? "true" : "false"}">
+            ${account.following ? "フォロー中" : "フォロー"}
+          </button>
+        `}
+      </article>
+    `).join("") || `<p class="community-connection-empty">${kind === "following" ? "フォローしている人はいません。" : "フォロワーはいません。"}</p>`;
+    list.querySelectorAll("[data-community-connection-account]").forEach((button) => {
+      button.addEventListener("click", () => toggleCommunityConnectionFollow(screen, kind, button));
+    });
+  } catch (error) {
+    list.textContent = error?.message || "一覧を読み込めませんでした。";
+  }
+}
+
+async function toggleCommunityConnectionFollow(screen, kind, button) {
+  if (!communityAccount?.token || communityAccount.localOnly) {
+    return;
+  }
+  const accountId = button.dataset.communityConnectionAccount || "";
+  const following = button.dataset.communityConnectionFollowing === "true";
+  const workerUrl = await getWorkerBaseUrl();
+  button.disabled = true;
+  try {
+    const response = await fetch(`${workerUrl}/community-accounts/${encodeURIComponent(accountId)}/follow`, {
+      method: following ? "DELETE" : "PUT",
+      headers: { Authorization: `Bearer ${communityAccount.token}` },
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data?.error || "フォロー状態を更新できませんでした。");
+    }
+    communityPosts.forEach((post) => {
+      if (post.accountId === accountId) {
+        post.following = Boolean(data.following);
+      }
+    });
+    saveCommunityAccount({
+      ...communityAccount,
+      followingCount: Number(data.followingCount || 0),
+    });
+    await loadCommunityConnectionList(screen, kind);
+  } catch (error) {
+    window.alert(error?.message || "フォロー状態を更新できませんでした。");
+    button.disabled = false;
   }
 }
 

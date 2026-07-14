@@ -9,6 +9,7 @@ const NOTIFICATION_HISTORY_KEY = "notification-history";
 const NOTIFICATION_HISTORY_LIMIT = 80;
 const NOTIFICATION_HISTORY_RETENTION_DAYS = 30;
 const SUBSCRIPTION_PREFIX = "subscription:";
+const TARGETED_NOTIFICATION_PREFIX = "subscription-notification:";
 const MAINTENANCE_STATE_ID = "global";
 const EARTHQUAKE_PRESET_DETAIL_COLUMNS = `
   id,
@@ -54,6 +55,19 @@ export default {
       if (request.method === "GET" && url.pathname === "/notification-history") {
         const notifications = await readNotificationHistory(env);
         return json({ notifications });
+      }
+
+      if (request.method === "GET" && url.pathname === "/subscription-notification") {
+        const key = String(url.searchParams.get("key") || "");
+        if (!/^[A-Za-z0-9_-]{20,100}$/.test(key)) {
+          return json({ error: "invalid subscription key" }, 400);
+        }
+        const notificationKey = `${TARGETED_NOTIFICATION_PREFIX}${key}`;
+        const notification = await env.PUSH_SUBSCRIPTIONS.get(notificationKey, "json");
+        if (notification) {
+          await env.PUSH_SUBSCRIPTIONS.delete(notificationKey);
+        }
+        return json(notification || {});
       }
 
       if (request.method === "GET" && url.pathname === "/maintenance-status") {
@@ -121,8 +135,44 @@ export default {
       }
 
       if (request.method === "POST" && url.pathname === "/community-posts") {
-        const post = await createCommunityPost(request, env);
+        const post = await createCommunityPost(request, env, context);
         return json({ ok: true, post }, 201);
+      }
+
+      const communityPostLikeMatch = url.pathname.match(/^\/community-posts\/([^/]+)\/like$/);
+      if (communityPostLikeMatch && request.method === "PUT") {
+        const postId = decodeURIComponent(communityPostLikeMatch[1]);
+        const result = await likeCommunityPost(request, env, postId);
+        return json({ ok: true, ...result });
+      }
+
+      if (communityPostLikeMatch && request.method === "DELETE") {
+        const postId = decodeURIComponent(communityPostLikeMatch[1]);
+        const result = await unlikeCommunityPost(request, env, postId);
+        return json({ ok: true, ...result });
+      }
+
+      const communityFollowMatch = url.pathname.match(/^\/community-accounts\/([^/]+)\/follow$/);
+      if (communityFollowMatch && request.method === "PUT") {
+        const accountId = decodeURIComponent(communityFollowMatch[1]);
+        const result = await followCommunityAccount(request, env, accountId);
+        return json({ ok: true, ...result });
+      }
+
+      if (communityFollowMatch && request.method === "DELETE") {
+        const accountId = decodeURIComponent(communityFollowMatch[1]);
+        const result = await unfollowCommunityAccount(request, env, accountId);
+        return json({ ok: true, ...result });
+      }
+
+      const communityConnectionListMatch = url.pathname.match(
+        /^\/community-accounts\/([^/]+)\/(following|followers)$/,
+      );
+      if (communityConnectionListMatch && request.method === "GET") {
+        const accountId = decodeURIComponent(communityConnectionListMatch[1]);
+        const kind = communityConnectionListMatch[2];
+        const accounts = await listCommunityConnections(request, env, accountId, kind);
+        return json({ ok: true, accounts });
       }
 
       if (request.method === "DELETE" && url.pathname.startsWith("/community-posts/")) {
@@ -152,7 +202,11 @@ export default {
         const subscription = await request.json();
         validateSubscription(subscription);
         const key = await subscriptionKey(subscription.endpoint);
-        await env.PUSH_SUBSCRIPTIONS.put(`${SUBSCRIPTION_PREFIX}${key}`, JSON.stringify(subscription));
+        const account = await readOptionalCommunityAccount(request, env);
+        await env.PUSH_SUBSCRIPTIONS.put(`${SUBSCRIPTION_PREFIX}${key}`, JSON.stringify({
+          ...subscription,
+          accountId: account?.id || "",
+        }));
         return json({ ok: true, key });
       }
 
@@ -250,6 +304,40 @@ async function sendNotificationToAll(workerUrl, env) {
   };
 }
 
+async function sendNotificationToAccounts(workerUrl, env, accountIds, notification) {
+  const targets = new Set((accountIds || []).map((id) => String(id || "")).filter(Boolean));
+  if (!targets.size) {
+    return { subscribers: 0, sent: 0, failed: 0 };
+  }
+  const subscriptions = (await listSubscriptions(env))
+    .filter(({ subscription }) => targets.has(String(subscription.accountId || "")));
+  const settled = await Promise.allSettled(
+    subscriptions.map(async ({ key, subscription, subscriptionKey: targetKey }) => {
+      await env.PUSH_SUBSCRIPTIONS.put(
+        `${TARGETED_NOTIFICATION_PREFIX}${targetKey}`,
+        JSON.stringify(notification),
+        { expirationTtl: 24 * 60 * 60 },
+      );
+      const response = await sendEmptyPush(subscription, workerUrl, env);
+      if (response.status === 404 || response.status === 410) {
+        await Promise.all([
+          env.PUSH_SUBSCRIPTIONS.delete(key),
+          env.PUSH_SUBSCRIPTIONS.delete(`${TARGETED_NOTIFICATION_PREFIX}${targetKey}`),
+        ]);
+      }
+      if (!response.ok && response.status !== 404 && response.status !== 410) {
+        await env.PUSH_SUBSCRIPTIONS.delete(`${TARGETED_NOTIFICATION_PREFIX}${targetKey}`);
+        throw new Error(`push failed: ${response.status}`);
+      }
+    }),
+  );
+  return {
+    subscribers: subscriptions.length,
+    sent: settled.filter((item) => item.status === "fulfilled").length,
+    failed: settled.filter((item) => item.status === "rejected").length,
+  };
+}
+
 async function listSubscriptions(env) {
   const subscriptions = [];
   let cursor;
@@ -260,7 +348,11 @@ async function listSubscriptions(env) {
       page.keys.map(async ({ name }) => {
         const subscription = await env.PUSH_SUBSCRIPTIONS.get(name, "json");
         if (subscription?.endpoint) {
-          subscriptions.push({ key: name, subscription });
+          subscriptions.push({
+            key: name,
+            subscriptionKey: name.slice(SUBSCRIPTION_PREFIX.length),
+            subscription,
+          });
         }
       }),
     );
@@ -858,6 +950,8 @@ function getAppDb(env) {
 async function listCommunityPosts(env, request) {
   const db = getAppDb(env);
   await ensureCommunitySchema(db);
+  const viewer = await readOptionalCommunityAccount(request, env);
+  const viewerId = viewer?.id || "";
   const url = new URL(request.url);
   const limit = clampInteger(url.searchParams.get("limit"), 1, 200, 100);
   const result = await db
@@ -875,19 +969,28 @@ async function listCommunityPosts(env, request) {
         p.account_id AS accountId,
         p.created_at AS createdAt,
         COALESCE(a.name, p.author_name, '') AS authorName,
-        COALESCE(a.icon, p.author_icon, '') AS authorIcon
+        COALESCE(a.icon, p.author_icon, '') AS authorIcon,
+        (SELECT COUNT(*) FROM community_post_likes l WHERE l.post_id = p.id) AS likeCount,
+        EXISTS(
+          SELECT 1 FROM community_post_likes l
+          WHERE l.post_id = p.id AND l.account_id = ?
+        ) AS liked,
+        EXISTS(
+          SELECT 1 FROM community_follows f
+          WHERE f.followed_id = p.account_id AND f.follower_id = ?
+        ) AS following
       FROM community_posts p
       LEFT JOIN community_accounts a ON a.id = p.account_id
       ORDER BY p.created_at DESC
       LIMIT ?`,
     )
-    .bind(limit)
+    .bind(viewerId, viewerId, limit)
     .all();
 
   return (result.results || []).map((row) => normalizeCommunityPostRow(row, request.url));
 }
 
-async function createCommunityPost(request, env) {
+async function createCommunityPost(request, env, context) {
   const db = getAppDb(env);
   await ensureCommunitySchema(db);
   const account = await requireCommunityAccount(request, env);
@@ -981,6 +1084,15 @@ async function createCommunityPost(request, env) {
     )
     .run();
 
+  const notificationTask = notifyFollowersOfCommunityPost(env, request.url, db, account, id).catch((error) => {
+    console.warn("community post follower notification failed", error);
+  });
+  if (context?.waitUntil) {
+    context.waitUntil(notificationTask);
+  } else {
+    await notificationTask;
+  }
+
   return normalizeCommunityPostRow({
     id,
     latitude,
@@ -995,6 +1107,9 @@ async function createCommunityPost(request, env) {
     authorName: account.name,
     authorIcon: account.icon,
     createdAt,
+    likeCount: 0,
+    liked: 0,
+    following: 0,
   }, request.url);
 }
 
@@ -1057,7 +1172,7 @@ async function createCommunityAccount(request, env) {
     .bind(id, name, icon, salt, passwordHash, isAdmin, createdAt, createdAt)
     .run();
   await createCommunitySession(db, id, token);
-  return { id, name, icon, isAdmin: Boolean(isAdmin), token };
+  return withCommunityAccountCounts(db, { id, name, icon, isAdmin: Boolean(isAdmin), token });
 }
 
 async function loginCommunityAccount(request, env) {
@@ -1093,18 +1208,24 @@ async function loginCommunityAccount(request, env) {
   }
   const token = randomBase64Url(32);
   await createCommunitySession(db, account.id, token);
-  return {
+  return withCommunityAccountCounts(db, {
     id: account.id,
     name: account.name,
     icon: account.icon || "",
     isAdmin: Boolean(account.is_admin),
     token,
-  };
+  });
 }
 
 async function readCommunityAccount(request, env) {
+  const db = getAppDb(env);
   const account = await requireCommunityAccount(request, env);
-  return { id: account.id, name: account.name, icon: account.icon || "", isAdmin: Boolean(account.isAdmin) };
+  return withCommunityAccountCounts(db, {
+    id: account.id,
+    name: account.name,
+    icon: account.icon || "",
+    isAdmin: Boolean(account.isAdmin),
+  });
 }
 
 async function updateCommunityAccount(request, env) {
@@ -1128,7 +1249,13 @@ async function updateCommunityAccount(request, env) {
     .prepare("UPDATE community_accounts SET name = ?, icon = ?, updated_at = ? WHERE id = ?")
     .bind(name, icon, new Date().toISOString(), account.id)
     .run();
-  return { id: account.id, name, icon, isAdmin: Boolean(account.isAdmin), token: getBearerToken(request) };
+  return withCommunityAccountCounts(db, {
+    id: account.id,
+    name,
+    icon,
+    isAdmin: Boolean(account.isAdmin),
+    token: getBearerToken(request),
+  });
 }
 
 async function logoutCommunityAccount(request, env) {
@@ -1148,7 +1275,22 @@ async function deleteCommunityAccount(request, env) {
   await ensureCommunitySchema(db);
   const account = await requireCommunityAccount(request, env);
   await db.prepare("DELETE FROM community_sessions WHERE account_id = ?").bind(account.id).run();
+  await db.prepare("DELETE FROM community_follows WHERE follower_id = ? OR followed_id = ?").bind(account.id, account.id).run();
+  await db.prepare("DELETE FROM community_post_likes WHERE account_id = ?").bind(account.id).run();
   await db.prepare("DELETE FROM community_accounts WHERE id = ?").bind(account.id).run();
+}
+
+async function withCommunityAccountCounts(db, account) {
+  const counts = await db.prepare(`
+    SELECT
+      (SELECT COUNT(*) FROM community_follows WHERE follower_id = ?) AS followingCount,
+      (SELECT COUNT(*) FROM community_follows WHERE followed_id = ?) AS followerCount
+  `).bind(account.id, account.id).first();
+  return {
+    ...account,
+    followingCount: Number(counts?.followingCount || 0),
+    followerCount: Number(counts?.followerCount || 0),
+  };
 }
 
 async function listCommunityAccounts(request, env) {
@@ -1194,10 +1336,160 @@ async function deleteCommunityPost(request, env, postId) {
   if (!account.isAdmin && String(post.accountId || "") !== account.id) {
     throw httpError("forbidden", 403);
   }
+  await db.prepare("DELETE FROM community_post_likes WHERE post_id = ?").bind(postId).run();
   await db.prepare("DELETE FROM community_posts WHERE id = ?").bind(postId).run();
   if (post.mediaKey && env.WE_SIMULATOR_DATA) {
     await env.WE_SIMULATOR_DATA.delete(String(post.mediaKey)).catch(() => {});
   }
+}
+
+async function likeCommunityPost(request, env, postId) {
+  const db = getAppDb(env);
+  await ensureCommunitySchema(db);
+  const account = await requireCommunityAccount(request, env);
+  const post = await db.prepare("SELECT id, account_id AS accountId FROM community_posts WHERE id = ?")
+    .bind(postId)
+    .first();
+  if (!post) {
+    throw httpError("not found", 404);
+  }
+  const existing = await db.prepare(`
+    SELECT 1 FROM community_post_likes WHERE post_id = ? AND account_id = ?
+  `).bind(postId, account.id).first();
+  await db.prepare(`
+    INSERT OR IGNORE INTO community_post_likes (post_id, account_id, created_at)
+    VALUES (?, ?, ?)
+  `).bind(postId, account.id, new Date().toISOString()).run();
+  if (!existing && post.accountId && String(post.accountId) !== account.id) {
+    const notification = normalizeNotification({
+      title: "WE-Simulator",
+      body: `${account.name}さんがあなたの投稿にいいねしました`,
+      tag: `community-like-${postId}-${account.id}`,
+      renotify: true,
+      url: "./",
+    });
+    await sendNotificationToAccounts(request.url, env, [String(post.accountId)], notification).catch((error) => {
+      console.warn("community like notification failed", error);
+    });
+  }
+  return { liked: true, likeCount: await readCommunityPostLikeCount(db, postId) };
+}
+
+async function unlikeCommunityPost(request, env, postId) {
+  const db = getAppDb(env);
+  await ensureCommunitySchema(db);
+  const account = await requireCommunityAccount(request, env);
+  await db.prepare("DELETE FROM community_post_likes WHERE post_id = ? AND account_id = ?")
+    .bind(postId, account.id)
+    .run();
+  return { liked: false, likeCount: await readCommunityPostLikeCount(db, postId) };
+}
+
+async function readCommunityPostLikeCount(db, postId) {
+  const row = await db.prepare("SELECT COUNT(*) AS count FROM community_post_likes WHERE post_id = ?")
+    .bind(postId)
+    .first();
+  return Number(row?.count || 0);
+}
+
+async function followCommunityAccount(request, env, followedId) {
+  const db = getAppDb(env);
+  await ensureCommunitySchema(db);
+  const follower = await requireCommunityAccount(request, env);
+  if (!followedId || followedId === follower.id) {
+    throw httpError("cannot follow this account", 400);
+  }
+  const followed = await db.prepare("SELECT id, name FROM community_accounts WHERE id = ?")
+    .bind(followedId)
+    .first();
+  if (!followed) {
+    throw httpError("account not found", 404);
+  }
+  const existing = await db.prepare(`
+    SELECT 1 FROM community_follows WHERE follower_id = ? AND followed_id = ?
+  `).bind(follower.id, followedId).first();
+  if (!existing) {
+    await db.prepare(`
+      INSERT INTO community_follows (follower_id, followed_id, created_at)
+      VALUES (?, ?, ?)
+    `).bind(follower.id, followedId, new Date().toISOString()).run();
+    const notification = normalizeNotification({
+      title: "WE-Simulator",
+      body: `${follower.name}さんにフォローされました`,
+      tag: `community-follow-${follower.id}`,
+      renotify: true,
+      url: "./",
+    });
+    await sendNotificationToAccounts(request.url, env, [followedId], notification).catch((error) => {
+      console.warn("community follow notification failed", error);
+    });
+  }
+  const counts = await withCommunityAccountCounts(db, { id: follower.id });
+  return { following: true, followingCount: counts.followingCount };
+}
+
+async function unfollowCommunityAccount(request, env, followedId) {
+  const db = getAppDb(env);
+  await ensureCommunitySchema(db);
+  const follower = await requireCommunityAccount(request, env);
+  await db.prepare("DELETE FROM community_follows WHERE follower_id = ? AND followed_id = ?")
+    .bind(follower.id, followedId)
+    .run();
+  const counts = await withCommunityAccountCounts(db, { id: follower.id });
+  return { following: false, followingCount: counts.followingCount };
+}
+
+async function listCommunityConnections(request, env, accountId, kind) {
+  const db = getAppDb(env);
+  await ensureCommunitySchema(db);
+  const viewer = await readOptionalCommunityAccount(request, env);
+  const target = await db.prepare("SELECT id FROM community_accounts WHERE id = ?").bind(accountId).first();
+  if (!target) {
+    throw httpError("account not found", 404);
+  }
+  const isFollowers = kind === "followers";
+  const joinColumn = isFollowers ? "f.follower_id" : "f.followed_id";
+  const filterColumn = isFollowers ? "f.followed_id" : "f.follower_id";
+  const result = await db.prepare(`
+    SELECT
+      a.id,
+      a.name,
+      a.icon,
+      a.is_admin AS isAdmin,
+      EXISTS(
+        SELECT 1 FROM community_follows mine
+        WHERE mine.follower_id = ? AND mine.followed_id = a.id
+      ) AS following
+    FROM community_follows f
+    JOIN community_accounts a ON a.id = ${joinColumn}
+    WHERE ${filterColumn} = ?
+    ORDER BY f.created_at DESC, a.name ASC
+  `).bind(viewer?.id || "", accountId).all();
+  return (result.results || []).map((row) => ({
+    id: String(row.id || ""),
+    name: String(row.name || ""),
+    icon: String(row.icon || ""),
+    isAdmin: Boolean(row.isAdmin),
+    following: Boolean(row.following),
+  }));
+}
+
+async function notifyFollowersOfCommunityPost(env, workerUrl, db, author, postId) {
+  const result = await db.prepare("SELECT follower_id AS followerId FROM community_follows WHERE followed_id = ?")
+    .bind(author.id)
+    .all();
+  const followerIds = (result.results || []).map((row) => String(row.followerId || "")).filter(Boolean);
+  if (!followerIds.length) {
+    return;
+  }
+  const notification = normalizeNotification({
+    title: "WE-Simulator",
+    body: `${author.name}さんが投稿しました`,
+    tag: `community-post-${postId}`,
+    renotify: true,
+    url: "./",
+  });
+  await sendNotificationToAccounts(workerUrl, env, followerIds, notification);
 }
 
 async function requireCommunityAccount(request, env) {
@@ -1226,6 +1518,21 @@ async function requireCommunityAccount(request, env) {
     icon: String(account.icon || ""),
     isAdmin: Boolean(account.isAdmin),
   };
+}
+
+async function readOptionalCommunityAccount(request, env) {
+  const token = getBearerToken(request);
+  if (!token) {
+    return null;
+  }
+  try {
+    return await requireCommunityAccount(request, env);
+  } catch (error) {
+    if (error.status === 401) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 function getBearerToken(request) {
@@ -1329,6 +1636,9 @@ function normalizeCommunityPostRow(row, requestUrl) {
     authorName: String(row.authorName || ""),
     authorIcon: String(row.authorIcon || ""),
     createdAt: String(row.createdAt || ""),
+    likeCount: Number(row.likeCount || 0),
+    liked: Boolean(row.liked),
+    following: Boolean(row.following),
   };
 }
 
@@ -1361,6 +1671,7 @@ function normalizeCommunityPostTags(values) {
 async function ensureCommunitySchema(db) {
   await ensureCommunityAccountsSchema(db);
   await ensureCommunityPostsSchema(db);
+  await ensureCommunitySocialSchema(db);
 }
 
 async function ensureCommunityAccountsSchema(db) {
@@ -1461,6 +1772,28 @@ async function ensureCommunityPostsSchema(db) {
   await db
     .prepare("CREATE INDEX IF NOT EXISTS idx_community_posts_account_id ON community_posts(account_id)")
     .run();
+}
+
+async function ensureCommunitySocialSchema(db) {
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS community_follows (
+      follower_id TEXT NOT NULL,
+      followed_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (follower_id, followed_id)
+    )
+  `).run();
+  await db.prepare("CREATE INDEX IF NOT EXISTS idx_community_follows_followed_id ON community_follows(followed_id)").run();
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS community_post_likes (
+      post_id TEXT NOT NULL,
+      account_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (post_id, account_id)
+    )
+  `).run();
+  await db.prepare("CREATE INDEX IF NOT EXISTS idx_community_post_likes_post_id ON community_post_likes(post_id)").run();
+  await db.prepare("CREATE INDEX IF NOT EXISTS idx_community_post_likes_account_id ON community_post_likes(account_id)").run();
 }
 
 async function ensureColumn(db, tableName, columnName, type) {
