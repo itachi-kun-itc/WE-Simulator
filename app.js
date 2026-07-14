@@ -1245,7 +1245,7 @@ function setupTabs() {
       els.simulationStart.classList.add("sheet-simulation-start");
     }
     if (!state.simulationRunning) {
-      els.simulationStart.textContent = "シミュレーション開始";
+      els.simulationStart.textContent = "開始";
     }
   };
 
@@ -3004,6 +3004,7 @@ function setupTabs() {
   };
 
   const resetSimulationMenuState = () => {
+    resetSimulationLayersToDefaults();
     activateSettingsTab("primary");
     setSetupMenuOpen(false);
     setSheetState(els.setupPanel, "collapsed");
@@ -5693,7 +5694,7 @@ function bindSimulationControls() {
   });
   els.simulationPause?.addEventListener("click", () => {
     if (state.simulationCompleted) {
-      stopSimulation();
+      stopSimulation({ expandSetup: true });
       return;
     }
 
@@ -7574,6 +7575,33 @@ function resetCheckboxesToDefaults() {
   if (els.currentLocationToggle) {
     els.currentLocationToggle.checked = false;
   }
+}
+
+function resetSimulationLayersToDefaults() {
+  [
+    els.stationLayerToggle,
+    els.submarineStationLayerToggle,
+    els.regionLayerToggle,
+    els.eewWarningToggle,
+    els.plateBoundaryLayerToggle,
+    els.faultLayerToggle,
+    els.simulationStationLayerToggle,
+    els.simulationSubmarineStationLayerToggle,
+    els.simulationRegionLayerToggle,
+    els.simulationEewWarningToggle,
+    els.simulationPlateBoundaryLayerToggle,
+    els.simulationFaultLayerToggle,
+  ].forEach((toggle) => {
+    if (toggle) {
+      toggle.checked = false;
+    }
+  });
+  els.mapLayerControlPanel?.querySelectorAll("[data-map-layer-target]").forEach((toggle) => {
+    toggle.checked = false;
+  });
+  els.mapLayerControlPanel?.classList.add("hidden");
+  els.mapLayerControlButton?.setAttribute("aria-expanded", "false");
+  updateDisplayMode();
 }
 
 function applyIntensityColorScheme(schemeId, options = {}) {
@@ -13823,6 +13851,12 @@ async function startSimulation() {
   state.simulationCompleted = false;
   document.body.classList.add("simulation-session-active");
   document.body.classList.remove("simulation-session-complete");
+  const runtimeHud = document.querySelector(".simulation-runtime-hud");
+  runtimeHud?.classList.remove("is-collapsed", "is-dragging");
+  runtimeHud?.style.removeProperty("--runtime-hud-drag-y");
+  const runtimeHudHandle = runtimeHud?.querySelector(".simulation-runtime-handle");
+  runtimeHudHandle?.setAttribute("aria-expanded", "true");
+  runtimeHudHandle?.setAttribute("aria-label", "シミュレーション情報を折りたたむ");
   const selectedPreset = getSelectedPreset();
   const originTimeText = selectedPreset
     ? formatPresetDateTime(selectedPreset)
@@ -13897,7 +13931,8 @@ async function startSimulation() {
   tickSimulation(simulationStartedAt);
 }
 
-function stopSimulation() {
+function stopSimulation(options = {}) {
+  const expandSetup = Boolean(options.expandSetup);
   cancelSpeechAnnouncements();
   state.simulationRunning = false;
   state.simulationPaused = false;
@@ -13926,7 +13961,7 @@ function stopSimulation() {
   state.epicenterEditEnabled = simulationPreviousEpicenterEditEnabled;
   els.epicenterEditToggle.checked = state.epicenterEditEnabled;
   updateEpicenterEditMode();
-  els.simulationStart.textContent = "シミュレーション開始";
+  els.simulationStart.textContent = "開始";
   delete els.simulationPanel.dataset.simulationComplete;
   if (els.simulationPause) {
     els.simulationPause.textContent = "一時停止";
@@ -13939,13 +13974,16 @@ function stopSimulation() {
     els.simulationRewind.setAttribute("aria-label", "5秒巻き戻す");
   }
   if (els.simulationStop) {
-    els.simulationStop.textContent = "シミュレーション終了";
+    els.simulationStop.textContent = "終了";
   }
   updateSimulationProgress(0);
   els.setupPanel.classList.remove("hidden");
   els.simulationPanel.classList.add("hidden");
   activateSettingsTab("primary");
-  setSetupMenuOpen(false);
+  setSetupMenuOpen(expandSetup);
+  if (expandSetup) {
+    els.setupPanel?.querySelector(".sim-panel-scroll")?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+  }
   updateSettingsMenuButtonVisibility();
   clearCurrentLocationLink({ preserveEnabled: true });
   resetWaveRenderCache();
@@ -14162,7 +14200,7 @@ function tickSimulation(now) {
     state.epicenterEditEnabled = simulationPreviousEpicenterEditEnabled;
     els.epicenterEditToggle.checked = state.epicenterEditEnabled;
     updateEpicenterEditMode();
-    els.simulationStart.textContent = "シミュレーション開始";
+    els.simulationStart.textContent = "開始";
     els.simulationPanel.dataset.simulationComplete = "true";
     if (els.simulationPause) {
       els.simulationPause.textContent = "震源設定へ";
@@ -14175,7 +14213,7 @@ function tickSimulation(now) {
       els.simulationRewind.setAttribute("aria-label", "同じ条件でもう一度実行");
     }
     if (els.simulationStop) {
-      els.simulationStop.textContent = "シミュレーション終了";
+      els.simulationStop.textContent = "終了";
     }
     updateSimulationAvailability();
     return;
@@ -14271,7 +14309,7 @@ function resetSimulationTimeline() {
   addExpectedSimulationEewTimelineEvents();
   addExpectedSimulationIntensityTimelineEvents();
   if (Number.isFinite(simulationCompleteAtSec)) {
-    addSimulationTimelineEvent("complete", simulationCompleteAtSec, "シミュレーション終了", "complete");
+    addSimulationTimelineEvent("complete", simulationCompleteAtSec, "終了", "complete");
   }
   renderSimulationTimelineGuides();
 }
@@ -14862,7 +14900,7 @@ function refreshSimulationCompletionSchedule() {
   }
 
   simulationCompleteAtSec = nextCompleteAtSec;
-  addSimulationTimelineEvent("complete", simulationCompleteAtSec, "シミュレーション終了", "complete");
+  addSimulationTimelineEvent("complete", simulationCompleteAtSec, "終了", "complete");
   renderSimulationTimelineGuides();
   return true;
 }
@@ -15642,7 +15680,7 @@ function updateSimulationAvailability() {
     Number.isFinite(predictedMaximum.value) && predictedMaximum.rank >= 1;
 
   els.simulationStart.disabled = !canStart;
-  els.simulationStart.textContent = "シミュレーション開始";
+  els.simulationStart.textContent = "開始";
   els.simulationStart.title = canStart
     ? ""
     : "震度1以上が見込まれないため開始できません";
