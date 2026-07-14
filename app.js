@@ -2406,17 +2406,12 @@ function setupTabs() {
         <h3>予想進路図を読み解く</h3>
         <div class="learning-typhoon-route-diagram" role="img" aria-label="予報円、強風域、暴風域、暴風警戒域を示す台風進路図の模式図">
           <svg viewBox="0 0 600 410" aria-hidden="true">
-            <defs>
-              <marker id="typhoon-arrow-white" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L8 4L0 8Z" fill="#ffffff" /></marker>
-              <marker id="typhoon-arrow-yellow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L8 4L0 8Z" fill="#ffe500" /></marker>
-              <marker id="typhoon-arrow-red" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L8 4L0 8Z" fill="#e20b22" /></marker>
-            </defs>
-            <g transform="translate(80 40)">
-              <path class="typhoon-warning-envelope" d="M111 254 C128 226 147 198 165 180 C188 150 209 122 231 98 C256 69 282 38 309 18 C331 2 360 1 382 15 C405 29 415 55 409 80 C405 94 396 103 383 110 C354 132 323 151 293 168 C267 187 241 208 215 230 C190 251 167 273 146 286" />
-              <path class="typhoon-past-route" d="M18 324 C57 306 91 287 128 270" />
-              <path class="typhoon-forecast-guide" d="M128 270 L169.5 184.5 M128 270 L210.5 225.5" />
-              <path class="typhoon-forecast-circle-links" d="M169.5 184.5 L234 103 M210.5 225.5 L292 161 M237 100 L312.4 23 M289 164 L379.6 105" />
-              <path class="typhoon-forecast-route" d="M128 270 C148 244 166 220 190 205 C217 181 238 154 263 132 C292 103 320 79 346 64" />
+            <g transform="translate(50 16) scale(1.12)">
+              <path class="typhoon-warning-envelope" d="M108.42 256.12 L159.81 183.61 A37 37 0 0 1 160.97 182.06 L224.56 101.61 A49 49 0 0 1 227.90 97.81 L302.31 21.43 A61 61 0 1 1 379.14 115.21 L289.62 173.14 A49 49 0 0 0 293.39 170.44 L212.94 234.03 A37 37 0 0 1 212.80 234.14 L142.79 288.90" />
+              <path class="typhoon-past-route" d="M-80 350 C-18 340 61 306 128 270" />
+              <path class="typhoon-forecast-guide" d="M128 270 L163.68 192.83 M128 270 L203.40 230.72" />
+              <path class="typhoon-forecast-circle-links" d="M167.25 187.02 L230.84 106.58 M207.98 227.75 L288.42 164.16 M233.63 103.39 L308.04 27.02 M285.27 166.42 L374.79 108.50" />
+              <path class="typhoon-forecast-route" d="M128 270 L190 205 L263 132 L346 64" />
               <circle class="typhoon-strong-wind-area" cx="128" cy="270" r="66" />
               <circle class="typhoon-storm-area" cx="128" cy="270" r="24" />
               <circle class="typhoon-forecast-circle" cx="190" cy="205" r="29" />
@@ -2427,34 +2422,14 @@ function setupTabs() {
               <circle class="typhoon-forecast-center" cx="346" cy="64" r="3.5" />
               <path class="typhoon-current-mark" d="M119 261l18 18m0-18-18 18" />
             </g>
-            <g class="typhoon-callout typhoon-callout-forecast">
-              <rect x="225" y="10" width="112" height="40" rx="8" />
-              <text x="281" y="35">予報円</text>
-              <path d="M337 31 L386 66" marker-end="url(#typhoon-arrow-white)" />
-            </g>
-            <g class="typhoon-callout typhoon-callout-strong">
-              <rect x="8" y="222" width="124" height="40" rx="8" />
-              <text x="70" y="247">強風域</text>
-              <path d="M132 243 L160 270" marker-end="url(#typhoon-arrow-yellow)" />
-            </g>
-            <g class="typhoon-callout typhoon-callout-storm">
-              <rect x="8" y="286" width="124" height="40" rx="8" />
-              <text x="70" y="311">暴風域</text>
-              <path d="M132 306 L184 310" marker-end="url(#typhoon-arrow-red)" />
-            </g>
-            <g class="typhoon-callout typhoon-callout-warning">
-              <rect x="446" y="204" width="146" height="40" rx="8" />
-              <text x="519" y="229">暴風警戒域</text>
-              <path d="M446 224 L457 165" marker-end="url(#typhoon-arrow-red)" />
-            </g>
           </svg>
         </div>
         <div class="learning-typhoon-symbol-list">
           <article><span class="is-current">×</span><div><strong>現在の中心位置</strong><p>実況の台風中心。青い実線はこれまでの経路です。</p></div></article>
           <article><span class="is-strong-wind"></span><div><strong>黄色の実線：強風域</strong><p>平均風速15m/s以上の強風が吹く可能性がある範囲です。</p></div></article>
           <article><span class="is-storm"></span><div><strong>赤色の太実線：暴風域</strong><p>平均風速25m/s以上の暴風が吹く可能性がある範囲です。</p></div></article>
-          <article><span class="is-forecast"></span><div><strong>白い破線：予報円</strong><p>予報時刻に台風の中心が入る確率が70％の範囲。円の大きさは台風の大きさではなく、進路予報の不確実性です。</p></div></article>
           <article><span class="is-warning-area"></span><div><strong>赤色の実線：暴風警戒域</strong><p>台風中心が予報円内を進んだ場合に、暴風域へ入るおそれがある範囲全体です。</p></div></article>
+          <article><span class="is-forecast"></span><div><strong>白い破線：予報円</strong><p>予報時刻に台風の中心が入る確率が70％の範囲。円の大きさは台風の大きさではなく、進路予報の不確実性です。</p></div></article>
           <article><span class="is-center-line"></span><div><strong>予報円の中心を結ぶ線</strong><p>代表的な進路ですが、台風が必ず線上を進むわけではありません。</p></div></article>
         </div>
       </section>
