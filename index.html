@@ -27,13 +27,13 @@
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta name="twitter:image" content="https://itachi-kun-itc.github.io/WE-Simulator/og-image.png" />
-    <link rel="manifest" href="./manifest.webmanifest?v=d9b69e6af004" />
-    <link rel="icon" type="image/png" sizes="32x32" href="./favicon.png?v=d9b69e6af004" />
-    <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=d9b69e6af004" />
+    <link rel="manifest" href="./manifest.webmanifest?v=0.1.6" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./favicon.png?v=0.1.6" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=0.1.6" />
     <link rel="preconnect" href="https://we-simulator-push.h6fgpg2zht.workers.dev" crossorigin />
     <link rel="preconnect" href="https://unpkg.com" crossorigin />
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.css" />
-    <link rel="stylesheet" href="./styles.css?v=d9b69e6af004" />
+    <link rel="stylesheet" href="./styles.css?v=0.1.6" />
   </head>
   <body>
     <main class="app-shell">
@@ -162,6 +162,15 @@
 
             <section class="settings-section setup-result-section" aria-labelledby="setup-result-title" data-settings-section="result" hidden>
               <h3 id="setup-result-title">結果・シミュレーション</h3>
+            <div class="simulation-progress-panel" aria-label="シミュレーション進行状況">
+              <div class="simulation-progress-head">
+                <span>進行状況</span>
+                <strong id="simulation-progress-time">0.0 / 0.0 秒</strong>
+              </div>
+              <div class="simulation-progress-track" id="simulation-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <i id="simulation-progress-fill"></i>
+              </div>
+            </div>
             <dl class="result-list">
               <div>
                 <dt>震央市町村</dt>
@@ -257,7 +266,7 @@
 
             <div class="simulation-actions">
               <button class="simulation-pause" id="simulation-pause" type="button">一時停止</button>
-              <button class="simulation-stop" id="simulation-stop" type="button">シミュレーション中止</button>
+              <button class="simulation-stop" id="simulation-stop" type="button">シミュレーション終了</button>
             </div>
             </section>
 
@@ -430,6 +439,6 @@
     </script>
     <script src="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.js"></script>
     <script src="./vendor/pmtiles.js?v=0.1.1"></script>
-    <script src="./app.js?v=d9b69e6af004"></script>
+    <script src="./app.js?v=0.1.6"></script>
   </body>
 </html>

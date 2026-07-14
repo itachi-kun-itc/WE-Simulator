@@ -500,6 +500,9 @@ const els = {
   simulationRegionName: document.querySelector("#simulation-region-name"),
   simulationDepth: document.querySelector("#simulation-depth"),
   simulationTime: document.querySelector("#simulation-time"),
+  simulationProgressTrack: document.querySelector("#simulation-progress-track"),
+  simulationProgressFill: document.querySelector("#simulation-progress-fill"),
+  simulationProgressTime: document.querySelector("#simulation-progress-time"),
   currentLocationToggle: document.querySelector("#current-location-toggle"),
   currentLocationName: document.querySelector("#current-location-name"),
   currentLocationIntensity: document.querySelector("#current-location-intensity"),
@@ -13397,6 +13400,7 @@ async function startSimulation() {
   state.simulationRunning = true;
   state.simulationPaused = false;
   state.simulationCompleted = false;
+  document.body.classList.add("simulation-session-active");
   delete els.simulationPanel.dataset.simulationComplete;
   state.epicenterEditEnabled = false;
   els.epicenterEditToggle.checked = false;
@@ -13431,6 +13435,7 @@ async function startSimulation() {
   updateEewReplacementMode();
   updateEewForecastPanel();
   updateSimulationSummary(0);
+  updateSimulationProgress(0);
   if (!state.speechMuted) {
     scheduleSimulationSpeechStart();
   }
@@ -13440,7 +13445,7 @@ async function startSimulation() {
     els.simulationPause.disabled = false;
   }
   if (els.simulationStop) {
-    els.simulationStop.textContent = "シミュレーション中止";
+    els.simulationStop.textContent = "シミュレーション終了";
   }
   els.simulationStart.textContent = "シミュレーション中止";
   els.setupPanel.classList.remove("hidden");
@@ -13458,6 +13463,7 @@ function stopSimulation() {
   state.simulationRunning = false;
   state.simulationPaused = false;
   state.simulationCompleted = false;
+  document.body.classList.remove("simulation-session-active");
   state.eewWarningReportNumber = null;
   state.eewWarningFinalReport = false;
   state.eewReportAreaKeySignature = "";
@@ -13486,8 +13492,9 @@ function stopSimulation() {
     els.simulationPause.disabled = true;
   }
   if (els.simulationStop) {
-    els.simulationStop.textContent = "シミュレーション中止";
+    els.simulationStop.textContent = "シミュレーション終了";
   }
+  updateSimulationProgress(0);
   els.setupPanel.classList.remove("hidden");
   els.simulationPanel.classList.add("hidden");
   activateSettingsTab("primary");
@@ -13560,6 +13567,7 @@ function tickSimulation(now) {
   }
 
   const elapsedSec = getSimulationElapsedSec(now);
+  updateSimulationProgress(elapsedSec);
   const { pRadiusKm, sRadiusKm } = getWaveSurfaceRadiiForElapsed(elapsedSec);
   const currentBucket = toSimulationBucket(elapsedSec);
 
@@ -13636,6 +13644,30 @@ function tickSimulation(now) {
 function getSimulationElapsedSec(now = performance.now()) {
   const currentTime = state.simulationPaused && simulationPausedAt ? simulationPausedAt : now;
   return simulationStartedAt ? Math.max((currentTime - simulationStartedAt) / 1000, 0) : 0;
+}
+
+function updateSimulationProgress(elapsedSec = 0) {
+  const elapsed = Number.isFinite(elapsedSec) ? Math.max(elapsedSec, 0) : 0;
+  const total = Number(simulationCompleteAtSec);
+  const hasFiniteTotal = Number.isFinite(total) && total > 0;
+  const progress = hasFiniteTotal ? Math.min(elapsed / total, 1) : 0;
+  const percent = Math.round(progress * 1000) / 10;
+
+  if (els.simulationProgressFill) {
+    els.simulationProgressFill.style.width = `${percent}%`;
+    els.simulationProgressFill.classList.toggle("is-indeterminate", !hasFiniteTotal);
+  }
+  if (els.simulationProgressTrack) {
+    els.simulationProgressTrack.setAttribute("aria-valuenow", String(Math.round(percent)));
+    els.simulationProgressTrack.setAttribute(
+      "aria-valuetext",
+      hasFiniteTotal ? `${elapsed.toFixed(1)}秒 / ${total.toFixed(1)}秒` : `${elapsed.toFixed(1)}秒経過`,
+    );
+  }
+  setTextContentIfChanged(
+    els.simulationProgressTime,
+    hasFiniteTotal ? `${elapsed.toFixed(1)} / ${total.toFixed(1)} 秒` : `${elapsed.toFixed(1)} 秒`,
+  );
 }
 
 function getWaveSurfaceRadiiForElapsed(elapsedSec) {
