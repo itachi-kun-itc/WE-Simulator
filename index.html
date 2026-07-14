@@ -27,13 +27,13 @@
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta name="twitter:image" content="https://itachi-kun-itc.github.io/WE-Simulator/og-image.png" />
-    <link rel="manifest" href="./manifest.webmanifest?v=daf4845f64ab" />
-    <link rel="icon" type="image/png" sizes="32x32" href="./favicon.png?v=daf4845f64ab" />
-    <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=daf4845f64ab" />
+    <link rel="manifest" href="./manifest.webmanifest?v=0.1.6" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./favicon.png?v=0.1.6" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=0.1.6" />
     <link rel="preconnect" href="https://we-simulator-push.h6fgpg2zht.workers.dev" crossorigin />
     <link rel="preconnect" href="https://unpkg.com" crossorigin />
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.css" />
-    <link rel="stylesheet" href="./styles.css?v=daf4845f64ab" />
+    <link rel="stylesheet" href="./styles.css?v=0.1.6" />
   </head>
   <body>
     <main class="app-shell">
@@ -51,6 +51,24 @@
           <button class="settings-menu-button" id="settings-menu-button" type="button" aria-controls="setup-panel" aria-expanded="false" aria-label="設定メニューを開く">
             <span aria-hidden="true">⚙</span>
           </button>
+          <button class="map-layer-control-button" id="map-layer-control-button" type="button" aria-controls="map-layer-control-panel" aria-expanded="false" aria-label="レイヤー表示を設定">
+            <span aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M3 7.5 12 3l9 4.5-9 4.5-9-4.5Z"></path>
+                <path d="m4.5 12 7.5 3.8 7.5-3.8"></path>
+                <path d="m4.5 16 7.5 3.8 7.5-3.8"></path>
+              </svg>
+            </span>
+          </button>
+          <section class="map-layer-control-panel hidden" id="map-layer-control-panel" aria-label="レイヤー表示">
+            <strong>レイヤー表示</strong>
+            <label><input type="checkbox" data-map-layer-target="station-layer-toggle" />観測点</label>
+            <label><input type="checkbox" data-map-layer-target="submarine-station-layer-toggle" />観測点（海底）</label>
+            <label><input type="checkbox" data-map-layer-target="region-layer-toggle" />細分区域</label>
+            <label><input type="checkbox" data-map-layer-target="eew-warning-toggle" />緊急地震速報（警報）</label>
+            <label><input type="checkbox" data-map-layer-target="plate-boundary-layer-toggle" />プレート境界</label>
+            <label><input type="checkbox" data-map-layer-target="fault-layer-toggle" />断層</label>
+          </section>
 
           <section class="sim-panel setup-menu-closed" id="setup-panel" aria-label="震源設定">
             <button class="sheet-handle" type="button" aria-label="メニューを開閉"></button>
@@ -67,7 +85,6 @@
             <div class="sim-panel-scroll">
             <div class="settings-tabs" role="tablist" aria-label="設定メニュー">
               <button class="settings-tab is-active" type="button" role="tab" aria-selected="true" data-settings-tab="primary">基本</button>
-              <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="display">表示</button>
               <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="source">震源</button>
               <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="result">結果</button>
             </div>
@@ -88,7 +105,7 @@
             </section>
             <div class="control-separator" aria-hidden="true"></div>
 
-            <section class="settings-section" aria-labelledby="setup-display-title" data-settings-section="display" hidden>
+            <section class="settings-section setup-layer-state-storage" aria-labelledby="setup-display-title" data-settings-section="display" hidden aria-hidden="true">
               <h3 id="setup-display-title">表示レイヤー</h3>
             <div class="toggle-grid" aria-label="震度表示切り替え">
               <label class="toggle-row">
@@ -161,47 +178,41 @@
             </section>
 
             <section class="settings-section setup-result-section" aria-labelledby="setup-result-title" data-settings-section="result" hidden>
-              <h3 id="setup-result-title">結果・シミュレーション</h3>
+              <h3 id="setup-result-title">シミュレーション</h3>
             <div class="simulation-progress-panel" aria-label="シミュレーション進行状況">
               <div class="simulation-progress-head">
-                <span>進行状況</span>
+                <span>タイムライン</span>
                 <strong id="simulation-progress-time">0.0 / 0.0 秒</strong>
               </div>
-              <div class="simulation-progress-track" id="simulation-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-                <i id="simulation-progress-fill"></i>
+              <div class="simulation-progress-track" id="simulation-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="自動追従するシミュレーションの時間軸">
+                <div class="simulation-progress-canvas" id="simulation-progress-canvas">
+                  <i id="simulation-progress-fill"></i>
+                  <div class="simulation-progress-guides" id="simulation-progress-guides" aria-hidden="true"></div>
+                  <div class="simulation-progress-events" id="simulation-progress-events"></div>
+                  <span class="simulation-progress-now" id="simulation-progress-now" aria-hidden="true"></span>
+                </div>
               </div>
             </div>
-            <dl class="result-list">
-              <div>
-                <dt>震央市町村</dt>
-                <dd id="municipality-output">未選択</dd>
-              </div>
-              <div>
-                <dt>最大震度</dt>
-                <dd id="max-intensity-output">未計算</dd>
-              </div>
-            </dl>
+            <span class="simulation-legacy-output" id="municipality-output">未選択</span>
+            <span class="simulation-legacy-output" id="max-intensity-output">未計算</span>
             <button class="mobile-sheet-toggle simulation-sheet-toggle" id="simulation-sheet-toggle" type="button">メニューを非表示</button>
             <div class="simulation-summary">
               <div class="max-shindo-card">
                 <span>最大震度</span>
-                <strong id="simulation-max-intensity">-</strong>
+                <strong class="simulation-intensity-card" id="simulation-max-intensity">-</strong>
               </div>
               <div class="magnitude-card">
-                <span>マグニチュード</span>
-                <strong id="simulation-magnitude">-</strong>
+                <span>規模</span>
+                <strong><span id="simulation-magnitude">-</span></strong>
               </div>
             </div>
 
+            <div class="simulation-timeline-controls" aria-label="タイムライン操作">
+              <button id="simulation-rewind" type="button" aria-label="5秒巻き戻す" disabled>↶ 5秒</button>
+              <button class="simulation-pause" id="simulation-pause" type="button" disabled>一時停止</button>
+            </div>
+
             <div class="wave-readout">
-              <div>
-                <dt>経過時間</dt>
-                <dd id="simulation-time">0.0 秒</dd>
-              </div>
-              <div>
-                <dt>震源地</dt>
-                <dd id="simulation-epicenter">-</dd>
-              </div>
               <div>
                 <dt>震源地</dt>
                 <dd id="simulation-region-name">-</dd>
@@ -211,6 +222,12 @@
                 <dd id="simulation-depth">-</dd>
               </div>
             </div>
+            <div class="simulation-origin-time-card">
+              <span>発生時刻</span>
+              <strong id="simulation-origin-time">-</strong>
+            </div>
+            <span class="simulation-legacy-output" id="simulation-time">0.0 秒</span>
+            <span class="simulation-legacy-output" id="simulation-epicenter">-</span>
 
             <section class="current-location-panel" aria-label="現在地の予測">
               <label class="toggle-row current-location-toggle">
@@ -230,6 +247,7 @@
               </div>
             </section>
 
+            <h4 class="simulation-section-title">レイヤー表示</h4>
             <div class="simulation-layer-toggles" aria-label="シミュレーション表示切り替え">
               <label class="toggle-row">
                 <input id="simulation-station-layer-toggle" type="checkbox" />
@@ -257,15 +275,14 @@
               </label>
             </div>
 
-            <details class="max-stations-block">
+            <details class="max-stations-block simulation-max-areas-block" open>
               <summary>
-                <span>地震観測点一覧</span>
+                <span>最大震度 <b>[細分区域]</b></span>
               </summary>
-              <ol id="max-station-list"></ol>
+              <ol id="simulation-max-area-list"></ol>
             </details>
 
             <div class="simulation-actions">
-              <button class="simulation-pause" id="simulation-pause" type="button">一時停止</button>
               <button class="simulation-stop" id="simulation-stop" type="button">シミュレーション終了</button>
             </div>
             </section>
@@ -439,6 +456,6 @@
     </script>
     <script src="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.js"></script>
     <script src="./vendor/pmtiles.js?v=0.1.1"></script>
-    <script src="./app.js?v=daf4845f64ab"></script>
+    <script src="./app.js?v=0.1.6"></script>
   </body>
 </html>

@@ -81,7 +81,7 @@ const LEGACY_NOTIFICATION_HISTORY_ITEMS = [
     source: "backfill",
   },
 ];
-const WEATHER_FORECASTER_QUIZ_URL = "./data/weather_forecaster_quiz.json";
+const WEATHER_FORECASTER_QUIZ_URL = "./data/weather_forecaster_quiz_questions.json";
 let weatherForecasterQuizItems = null;
 let weatherForecasterQuizLoadPromise = null;
 const MAINTENANCE_STATUS_POLL_MS = 60000;
@@ -172,8 +172,11 @@ const EARTHQUAKE_MODEL = {
 };
 const EEW_BLINK_INTERVAL_SEC = 0.7;
 const EEW_BLINK_PHASES = 6;
-const SIMULATION_END_GRACE_SEC = 15;
+const SIMULATION_END_GRACE_SEC = 8;
+const SIMULATION_ORIGIN_OFFSET_SEC = 1.4;
 const SIMULATION_DATA_UPDATE_HZ = 3;
+const SIMULATION_TIMELINE_PX_PER_SEC = 56;
+const SIMULATION_TIMELINE_START_PX = 64;
 const GEOLOCATION_TARGET_ACCURACY_M = 35;
 const GEOLOCATION_ACCEPTABLE_ACCURACY_M = 120;
 const GEOLOCATION_IPAD_ACCEPTABLE_ACCURACY_M = 700;
@@ -487,11 +490,14 @@ const els = {
   simulationFaultLayerToggle: document.querySelector("#simulation-fault-layer-toggle"),
   resetEpicenter: document.querySelector("#reset-epicenter"),
   settingsMenuButton: document.querySelector("#settings-menu-button"),
+  mapLayerControlButton: document.querySelector("#map-layer-control-button"),
+  mapLayerControlPanel: document.querySelector("#map-layer-control-panel"),
   setupSheetToggle: document.querySelector("#setup-sheet-toggle"),
   simulationSheetToggle: document.querySelector("#simulation-sheet-toggle"),
   setupPanel: document.querySelector("#setup-panel"),
   simulationPanel: document.querySelector("#simulation-panel"),
   simulationStart: document.querySelector("#simulation-start"),
+  simulationRewind: document.querySelector("#simulation-rewind"),
   simulationPause: document.querySelector("#simulation-pause"),
   simulationStop: document.querySelector("#simulation-stop"),
   simulationMaxIntensity: document.querySelector("#simulation-max-intensity"),
@@ -499,10 +505,15 @@ const els = {
   simulationEpicenter: document.querySelector("#simulation-epicenter"),
   simulationRegionName: document.querySelector("#simulation-region-name"),
   simulationDepth: document.querySelector("#simulation-depth"),
+  simulationOriginTime: document.querySelector("#simulation-origin-time"),
   simulationTime: document.querySelector("#simulation-time"),
   simulationProgressTrack: document.querySelector("#simulation-progress-track"),
+  simulationProgressCanvas: document.querySelector("#simulation-progress-canvas"),
   simulationProgressFill: document.querySelector("#simulation-progress-fill"),
+  simulationProgressEvents: document.querySelector("#simulation-progress-events"),
+  simulationProgressNow: document.querySelector("#simulation-progress-now"),
   simulationProgressTime: document.querySelector("#simulation-progress-time"),
+  simulationMaxAreaList: document.querySelector("#simulation-max-area-list"),
   currentLocationToggle: document.querySelector("#current-location-toggle"),
   currentLocationName: document.querySelector("#current-location-name"),
   currentLocationIntensity: document.querySelector("#current-location-intensity"),
@@ -586,6 +597,12 @@ let currentLocationForecastCache;
 let locationResolveTimer;
 let simulationFrame;
 let simulationCompleteAtSec = null;
+let simulationTimelineEvents = [];
+let simulationTimelineLastEewReport = null;
+let simulationTimelineLastEewAreaSignature = "";
+let simulationTimelineMaxRank = 0;
+let simulationTimelineAutoFollow = true;
+let simulationTimelineExpectedFirstEewSec = null;
 let startupMapVisualReady = false;
 let municipalityBoundaryVisible = false;
 let startupLocationResolved = false;
@@ -605,6 +622,8 @@ let maxStationListRenderHandleType = "";
 let pendingMaxStationListRender = null;
 let maxStationListItemCache = new Map();
 let maxStationListEmptyItem = null;
+let simulationMaxAreaListSignature = "";
+let simulationSeeking = false;
 let simulationTimeTextCache = "";
 let eewForecastPanelRenderSignature = "";
 let waveRenderRadiusCache = { p: null, s: null };
@@ -1230,6 +1249,105 @@ function setupTabs() {
     }
   };
 
+  const ensureSimulationRuntimeHud = () => {
+    const mapWrap = document.querySelector(".map-wrap");
+    const resultSection = document.querySelector(".setup-result-section");
+    if (!mapWrap || !resultSection) return;
+
+    let hud = mapWrap.querySelector(".simulation-runtime-hud");
+    if (!hud) {
+      hud = document.createElement("section");
+      hud.className = "simulation-runtime-hud";
+      hud.setAttribute("aria-label", "シミュレーション情報");
+      mapWrap.append(hud);
+    }
+    if (!hud.querySelector(".simulation-runtime-handle")) {
+      const handle = document.createElement("button");
+      handle.type = "button";
+      handle.className = "simulation-runtime-handle";
+      handle.setAttribute("aria-label", "シミュレーション情報を折りたたむ");
+      handle.setAttribute("aria-expanded", "true");
+      const setRuntimeHudCollapsed = (collapsed) => {
+        hud.classList.toggle("is-collapsed", collapsed);
+        handle.setAttribute("aria-expanded", String(!collapsed));
+        handle.setAttribute(
+          "aria-label",
+          collapsed ? "シミュレーション情報を展開する" : "シミュレーション情報を折りたたむ",
+        );
+      };
+      let dragPointerId = null;
+      let dragStartY = 0;
+      let dragStartOffset = 0;
+      let dragCurrentOffset = 0;
+      let dragMaxOffset = 0;
+      let dragMoved = false;
+      handle.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0) return;
+        dragPointerId = event.pointerId;
+        dragStartY = event.clientY;
+        dragMaxOffset = Math.max(hud.offsetHeight - handle.offsetHeight, 0);
+        dragStartOffset = hud.classList.contains("is-collapsed") ? dragMaxOffset : 0;
+        dragCurrentOffset = dragStartOffset;
+        dragMoved = false;
+        hud.classList.add("is-dragging");
+        hud.style.setProperty("--runtime-hud-drag-y", `${dragCurrentOffset}px`);
+        handle.setPointerCapture?.(event.pointerId);
+        event.preventDefault();
+      });
+      handle.addEventListener("pointermove", (event) => {
+        if (event.pointerId !== dragPointerId) return;
+        const deltaY = event.clientY - dragStartY;
+        dragMoved ||= Math.abs(deltaY) >= 4;
+        dragCurrentOffset = clamp(dragStartOffset + deltaY, 0, dragMaxOffset);
+        hud.style.setProperty("--runtime-hud-drag-y", `${dragCurrentOffset}px`);
+      });
+      const finishRuntimeHudDrag = (event) => {
+        if (event.pointerId !== dragPointerId) return;
+        handle.releasePointerCapture?.(event.pointerId);
+        dragPointerId = null;
+        hud.classList.remove("is-dragging");
+        hud.style.removeProperty("--runtime-hud-drag-y");
+        if (dragMoved) {
+          setRuntimeHudCollapsed(dragCurrentOffset > dragMaxOffset * 0.45);
+          handle.dataset.suppressClick = "true";
+        }
+      };
+      handle.addEventListener("pointerup", finishRuntimeHudDrag);
+      handle.addEventListener("pointercancel", finishRuntimeHudDrag);
+      handle.addEventListener("click", () => {
+        if (handle.dataset.suppressClick === "true") {
+          delete handle.dataset.suppressClick;
+          return;
+        }
+        setRuntimeHudCollapsed(!hud.classList.contains("is-collapsed"));
+      });
+      hud.prepend(handle);
+    }
+    if (!hud.contains(resultSection)) hud.append(resultSection);
+
+    const summary = resultSection.querySelector(".simulation-summary");
+    const waveReadout = resultSection.querySelector(".wave-readout");
+    if (summary && waveReadout) {
+      [...waveReadout.children].forEach((item) => summary.append(item));
+      waveReadout.remove();
+    }
+    const magnitudeCard = summary?.querySelector(".magnitude-card");
+    const depthCard = summary?.querySelector("div:has(#simulation-depth)");
+    if (summary && magnitudeCard && depthCard && !summary.querySelector(".simulation-depth-magnitude-row")) {
+      const depthMagnitudeRow = document.createElement("div");
+      depthMagnitudeRow.className = "simulation-depth-magnitude-row";
+      depthMagnitudeRow.append(magnitudeCard, depthCard);
+      summary.append(depthMagnitudeRow);
+    }
+    const originTime = resultSection.querySelector(".simulation-origin-time-card");
+    if (summary && originTime && !summary.contains(originTime)) summary.append(originTime);
+    const progressPanel = resultSection.querySelector(".simulation-progress-panel");
+    const progressNow = resultSection.querySelector("#simulation-progress-now");
+    if (progressPanel && progressNow && progressNow.parentElement !== progressPanel) {
+      progressPanel.append(progressNow);
+    }
+  };
+
   const getStationAffiliationLabel = (station) => {
     const code = String(station?.affiliationCode ?? "");
     if (code === "0") {
@@ -1625,19 +1743,22 @@ function setupTabs() {
           if (!Array.isArray(items) || !items.length) {
             throw new Error("問題データが空です。");
           }
-          weatherForecasterQuizItems = items
-            .filter((item) => item?.category && item?.question && item?.answer)
-            .map((item, index) => {
-              const originalQuestion = String(item.question || "").trim();
-              return {
-                ...item,
-                exam: item.exam || "第65回",
-                year: item.year || "令和7年度第2回",
-                sourceQuestion: Number(item.sourceQuestion) || (index % 15) + 1,
-                originalQuestion,
-                question: normalizeWeatherQuizQuestion(originalQuestion),
-              };
-            });
+          weatherForecasterQuizItems = items.filter((item) => (
+            item?.id
+            && item?.category
+            && item?.exam
+            && item?.year
+            && item?.trueFalse?.statement
+            && typeof item?.trueFalse?.correct === "boolean"
+            && item?.trueFalse?.explanation
+            && item?.multipleChoice?.question
+            && Array.isArray(item?.multipleChoice?.choices)
+            && item.multipleChoice.choices.length === 4
+            && Number.isInteger(item?.multipleChoice?.correctIndex)
+            && item.multipleChoice.correctIndex >= 0
+            && item.multipleChoice.correctIndex < 4
+            && item?.multipleChoice?.explanation
+          ));
           if (!weatherForecasterQuizItems.length) {
             throw new Error("有効な問題がありません。");
           }
@@ -1855,28 +1976,34 @@ function setupTabs() {
   ];
 
   const createWeatherQuizFillItem = (item) => {
+    if (item?.multipleChoice?.choices?.length === 4) {
+      return {
+        ...item,
+        quizMode: "fill",
+        question: item.multipleChoice.question,
+        correctTerm: item.multipleChoice.choices[item.multipleChoice.correctIndex],
+        options: shuffleWeatherQuizItems(item.multipleChoice.choices),
+        explanation: item.multipleChoice.explanation,
+      };
+    }
     if (item?.quizMode === "fill" && Array.isArray(item.options)) {
       return { ...item, options: shuffleWeatherQuizItems(item.options) };
     }
     const answer = String(item?.answer || "").trim();
+    const question = String(item?.question || "").trim();
     for (const terms of WEATHER_QUIZ_FILL_TERM_GROUPS) {
       const correctTerm = terms.find((term) => answer.includes(term));
-      if (!correctTerm) {
+      if (!correctTerm || question.includes(correctTerm)) {
         continue;
       }
-      const answerBlank = "【　　　】";
-      const blankedAnswer = answer
-        .split(correctTerm)
-        .join(answerBlank)
-        // 空欄の直後に略称が残ると、選択肢を見ただけで正解できてしまうため一緒に隠す。
-        .replace(/【　　　】\s*[（(][^）)\n]{1,24}[）)]/gu, answerBlank);
-      if (terms.some((term) => term !== correctTerm && blankedAnswer.includes(term))) {
+      const answerWithoutCorrectTerm = answer.split(correctTerm).join("");
+      if (terms.some((term) => term !== correctTerm && answerWithoutCorrectTerm.includes(term))) {
         continue;
       }
       return {
         ...item,
         quizMode: "fill",
-        question: `${item.question}\n\n回答文：${blankedAnswer}`,
+        question,
         correctTerm,
         options: shuffleWeatherQuizItems(terms),
       };
@@ -1896,7 +2023,7 @@ function setupTabs() {
   };
 
   const getUniqueWeatherQuizItems = (items) => [...new Map((items || []).map((item) => [
-    `${item.exam}|${item.category}|${item.sourceQuestion}|${item.originalQuestion || item.question}`,
+    item.id || `${item.exam}|${item.category}|${item.sourceQuestion}|${item.originalQuestion || item.question}`,
     item,
   ])).values()];
 
@@ -1968,11 +2095,88 @@ function setupTabs() {
     return normalizedClaim;
   };
 
+  const isWeatherQuizTrueFalseStatementValid = (statement) => {
+    const text = String(statement || "").trim();
+    const firstSentence = text.split("。")[0].trim();
+    if (
+      text.length < 12
+      || firstSentence.length < 10
+      || /[？?]|(?:ですか|ますか)|(?:答えて|選んで|どれ|どちら|どのよう|いくつ)/u.test(text)
+      || /^(?:します|しません|されます|されません|なります|なりません|あります|ありません|できます|できません|必要です|不要です|対象です|該当します|高く|低く|多く|少なく|速く|遅く|約?\d)/u.test(firstSentence)
+      || !/(?:は|が|を|に|で|と|より|から|ため|場合|こと|よって)/u.test(firstSentence)
+    ) {
+      return false;
+    }
+    return true;
+  };
+
+  const prepareWeatherQuizTrueFalseItem = (item) => {
+    if (item?.trueFalse?.statement) {
+      const correctStatement = item?.trueFalse?.correctStatement
+        || item?.multipleChoice?.choices?.[item.multipleChoice.correctIndex]
+        || (item.trueFalse.correct ? item.trueFalse.statement : "");
+      return {
+        ...item,
+        explanation: item.trueFalse.explanation,
+        correctStatement,
+        trueFalseVariants: [{
+          answerIsCorrect: item.trueFalse.correct,
+          claim: item.trueFalse.statement,
+          statement: item.trueFalse.statement,
+        }],
+      };
+    }
+    if (Array.isArray(item?.trueFalseVariants) && item.trueFalseVariants.length) {
+      return item;
+    }
+    const distractor = createWeatherQuizDistractor(item);
+    const variants = [
+      { answerIsCorrect: true, claim: item.answer },
+      ...(distractor ? [{ answerIsCorrect: false, claim: distractor }] : []),
+    ].map((variant) => ({
+      ...variant,
+      statement: createWeatherQuizTrueFalseStatement(item, variant.claim),
+    })).filter((variant) => isWeatherQuizTrueFalseStatementValid(variant.statement));
+    return variants.length ? { ...item, trueFalseVariants: variants } : null;
+  };
+
+  const createWeatherQuizKnowledgeExplanation = (item) => {
+    const suppliedExplanation = String(item?.explanation || "").trim();
+    if (suppliedExplanation) {
+      const sentences = suppliedExplanation
+        .split(/\n+|(?<=。)\s*/u)
+        .map((sentence) => sentence.trim())
+        .filter(Boolean);
+      if (
+        sentences.length > 1
+        && sentences[0].length < 18
+        && /です。?$/u.test(sentences[0])
+        && !/(?:ため|ので|から|場合|とき)/u.test(sentences[0])
+      ) {
+        sentences.shift();
+      }
+      return sentences.join("\n");
+    }
+    const answer = String(item?.answer || "").trim();
+    if (item?.quizMode === "fill") {
+      return answer;
+    }
+    const correctStatement = item?.trueFalseVariants
+      ?.find((variant) => variant.answerIsCorrect)?.statement
+      || createWeatherQuizTrueFalseStatement(item, answer);
+    const details = answer
+      .split("。")
+      .slice(1)
+      .map((sentence) => sentence.trim())
+      .filter((sentence) => sentence && !correctStatement.includes(sentence));
+    return [correctStatement, ...details.map((sentence) => `${sentence}。`)].join("\n");
+  };
+
   const startWeatherQuizSession = (items, mode = "truefalse") => {
     const quizMode = mode === "fill" ? "fill" : "truefalse";
     const preparedItems = quizMode === "fill"
       ? items.map(createWeatherQuizFillItem).filter(Boolean)
-      : items;
+      : items.map(prepareWeatherQuizTrueFalseItem).filter(Boolean);
     const uniqueItems = getUniqueWeatherQuizItems(preparedItems);
     if (!uniqueItems.length) {
       return;
@@ -1988,14 +2192,14 @@ function setupTabs() {
           };
         }
         const shouldShowCorrectAnswer = index % 2 === (correctFirst ? 0 : 1);
-        const distractor = createWeatherQuizDistractor(item);
-        const answerIsCorrect = shouldShowCorrectAnswer || !distractor;
-        const presentedStatement = answerIsCorrect ? item.answer : distractor;
+        const variants = item.trueFalseVariants || [];
+        const variant = variants.find((candidate) => candidate.answerIsCorrect === shouldShowCorrectAnswer)
+          || variants[index % variants.length];
         return {
           ...item,
-          answerIsCorrect,
-          presentedAnswer: presentedStatement,
-          statement: createWeatherQuizTrueFalseStatement(item, presentedStatement),
+          answerIsCorrect: variant.answerIsCorrect,
+          presentedAnswer: variant.claim,
+          statement: variant.statement,
         };
       }),
       index: 0,
@@ -2061,7 +2265,7 @@ function setupTabs() {
       )));
       const candidates = mode === "fill"
         ? sourceCandidates.map(createWeatherQuizFillItem).filter(Boolean)
-        : sourceCandidates;
+        : sourceCandidates.map(prepareWeatherQuizTrueFalseItem).filter(Boolean);
       return { mode, categories, examsSelected, candidates };
     };
     const syncSetupState = () => {
@@ -2127,8 +2331,8 @@ function setupTabs() {
     const isFillQuestion = session.mode === "fill";
     const displayedQuestion = isFillQuestion ? item.question : item.statement;
     const responseControlsHtml = isFillQuestion ? `
-      <div class="weather-quiz-judgment weather-quiz-fill-judgment" aria-label="正しい用語を回答">
-        <p>正しい用語はどれ？</p>
+      <div class="weather-quiz-judgment weather-quiz-fill-judgment" aria-label="正しい選択肢を回答">
+        <p>正しいものはどれ？</p>
         <div class="weather-quiz-fill-options">
           ${item.options.map((option) => `
             <button type="button" data-weather-quiz-option="${escapeHtml(option)}">${escapeHtml(option)}</button>
@@ -2178,10 +2382,7 @@ function setupTabs() {
           answer.innerHTML = `
             <strong>${correct ? "正解" : "不正解"}</strong>
             <span>解説</span>
-            <p>${escapeHtml(item.answer)}</p>
-            <p>${item.answerIsCorrect
-              ? `この問題の論点は「${escapeHtml(item.question)}」です。問題文の記述は正しい内容と一致しています。結論だけでなく、上に示した条件や理由もあわせて確認してください。`
-              : `この問題の論点は「${escapeHtml(item.question)}」です。問題文では「${escapeHtml(item.presentedAnswer)}」としていましたが、この部分が正しい内容と一致しません。上に示した内容が正しい説明です。`}</p>
+            <p>${escapeHtml(createWeatherQuizKnowledgeExplanation(item))}</p>
           `;
         }
         stage.querySelector("[data-weather-quiz-next]")?.classList.remove("hidden");
@@ -2209,10 +2410,10 @@ function setupTabs() {
           answer.classList.toggle("is-wrong", !correct);
           answer.innerHTML = `
             <strong>${correct ? "正解" : "不正解"}</strong>
-            <span>正しい用語</span>
+            <span>正解</span>
             <p>${escapeHtml(item.correctTerm)}</p>
             <span>解説</span>
-            <p>${escapeHtml(item.answer)}</p>
+            <p>${escapeHtml(createWeatherQuizKnowledgeExplanation(item))}</p>
           `;
         }
         stage.querySelector("[data-weather-quiz-next]")?.classList.remove("hidden");
@@ -2252,7 +2453,7 @@ function setupTabs() {
         ${results.map((result, index) => `
           <article class="${result.correct ? "is-correct" : "is-wrong"}">
             <b>${result.correct ? "○" : "✕"}</b>
-            <div><span>${index + 1}. ${escapeHtml(result.item.category)}・${escapeHtml(result.item.exam)}</span><p>${escapeHtml(result.item.quizMode === "fill" ? result.item.question : result.item.statement)}</p><small>${result.item.quizMode === "fill" ? `正しい用語：${escapeHtml(result.item.correctTerm)}／解説：${escapeHtml(result.item.answer)}` : `解説：${escapeHtml(result.item.answer)}`}</small></div>
+            <div><span>${index + 1}. ${escapeHtml(result.item.category)}・${escapeHtml(result.item.exam)}</span><p>${escapeHtml(result.item.quizMode === "fill" ? result.item.question : result.item.statement)}</p><small>${result.item.quizMode === "fill" ? `正解：${escapeHtml(result.item.correctTerm)}／解説：${escapeHtml(createWeatherQuizKnowledgeExplanation(result.item))}` : `解説：${escapeHtml(createWeatherQuizKnowledgeExplanation(result.item))}`}</small></div>
           </article>
         `).join("")}
       </section>
@@ -2301,6 +2502,14 @@ function setupTabs() {
     return page;
   };
 
+  const handleWeatherQuizPageBack = () => {
+    if (weatherQuizSession?.questions?.length && !weatherQuizSession.completed) {
+      renderWeatherQuizSetup();
+      return;
+    }
+    showInfoToolHome();
+  };
+
   const openInfoWeatherQuizPage = async () => {
     ensureInfoToolShell();
     closeEarthquakePresetPicker({ restoreTab: false, skipFocus: true });
@@ -2312,7 +2521,7 @@ function setupTabs() {
     document.body.classList.remove("tool-source-search-mode", "tool-station-search-mode");
     document.body.classList.add("tool-weather-quiz-mode");
     const page = ensureInfoWeatherQuizPanel();
-    ensureToolPageHeader(page, "気象予報士試験 対策問題集", showInfoToolHome);
+    ensureToolPageHeader(page, "気象予報士試験 対策問題集", handleWeatherQuizPageBack);
     els.infoFullPanel?.querySelector("#tool-home-page")?.classList.add("hidden");
     els.infoFullPanel?.querySelector("#tool-station-page")?.classList.add("hidden");
     page?.classList.remove("hidden");
@@ -2465,6 +2674,66 @@ function setupTabs() {
   const getIntensityClassByLearningLabel = (label) => {
     const normalized = String(label).replace("弱", "-").replace("強", "+");
     return INTENSITY_CLASSES.find((item) => item.shortLabel === normalized || item.label === normalized) ?? null;
+  };
+
+  const setupLearningCategoryTabs = (content) => {
+    if (!content || content.querySelector(".learning-category-switch")) {
+      return;
+    }
+
+    const weatherSection = content.querySelector(":scope > .learning-weather-section");
+    const typhoonSection = content.querySelector(":scope > .learning-typhoon-section");
+    const tsunamiCard = weatherSection?.querySelector(":scope > .learning-tsunami-card");
+    const earthquakeSections = [...content.children].filter((section) => (
+      section !== weatherSection && section !== typhoonSection
+    ));
+
+    const categorySwitch = document.createElement("div");
+    categorySwitch.className = "learning-category-switch";
+    categorySwitch.setAttribute("role", "tablist");
+    categorySwitch.setAttribute("aria-label", "学習分野");
+    categorySwitch.innerHTML = `
+      <button type="button" role="tab" id="learning-category-earthquake-tab" aria-controls="learning-category-earthquake" aria-selected="true" data-learning-category="earthquake">地震</button>
+      <button type="button" role="tab" id="learning-category-weather-tab" aria-controls="learning-category-weather" aria-selected="false" data-learning-category="weather">気象</button>
+    `;
+
+    const earthquakePanel = document.createElement("div");
+    earthquakePanel.className = "learning-category-panel";
+    earthquakePanel.id = "learning-category-earthquake";
+    earthquakePanel.setAttribute("role", "tabpanel");
+    earthquakePanel.setAttribute("aria-labelledby", "learning-category-earthquake-tab");
+    earthquakeSections.forEach((section) => earthquakePanel.append(section));
+    if (tsunamiCard) {
+      earthquakePanel.append(tsunamiCard);
+    }
+
+    const weatherPanel = document.createElement("div");
+    weatherPanel.className = "learning-category-panel hidden";
+    weatherPanel.id = "learning-category-weather";
+    weatherPanel.setAttribute("role", "tabpanel");
+    weatherPanel.setAttribute("aria-labelledby", "learning-category-weather-tab");
+    if (weatherSection) weatherPanel.append(weatherSection);
+    if (typhoonSection) weatherPanel.append(typhoonSection);
+
+    const selectCategory = (category) => {
+      const showWeather = category === "weather";
+      earthquakePanel.classList.toggle("hidden", showWeather);
+      weatherPanel.classList.toggle("hidden", !showWeather);
+      categorySwitch.querySelectorAll("[data-learning-category]").forEach((button) => {
+        const selected = button.dataset.learningCategory === category;
+        button.setAttribute("aria-selected", String(selected));
+        button.tabIndex = selected ? 0 : -1;
+      });
+      content.dataset.learningCategory = category;
+      els.learningFullPanel?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+    };
+
+    categorySwitch.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-learning-category]");
+      if (button) selectCategory(button.dataset.learningCategory);
+    });
+    content.replaceChildren(categorySwitch, earthquakePanel, weatherPanel);
+    selectCategory("earthquake");
   };
 
   const enhanceLearningPanelContent = () => {
@@ -2690,6 +2959,7 @@ function setupTabs() {
       </section>
     `;
     content.append(typhoonSection);
+    setupLearningCategoryTabs(content);
   };
 
   const activateEarthquakePanel = () => {
@@ -2812,6 +3082,17 @@ function setupTabs() {
         closeCommunityPostOverlay();
         resetCommunityPostScrollPosition();
       }
+      if (
+        previousTabId === "earthquake-tab"
+        && (
+          state.simulationRunning
+          || state.simulationCompleted
+          || document.body.classList.contains("simulation-session-active")
+          || document.body.classList.contains("simulation-session-complete")
+        )
+      ) {
+        stopSimulation();
+      }
       if (previousTabId === "earthquake-tab") {
         resetSimulationMenuState();
       }
@@ -2821,7 +3102,12 @@ function setupTabs() {
       resetBottomTabScrollPosition(activeTab?.id);
       requestAnimationFrame(() => resetBottomTabScrollPosition(activeTab?.id));
     }
-    if (previousTabId && previousTabId !== activeTab?.id && state.simulationRunning) {
+    if (
+      previousTabId !== "earthquake-tab"
+      && previousTabId
+      && previousTabId !== activeTab?.id
+      && state.simulationRunning
+    ) {
       stopSimulation();
     }
     if (activeTab?.id !== "bottom-history-tab") {
@@ -3224,6 +3510,7 @@ function setupTabs() {
   ensureSettingsAppearanceElements();
   ensureSettingsAppearancePanel();
   ensureSimulationStartInsideSheet();
+  ensureSimulationRuntimeHud();
   ensureInfoStationPanel();
 
   const toggleSettingsInlinePanel = (button, panel, ensurePanel) => {
@@ -3460,7 +3747,17 @@ function setupTabs() {
         closeCommunityPostOverlay();
         resetCommunityPostScrollPosition();
       }
-      if (previousTabId && previousTabId !== tab.id && state.simulationRunning) {
+      if (previousTabId === "earthquake-tab" && previousTabId !== tab.id) {
+        if (
+          state.simulationRunning
+          || state.simulationCompleted
+          || document.body.classList.contains("simulation-session-active")
+          || document.body.classList.contains("simulation-session-complete")
+        ) {
+          stopSimulation();
+        }
+        resetSimulationMenuState();
+      } else if (previousTabId && previousTabId !== tab.id && state.simulationRunning) {
         stopSimulation();
       }
       if (tab.id !== "bottom-history-tab") {
@@ -5337,6 +5634,45 @@ function bindSimulationControls() {
   els.eewWarningToggle.addEventListener("change", () => updateDisplayMode());
   els.plateBoundaryLayerToggle?.addEventListener("change", () => updateDisplayMode());
   els.faultLayerToggle?.addEventListener("change", () => updateDisplayMode());
+  const syncMapLayerControlPanel = () => {
+    els.mapLayerControlPanel?.querySelectorAll("[data-map-layer-target]").forEach((control) => {
+      const target = document.getElementById(control.dataset.mapLayerTarget || "");
+      if (target instanceof HTMLInputElement) {
+        control.checked = target.checked;
+        control.disabled = target.disabled;
+      }
+    });
+  };
+  els.mapLayerControlButton?.addEventListener("click", () => {
+    const willOpen = els.mapLayerControlPanel?.classList.contains("hidden");
+    if (willOpen) syncMapLayerControlPanel();
+    els.mapLayerControlPanel?.classList.toggle("hidden", !willOpen);
+    els.mapLayerControlButton?.setAttribute("aria-expanded", String(willOpen));
+  });
+  els.mapLayerControlPanel?.querySelectorAll("[data-map-layer-target]").forEach((control) => {
+    control.addEventListener("change", () => {
+      const target = document.getElementById(control.dataset.mapLayerTarget || "");
+      if (!(target instanceof HTMLInputElement)) return;
+      target.checked = control.checked;
+      target.dispatchEvent(new Event("change", { bubbles: true }));
+      syncMapLayerControlPanel();
+    });
+  });
+  document.addEventListener("change", (event) => {
+    if (
+      event.target instanceof HTMLInputElement
+      && [
+        "station-layer-toggle",
+        "submarine-station-layer-toggle",
+        "region-layer-toggle",
+        "eew-warning-toggle",
+        "plate-boundary-layer-toggle",
+        "fault-layer-toggle",
+      ].includes(event.target.id)
+    ) {
+      syncMapLayerControlPanel();
+    }
+  });
   els.simulationStationLayerToggle.addEventListener("change", () => syncSimulationLayerToggles());
   els.simulationSubmarineStationLayerToggle?.addEventListener("change", () => syncSimulationLayerToggles());
   els.simulationRegionLayerToggle.addEventListener("change", () => syncSimulationLayerToggles());
@@ -5357,11 +5693,21 @@ function bindSimulationControls() {
   });
   els.simulationPause?.addEventListener("click", () => {
     if (state.simulationCompleted) {
-      startSimulation();
+      stopSimulation();
       return;
     }
 
     toggleSimulationPause();
+  });
+  els.simulationRewind?.addEventListener("click", () => {
+    if (state.simulationCompleted) {
+      startSimulation();
+      return;
+    }
+    if (!state.simulationRunning || !simulationStartedAt) {
+      return;
+    }
+    seekSimulationToElapsed(getSimulationElapsedSec() - 5);
   });
   els.simulationStop.addEventListener("click", () => stopSimulation());
   document.addEventListener("visibilitychange", pauseSimulationWhenAppHidden);
@@ -5938,9 +6284,19 @@ async function submitCommunityPost() {
   ui.status.textContent = "投稿中...";
   try {
     const formData = new FormData(ui.form);
+    if (!communityPostLocation.placeName) {
+      const resolvedPlaceName = await resolveMunicipalityNameAt(
+        communityPostLocation.longitude,
+        communityPostLocation.latitude,
+      );
+      if (resolvedPlaceName && resolvedPlaceName !== "-") {
+        communityPostLocation.placeName = `${resolvedPlaceName}${communityPostLocation.mode === "vague" ? "内" : ""}`;
+      }
+    }
     formData.set("latitude", String(communityPostLocation.latitude));
     formData.set("longitude", String(communityPostLocation.longitude));
     formData.set("locationMode", communityPostLocation.mode);
+    formData.set("placeName", communityPostLocation.placeName || "");
     formData.delete("tags");
     formData.delete("optionalTag");
     formData.delete("customTag");
@@ -6628,16 +6984,20 @@ function renderCommunityPostDetail(post, placeName = "") {
       : `<img alt="投稿写真" src="${escapeHtml(post.mediaUrl)}" />`
     : "";
   const isOwnPost = Boolean(communityAccount?.id && post.accountId === communityAccount.id);
+  const localAdminInteractionsDisabled = Boolean(communityAccount?.isAdmin && communityAccount?.localOnly);
+  const localAdminDisabledAttributes = localAdminInteractionsDisabled
+    ? ' disabled aria-disabled="true" title="Local管理者はこの操作を利用できません"'
+    : "";
   const likeLabel = post.liked ? "♥" : "♡";
   const followButton = post.accountId && !isOwnPost
-    ? `<button class="community-post-follow-button${post.following ? " is-following" : ""}" type="button" data-community-follow-account="${escapeHtml(post.accountId)}">${post.following ? "フォロー中" : "フォロー"}</button>`
+    ? `<button class="community-post-follow-button${post.following ? " is-following" : ""}" type="button" data-community-follow-account="${escapeHtml(post.accountId)}"${localAdminDisabledAttributes}>${post.following ? "フォロー中" : "フォロー"}</button>`
     : "";
   body.innerHTML = `
     <div class="community-post-author">
       ${renderCommunityAccountIcon({ icon: post.authorIcon || "", name: post.authorName || "" }, "community-post-author-icon")}
       <strong>${escapeHtml(post.authorName || "匿名ユーザー")}</strong>
       <div class="community-post-author-actions">
-        <button class="community-post-like-button${post.liked ? " is-liked" : ""}" type="button" data-community-like-post="${escapeHtml(post.id)}" aria-label="いいね">${likeLabel}<span>${Number(post.likeCount || 0).toLocaleString("ja-JP")}</span></button>
+        <button class="community-post-like-button${post.liked ? " is-liked" : ""}" type="button" data-community-like-post="${escapeHtml(post.id)}" aria-label="いいね"${localAdminDisabledAttributes}>${likeLabel}<span>${Number(post.likeCount || 0).toLocaleString("ja-JP")}</span></button>
         ${followButton}
       </div>
     </div>
@@ -6752,6 +7112,10 @@ async function deleteCommunityPost(post) {
 }
 
 async function resolveCommunityPostPlaceName(post) {
+  const savedPlaceName = String(post?.placeName || "").trim();
+  if (savedPlaceName) {
+    return savedPlaceName;
+  }
   const longitude = Number(post.longitude);
   const latitude = Number(post.latitude);
   if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {
@@ -6760,6 +7124,18 @@ async function resolveCommunityPostPlaceName(post) {
   const name = await resolveMunicipalityNameAt(longitude, latitude);
   if (name && name !== "-") {
     return post?.locationMode === "vague" ? `${name}内` : name;
+  }
+  try {
+    const municipalities = municipalityDisplayData ?? await loadMunicipalityBoundaries();
+    const nearestMunicipality = findNearestFeatureByDistance(municipalities, [longitude, latitude], 40);
+    if (nearestMunicipality) {
+      const nearestName = formatMunicipalityDisplayName(nearestMunicipality.properties ?? {});
+      if (nearestName && nearestName !== "該当なし") {
+        return post?.locationMode === "vague" ? `${nearestName}内` : nearestName;
+      }
+    }
+  } catch (error) {
+    console.warn("Nearest municipality lookup unavailable", error);
   }
   return `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
 }
@@ -6806,6 +7182,7 @@ async function updateCommunityPostLocationStatus() {
     const resolvedPlaceName = placeName && placeName !== "-"
       ? `${placeName}${location.mode === "vague" ? "内" : ""}`
       : "所在地を特定できません";
+    location.placeName = placeName && placeName !== "-" ? resolvedPlaceName : "";
     ui.locationStatus.textContent = `${locationText}（${resolvedPlaceName}）`;
   }
 }
@@ -7424,7 +7801,7 @@ function setupMobileSheets() {
     const toggleSheet = (event) => {
       event?.preventDefault();
       event?.stopPropagation();
-      setSheetState(panel, panel.dataset.sheetState === "collapsed" ? "open" : "collapsed");
+      setSheetState(panel, panel.dataset.sheetState === "open" ? "collapsed" : "open");
     };
 
     toggleButtons.forEach((toggleButton) => {
@@ -7437,6 +7814,17 @@ function setupMobileSheets() {
     let suppressHandleClick = false;
     let dragStartHeight = 0;
     let dragCurrentHeight = 0;
+    let dragRenderFrame = 0;
+    let settleRenderFrame = 0;
+    let pendingDragHeight = 0;
+
+    const renderDragHeight = () => {
+      dragRenderFrame = 0;
+      if (!dragging || !pendingDragHeight) {
+        return;
+      }
+      panel.style.setProperty("--sheet-drag-height", `${pendingDragHeight}px`);
+    };
 
     if (handle) {
       handle.addEventListener("click", (event) => {
@@ -7460,12 +7848,21 @@ function setupMobileSheets() {
       }
 
       event.preventDefault();
+      if (settleRenderFrame) {
+        cancelAnimationFrame(settleRenderFrame);
+        settleRenderFrame = 0;
+      }
       dragging = true;
       dragStartY = event.clientY;
       dragCurrentY = event.clientY;
       dragStartHeight = panelRect.height;
       dragCurrentHeight = dragStartHeight;
+      pendingDragHeight = dragStartHeight;
       panel.classList.add("is-dragging");
+      panel.style.setProperty("--sheet-drag-height", `${dragStartHeight}px`);
+      if (panel.dataset.sheetState !== "open") {
+        setSheetState(panel, "open");
+      }
       panel.setPointerCapture?.(event.pointerId);
     };
 
@@ -7474,14 +7871,20 @@ function setupMobileSheets() {
         return;
       }
 
-      dragCurrentY = event.clientY;
+      event.preventDefault();
+      const coalescedEvents = event.getCoalescedEvents?.() ?? [];
+      const latestEvent = coalescedEvents[coalescedEvents.length - 1] ?? event;
+      dragCurrentY = latestEvent.clientY;
       const deltaY = dragCurrentY - dragStartY;
       const viewportHeight = window.visualViewport?.height || window.innerHeight || 720;
-      const minHeight = 56;
-      const maxHeight = Math.min(viewportHeight * 0.72, 700);
+      const minHeight = 42;
+      const maxHeight = getSetupSheetOpenHeight(viewportHeight);
       const nextHeight = clamp(dragStartHeight - deltaY, minHeight, maxHeight);
       dragCurrentHeight = nextHeight;
-      panel.style.setProperty("--sheet-drag-height", `${nextHeight}px`);
+      pendingDragHeight = nextHeight;
+      if (!dragRenderFrame) {
+        dragRenderFrame = requestAnimationFrame(renderDragHeight);
+      }
     };
 
     const finishDrag = (event) => {
@@ -7491,22 +7894,30 @@ function setupMobileSheets() {
 
       dragging = false;
       panel.releasePointerCapture?.(event.pointerId);
-      panel.classList.remove("is-dragging");
-      panel.style.removeProperty("--sheet-drag-height");
+      if (dragRenderFrame) {
+        cancelAnimationFrame(dragRenderFrame);
+        dragRenderFrame = 0;
+      }
+      panel.style.setProperty("--sheet-drag-height", `${dragCurrentHeight}px`);
       const deltaY = dragCurrentY - dragStartY;
       suppressHandleClick = Math.abs(deltaY) > 8;
       const viewportHeight = window.visualViewport?.height || window.innerHeight || 720;
-      const closedHeight = 56;
-      const collapsedHeight = Math.min(viewportHeight * 0.24, 233);
-      const openHeight = Math.min(viewportHeight * 0.72, 700);
+      const closedHeight = 42;
+      const collapsedHeight = 42;
+      const openHeight = getSetupSheetOpenHeight(viewportHeight);
       const finalHeight = dragCurrentHeight || dragStartHeight;
       let nextState = "collapsed";
-      if (finalHeight >= (collapsedHeight + openHeight) / 2 || deltaY < -120) {
+      if (finalHeight >= (collapsedHeight + openHeight) / 2 || deltaY < -48) {
         nextState = "open";
-      } else if (finalHeight <= (closedHeight + collapsedHeight) / 2 || deltaY > 120) {
+      } else if (finalHeight <= (closedHeight + collapsedHeight) / 2 || deltaY > 48) {
         nextState = "closed";
       }
       setSheetState(panel, nextState);
+      settleRenderFrame = requestAnimationFrame(() => {
+        settleRenderFrame = 0;
+        panel.classList.remove("is-dragging");
+        panel.style.removeProperty("--sheet-drag-height");
+      });
     };
 
     panel.addEventListener("pointerdown", beginDrag);
@@ -7514,6 +7925,11 @@ function setupMobileSheets() {
     panel.addEventListener("pointerup", finishDrag);
     panel.addEventListener("pointercancel", finishDrag);
   });
+}
+
+function getSetupSheetOpenHeight(viewportHeight = window.visualViewport?.height || window.innerHeight || 720) {
+  const bottomTabsHeight = document.querySelector(".bottom-tabs")?.getBoundingClientRect().height || 64;
+  return Math.max(56, viewportHeight - bottomTabsHeight - 16);
 }
 
 function setupTransientPanelScrollbars() {
@@ -10863,17 +11279,11 @@ function applyFeedbackPlaceholder(textarea) {
 }
 
 function getFeedbackPlaceholderText() {
-  return [
-    "例：◯◯の機能を追加してほしい",
-    "　　改善要望 など",
-  ].join("\n");
+  return "例：◯◯の機能を追加してほしい";
 }
 
 function getCleanFeedbackPlaceholderText() {
-  return [
-    "例：◯◯の機能を追加してほしい",
-    "　　改善要望 など",
-  ].join("\n");
+  return "例：◯◯の機能を追加してほしい";
 }
 
 function buildFeedbackOverlayHtml() {
@@ -12011,7 +12421,6 @@ function renderStationCanvasOverlay() {
   const features = getStationCanvasFeatures();
   const submarineFeatures = getSubmarineStationCanvasFeatures();
   const zoom = map.getZoom();
-
   const projectedPWaveRing = getProjectedWaveCanvasRing(waveCanvasRadiusState.p);
   const projectedSWaveRing = getProjectedWaveCanvasRing(waveCanvasRadiusState.s);
 
@@ -12070,6 +12479,7 @@ function renderStationCanvasOverlay() {
 
   drawProjectedWaveCanvasRadiusLine(context, projectedPWaveRing, "#7de7ff", 2.4, 0.9);
   drawProjectedWaveCanvasRadiusLine(context, projectedSWaveRing, "#ff6b7f", 3.4, 0.95);
+
 }
 
 function getProjectedWaveCanvasRing(radiusKm) {
@@ -12154,7 +12564,7 @@ function drawStationCanvasMarker(context, x, y, radius, fontSize, labelAlpha, pr
   context.fillStyle = fillColor;
   context.fill();
   context.shadowColor = "transparent";
-  context.lineWidth = intensityRank <= 2 ? 1.35 : 1.45;
+  context.lineWidth = intensityRank <= 2 ? 1.6 : 1.7;
   context.strokeStyle = intensityRank <= 2 ? "rgba(0, 0, 0, 0.36)" : "rgba(0, 0, 0, 0.30)";
   context.stroke();
   context.restore();
@@ -12182,7 +12592,7 @@ function drawSubmarineStationCanvasMarker(context, x, y, radius, fontSize, label
   context.fillStyle = fillColor;
   context.fill();
   context.shadowColor = "transparent";
-  context.lineWidth = hasRecordedIntensity ? 1.35 : 1.45;
+  context.lineWidth = hasRecordedIntensity ? 1.6 : 1.7;
   context.setLineDash(hasRecordedIntensity ? [2.8, 2.2] : [2.5, 3.2]);
   context.strokeStyle = hasRecordedIntensity ? "rgba(0, 0, 0, 0.32)" : "rgba(0, 0, 0, 0.28)";
   context.stroke();
@@ -13281,6 +13691,7 @@ function updateCurrentLocationForecast(elapsedSec = 0) {
   if (state.currentLocationStatus === "loading") {
     setTextContentIfChanged(els.currentLocationName, state.currentLocationName || "位置情報を取得中...");
     setTextContentIfChanged(els.currentLocationIntensity, "計算中");
+    applySimulationIntensityCard(els.currentLocationIntensity, null);
     setTextContentIfChanged(els.currentLocationArrival, "計算中");
     return;
   }
@@ -13291,6 +13702,7 @@ function updateCurrentLocationForecast(elapsedSec = 0) {
       state.currentLocationName || "位置情報の取得に失敗しました。再度お試しください。",
     );
     setTextContentIfChanged(els.currentLocationIntensity, "-");
+    applySimulationIntensityCard(els.currentLocationIntensity, null);
     setTextContentIfChanged(els.currentLocationArrival, "-");
     return;
   }
@@ -13298,6 +13710,7 @@ function updateCurrentLocationForecast(elapsedSec = 0) {
   if (!state.currentLocationEnabled || !state.currentLocation) {
     setTextContentIfChanged(els.currentLocationName, "-");
     setTextContentIfChanged(els.currentLocationIntensity, "-");
+    applySimulationIntensityCard(els.currentLocationIntensity, null);
     setTextContentIfChanged(els.currentLocationArrival, "-");
     return;
   }
@@ -13307,12 +13720,14 @@ function updateCurrentLocationForecast(elapsedSec = 0) {
   const forecast = getCurrentLocationForecast();
   if (!forecast) {
     setTextContentIfChanged(els.currentLocationIntensity, "計算中");
+    applySimulationIntensityCard(els.currentLocationIntensity, null);
     setTextContentIfChanged(els.currentLocationArrival, "計算中");
     return;
   }
 
   if (forecast.intensityClass.rank < 1) {
     setTextContentIfChanged(els.currentLocationIntensity, "該当なし");
+    applySimulationIntensityCard(els.currentLocationIntensity, null);
     setTextContentIfChanged(els.currentLocationArrival, "該当なし");
     return;
   }
@@ -13320,6 +13735,7 @@ function updateCurrentLocationForecast(elapsedSec = 0) {
   const elapsed = Number.isFinite(elapsedSec) ? elapsedSec : 0;
   const remainingSec = Math.max(forecast.pArrivalSec - elapsed, 0);
   setTextContentIfChanged(els.currentLocationIntensity, forecast.intensityClass.label);
+  applySimulationIntensityCard(els.currentLocationIntensity, forecast.intensityClass);
   setTextContentIfChanged(els.currentLocationArrival, `${remainingSec.toFixed(3)}秒`);
 }
 
@@ -13386,21 +13802,38 @@ async function startSimulation() {
   state.eewWarningBlinkStartedAt = {};
   state.eewInitialWarningKeys = new Set();
   state.eewPreviousWarningKeys = new Set();
+  state.eewWarningForecastAreas = [];
   resetSpeechAnnouncementState();
   resetWaveRenderCache();
   simulationCompleteAtSec = getSimulationCompleteAtSec();
+  resetSimulationTimeline();
   stationSummaryCache = { data: null, summary: null };
   eewForecastPanelRenderSignature = "";
   simulationRenderBucket = -1;
   simulationStationRenderBucket = -1;
   maxStationListRenderBucket = null;
   maxStationListRenderSignature = "";
+  simulationMaxAreaListSignature = "";
   cancelPendingMaxStationListRender();
   simulationTimeTextCache = "";
   state.simulationRunning = true;
   state.simulationPaused = false;
   state.simulationCompleted = false;
   document.body.classList.add("simulation-session-active");
+  document.body.classList.remove("simulation-session-complete");
+  const selectedPreset = getSelectedPreset();
+  const originTimeText = selectedPreset
+    ? formatPresetDateTime(selectedPreset)
+    : new Intl.DateTimeFormat("ja-JP", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(new Date());
+  setTextContentIfChanged(els.simulationOriginTime, originTimeText);
+  els.setupPanel?.setAttribute("aria-label", "シミュレーションメニュー");
   delete els.simulationPanel.dataset.simulationComplete;
   state.epicenterEditEnabled = false;
   els.epicenterEditToggle.checked = false;
@@ -13443,17 +13876,21 @@ async function startSimulation() {
   if (els.simulationPause) {
     els.simulationPause.textContent = "一時停止";
     els.simulationPause.disabled = false;
+    els.simulationPause.setAttribute("aria-label", "シミュレーションを一時停止");
+  }
+  if (els.simulationRewind) {
+    els.simulationRewind.textContent = "↶ 5秒";
+    els.simulationRewind.disabled = false;
+    els.simulationRewind.setAttribute("aria-label", "5秒巻き戻す");
   }
   if (els.simulationStop) {
-    els.simulationStop.textContent = "シミュレーション終了";
+    els.simulationStop.textContent = "シミュレーション中止";
   }
   els.simulationStart.textContent = "シミュレーション中止";
-  els.setupPanel.classList.remove("hidden");
+  els.setupPanel.classList.add("hidden");
   els.simulationPanel.classList.add("hidden");
   activateSettingsTab("result");
-  setSetupMenuOpen(true);
   updateSettingsMenuButtonVisibility();
-  setSheetState(els.setupPanel, "open");
   cancelAnimationFrame(simulationFrame);
   tickSimulation(simulationStartedAt);
 }
@@ -13463,7 +13900,8 @@ function stopSimulation() {
   state.simulationRunning = false;
   state.simulationPaused = false;
   state.simulationCompleted = false;
-  document.body.classList.remove("simulation-session-active");
+  document.body.classList.remove("simulation-session-active", "simulation-session-complete");
+  els.setupPanel?.setAttribute("aria-label", "震源設定");
   state.eewWarningReportNumber = null;
   state.eewWarningFinalReport = false;
   state.eewReportAreaKeySignature = "";
@@ -13482,6 +13920,7 @@ function stopSimulation() {
   simulationStationRenderBucket = -1;
   maxStationListRenderBucket = null;
   simulationTimeTextCache = "";
+  simulationMaxAreaListSignature = "";
   state.epicenterEditEnabled = simulationPreviousEpicenterEditEnabled;
   els.epicenterEditToggle.checked = state.epicenterEditEnabled;
   updateEpicenterEditMode();
@@ -13490,6 +13929,12 @@ function stopSimulation() {
   if (els.simulationPause) {
     els.simulationPause.textContent = "一時停止";
     els.simulationPause.disabled = true;
+    els.simulationPause.setAttribute("aria-label", "シミュレーションを一時停止");
+  }
+  if (els.simulationRewind) {
+    els.simulationRewind.textContent = "↶ 5秒";
+    els.simulationRewind.disabled = true;
+    els.simulationRewind.setAttribute("aria-label", "5秒巻き戻す");
   }
   if (els.simulationStop) {
     els.simulationStop.textContent = "シミュレーション終了";
@@ -13561,17 +14006,107 @@ function resumeSimulationFromPause() {
   return true;
 }
 
+function seekSimulationToElapsed(nextElapsedSec) {
+  if (!state.simulationRunning || !simulationStartedAt) {
+    return false;
+  }
+
+  const upperBound = Number.isFinite(simulationCompleteAtSec) ? simulationCompleteAtSec : Math.max(getSimulationElapsedSec(), 0);
+  const elapsedSec = clamp(Number(nextElapsedSec) || 0, 0, upperBound);
+  const now = performance.now();
+  simulationStartedAt = now - elapsedSec * 1000;
+  if (state.simulationPaused) {
+    simulationPausedAt = now;
+  }
+
+  cancelAnimationFrame(simulationFrame);
+  simulationFrame = null;
+  resetSimulationStateForSeek(elapsedSec);
+  renderSimulationAtElapsed(elapsedSec);
+  if (!state.simulationPaused) {
+    resumeSpeechAnnouncements();
+    simulationFrame = requestAnimationFrame(tickSimulation);
+  }
+  return true;
+}
+
+function resetSimulationStateForSeek(elapsedSec) {
+  const modelElapsedSec = getSimulationModelElapsedSec(elapsedSec);
+  state.eewWarningReportNumber = null;
+  state.eewWarningFinalReport = false;
+  state.eewReportAreaKeySignature = "";
+  state.eewSyntheticReportNumber = 0;
+  state.eewFirstReportElapsedSec =
+    Number.isFinite(simulationTimelineExpectedFirstEewSec) && modelElapsedSec >= simulationTimelineExpectedFirstEewSec
+      ? simulationTimelineExpectedFirstEewSec
+      : null;
+  state.eewIssuedWarningKeys = new Set();
+  state.eewWarningBlinkStartedAt = {};
+  state.eewInitialWarningKeys = new Set();
+  state.eewPreviousWarningKeys = new Set();
+  state.eewWarningForecastAreas = [];
+  resetSpeechAnnouncementState();
+  pauseSpeechAnnouncements();
+  resetWaveRenderCache();
+  stationSummaryCache = { data: null, summary: null };
+  observedStationFeatureCache = { data: null, features: [] };
+  stationDataCache = { key: "", data: null };
+  areaDataCache = { key: "", data: null };
+  visibleAreaDataSyncBucket = null;
+  simulationRenderBucket = -1;
+  simulationStationRenderBucket = -1;
+  maxStationListRenderBucket = null;
+  simulationTimeTextCache = "";
+  simulationMaxAreaListSignature = "";
+  resetSimulationTimeline();
+}
+
+function renderSimulationAtElapsed(elapsedSec) {
+  simulationSeeking = true;
+  try {
+    const modelElapsedSec = getSimulationModelElapsedSec(elapsedSec);
+    updateSimulationProgress(elapsedSec);
+    const { pRadiusKm, sRadiusKm } = getWaveSurfaceRadiiForElapsed(modelElapsedSec);
+    setWaveRadiusData(pRadiusKm, sRadiusKm);
+    setTextContentIfChanged(els.simulationTime, `${elapsedSec.toFixed(1)} 秒`);
+    simulationTimeTextCache = `${elapsedSec.toFixed(1)} 秒`;
+    if (state.showStationLayer && map?.getSource("shindo-stations") && shindoStationData) {
+      setGeoJsonSourceData("shindo-stations", getStationIntensityDataForElapsed(modelElapsedSec));
+    }
+    if (
+      state.showSubmarineStationLayer
+      && !getSelectedPreset()
+      && map?.getSource("submarine-observation-points")
+      && submarineObservationPointData
+    ) {
+      setSubmarineObservationSourceForElapsed(modelElapsedSec);
+    }
+    syncVisibleAreaSourceData(modelElapsedSec);
+    updateSimulationSummary(modelElapsedSec);
+  } finally {
+    simulationSeeking = false;
+  }
+}
+
 function tickSimulation(now) {
   if (!state.simulationRunning || state.simulationPaused) {
     return;
   }
 
-  const elapsedSec = getSimulationElapsedSec(now);
-  updateSimulationProgress(elapsedSec);
-  const { pRadiusKm, sRadiusKm } = getWaveSurfaceRadiiForElapsed(elapsedSec);
-  const currentBucket = toSimulationBucket(elapsedSec);
+  if (!Number.isFinite(simulationCompleteAtSec)) {
+    refreshSimulationCompletionSchedule();
+  }
 
+  const rawElapsedSec = getSimulationElapsedSec(now);
+  const elapsedSec = Number.isFinite(simulationCompleteAtSec)
+    ? Math.min(rawElapsedSec, simulationCompleteAtSec)
+    : rawElapsedSec;
+  const modelElapsedSec = getSimulationModelElapsedSec(elapsedSec);
+  updateSimulationProgress(elapsedSec);
+  const { pRadiusKm, sRadiusKm } = getWaveSurfaceRadiiForElapsed(modelElapsedSec);
   setWaveRadiusData(pRadiusKm, sRadiusKm);
+  const currentBucket = toSimulationBucket(modelElapsedSec);
+
   const nextSimulationTimeText = `${elapsedSec.toFixed(1)} 秒`;
   if (nextSimulationTimeText !== simulationTimeTextCache) {
     els.simulationTime.textContent = nextSimulationTimeText;
@@ -13581,7 +14116,7 @@ function tickSimulation(now) {
   if (currentBucket !== simulationStationRenderBucket) {
     simulationStationRenderBucket = currentBucket;
     if (state.showStationLayer && map?.getSource("shindo-stations") && shindoStationData) {
-      setGeoJsonSourceData("shindo-stations", getStationIntensityDataForElapsed(elapsedSec));
+      setGeoJsonSourceData("shindo-stations", getStationIntensityDataForElapsed(modelElapsedSec));
     }
     if (
       state.showSubmarineStationLayer &&
@@ -13589,27 +14124,27 @@ function tickSimulation(now) {
       map?.getSource("submarine-observation-points") &&
       submarineObservationPointData
     ) {
-      setSubmarineObservationSourceForElapsed(elapsedSec);
+      setSubmarineObservationSourceForElapsed(modelElapsedSec);
     }
   }
 
   if (currentBucket !== simulationRenderBucket) {
     simulationRenderBucket = currentBucket;
 
-    syncVisibleAreaSourceData(elapsedSec);
+    syncVisibleAreaSourceData(modelElapsedSec);
 
-    updateSimulationSummary(elapsedSec);
+    updateSimulationSummary(modelElapsedSec);
   }
 
   if (isSimulationComplete(elapsedSec)) {
     state.simulationRunning = false;
     state.simulationPaused = false;
     state.simulationCompleted = true;
+    document.body.classList.add("simulation-session-complete");
     state.eewWarningFinalReport = state.eewWarningReportNumber != null;
     resetSpeechAnnouncementState();
     finishSpeechAnnouncementsGracefully();
     simulationFrame = null;
-    simulationCompleteAtSec = null;
     simulationPausedAt = null;
     maxStationListRenderBucket = null;
     maxStationListRenderSignature = "";
@@ -13628,8 +14163,14 @@ function tickSimulation(now) {
     els.simulationStart.textContent = "シミュレーション開始";
     els.simulationPanel.dataset.simulationComplete = "true";
     if (els.simulationPause) {
-      els.simulationPause.textContent = "再度実行";
+      els.simulationPause.textContent = "震源設定へ";
       els.simulationPause.disabled = false;
+      els.simulationPause.setAttribute("aria-label", "シミュレーションを終了して震源設定に戻る");
+    }
+    if (els.simulationRewind) {
+      els.simulationRewind.textContent = "再度実施";
+      els.simulationRewind.disabled = false;
+      els.simulationRewind.setAttribute("aria-label", "同じ条件でもう一度実行");
     }
     if (els.simulationStop) {
       els.simulationStop.textContent = "シミュレーション終了";
@@ -13646,27 +14187,301 @@ function getSimulationElapsedSec(now = performance.now()) {
   return simulationStartedAt ? Math.max((currentTime - simulationStartedAt) / 1000, 0) : 0;
 }
 
+function getSimulationModelElapsedSec(sessionElapsedSec = getSimulationElapsedSec()) {
+  return Math.max((Number(sessionElapsedSec) || 0) - SIMULATION_ORIGIN_OFFSET_SEC, 0);
+}
+
 function updateSimulationProgress(elapsedSec = 0) {
   const elapsed = Number.isFinite(elapsedSec) ? Math.max(elapsedSec, 0) : 0;
   const total = Number(simulationCompleteAtSec);
   const hasFiniteTotal = Number.isFinite(total) && total > 0;
   const progress = hasFiniteTotal ? Math.min(elapsed / total, 1) : 0;
   const percent = Math.round(progress * 1000) / 10;
+  const timelineElapsed = hasFiniteTotal ? Math.min(elapsed, total) : elapsed;
+  const currentX = Math.round(SIMULATION_TIMELINE_START_PX + timelineElapsed * SIMULATION_TIMELINE_PX_PER_SEC);
+  const viewportWidth = Math.max(els.simulationProgressTrack?.clientWidth || 0, 320);
+  const timelineEndSec = hasFiniteTotal ? total : elapsed + 60;
+  const canvasWidth = hasFiniteTotal
+    ? viewportWidth + Math.round(timelineEndSec * SIMULATION_TIMELINE_PX_PER_SEC)
+    : Math.max(viewportWidth * 2.5, currentX + viewportWidth);
 
+  const currentEewAreas = [...new Set(state.eewWarningForecastAreas ?? [])].sort();
+  const currentEewAreaSignature = currentEewAreas.join("|");
+  const previousEewAreas = new Set(simulationTimelineLastEewAreaSignature.split("|").filter(Boolean));
+  const hasAddedEewArea = currentEewAreas.some((areaName) => !previousEewAreas.has(areaName));
+  if (
+    state.simulationRunning
+    && state.eewWarningReportNumber != null
+    && state.eewWarningReportNumber !== simulationTimelineLastEewReport
+    && hasAddedEewArea
+  ) {
+    simulationTimelineLastEewReport = state.eewWarningReportNumber;
+    addSimulationTimelineEvent(
+      `eew-${state.eewWarningReportNumber}`,
+      elapsed,
+      `緊急地震速報 第${state.eewWarningReportNumber}報`,
+      "eew",
+    );
+  }
+  if (currentEewAreaSignature) {
+    simulationTimelineLastEewAreaSignature = currentEewAreaSignature;
+  }
+
+  if (els.simulationProgressCanvas) {
+    els.simulationProgressCanvas.style.width = `${canvasWidth}px`;
+  }
   if (els.simulationProgressFill) {
-    els.simulationProgressFill.style.width = `${percent}%`;
-    els.simulationProgressFill.classList.toggle("is-indeterminate", !hasFiniteTotal);
+    els.simulationProgressFill.style.width = `${SIMULATION_TIMELINE_START_PX}px`;
+  }
+  if (els.simulationProgressNow) {
+    els.simulationProgressNow.style.left = `${SIMULATION_TIMELINE_START_PX}px`;
   }
   if (els.simulationProgressTrack) {
     els.simulationProgressTrack.setAttribute("aria-valuenow", String(Math.round(percent)));
     els.simulationProgressTrack.setAttribute(
       "aria-valuetext",
-      hasFiniteTotal ? `${elapsed.toFixed(1)}秒 / ${total.toFixed(1)}秒` : `${elapsed.toFixed(1)}秒経過`,
+      hasFiniteTotal ? `${timelineElapsed.toFixed(1)}秒 / ${total.toFixed(1)}秒` : `${elapsed.toFixed(1)}秒経過`,
     );
+    if (simulationTimelineAutoFollow) {
+      const nextScrollLeft = Math.max(currentX - SIMULATION_TIMELINE_START_PX, 0);
+      if (Math.abs(els.simulationProgressTrack.scrollLeft - nextScrollLeft) > 1) {
+        els.simulationProgressTrack.scrollLeft = nextScrollLeft;
+      }
+    }
   }
   setTextContentIfChanged(
     els.simulationProgressTime,
-    hasFiniteTotal ? `${elapsed.toFixed(1)} / ${total.toFixed(1)} 秒` : `${elapsed.toFixed(1)} 秒`,
+    hasFiniteTotal ? `${timelineElapsed.toFixed(1)} / ${total.toFixed(1)} 秒` : `${elapsed.toFixed(1)} 秒`,
+  );
+}
+
+function resetSimulationTimeline() {
+  simulationTimelineEvents = [];
+  simulationTimelineLastEewReport = null;
+  simulationTimelineLastEewAreaSignature = "";
+  simulationTimelineMaxRank = 0;
+  simulationTimelineAutoFollow = true;
+  simulationTimelineExpectedFirstEewSec = null;
+  if (els.simulationProgressTrack) {
+    els.simulationProgressTrack.scrollLeft = 0;
+  }
+  addSimulationTimelineEvent("start", SIMULATION_ORIGIN_OFFSET_SEC, "地震発生", "start");
+  addExpectedSimulationEewTimelineEvents();
+  addExpectedSimulationIntensityTimelineEvents();
+  if (Number.isFinite(simulationCompleteAtSec)) {
+    addSimulationTimelineEvent("complete", simulationCompleteAtSec, "シミュレーション終了", "complete");
+  }
+  renderSimulationTimelineGuides();
+}
+
+function renderSimulationTimelineGuides() {
+  const guideHost = document.querySelector("#simulation-progress-guides");
+  const total = Number(simulationCompleteAtSec);
+  if (!guideHost || !Number.isFinite(total) || total <= 0) {
+    guideHost?.replaceChildren();
+    return;
+  }
+
+  const guides = [];
+  const originGuide = document.createElement("span");
+  originGuide.style.left = `${SIMULATION_TIMELINE_START_PX + SIMULATION_ORIGIN_OFFSET_SEC * SIMULATION_TIMELINE_PX_PER_SEC}px`;
+  originGuide.dataset.label = "0s";
+  guides.push(originGuide);
+  for (let elapsedSec = 10; elapsedSec + SIMULATION_ORIGIN_OFFSET_SEC <= total; elapsedSec += 10) {
+    const guide = document.createElement("span");
+    guide.style.left = `${SIMULATION_TIMELINE_START_PX + (elapsedSec + SIMULATION_ORIGIN_OFFSET_SEC) * SIMULATION_TIMELINE_PX_PER_SEC}px`;
+    guide.dataset.label = formatSimulationTimelineGuideLabel(elapsedSec);
+    guides.push(guide);
+  }
+  guideHost.replaceChildren(...guides);
+}
+
+function formatSimulationTimelineGuideLabel(elapsedSec) {
+  const wholeSeconds = Math.max(Math.round(Number(elapsedSec) || 0), 0);
+  const minutes = Math.floor(wholeSeconds / 60);
+  const seconds = wholeSeconds % 60;
+  if (minutes === 0) return `${seconds}s`;
+  return seconds === 0 ? `${minutes}m` : `${minutes}m${seconds}s`;
+}
+
+function addExpectedSimulationIntensityTimelineEvents() {
+  if (!shindoStationData) return;
+  const predictedStations = buildStationIntensityFeatures(shindoStationData).filter((feature) => (
+    Number(feature.properties?.predictedIntensityRank) >= 1
+  ));
+  const predictedMaxRank = predictedStations.reduce(
+    (maximum, feature) => Math.max(maximum, Number(feature.properties?.predictedIntensityRank) || 0),
+    0,
+  );
+  if (predictedMaxRank < 1) return;
+
+  const eventRanks = predictedMaxRank >= 5
+    ? Array.from({ length: predictedMaxRank - 4 }, (_, index) => index + 5)
+    : [predictedMaxRank];
+  let scheduledMaxRank = 0;
+  eventRanks.forEach((rank) => {
+    const elapsedSec = getFirstPredictedIntensityObservationSec(predictedStations, rank);
+    const intensityClass = INTENSITY_CLASSES.find((entry) => entry.rank === rank);
+    if (!intensityClass || !Number.isFinite(elapsedSec)) return;
+    addSimulationTimelineEvent(
+      `intensity-${rank}`,
+      elapsedSec + SIMULATION_ORIGIN_OFFSET_SEC,
+      `震度${intensityClass.label}を観測`,
+      "intensity-planned",
+    );
+    scheduledMaxRank = Math.max(scheduledMaxRank, rank);
+  });
+  simulationTimelineMaxRank = scheduledMaxRank;
+}
+
+function getFirstPredictedIntensityObservationSec(stationFeatures, targetRank) {
+  const candidates = stationFeatures.filter((feature) => (
+    Number(feature.properties?.predictedIntensityRank) >= targetRank
+    && Number.isFinite(Number(feature.properties?.pArrivalSec))
+    && Number.isFinite(Number(feature.properties?.intensityCompleteSec))
+  ));
+  if (!candidates.length) return Infinity;
+
+  let lowerSec = Math.min(...candidates.map((feature) => Number(feature.properties.pArrivalSec)));
+  let upperSec = Math.max(...candidates.map((feature) => Number(feature.properties.intensityCompleteSec)));
+  const hasReachedTarget = (elapsedSec) => candidates.some((feature) => (
+    getCurrentIntensityProperties(feature.properties, elapsedSec).intensityRank >= targetRank
+  ));
+  if (!hasReachedTarget(upperSec)) return Infinity;
+
+  for (let iteration = 0; iteration < 16; iteration += 1) {
+    const middleSec = (lowerSec + upperSec) / 2;
+    if (hasReachedTarget(middleSec)) {
+      upperSec = middleSec;
+    } else {
+      lowerSec = middleSec;
+    }
+  }
+  return upperSec;
+}
+
+function addExpectedSimulationEewTimelineEvents() {
+  const preset = getSelectedPreset();
+  const presetReports = Array.isArray(preset?.eewReports) ? preset.eewReports : [];
+  if (presetReports.length) {
+    const scheduledAreas = new Set();
+    presetReports.forEach((report, index) => {
+      const elapsedSec = Number(report.elapsedSec);
+      if (!Number.isFinite(elapsedSec) || elapsedSec < 0) {
+        return;
+      }
+      const reportAreas = Array.isArray(report.areas)
+        ? report.areas.map(normalizeEewAreaName).filter(Boolean)
+        : [];
+      const hasAddedArea = reportAreas.some((areaName) => !scheduledAreas.has(areaName));
+      reportAreas.forEach((areaName) => scheduledAreas.add(areaName));
+      if (!hasAddedArea) {
+        return;
+      }
+      simulationTimelineExpectedFirstEewSec ??= elapsedSec;
+      addSimulationTimelineEvent(
+        `eew-${report.reportNumber ?? index + 1}`,
+        elapsedSec + SIMULATION_ORIGIN_OFFSET_SEC,
+        `緊急地震速報 第${report.reportNumber ?? index + 1}報`,
+        "eew-planned",
+      );
+    });
+    return;
+  }
+
+  if (!shindoStationData) {
+    return;
+  }
+  const predictedStations = buildStationIntensityFeatures(shindoStationData).filter(
+    (feature) => feature.properties.predictedIntensityRank >= 4 && Number.isFinite(feature.properties.pArrivalSec),
+  );
+  const predictedMaxRank = predictedStations.reduce(
+    (maximum, feature) => Math.max(maximum, Number(feature.properties.predictedIntensityRank) || 0),
+    0,
+  );
+  if (!predictedStations.length || predictedMaxRank < 5) {
+    return;
+  }
+
+  const firstReportSec = Math.min(
+    ...predictedStations.map(
+      (feature) => Number(feature.properties.pArrivalSec) + EARTHQUAKE_MODEL.eewProcessingDelaySec,
+    ),
+  );
+  if (!Number.isFinite(firstReportSec)) {
+    return;
+  }
+  simulationTimelineExpectedFirstEewSec = firstReportSec;
+  addSimulationTimelineEvent(
+    "eew-1",
+    firstReportSec + SIMULATION_ORIGIN_OFFSET_SEC,
+    "緊急地震速報 第1報",
+    "eew-planned",
+  );
+}
+
+function addSimulationTimelineEvent(id, elapsedSec, label, type) {
+  const normalizedId = String(id || "");
+  if (!normalizedId) {
+    return;
+  }
+  const existingEvent = simulationTimelineEvents.find((item) => item.id === normalizedId);
+  if (existingEvent) {
+    if (existingEvent.type === "eew-planned" && type === "eew") {
+      existingEvent.elapsedSec = Math.max(Number(elapsedSec) || 0, 0);
+      existingEvent.label = String(label || "");
+      existingEvent.type = "eew";
+      renderSimulationTimelineEvents();
+    } else if (normalizedId === "complete" && type === "complete") {
+      existingEvent.elapsedSec = Math.max(Number(elapsedSec) || 0, 0);
+      existingEvent.label = String(label || "");
+      renderSimulationTimelineEvents();
+    }
+    return;
+  }
+  simulationTimelineEvents.push({
+    id: normalizedId,
+    elapsedSec: Math.max(Number(elapsedSec) || 0, 0),
+    label: String(label || ""),
+    type: String(type || "event"),
+  });
+  renderSimulationTimelineEvents();
+}
+
+function renderSimulationTimelineEvents() {
+  if (!els.simulationProgressEvents) {
+    return;
+  }
+  const nodes = [...simulationTimelineEvents]
+    .sort((left, right) => left.elapsedSec - right.elapsedSec)
+    .map((item, index) => {
+    const event = document.createElement("span");
+    event.className = `simulation-timeline-event is-${item.type} ${index % 2 ? "is-lower" : "is-upper"}`;
+    event.style.left = `${Math.round(SIMULATION_TIMELINE_START_PX + item.elapsedSec * SIMULATION_TIMELINE_PX_PER_SEC)}px`;
+    event.innerHTML = `<b>${escapeHtml(item.label)}</b>`;
+      return event;
+    });
+  els.simulationProgressEvents.replaceChildren(...nodes);
+}
+
+function recordSimulationMaxIntensityEvent(elapsedSec, maxRank, label) {
+  const predictedMaxRank = Number(getPredictedMaximumIntensity()?.rank) || 0;
+  const shouldRecord = predictedMaxRank >= 5 ? maxRank >= 5 : maxRank === predictedMaxRank;
+  if (
+    !document.body.classList.contains("simulation-session-active")
+    || !Number.isFinite(elapsedSec)
+    || maxRank <= simulationTimelineMaxRank
+    || maxRank < 1
+    || !shouldRecord
+  ) {
+    return;
+  }
+  simulationTimelineMaxRank = maxRank;
+  addSimulationTimelineEvent(
+    `intensity-${maxRank}`,
+    elapsedSec + SIMULATION_ORIGIN_OFFSET_SEC,
+    `震度${label}を観測`,
+    "intensity",
   );
 }
 
@@ -13693,10 +14508,15 @@ function updateSimulationSummary(elapsedSec = getSimulationStationElapsedSec()) 
   const { stationFeatures, maxRank } = getObservedStationSummaryForElapsed(elapsedSec);
   const maxClass = INTENSITY_CLASSES.find((item) => item.rank === maxRank) ?? INTENSITY_CLASSES[0];
   const hasObservedIntensity = stationFeatures.length > 0;
+  recordSimulationMaxIntensityEvent(elapsedSec, maxRank, maxClass.label);
 
   setTextContentIfChanged(
     els.simulationMaxIntensity,
     state.simulationRunning && Number.isFinite(elapsedSec) && !hasObservedIntensity ? "-" : maxClass.label,
+  );
+  applySimulationIntensityCard(
+    els.simulationMaxIntensity,
+    state.simulationRunning && Number.isFinite(elapsedSec) && !hasObservedIntensity ? null : maxClass,
   );
   setTextContentIfChanged(els.simulationMagnitude, state.magnitude.toFixed(1));
   setTextContentIfChanged(els.simulationEpicenter, `${state.latitude.toFixed(3)}, ${state.longitude.toFixed(3)}`);
@@ -13704,8 +14524,95 @@ function updateSimulationSummary(elapsedSec = getSimulationStationElapsedSec()) 
   setTextContentIfChanged(els.simulationDepth, formatDepth(state.depthKm));
   setTextContentIfChanged(els.maxIntensityOutput, formatSetupMaxIntensityLabel(state.maxIntensityLabel));
   updateCurrentLocationForecast(elapsedSec);
+  updateSimulationMaxAreaList(elapsedSec);
   updateMaxStationList(stationFeatures, elapsedSec);
-  announceSimulationUpdates(elapsedSec);
+  if (!simulationSeeking) {
+    announceSimulationUpdates(elapsedSec);
+  }
+}
+
+function applySimulationIntensityCard(element, intensityClass) {
+  if (!element) {
+    return;
+  }
+  const hasIntensity = Boolean(intensityClass && intensityClass.rank > 0);
+  element.dataset.intensityRank = String(intensityClass?.rank ?? 0);
+  element.classList.toggle("has-intensity", hasIntensity);
+  element.style.setProperty("--simulation-intensity-color", intensityClass?.color ?? "rgba(255, 255, 255, 0.1)");
+  element.style.setProperty("--simulation-intensity-text", intensityClass?.textColor ?? "#ffffff");
+  const summary = element.closest(".simulation-summary");
+  if (summary) {
+    summary.classList.add("has-observed-intensity");
+    summary.style.setProperty(
+      "--simulation-ticket-intensity-color",
+      intensityClass?.rank === 1 || !hasIntensity ? "#87909e" : intensityClass.color,
+    );
+  }
+}
+
+function updateSimulationMaxAreaList(elapsedSec) {
+  if (!els.simulationMaxAreaList || !localAreaData?.features?.length) {
+    return;
+  }
+  const sourceAreaFeatures = (areaDataCache.data?.features ?? buildIntensityAreaData(localAreaData, elapsedSec))
+    .filter((feature) => Number(feature.properties?.intensityRank) > 0);
+  const stationMaxRank = getObservedStationSummaryForElapsed(elapsedSec).maxRank;
+  const originalAreaMaxRank = sourceAreaFeatures.reduce(
+    (maximum, feature) => Math.max(maximum, Number(feature.properties.intensityRank) || 0),
+    0,
+  );
+  const areaFeatures = sourceAreaFeatures
+    .map((feature) => {
+      const originalRank = Number(feature.properties.intensityRank) || 0;
+      const synchronizedRank = stationMaxRank > 0
+        ? (originalRank === originalAreaMaxRank ? stationMaxRank : Math.min(originalRank, stationMaxRank))
+        : 0;
+      const synchronizedClass = INTENSITY_CLASSES.find((item) => item.rank === synchronizedRank) ?? INTENSITY_CLASSES[0];
+      return {
+        ...feature,
+        properties: {
+          ...feature.properties,
+          intensityRank: synchronizedRank,
+          intensityLabel: synchronizedClass.label,
+          intensityColor: synchronizedClass.color,
+        },
+      };
+    })
+    .filter((feature) => Number(feature.properties.intensityRank) > 0)
+    .sort((left, right) => (
+      Number(right.properties.intensityRank) - Number(left.properties.intensityRank)
+      || Number(right.properties.intensityValue) - Number(left.properties.intensityValue)
+      || String(left.properties.name).localeCompare(String(right.properties.name), "ja")
+    ));
+  const signature = `${state.intensityColorScheme}|${areaFeatures
+    .map((feature) => `${feature.properties.name}:${feature.properties.intensityRank}:${feature.properties.intensityLabel}`)
+    .join("|")}`;
+  if (signature === simulationMaxAreaListSignature) {
+    return;
+  }
+  simulationMaxAreaListSignature = signature;
+  if (!areaFeatures.length) {
+    const empty = document.createElement("li");
+    empty.className = "simulation-area-empty";
+    empty.textContent = "震度1以上の細分区域はまだありません";
+    els.simulationMaxAreaList.replaceChildren(empty);
+    return;
+  }
+  const items = areaFeatures.map((feature) => {
+    const properties = feature.properties;
+    const intensityClass = INTENSITY_CLASSES.find((item) => item.rank === properties.intensityRank);
+    const item = document.createElement("li");
+    const badge = document.createElement("b");
+    badge.className = "simulation-list-intensity-card";
+    badge.textContent = properties.intensityLabel;
+    badge.style.setProperty("--simulation-intensity-color", intensityClass?.color ?? properties.intensityColor);
+    badge.style.setProperty("--simulation-intensity-text", intensityClass?.textColor ?? "#ffffff");
+    const name = document.createElement("span");
+    name.textContent = properties.name || "名称不明";
+    item.append(badge, name);
+    return item;
+  });
+  els.simulationMaxAreaList.replaceChildren(...items);
 }
 
 function getObservedStationSummaryForElapsed(elapsedSec) {
@@ -13757,6 +14664,9 @@ function setTextContentIfChanged(element, value) {
 }
 
 function updateMaxStationList(stationFeatures, elapsedSec) {
+  if (!els.maxStationList) {
+    return;
+  }
   const listBucket = Number.isFinite(elapsedSec) ? Math.floor(elapsedSec) : Infinity;
   if (maxStationListRenderBucket === listBucket) {
     return;
@@ -13843,6 +14753,9 @@ function renderPendingMaxStationList() {
 }
 
 function renderMaxStationListItems(observedStations) {
+  if (!els.maxStationList) {
+    return;
+  }
   if (observedStations.length === 0) {
     maxStationListItemCache.clear();
     if (!maxStationListEmptyItem) {
@@ -13874,9 +14787,18 @@ function renderMaxStationListItems(observedStations) {
       properties,
       properties.currentIntensityValue,
     );
-    const text = `${properties.name}　震度${properties.intensityLabel}${measuredIntensityText}`;
-    if (item.textContent !== text) {
-      item.textContent = text;
+    const contentSignature = `${state.intensityColorScheme}|${properties.name}|${properties.intensityLabel}|${measuredIntensityText}`;
+    if (item.dataset.contentSignature !== contentSignature) {
+      item.dataset.contentSignature = contentSignature;
+      const intensityClass = INTENSITY_CLASSES.find((candidate) => candidate.rank === properties.intensityRank);
+      const badge = document.createElement("b");
+      badge.className = "simulation-list-intensity-card";
+      badge.textContent = properties.intensityLabel;
+      badge.style.setProperty("--simulation-intensity-color", intensityClass?.color ?? properties.intensityColor);
+      badge.style.setProperty("--simulation-intensity-text", intensityClass?.textColor ?? "#ffffff");
+      const name = document.createElement("span");
+      name.textContent = `${properties.name}${measuredIntensityText}`;
+      item.replaceChildren(badge, name);
     }
     return item;
   });
@@ -13913,21 +14835,34 @@ function getSimulationCompleteAtSec() {
     return Infinity;
   }
 
-  const observedStations = buildStationIntensityFeatures(shindoStationData).filter(
-    (feature) => feature.properties.predictedIntensityRank >= 1,
-  );
+  const observedStations = buildStationIntensityFeatures(shindoStationData).filter((feature) => (
+    Number(feature.properties?.predictedIntensityRank) >= 1
+    && Number.isFinite(Number(feature.properties?.intensityCompleteSec))
+  ));
   if (observedStations.length === 0) {
     if (isOldJmaScaleSyntheticPreset(getSelectedPreset())) {
       return Infinity;
     }
-    return SIMULATION_END_GRACE_SEC;
+    return SIMULATION_ORIGIN_OFFSET_SEC + SIMULATION_END_GRACE_SEC;
   }
 
   const latestEndSec = observedStations.reduce(
     (latest, feature) => Math.max(latest, Number(feature.properties.intensityCompleteSec) || 0),
     0,
   );
-  return latestEndSec + SIMULATION_END_GRACE_SEC;
+  return SIMULATION_ORIGIN_OFFSET_SEC + latestEndSec + SIMULATION_END_GRACE_SEC;
+}
+
+function refreshSimulationCompletionSchedule() {
+  const nextCompleteAtSec = getSimulationCompleteAtSec();
+  if (!Number.isFinite(nextCompleteAtSec)) {
+    return false;
+  }
+
+  simulationCompleteAtSec = nextCompleteAtSec;
+  addSimulationTimelineEvent("complete", simulationCompleteAtSec, "シミュレーション終了", "complete");
+  renderSimulationTimelineGuides();
+  return true;
 }
 
 function setWaveRadiusData(pRadiusKm, sRadiusKm) {
@@ -14543,7 +15478,7 @@ function updateStateFromInputs(options = {}) {
 
   if (state.simulationRunning) {
     updateSimulationSummary();
-    const elapsedSec = getSimulationElapsedSec();
+    const elapsedSec = getSimulationModelElapsedSec();
     const { pRadiusKm, sRadiusKm } = getWaveSurfaceRadiiForElapsed(elapsedSec);
     setWaveRadiusData(pRadiusKm, sRadiusKm);
   }
@@ -14576,6 +15511,7 @@ function parseClampedInput(value, fallback, min, max) {
 }
 
 function invalidateIntensityEstimateCache() {
+  const previousSimulationCompleteAtSec = simulationCompleteAtSec;
   stationIntensityFeatureCache = null;
   submarineObservationFeatureCache = { key: "", data: null, features: [] };
   submarineObservationIntensityCache = { key: "", features: [] };
@@ -14583,7 +15519,6 @@ function invalidateIntensityEstimateCache() {
   presetObservationLookupCache = null;
   hyogoNanbuSyntheticStationCache = null;
   currentLocationForecastCache = null;
-  simulationCompleteAtSec = null;
   stationSummaryCache = { data: null, summary: null };
   observedStationFeatureCache = { data: null, features: [] };
   eewForecastPanelRenderSignature = "";
@@ -14597,14 +15532,20 @@ function invalidateIntensityEstimateCache() {
   localAreaStationSnapshotCache = null;
   stationCanvasFeatureCache = { data: null, features: [] };
   submarineStationCanvasFeatureCache = { data: null, features: [] };
-    simulationRenderBucket = -1;
-    simulationStationRenderBucket = -1;
-    maxStationListRenderBucket = null;
-    maxStationListRenderSignature = "";
-    maxStationListItemCache.clear();
-    maxStationListEmptyItem = null;
-    cancelPendingMaxStationListRender();
+  simulationRenderBucket = -1;
+  simulationStationRenderBucket = -1;
+  maxStationListRenderBucket = null;
+  maxStationListRenderSignature = "";
+  maxStationListItemCache.clear();
+  maxStationListEmptyItem = null;
+  cancelPendingMaxStationListRender();
+  if (state.simulationRunning) {
+    simulationCompleteAtSec = previousSimulationCompleteAtSec;
+    refreshSimulationCompletionSchedule();
+  } else {
+    simulationCompleteAtSec = null;
   }
+}
 
 function syncInputs() {
   if (els.magnitude && els.magnitude.options.length === 0) {
@@ -15102,11 +16043,11 @@ function updateIntensityLayer() {
 }
 
 function getSimulationStationElapsedSec() {
-  return state.simulationRunning ? getSimulationElapsedSec() : Infinity;
+  return state.simulationRunning ? getSimulationModelElapsedSec() : Infinity;
 }
 
 function getSubmarineObservationElapsedSec() {
-  return state.simulationRunning ? getSimulationElapsedSec() : Infinity;
+  return state.simulationRunning ? getSimulationModelElapsedSec() : Infinity;
 }
 
 function getIntensitySourceCacheKey(elapsedSec = Infinity) {

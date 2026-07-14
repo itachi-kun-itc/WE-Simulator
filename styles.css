@@ -13661,6 +13661,17 @@ body[data-active-bottom-tab="bottom-info-tab"].tool-source-search-mode #info-ful
   padding: max(18px, env(safe-area-inset-top)) 0 0 !important;
 }
 
+/* Keep a small top breathing room while bringing the Learning and Tools content upward. */
+#info-full-panel,
+#learning-full-panel {
+  padding-top: max(10px, env(safe-area-inset-top)) !important;
+}
+
+#info-full-panel .tool-home-page .tool-menu-list,
+#learning-full-panel .learning-content {
+  padding-top: 10px !important;
+}
+
 .tool-menu-row {
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) auto !important;
@@ -14644,6 +14655,435 @@ body.community-pick-mode .community-post-button {
   display: none !important;
 }
 
+/* Runtime earthquake HUD: simulation results live on the map, never in a pull-up sheet. */
+.simulation-runtime-hud {
+  display: none;
+}
+
+body.simulation-session-active #setup-panel,
+body.simulation-session-active #settings-menu-button {
+  display: none !important;
+}
+
+body.simulation-session-active .simulation-runtime-hud {
+  position: absolute;
+  z-index: 10000;
+  right: auto;
+  bottom: 12px;
+  left: 50%;
+  display: block;
+  width: min(460px, calc(100% - 48px));
+  max-width: 460px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.simulation-runtime-hud .setup-result-section {
+  display: grid !important;
+  gap: 8px;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid rgba(150, 176, 255, 0.22);
+  border-radius: 24px;
+  background: rgba(4, 9, 25, 0.94);
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.48);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  pointer-events: auto;
+}
+
+.simulation-runtime-hud .setup-result-section > h3,
+.simulation-runtime-hud .simulation-sheet-toggle,
+.simulation-runtime-hud .simulation-legacy-output,
+.simulation-runtime-hud .current-location-panel,
+.simulation-runtime-hud .simulation-section-title,
+.simulation-runtime-hud .simulation-layer-toggles,
+.simulation-runtime-hud .max-stations-block {
+  display: none !important;
+}
+
+.simulation-runtime-hud .simulation-progress-panel {
+  position: relative !important;
+  z-index: 3 !important;
+  order: 4;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.simulation-runtime-hud .simulation-progress-head {
+  padding-inline: 4px;
+  font-size: 0.78rem !important;
+}
+
+.simulation-runtime-hud .simulation-progress-track {
+  height: 108px !important;
+  border-radius: 14px !important;
+}
+
+.simulation-runtime-hud .simulation-progress-canvas {
+  height: 96px !important;
+}
+
+.simulation-runtime-hud .simulation-progress-canvas::before,
+.simulation-runtime-hud .simulation-progress-track i {
+  top: 82px !important;
+}
+
+.simulation-runtime-hud .simulation-timeline-event {
+  top: 3px !important;
+  height: 82px !important;
+}
+
+.simulation-runtime-hud .simulation-timeline-event.is-lower {
+  top: 3px !important;
+  height: 82px !important;
+}
+
+.simulation-runtime-hud .simulation-timeline-event b {
+  max-width: 170px !important;
+  padding: 4px 7px !important;
+  font-size: 0.68rem !important;
+}
+
+.simulation-runtime-hud .simulation-timeline-event small {
+  top: 31px !important;
+  font-size: 0.62rem !important;
+}
+
+.simulation-runtime-hud .simulation-timeline-event.is-lower b {
+  top: 35px !important;
+}
+
+.simulation-runtime-hud .simulation-timeline-event.is-lower small {
+  top: 61px !important;
+}
+
+.simulation-runtime-hud .simulation-summary {
+  position: relative;
+  z-index: 4;
+  order: 1;
+  display: grid !important;
+  grid-template-columns: minmax(104px, 0.78fr) minmax(0, 1fr) minmax(0, 1fr) !important;
+  grid-template-rows: auto auto auto;
+  gap: 2px 14px !important;
+  margin: 0 !important;
+  padding: 14px 16px;
+  border: 1px solid rgba(69, 117, 255, 0.4);
+  border-radius: 20px;
+  background: linear-gradient(145deg, rgba(14, 45, 132, 0.98), rgba(11, 29, 86, 0.98));
+  color: #fff;
+}
+
+.simulation-runtime-hud .simulation-summary > * {
+  min-width: 0;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.simulation-runtime-hud .max-shindo-card {
+  grid-column: 1;
+  grid-row: 1 / 4;
+  display: grid !important;
+  align-content: center;
+  justify-items: start;
+  gap: 5px;
+  padding: 0 !important;
+}
+
+.simulation-runtime-hud .max-shindo-card > span,
+.simulation-runtime-hud .magnitude-card > span,
+.simulation-runtime-hud .simulation-summary dt,
+.simulation-runtime-hud .simulation-origin-time-card span {
+  color: rgba(230, 238, 255, 0.76) !important;
+  font-size: 0.76rem !important;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.simulation-runtime-hud .max-shindo-card strong {
+  min-width: 82px !important;
+  min-height: 72px !important;
+  padding: 8px 14px !important;
+  border-radius: 15px !important;
+  font-size: 3rem !important;
+}
+
+.simulation-runtime-hud .magnitude-card {
+  grid-column: 2;
+  grid-row: 1;
+  display: grid !important;
+  align-content: center;
+  gap: 2px;
+  padding: 0 !important;
+}
+
+.simulation-runtime-hud .magnitude-card strong,
+.simulation-runtime-hud .simulation-summary dd {
+  margin: 0;
+  color: #fff !important;
+  font-size: 1.9rem !important;
+  font-weight: 950;
+  line-height: 1.05;
+  white-space: nowrap;
+}
+
+.simulation-runtime-hud .simulation-summary > div:has(#simulation-depth) {
+  grid-column: 3;
+  grid-row: 1;
+  align-content: center;
+}
+
+.simulation-runtime-hud .simulation-summary > div:has(#simulation-region-name) {
+  grid-column: 2 / 4;
+  grid-row: 2;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px;
+}
+
+.simulation-runtime-hud #simulation-region-name {
+  overflow: hidden;
+  font-size: 1.6rem !important;
+  text-overflow: ellipsis;
+}
+
+.simulation-runtime-hud .simulation-origin-time-card {
+  grid-column: 2 / 4;
+  grid-row: 3;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.simulation-runtime-hud .simulation-origin-time-card strong {
+  overflow: hidden;
+  color: rgba(244, 247, 255, 0.88);
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.simulation-runtime-hud .simulation-timeline-controls {
+  position: relative;
+  z-index: 4;
+  order: 2;
+}
+
+.simulation-runtime-hud .simulation-actions {
+  position: relative !important;
+  z-index: 4;
+  order: 3;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.simulation-runtime-hud .simulation-timeline-controls button,
+.simulation-runtime-hud .simulation-stop {
+  min-height: 42px !important;
+  border-radius: 12px !important;
+}
+
+body.simulation-session-complete .simulation-runtime-hud .simulation-actions {
+  display: none !important;
+}
+
+@media (max-width: 560px) {
+  body.simulation-session-active .simulation-runtime-hud {
+    right: auto;
+    bottom: 7px;
+    left: 50%;
+    width: min(420px, calc(100% - 40px));
+  }
+
+  .simulation-runtime-hud .setup-result-section {
+    gap: 6px;
+    padding: 7px;
+    border-radius: 20px;
+  }
+
+  .simulation-runtime-hud .simulation-summary {
+    grid-template-columns: 90px minmax(0, 1fr) minmax(0, 0.86fr) !important;
+    gap: 2px 9px !important;
+    padding: 11px 12px;
+    border-radius: 17px;
+  }
+
+  .simulation-runtime-hud .max-shindo-card strong {
+    min-width: 70px !important;
+    min-height: 64px !important;
+    font-size: 2.6rem !important;
+  }
+
+  .simulation-runtime-hud .magnitude-card strong,
+  .simulation-runtime-hud .simulation-summary dd {
+    font-size: 1.55rem !important;
+  }
+
+  .simulation-runtime-hud #simulation-region-name {
+    font-size: 1.28rem !important;
+  }
+}
+
+/* Final compact layout: foldable handle, prescribed information rows, no timeline seconds. */
+.simulation-runtime-hud {
+  grid-template-rows: 22px auto;
+  align-items: end;
+}
+
+body.simulation-session-active .simulation-runtime-hud {
+  display: grid;
+}
+
+.simulation-runtime-handle {
+  position: relative;
+  z-index: 10002;
+  display: block;
+  width: 100%;
+  height: 22px;
+  margin: 0;
+  border: 1px solid rgba(150, 176, 255, 0.22);
+  border-bottom: 0;
+  border-radius: 16px 16px 0 0;
+  padding: 0;
+  background: rgba(4, 9, 25, 0.94);
+  cursor: pointer;
+}
+
+.simulation-runtime-handle::after {
+  content: "";
+  position: absolute;
+  top: 7px;
+  left: 50%;
+  width: 72px;
+  height: 5px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.simulation-runtime-hud.is-collapsed .setup-result-section {
+  display: none !important;
+}
+
+.simulation-runtime-hud.is-collapsed .simulation-runtime-handle {
+  border-bottom: 1px solid rgba(150, 176, 255, 0.22);
+  border-radius: 16px;
+}
+
+.simulation-runtime-hud .setup-result-section {
+  border-radius: 0 0 18px 18px !important;
+}
+
+.simulation-runtime-hud .simulation-summary {
+  grid-template-columns: 82px minmax(0, 1fr) !important;
+  grid-template-rows: 24px 24px 18px !important;
+  gap: 2px 10px !important;
+  padding: 7px 10px !important;
+}
+
+.simulation-runtime-hud .max-shindo-card {
+  grid-column: 1 !important;
+  grid-row: 1 / 4 !important;
+  align-content: center !important;
+}
+
+.simulation-runtime-hud .max-shindo-card strong {
+  min-width: 60px !important;
+  min-height: 48px !important;
+  font-size: 2rem !important;
+}
+
+.simulation-runtime-hud .simulation-summary > div:has(#simulation-region-name) {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+}
+
+.simulation-runtime-hud .simulation-summary > div:has(#simulation-region-name) dt::after,
+.simulation-runtime-hud .simulation-depth-magnitude-row > div:has(#simulation-depth) dt::after,
+.simulation-runtime-hud .simulation-origin-time-card span::after {
+  content: "：";
+}
+
+.simulation-runtime-hud .simulation-depth-magnitude-row {
+  grid-column: 2 !important;
+  grid-row: 2 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 14px !important;
+  min-width: 0;
+}
+
+.simulation-runtime-hud .simulation-depth-magnitude-row > div {
+  display: flex !important;
+  align-items: baseline !important;
+  gap: 4px !important;
+  min-width: 0;
+}
+
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card > span {
+  display: none !important;
+}
+
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card strong {
+  display: inline-flex !important;
+  align-items: baseline !important;
+  font-size: 1rem !important;
+}
+
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card strong::before {
+  content: "M";
+}
+
+.simulation-runtime-hud .simulation-origin-time-card {
+  grid-column: 2 !important;
+  grid-row: 3 !important;
+  gap: 4px !important;
+}
+
+.simulation-runtime-hud .max-shindo-card > span,
+.simulation-runtime-hud .simulation-summary dt,
+.simulation-runtime-hud .simulation-origin-time-card span {
+  flex: 0 0 auto;
+  font-size: 0.7rem !important;
+}
+
+.simulation-runtime-hud #simulation-region-name,
+.simulation-runtime-hud #simulation-depth,
+.simulation-runtime-hud #simulation-magnitude {
+  font-size: 1rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+}
+
+.simulation-runtime-hud .simulation-origin-time-card strong {
+  font-size: 0.78rem !important;
+  font-weight: 800 !important;
+}
+
+.simulation-runtime-hud .simulation-progress-head strong,
+.simulation-runtime-hud .simulation-timeline-event small {
+  display: none !important;
+}
+
+.simulation-runtime-hud .simulation-progress-head {
+  justify-content: flex-start !important;
+}
+
+.simulation-runtime-hud .simulation-timeline-event.is-intensity-planned {
+  border-left-color: #fb7185 !important;
+}
+
+.simulation-runtime-hud .simulation-timeline-event.is-intensity-planned b {
+  color: #fecdd3 !important;
+}
+
 /* Replace the setup sheet with the live simulation menu while a run is active. */
 body.simulation-session-active #setup-panel .sim-panel-head,
 body.simulation-session-active #setup-panel .settings-tabs,
@@ -14654,11 +15094,16 @@ body.simulation-session-active #setup-panel [data-settings-section] {
   display: none !important;
 }
 
+body.simulation-session-active #simulation-start {
+  display: none !important;
+}
+
 body.simulation-session-active #setup-panel .setup-result-section {
   display: grid !important;
   gap: 12px !important;
   margin: 0 !important;
-  padding: 0 0 4px !important;
+  padding: 0 !important;
+  font-size: 1rem !important;
 }
 
 body.simulation-session-active #setup-panel .setup-result-section > h3,
@@ -14666,15 +15111,19 @@ body.simulation-session-active #setup-panel .simulation-sheet-toggle {
   display: none !important;
 }
 
+.simulation-legacy-output {
+  display: none !important;
+}
+
 .simulation-progress-panel {
-  position: sticky !important;
-  top: 0 !important;
-  z-index: 8 !important;
+  position: relative !important;
+  top: auto !important;
+  z-index: 1 !important;
   display: grid !important;
   gap: 8px !important;
   margin: 0 0 4px !important;
-  padding: 10px 2px 12px !important;
-  background: linear-gradient(180deg, rgba(11, 14, 16, 0.99) 76%, rgba(11, 14, 16, 0)) !important;
+  padding: 10px 2px 4px !important;
+  background: transparent !important;
 }
 
 .simulation-progress-head {
@@ -14683,7 +15132,7 @@ body.simulation-session-active #setup-panel .simulation-sheet-toggle {
   justify-content: space-between !important;
   gap: 12px !important;
   color: rgba(255, 255, 255, 0.72) !important;
-  font-size: 0.75rem !important;
+  font-size: 0.9rem !important;
   font-weight: 850 !important;
 }
 
@@ -14694,61 +15143,390 @@ body.simulation-session-active #setup-panel .simulation-sheet-toggle {
 
 .simulation-progress-track {
   position: relative !important;
-  height: 9px !important;
-  overflow: hidden !important;
+  height: 176px !important;
+  overflow-x: hidden !important;
+  overflow-y: hidden !important;
   border: 1px solid rgba(255, 255, 255, 0.14) !important;
-  border-radius: 999px !important;
-  background: rgba(255, 255, 255, 0.09) !important;
+  border-radius: 14px !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.025)) !important;
   box-shadow: inset 0 1px 5px rgba(0, 0, 0, 0.48) !important;
+  scrollbar-width: none !important;
+  overscroll-behavior-x: contain !important;
+  -webkit-overflow-scrolling: touch !important;
+  cursor: default !important;
+  pointer-events: none !important;
+  touch-action: pan-y !important;
+}
+
+.simulation-progress-track::-webkit-scrollbar {
+  display: none !important;
+}
+
+.simulation-progress-canvas {
+  position: relative !important;
+  height: 158px !important;
+  min-width: 100% !important;
+}
+
+.simulation-progress-canvas::before {
+  content: "" !important;
+  position: absolute !important;
+  top: 68px !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 3px !important;
+  background: rgba(255, 255, 255, 0.24) !important;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.55) !important;
 }
 
 .simulation-progress-track i {
   position: absolute !important;
-  inset: 0 auto 0 0 !important;
+  top: 68px !important;
+  left: 0 !important;
+  height: 3px !important;
   width: 0;
   min-width: 0 !important;
-  border-radius: inherit !important;
-  background: linear-gradient(90deg, #08a9c6, #26d9ff 72%, #d9fbff) !important;
+  background: linear-gradient(90deg, #08a9c6, #26d9ff 72%, #e4fdff) !important;
   box-shadow: 0 0 12px rgba(38, 217, 255, 0.9) !important;
   transition: width 90ms linear !important;
 }
 
-.simulation-progress-track i::after {
-  content: "" !important;
+.simulation-progress-events {
   position: absolute !important;
   inset: 0 !important;
-  background: linear-gradient(100deg, transparent 20%, rgba(255, 255, 255, 0.58) 50%, transparent 80%) !important;
-  animation: simulation-progress-shine 1.2s linear infinite !important;
+  pointer-events: none !important;
 }
 
-.simulation-progress-track i.is-indeterminate {
-  width: 34% !important;
-  animation: simulation-progress-indeterminate 1.7s ease-in-out infinite !important;
+.simulation-timeline-event {
+  position: absolute !important;
+  top: 8px !important;
+  width: 1px !important;
+  height: 122px !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.48) !important;
+  color: #f8fafc !important;
+}
+
+.simulation-timeline-event.is-lower {
+  top: 68px !important;
+  height: 62px !important;
+}
+
+.simulation-timeline-event b {
+  position: absolute !important;
+  top: 5px !important;
+  left: 8px !important;
+  display: block !important;
+  max-width: 220px !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  border-radius: 8px !important;
+  padding: 5px 8px !important;
+  background: rgba(8, 12, 15, 0.92) !important;
+  color: #f8fafc !important;
+  font-size: 0.8rem !important;
+  line-height: 1.25 !important;
+  white-space: nowrap !important;
+}
+
+.simulation-timeline-event.is-lower b {
+  top: 9px !important;
+}
+
+.simulation-timeline-event small {
+  position: absolute !important;
+  top: 39px !important;
+  left: 9px !important;
+  color: rgba(255, 255, 255, 0.58) !important;
+  font-size: 0.72rem !important;
+  font-variant-numeric: tabular-nums !important;
+  white-space: nowrap !important;
+}
+
+.simulation-timeline-event.is-lower small {
+  top: 42px !important;
+}
+
+.simulation-timeline-event.is-eew {
+  border-left-color: #fbbf24 !important;
+}
+
+.simulation-timeline-event.is-eew-planned {
+  border-left: 2px dashed rgba(251, 191, 36, 0.78) !important;
+}
+
+.simulation-timeline-event.is-intensity {
+  border-left-color: #fb7185 !important;
+}
+
+.simulation-timeline-event.is-eew b {
+  color: #fde68a !important;
+}
+
+.simulation-timeline-event.is-eew-planned b {
+  border-color: rgba(251, 191, 36, 0.34) !important;
+  background: rgba(61, 42, 4, 0.94) !important;
+  color: #fde68a !important;
+}
+
+.simulation-timeline-event.is-intensity b {
+  color: #fecdd3 !important;
+}
+
+.simulation-progress-now {
+  position: absolute !important;
+  top: 4px !important;
+  bottom: 4px !important;
+  width: 3px !important;
+  transform: translateX(-1px) !important;
+  background: #ef4444 !important;
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.9) !important;
+  transition: none !important;
+  will-change: auto !important;
+}
+
+.simulation-progress-now::before {
+  content: "" !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 50% !important;
+  width: 0 !important;
+  height: 0 !important;
+  transform: translate(-50%, -1px) !important;
+  border-left: 8px solid transparent !important;
+  border-right: 8px solid transparent !important;
+  border-top: 12px solid #ef4444 !important;
+}
+
+.simulation-timeline-controls {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+}
+
+.simulation-timeline-controls button {
+  min-height: 48px !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  border-radius: 10px !important;
+  background: rgba(255, 255, 255, 0.07) !important;
+  color: #f8fafc !important;
+  font-size: 0.96rem !important;
+  font-weight: 900 !important;
+  cursor: pointer !important;
+}
+
+.simulation-timeline-controls button:disabled {
+  opacity: 0.42 !important;
+  cursor: not-allowed !important;
+}
+
+body.simulation-session-active #setup-panel .simulation-summary {
+  gap: 8px !important;
+  margin: 0 !important;
+}
+
+body.simulation-session-active #setup-panel .max-shindo-card,
+body.simulation-session-active #setup-panel .magnitude-card {
+  min-height: 104px !important;
+  gap: 7px !important;
+  border-radius: 12px !important;
+  padding: 10px !important;
+  background: rgba(255, 255, 255, 0.045) !important;
+}
+
+body.simulation-session-active #setup-panel .max-shindo-card strong,
+body.simulation-session-active #setup-panel .magnitude-card strong {
+  display: inline-flex !important;
+  min-height: 42px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 2.15rem !important;
+  line-height: 1 !important;
+}
+
+body.simulation-session-active #setup-panel .magnitude-card strong {
+  font-size: 2.15rem !important;
+  letter-spacing: -0.025em !important;
+}
+
+.simulation-intensity-card {
+  min-width: 82px !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  border-radius: 9px !important;
+  padding: 7px 13px !important;
+  background: var(--simulation-intensity-color, rgba(255, 255, 255, 0.1)) !important;
+  color: var(--simulation-intensity-text, #ffffff) !important;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.14) !important;
+}
+
+body.simulation-session-active #setup-panel .wave-readout {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+  margin: 0 !important;
+}
+
+body.simulation-session-active #setup-panel .wave-readout div {
+  min-height: 64px !important;
+  align-content: center !important;
+  padding: 10px 12px !important;
+}
+
+body.simulation-session-active #setup-panel .wave-readout dd {
+  font-size: 1.1rem !important;
+}
+
+body.simulation-session-active #setup-panel .wave-readout dt,
+body.simulation-session-active #setup-panel .max-shindo-card > span,
+body.simulation-session-active #setup-panel .magnitude-card > span {
+  font-size: 0.88rem !important;
+}
+
+body.simulation-session-active #setup-panel .wave-readout div:has(#simulation-region-name) {
+  grid-column: auto !important;
+  order: 0 !important;
+}
+
+body.simulation-session-active #setup-panel .wave-readout div:has(#simulation-depth) {
+  order: 0 !important;
+}
+
+.simulation-section-title {
+  margin: 4px 0 -2px !important;
+  color: rgba(255, 255, 255, 0.72) !important;
+  font-size: 0.92rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.06em !important;
+}
+
+#simulation-max-area-list {
+  display: grid !important;
+  max-height: 220px !important;
+  gap: 6px !important;
+  margin: 0 !important;
+  padding: 0 4px 0 0 !important;
+  overflow-y: auto !important;
+  list-style: none !important;
+}
+
+#simulation-max-area-list li {
+  display: grid !important;
+  grid-template-columns: max-content minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 9px !important;
+  min-height: 36px !important;
+  color: #f8fafc !important;
+  font-size: 0.94rem !important;
+  font-weight: 800 !important;
+}
+
+#simulation-max-area-list .simulation-area-empty {
+  display: block !important;
+  color: rgba(255, 255, 255, 0.55) !important;
+}
+
+.simulation-list-intensity-card {
+  display: inline-grid !important;
+  min-width: 42px !important;
+  min-height: 28px !important;
+  place-items: center !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  border-radius: 7px !important;
+  padding: 4px 10px !important;
+  background: var(--simulation-intensity-color, rgba(255, 255, 255, 0.1)) !important;
+  color: var(--simulation-intensity-text, #ffffff) !important;
+  font-size: 0.94rem !important;
+  font-weight: 950 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+#max-station-list li {
+  grid-template-columns: 2.3em 42px minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+body.simulation-session-active #setup-panel .max-stations-block {
+  padding-top: 10px !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+body.simulation-session-active #setup-panel .max-stations-block summary {
+  min-height: 42px !important;
+  margin: 0 0 9px !important;
+  border: 0 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 0 !important;
+  padding: 0 2px 8px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: rgba(236, 244, 249, 0.82) !important;
+  font-size: 0.96rem !important;
+  font-weight: 850 !important;
+}
+
+body.simulation-session-active #setup-panel .max-stations-block summary::after {
+  width: 28px !important;
+  height: 28px !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+}
+
+#current-location-intensity.has-intensity {
+  display: inline-grid !important;
+  min-width: 64px !important;
+  min-height: 30px !important;
+  place-items: center !important;
+  justify-self: center !important;
+  border-radius: 7px !important;
+  padding: 4px 8px !important;
+  background: var(--simulation-intensity-color) !important;
+  color: var(--simulation-intensity-text) !important;
 }
 
 body.simulation-session-active #setup-panel .simulation-actions {
-  position: sticky !important;
-  bottom: 0 !important;
-  z-index: 8 !important;
+  position: relative !important;
+  bottom: auto !important;
+  z-index: 1 !important;
   grid-template-columns: 1fr !important;
   gap: 8px !important;
-  margin-top: 4px !important;
-  padding: 12px 0 max(4px, env(safe-area-inset-bottom)) !important;
-  background: linear-gradient(0deg, rgba(11, 14, 16, 0.99) 78%, rgba(11, 14, 16, 0)) !important;
+  margin: 4px 0 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
 }
 
 body.simulation-session-active #setup-panel .simulation-stop {
-  min-height: 48px !important;
+  min-height: 50px !important;
+  border-radius: 18px !important;
+  font-size: 0.96rem !important;
 }
 
-@keyframes simulation-progress-shine {
-  from { transform: translateX(-100%); }
-  to { transform: translateX(100%); }
+body.simulation-session-active #setup-panel .simulation-layer-toggles .toggle-row span,
+body.simulation-session-active #setup-panel .current-location-toggle span {
+  font-size: 0.9rem !important;
 }
 
-@keyframes simulation-progress-indeterminate {
-  0% { left: -34%; }
-  100% { left: 100%; }
+body.simulation-session-active #setup-panel .current-location-name {
+  font-size: 0.96rem !important;
+}
+
+body.simulation-session-active #setup-panel .current-location-forecast span {
+  font-size: 0.8rem !important;
+}
+
+body.simulation-session-active #setup-panel .current-location-forecast strong {
+  font-size: 1rem !important;
+}
+
+body.simulation-session-complete #setup-panel .simulation-actions {
+  display: none !important;
+}
+
+.simulation-timeline-event.is-complete {
+  border-left-color: #fb7185 !important;
+}
+
+.simulation-timeline-event.is-complete b {
+  border-color: rgba(251, 113, 133, 0.32) !important;
+  background: rgba(66, 12, 24, 0.94) !important;
+  color: #fecdd3 !important;
 }
 
 html[data-resolved-theme="light"] .simulation-progress-head {
@@ -15221,6 +15999,1589 @@ body.tool-source-search-mode .eew-forecast-panel {
     top: max(10px, env(safe-area-inset-top)) !important;
     bottom: auto !important;
   }
+}
+
+/* Compact runtime HUD: keep every control above the bottom navigation. */
+body.simulation-session-active .simulation-runtime-hud {
+  bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 8px) !important;
+}
+
+.simulation-runtime-hud .simulation-timeline-controls {
+  display: none !important;
+}
+
+.simulation-runtime-hud .setup-result-section {
+  gap: 6px !important;
+  padding: 7px !important;
+  border-radius: 18px !important;
+}
+
+.simulation-runtime-hud .simulation-summary {
+  grid-template-columns: 78px minmax(0, 1fr) minmax(0, 0.85fr) !important;
+  grid-template-rows: 38px 25px 18px !important;
+  gap: 1px 8px !important;
+  min-height: 0 !important;
+  padding: 8px 10px !important;
+  border-radius: 15px !important;
+}
+
+.simulation-runtime-hud .max-shindo-card {
+  gap: 3px !important;
+}
+
+.simulation-runtime-hud .max-shindo-card strong {
+  min-width: 62px !important;
+  min-height: 55px !important;
+  padding: 4px 8px !important;
+  border-radius: 12px !important;
+  font-size: 2.25rem !important;
+}
+
+.simulation-runtime-hud .max-shindo-card > span,
+.simulation-runtime-hud .magnitude-card > span,
+.simulation-runtime-hud .simulation-summary dt,
+.simulation-runtime-hud .simulation-origin-time-card span {
+  font-size: 0.7rem !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+}
+
+.simulation-runtime-hud .magnitude-card strong,
+.simulation-runtime-hud .simulation-summary dd {
+  font-size: 1.32rem !important;
+  line-height: 1 !important;
+}
+
+.simulation-runtime-hud #simulation-magnitude,
+.simulation-runtime-hud #simulation-depth {
+  font-size: 1.32rem !important;
+  font-weight: 900 !important;
+}
+
+.simulation-runtime-hud .simulation-summary > div:has(#simulation-region-name) {
+  gap: 6px !important;
+}
+
+.simulation-runtime-hud #simulation-region-name {
+  font-size: 1.18rem !important;
+  line-height: 1 !important;
+}
+
+.simulation-runtime-hud .simulation-origin-time-card {
+  gap: 6px !important;
+}
+
+.simulation-runtime-hud .simulation-origin-time-card strong {
+  font-size: 0.72rem !important;
+  line-height: 1 !important;
+}
+
+.simulation-runtime-hud .simulation-actions {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+}
+
+.simulation-runtime-hud .simulation-stop {
+  width: 100% !important;
+  min-height: 38px !important;
+  border-radius: 11px !important;
+  font-size: 0.84rem !important;
+}
+
+.simulation-runtime-hud .simulation-progress-panel {
+  gap: 4px !important;
+}
+
+.simulation-runtime-hud .simulation-progress-head {
+  font-size: 0.72rem !important;
+}
+
+.simulation-runtime-hud .simulation-progress-track {
+  height: 88px !important;
+}
+
+.simulation-runtime-hud .simulation-progress-canvas {
+  height: 80px !important;
+}
+
+.simulation-runtime-hud .simulation-progress-canvas::before,
+.simulation-runtime-hud .simulation-progress-track i {
+  top: 68px !important;
+}
+
+.simulation-runtime-hud .simulation-timeline-event,
+.simulation-runtime-hud .simulation-timeline-event.is-lower {
+  top: 2px !important;
+  height: 69px !important;
+}
+
+.simulation-runtime-hud .simulation-timeline-event b {
+  font-size: 0.64rem !important;
+}
+
+.simulation-runtime-hud .simulation-timeline-event small {
+  top: 28px !important;
+  font-size: 0.58rem !important;
+}
+
+.simulation-runtime-hud .simulation-timeline-event.is-lower b {
+  top: 27px !important;
+}
+
+.simulation-runtime-hud .simulation-timeline-event.is-lower small {
+  top: 51px !important;
+}
+
+@media (max-width: 560px) {
+  body.simulation-session-active .simulation-runtime-hud {
+    bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 5px) !important;
+  }
+
+  .simulation-runtime-hud .simulation-summary {
+    grid-template-columns: 72px minmax(0, 1fr) minmax(0, 0.82fr) !important;
+    padding: 7px 8px !important;
+  }
+}
+
+/* The prescribed two-column information ticket wins over earlier HUD sizing. */
+.simulation-runtime-hud .setup-result-section {
+  border-radius: 0 0 18px 18px !important;
+}
+
+.simulation-runtime-hud .simulation-summary {
+  grid-template-columns: 82px minmax(0, 1fr) !important;
+  grid-template-rows: 24px 24px 18px !important;
+  gap: 2px 10px !important;
+  padding: 7px 10px !important;
+}
+
+.simulation-runtime-hud .max-shindo-card {
+  grid-column: 1 !important;
+  grid-row: 1 / 4 !important;
+}
+
+.simulation-runtime-hud .max-shindo-card strong {
+  min-width: 60px !important;
+  min-height: 48px !important;
+  padding: 4px 8px !important;
+  font-size: 2rem !important;
+}
+
+.simulation-runtime-hud .simulation-summary > div:has(#simulation-region-name) {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  gap: 4px !important;
+}
+
+.simulation-runtime-hud .simulation-depth-magnitude-row {
+  grid-column: 2 !important;
+  grid-row: 2 !important;
+}
+
+.simulation-runtime-hud .simulation-origin-time-card {
+  grid-column: 2 !important;
+  grid-row: 3 !important;
+  gap: 4px !important;
+}
+
+.simulation-runtime-hud #simulation-region-name,
+.simulation-runtime-hud #simulation-depth,
+.simulation-runtime-hud #simulation-magnitude,
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card strong {
+  font-size: 1rem !important;
+  line-height: 1 !important;
+}
+
+.simulation-runtime-hud .simulation-origin-time-card strong {
+  font-size: 0.78rem !important;
+}
+
+@media (max-width: 560px) {
+  .simulation-runtime-hud .simulation-summary {
+    grid-template-columns: 76px minmax(0, 1fr) !important;
+    padding: 7px 8px !important;
+  }
+}
+
+/* Runtime HUD interaction and final stacking order. */
+body:not([data-active-bottom-tab="earthquake-tab"]) .simulation-runtime-hud {
+  display: none !important;
+}
+
+body.simulation-session-active .simulation-runtime-hud {
+  transition: transform 260ms cubic-bezier(0.22, 0.9, 0.24, 1);
+}
+
+body.simulation-session-active .simulation-runtime-hud.is-collapsed {
+  transform: translate(-50%, calc(100% - 22px)) !important;
+}
+
+body.simulation-session-active .simulation-runtime-hud.is-dragging {
+  transform: translate(-50%, var(--runtime-hud-drag-y, 0px)) !important;
+  transition: none !important;
+}
+
+.simulation-runtime-hud.is-collapsed .setup-result-section {
+  display: grid !important;
+}
+
+.simulation-runtime-handle {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  pointer-events: auto;
+}
+
+.simulation-runtime-hud .setup-result-section {
+  max-height: calc(100svh - var(--bottom-nav-height) - env(safe-area-inset-bottom) - 54px) !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.simulation-runtime-hud .simulation-progress-panel {
+  order: 4 !important;
+}
+
+.simulation-runtime-hud .simulation-actions {
+  order: 5 !important;
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  margin-top: 1px !important;
+}
+
+body.simulation-session-complete .simulation-runtime-hud .simulation-actions {
+  display: grid !important;
+}
+
+.simulation-runtime-hud .simulation-stop {
+  width: 100% !important;
+}
+
+.simulation-runtime-hud .max-shindo-card {
+  justify-items: center !important;
+}
+
+.simulation-runtime-hud .max-shindo-card > span {
+  width: 100%;
+  text-align: center;
+}
+
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card {
+  position: static !important;
+  display: inline-flex !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  height: auto !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+}
+
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card strong {
+  position: static !important;
+  width: auto !important;
+  min-width: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+}
+
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card strong::after {
+  content: none !important;
+}
+
+/* Compact intensity legend in both horizontal and vertical layouts. */
+body[data-active-bottom-tab="earthquake-tab"] .intensity-legend {
+  width: min(calc(100vw - 18px), 420px) !important;
+  max-width: calc(100vw - 18px) !important;
+  border-radius: 12px !important;
+}
+
+body[data-active-bottom-tab="earthquake-tab"] .intensity-scale span {
+  height: 27px !important;
+  min-height: 27px !important;
+  padding: 0 !important;
+  font-size: 0.72rem !important;
+  line-height: 1 !important;
+}
+
+@media (min-width: 768px) {
+  body[data-active-bottom-tab="earthquake-tab"] .intensity-legend {
+    width: 34px !important;
+    max-width: 34px !important;
+    border-radius: 10px !important;
+  }
+
+  body[data-active-bottom-tab="earthquake-tab"] .intensity-scale span {
+    height: 23px !important;
+    min-height: 23px !important;
+    font-size: 0.68rem !important;
+  }
+}
+
+/* Keep the timeline cursor visually fixed while the timeline moves beneath it. */
+.simulation-runtime-hud .simulation-progress-panel {
+  isolation: isolate;
+}
+
+.simulation-runtime-hud .simulation-progress-now {
+  position: absolute !important;
+  z-index: 8 !important;
+  top: 22px !important;
+  bottom: 4px !important;
+  left: 64px !important;
+  transform: none !important;
+  transition: none !important;
+  animation: none !important;
+  contain: layout paint !important;
+  will-change: auto !important;
+  pointer-events: none !important;
+}
+
+.simulation-runtime-hud .simulation-progress-now::before {
+  animation: none !important;
+}
+
+/* Align every item in the compact simulation information ticket. */
+.simulation-runtime-hud .max-shindo-card {
+  display: grid !important;
+  grid-template-rows: 16px 48px !important;
+  align-content: center !important;
+  align-items: center !important;
+  justify-items: center !important;
+  gap: 2px !important;
+}
+
+.simulation-runtime-hud .max-shindo-card strong {
+  box-sizing: border-box !important;
+  align-self: center !important;
+  margin: 0 !important;
+}
+
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card strong,
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card strong::before,
+.simulation-runtime-hud #simulation-magnitude {
+  color: #ffffff !important;
+  font-size: 1rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+}
+
+.simulation-runtime-hud .simulation-summary > div:has(#simulation-region-name) {
+  display: grid !important;
+  grid-template-columns: 58px minmax(0, 1fr) !important;
+  align-items: baseline !important;
+  gap: 6px !important;
+}
+
+.simulation-runtime-hud .simulation-summary > div:has(#simulation-region-name) dt {
+  font-size: 0.76rem !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+.simulation-runtime-hud .simulation-depth-magnitude-row {
+  grid-template-columns: minmax(0, 1fr) minmax(104px, 0.9fr) !important;
+}
+
+/* Completion state: stop the run, clear waves, and replace cancel with two black actions. */
+.simulation-runtime-hud .simulation-summary {
+  padding: 7px 14px 7px 6px !important;
+}
+
+.simulation-runtime-hud .max-stations-block summary::after,
+body.simulation-session-active .max-stations-block summary::after {
+  content: none !important;
+  display: none !important;
+}
+
+body.simulation-session-complete .simulation-runtime-hud .simulation-actions {
+  display: none !important;
+}
+
+body.simulation-session-complete .simulation-runtime-hud .simulation-timeline-controls {
+  position: relative !important;
+  z-index: 4 !important;
+  order: 5 !important;
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+  margin: 0 !important;
+}
+
+body.simulation-session-complete .simulation-runtime-hud .simulation-timeline-controls button {
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 42px !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 11px !important;
+  background: #17191d !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+  font-size: 0.84rem !important;
+  font-weight: 900 !important;
+}
+
+@media (max-width: 420px) {
+  .simulation-runtime-hud .simulation-summary {
+    padding: 6px 10px 6px 4px !important;
+  }
+}
+
+.simulation-runtime-hud #simulation-region-name {
+  margin: 0 !important;
+  font-size: 0.96rem !important;
+  line-height: 1 !important;
+}
+
+/* Final proportions for the simulation information ticket. */
+.simulation-runtime-hud .simulation-summary {
+  grid-template-columns: 112px minmax(0, 1fr) !important;
+  grid-template-rows: 28px 28px 22px !important;
+  gap: 2px 10px !important;
+  padding: 9px 12px !important;
+}
+
+.simulation-runtime-hud .max-shindo-card {
+  grid-template-rows: 18px 64px !important;
+  align-content: center !important;
+  gap: 2px !important;
+}
+
+.simulation-runtime-hud .max-shindo-card strong {
+  width: 78px !important;
+  min-width: 78px !important;
+  height: 64px !important;
+  min-height: 64px !important;
+  padding: 0 !important;
+  place-self: center !important;
+  font-size: 2.6rem !important;
+  line-height: 64px !important;
+  text-align: center !important;
+}
+
+.simulation-runtime-hud .simulation-summary > div:has(#simulation-region-name),
+.simulation-runtime-hud .simulation-origin-time-card {
+  display: grid !important;
+  grid-template-columns: 70px minmax(0, 1fr) !important;
+  align-items: baseline !important;
+  gap: 0 !important;
+}
+
+.simulation-runtime-hud .simulation-depth-magnitude-row {
+  display: grid !important;
+  grid-template-columns: 70px max-content max-content !important;
+  align-items: baseline !important;
+  column-gap: 10px !important;
+}
+
+.simulation-runtime-hud .simulation-depth-magnitude-row > div:has(#simulation-depth) {
+  display: contents !important;
+}
+
+.simulation-runtime-hud .simulation-summary > div:has(#simulation-region-name) dt,
+.simulation-runtime-hud .simulation-depth-magnitude-row dt,
+.simulation-runtime-hud .simulation-origin-time-card > span {
+  width: auto !important;
+  color: rgba(230, 238, 255, 0.76) !important;
+  font-size: 0.76rem !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+.simulation-runtime-hud #simulation-region-name {
+  font-size: 1.08rem !important;
+}
+
+.simulation-runtime-hud #simulation-depth,
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card strong,
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card strong::before,
+.simulation-runtime-hud #simulation-magnitude {
+  font-size: 1.04rem !important;
+}
+
+.simulation-runtime-hud .simulation-origin-time-card strong {
+  font-size: 0.82rem !important;
+  line-height: 1 !important;
+}
+
+@media (max-width: 420px) {
+  .simulation-runtime-hud .simulation-summary {
+    grid-template-columns: 98px minmax(0, 1fr) !important;
+    padding-inline: 8px !important;
+  }
+
+  .simulation-runtime-hud .simulation-summary > div:has(#simulation-region-name),
+  .simulation-runtime-hud .simulation-origin-time-card {
+    grid-template-columns: 62px minmax(0, 1fr) !important;
+  }
+
+  .simulation-runtime-hud .simulation-depth-magnitude-row {
+    grid-template-columns: 62px max-content max-content !important;
+    column-gap: 7px !important;
+  }
+}
+
+/* Ten-second guide lines, measured from the earthquake origin. */
+.simulation-progress-guides {
+  position: absolute !important;
+  inset: 0 !important;
+  pointer-events: none !important;
+}
+
+.simulation-progress-guides > span {
+  position: absolute !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  width: 1px !important;
+  background: rgba(255, 255, 255, 0.13) !important;
+}
+
+.simulation-progress-guides > span::after {
+  content: attr(data-label);
+  position: absolute;
+  top: 71px;
+  left: 5px;
+  color: rgba(225, 234, 246, 0.58);
+  font-size: 0.6rem;
+  font-weight: 750;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* Give source setup the same bottom-sheet shell as the runtime HUD. */
+#setup-panel.sim-panel {
+  left: 50% !important;
+  width: min(460px, calc(100% - 48px)) !important;
+  max-width: 460px !important;
+  padding: 24px 7px 7px !important;
+  border: 1px solid rgba(150, 176, 255, 0.22) !important;
+  border-radius: 16px 16px 18px 18px !important;
+  background: rgba(4, 9, 25, 0.94) !important;
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.48) !important;
+  backdrop-filter: blur(18px) !important;
+  -webkit-backdrop-filter: blur(18px) !important;
+}
+
+#setup-panel .sheet-handle {
+  position: absolute !important;
+  top: 0 !important;
+  right: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 22px !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-bottom: 1px solid rgba(150, 176, 255, 0.16) !important;
+  border-radius: 16px 16px 0 0 !important;
+  background: rgba(4, 9, 25, 0.96) !important;
+  transform: none !important;
+}
+
+#setup-panel .sheet-handle::after {
+  content: "" !important;
+  position: absolute !important;
+  top: 7px !important;
+  left: 50% !important;
+  width: 72px !important;
+  height: 5px !important;
+  transform: translateX(-50%) !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.92) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4) !important;
+}
+
+#setup-panel .sim-panel-scroll {
+  max-height: calc(100% - 48px) !important;
+}
+
+/* The standalone layer button replaces the layer section inside source setup. */
+#setup-panel [data-settings-tab="display"],
+#setup-panel .setup-layer-state-storage {
+  display: none !important;
+}
+
+/* Let source setup use the full map height while keeping a small gap above the tabs. */
+#setup-panel.sim-panel {
+  top: auto !important;
+  bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 8px) !important;
+  max-height: calc(100svh - var(--bottom-nav-height) - env(safe-area-inset-bottom) - 16px) !important;
+}
+
+#setup-panel.setup-menu-open,
+#setup-panel.sim-panel[data-sheet-state="open"] {
+  top: max(8px, env(safe-area-inset-top)) !important;
+  bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 8px) !important;
+  height: auto !important;
+  max-height: calc(100svh - var(--bottom-nav-height) - env(safe-area-inset-bottom) - 16px) !important;
+}
+
+#setup-panel.sim-panel.is-dragging {
+  top: auto !important;
+  height: var(--sheet-drag-height, min(24svh, 233px)) !important;
+  max-height: var(--sheet-drag-height, calc(100svh - var(--bottom-nav-height) - env(safe-area-inset-bottom) - 16px)) !important;
+}
+
+#setup-panel .sim-panel-scroll {
+  max-height: calc(100% - 48px) !important;
+  padding-bottom: 6px !important;
+}
+
+/* Keep the bright progress segment fixed against the fixed red cursor. */
+.simulation-runtime-hud .simulation-progress-track i,
+.simulation-runtime-hud #simulation-progress-fill {
+  position: sticky !important;
+  z-index: 7 !important;
+  top: 68px !important;
+  left: 0 !important;
+  display: block !important;
+  width: 64px !important;
+  min-width: 64px !important;
+  max-width: 64px !important;
+  transform: none !important;
+  transition: none !important;
+  animation: none !important;
+  will-change: auto !important;
+}
+
+/* Compact right-aligned legend with a persistent layer control at its left. */
+body[data-active-bottom-tab="earthquake-tab"] .intensity-legend {
+  top: max(8px, env(safe-area-inset-top)) !important;
+  right: max(8px, env(safe-area-inset-right)) !important;
+  left: auto !important;
+  width: min(310px, calc(100vw - 66px)) !important;
+  max-width: calc(100vw - 66px) !important;
+  transform: none !important;
+}
+
+.map-layer-control-button {
+  position: fixed;
+  top: max(8px, env(safe-area-inset-top));
+  left: max(8px, env(safe-area-inset-left));
+  z-index: 14010;
+  display: grid;
+  width: 42px;
+  height: 29px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 10px;
+  padding: 0;
+  background: rgba(4, 9, 25, 0.92);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.34);
+  color: #eaf3ff;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.map-layer-control-button > span {
+  display: grid;
+  width: 21px;
+  height: 21px;
+  place-items: center;
+}
+
+.map-layer-control-button > span::before,
+.map-layer-control-button > span::after {
+  content: none !important;
+  display: none !important;
+}
+
+.map-layer-control-button svg {
+  display: block;
+  width: 21px;
+  height: 21px;
+  overflow: visible;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.map-layer-control-button[aria-expanded="true"] {
+  border-color: rgba(38, 217, 255, 0.72);
+  color: #26d9ff;
+}
+
+.map-layer-control-panel {
+  position: fixed;
+  top: calc(max(8px, env(safe-area-inset-top)) + 37px);
+  left: max(8px, env(safe-area-inset-left));
+  z-index: 14020;
+  display: grid;
+  width: min(250px, calc(100vw - 16px));
+  gap: 7px;
+  padding: 11px;
+  border: 1px solid rgba(150, 176, 255, 0.22);
+  border-radius: 13px;
+  background: rgba(4, 9, 25, 0.96);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.46);
+  color: #f4f7ff;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.map-layer-control-panel.hidden {
+  display: none !important;
+}
+
+.map-layer-control-panel > strong {
+  margin-bottom: 2px;
+  font-size: 0.82rem;
+}
+
+.map-layer-control-panel > label {
+  display: flex;
+  min-height: 30px;
+  align-items: center;
+  gap: 9px;
+  border-radius: 8px;
+  padding: 4px 7px;
+  background: rgba(255, 255, 255, 0.055);
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.map-layer-control-panel input {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: #26d9ff;
+}
+
+body:not([data-active-bottom-tab="earthquake-tab"]) .map-layer-control-button,
+body:not([data-active-bottom-tab="earthquake-tab"]) .map-layer-control-panel {
+  display: none !important;
+}
+
+@media (min-width: 768px) {
+  body[data-active-bottom-tab="earthquake-tab"] .intensity-legend {
+    width: 28px !important;
+    max-width: 28px !important;
+  }
+}
+
+/* Information ticket layout: large intensity column and three structured detail rows. */
+.simulation-runtime-hud .simulation-summary {
+  grid-template-columns: 116px minmax(0, 1fr) !important;
+  grid-template-rows: 34px 32px 34px !important;
+  gap: 5px 12px !important;
+  min-height: 120px !important;
+  padding: 10px 12px !important;
+}
+
+.simulation-runtime-hud .max-shindo-card {
+  grid-column: 1 !important;
+  grid-row: 1 / 4 !important;
+  display: grid !important;
+  grid-template-rows: 20px minmax(0, 1fr) !important;
+  align-content: stretch !important;
+  align-items: center !important;
+  justify-items: center !important;
+  gap: 4px !important;
+}
+
+.simulation-runtime-hud .max-shindo-card > span {
+  align-self: end !important;
+  font-size: 0.76rem !important;
+}
+
+.simulation-runtime-hud .max-shindo-card strong {
+  width: 88px !important;
+  min-width: 88px !important;
+  height: 78px !important;
+  min-height: 78px !important;
+  align-self: start !important;
+  padding: 0 !important;
+  font-size: 3rem !important;
+  line-height: 78px !important;
+}
+
+.simulation-runtime-hud .simulation-summary > div:has(#simulation-region-name) {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  display: grid !important;
+  grid-template-columns: max-content minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.simulation-runtime-hud .simulation-depth-magnitude-row {
+  grid-column: 2 !important;
+  grid-row: 2 !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(76px, 0.72fr) !important;
+  align-items: center !important;
+  gap: 12px !important;
+}
+
+.simulation-runtime-hud .simulation-depth-magnitude-row > div:has(#simulation-depth) {
+  display: grid !important;
+  grid-template-columns: max-content max-content !important;
+  align-items: baseline !important;
+  gap: 7px !important;
+}
+
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card {
+  display: inline-flex !important;
+  align-items: baseline !important;
+  justify-content: flex-start !important;
+}
+
+.simulation-runtime-hud .simulation-origin-time-card {
+  grid-column: 2 !important;
+  grid-row: 3 !important;
+  display: grid !important;
+  grid-template-columns: max-content minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.simulation-runtime-hud #simulation-region-name {
+  overflow: hidden !important;
+  font-size: 1.12rem !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.simulation-runtime-hud #simulation-depth,
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card strong,
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card strong::before,
+.simulation-runtime-hud #simulation-magnitude {
+  font-size: 1.06rem !important;
+}
+
+.simulation-runtime-hud .simulation-origin-time-card strong {
+  overflow: hidden !important;
+  font-size: 0.86rem !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+@media (max-width: 420px) {
+  .simulation-runtime-hud .simulation-summary {
+    grid-template-columns: 102px minmax(0, 1fr) !important;
+    grid-template-rows: 32px 30px 32px !important;
+    gap: 4px 8px !important;
+    min-height: 112px !important;
+    padding: 8px !important;
+  }
+
+  .simulation-runtime-hud .max-shindo-card strong {
+    width: 80px !important;
+    min-width: 80px !important;
+    height: 72px !important;
+    min-height: 72px !important;
+    font-size: 2.7rem !important;
+    line-height: 72px !important;
+  }
+
+  .simulation-runtime-hud .simulation-depth-magnitude-row {
+    grid-template-columns: minmax(0, 1fr) minmax(66px, 0.68fr) !important;
+    gap: 7px !important;
+  }
+}
+
+/* Shorter information ticket while preserving the requested two-column layout. */
+.simulation-runtime-hud .simulation-summary {
+  grid-template-columns: 104px minmax(0, 1fr) !important;
+  grid-template-rows: 28px 25px 28px !important;
+  gap: 3px 10px !important;
+  min-height: 0 !important;
+  padding: 7px 10px !important;
+}
+
+.simulation-runtime-hud .max-shindo-card {
+  grid-template-rows: 17px minmax(0, 1fr) !important;
+  gap: 2px !important;
+}
+
+.simulation-runtime-hud .max-shindo-card strong {
+  width: 78px !important;
+  min-width: 78px !important;
+  height: 61px !important;
+  min-height: 61px !important;
+  font-size: 2.6rem !important;
+  line-height: 61px !important;
+}
+
+@media (max-width: 420px) {
+  .simulation-runtime-hud .simulation-summary {
+    grid-template-columns: 94px minmax(0, 1fr) !important;
+    grid-template-rows: 27px 24px 27px !important;
+    gap: 2px 7px !important;
+    padding: 6px 7px !important;
+  }
+
+  .simulation-runtime-hud .max-shindo-card strong {
+    width: 72px !important;
+    min-width: 72px !important;
+    height: 58px !important;
+    min-height: 58px !important;
+    font-size: 2.45rem !important;
+    line-height: 58px !important;
+  }
+}
+
+/* Collapse source setup to its grab handle and keep the start action near the expanded lower edge. */
+#setup-panel.sim-panel[data-sheet-state="collapsed"],
+#setup-panel.sim-panel[data-sheet-state="closed"] {
+  height: 42px !important;
+  max-height: 42px !important;
+  overflow: hidden !important;
+}
+
+#setup-panel.sim-panel[data-sheet-state="collapsed"] .sim-panel-head,
+#setup-panel.sim-panel[data-sheet-state="collapsed"] .sim-panel-scroll,
+#setup-panel.sim-panel[data-sheet-state="closed"] .sim-panel-head,
+#setup-panel.sim-panel[data-sheet-state="closed"] .sim-panel-scroll {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+#setup-panel.sim-panel[data-sheet-state="open"] .sim-panel-scroll {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-height: none !important;
+  min-height: 0 !important;
+  padding: 4px 5px !important;
+}
+
+#setup-panel.sim-panel[data-sheet-state="open"] .sim-panel-head {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+#setup-panel.sim-panel[data-sheet-state="open"] .simulation-quick-actions {
+  flex: 0 0 auto !important;
+  margin: 2px 0 8px !important;
+}
+
+#setup-panel.sim-panel[data-sheet-state="open"] .simulation-start-sheet-host {
+  flex: 0 0 auto !important;
+  margin-top: auto !important;
+  padding-top: 8px !important;
+  padding-bottom: 0 !important;
+}
+
+#setup-panel.sim-panel[data-sheet-state="open"] #simulation-start.sheet-simulation-start {
+  margin-bottom: 0 !important;
+}
+
+/* Magnitude uses the compact "規模：M3.5" notation. */
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card {
+  display: inline-flex !important;
+  align-items: baseline !important;
+  gap: 4px !important;
+  white-space: nowrap !important;
+}
+
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card > span {
+  display: inline !important;
+  color: rgba(230, 238, 255, 0.76) !important;
+  font-size: 0.76rem !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+}
+
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card > span::after {
+  content: "：";
+}
+
+.simulation-runtime-hud .simulation-depth-magnitude-row {
+  grid-template-columns: minmax(0, 1fr) minmax(104px, 0.9fr) !important;
+}
+
+/* Align the right edge and place the maximum-intensity label inside its card. */
+.simulation-runtime-hud .simulation-summary {
+  padding: 7px 14px 7px 6px !important;
+}
+
+.simulation-runtime-hud .max-shindo-card {
+  grid-template-rows: minmax(0, 1fr) !important;
+}
+
+.simulation-runtime-hud .max-shindo-card > span {
+  display: none !important;
+}
+
+.simulation-runtime-hud .max-shindo-card strong {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-sizing: border-box !important;
+  padding: 14px 0 0 !important;
+  line-height: 1 !important;
+}
+
+.simulation-runtime-hud .max-shindo-card strong::before {
+  content: "最大震度" !important;
+  position: absolute !important;
+  top: 5px !important;
+  right: 0 !important;
+  left: 0 !important;
+  color: inherit !important;
+  font-size: 0.66rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+}
+
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card {
+  justify-self: end !important;
+}
+
+.simulation-runtime-hud .simulation-origin-time-card strong {
+  width: auto !important;
+  max-width: 100% !important;
+  justify-self: end !important;
+  text-align: right !important;
+}
+
+@media (max-width: 420px) {
+  .simulation-runtime-hud .simulation-summary {
+    padding: 6px 10px 6px 4px !important;
+  }
+}
+
+/* Keep the information ticket geometry stable at every viewport width. */
+.simulation-runtime-hud .simulation-summary {
+  container-type: inline-size;
+  grid-template-columns: clamp(78px, 22%, 106px) minmax(0, 1fr) !important;
+  grid-template-rows: repeat(3, minmax(21px, auto)) !important;
+  column-gap: clamp(6px, 2vw, 12px) !important;
+  row-gap: 1px !important;
+  min-height: 0 !important;
+  padding: 4px clamp(8px, 2.4vw, 13px) !important;
+}
+
+.simulation-runtime-hud .max-shindo-card {
+  grid-column: 1 !important;
+  grid-row: 1 / 4 !important;
+  display: grid !important;
+  grid-template-rows: 15px minmax(0, 1fr) !important;
+  align-items: center !important;
+  justify-items: center !important;
+  gap: 2px !important;
+  min-width: 0 !important;
+}
+
+.simulation-runtime-hud .max-shindo-card > span {
+  display: block !important;
+  align-self: end !important;
+  font-size: clamp(0.65rem, 2.7cqw, 0.78rem) !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+.simulation-runtime-hud .max-shindo-card strong {
+  position: relative !important;
+  display: grid !important;
+  width: clamp(70px, 20cqw, 90px) !important;
+  min-width: 0 !important;
+  height: clamp(50px, 13.5cqw, 64px) !important;
+  min-height: 0 !important;
+  place-items: center !important;
+  box-sizing: border-box !important;
+  padding: 0 !important;
+  font-size: clamp(2.35rem, 10cqw, 3rem) !important;
+  line-height: 1 !important;
+}
+
+.simulation-runtime-hud .max-shindo-card strong::before {
+  content: none !important;
+  display: none !important;
+}
+
+.simulation-runtime-hud .simulation-summary > div:has(#simulation-region-name),
+.simulation-runtime-hud .simulation-depth-magnitude-row,
+.simulation-runtime-hud .simulation-origin-time-card {
+  width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+
+.simulation-runtime-hud .simulation-summary > div:has(#simulation-region-name) {
+  grid-template-columns: max-content minmax(0, 1fr) !important;
+  gap: clamp(4px, 1.5cqw, 8px) !important;
+}
+
+.simulation-runtime-hud .simulation-depth-magnitude-row {
+  grid-template-columns: max-content max-content !important;
+  justify-content: start !important;
+  gap: clamp(5px, 2cqw, 12px) !important;
+}
+
+.simulation-runtime-hud .simulation-depth-magnitude-row > div:has(#simulation-depth) {
+  grid-template-columns: max-content minmax(0, 1fr) !important;
+  gap: clamp(4px, 1.5cqw, 7px) !important;
+  min-width: 0 !important;
+}
+
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card {
+  justify-self: start !important;
+  margin-left: 0 !important;
+}
+
+.simulation-runtime-hud .simulation-origin-time-card {
+  grid-template-columns: max-content minmax(0, 1fr) !important;
+  gap: clamp(4px, 1.5cqw, 8px) !important;
+}
+
+.simulation-runtime-hud .simulation-origin-time-card strong {
+  width: auto !important;
+  max-width: none !important;
+  justify-self: start !important;
+  overflow: visible !important;
+  font-size: clamp(0.78rem, 3.5cqw, 1rem) !important;
+  font-variant-numeric: tabular-nums;
+  text-align: left !important;
+  text-overflow: clip !important;
+  white-space: nowrap !important;
+}
+
+.simulation-runtime-hud #simulation-region-name {
+  font-size: clamp(1.02rem, 4.6cqw, 1.34rem) !important;
+}
+
+.simulation-runtime-hud #simulation-depth,
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card strong,
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card strong::before,
+.simulation-runtime-hud #simulation-magnitude {
+  font-size: clamp(0.98rem, 4.15cqw, 1.22rem) !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.simulation-runtime-hud .simulation-summary dt,
+.simulation-runtime-hud .simulation-origin-time-card > span,
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card > span {
+  font-size: clamp(0.78rem, 3.25cqw, 0.94rem) !important;
+}
+
+@media (max-width: 350px) {
+  .simulation-runtime-hud .simulation-summary {
+    grid-template-columns: 78px minmax(0, 1fr) !important;
+    column-gap: 6px !important;
+    padding-right: 7px !important;
+    padding-left: 5px !important;
+  }
+
+  .simulation-runtime-hud .max-shindo-card strong {
+    width: 66px !important;
+    height: 50px !important;
+  }
+}
+
+/* Smooth source-sheet tracking and settling. */
+#setup-panel.sim-panel {
+  will-change: height, max-height;
+  transition:
+    height 260ms cubic-bezier(0.2, 0.82, 0.2, 1),
+    max-height 260ms cubic-bezier(0.2, 0.82, 0.2, 1),
+    transform 260ms cubic-bezier(0.2, 0.82, 0.2, 1) !important;
+}
+
+#setup-panel .sheet-handle {
+  touch-action: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+#setup-panel.sim-panel.is-dragging {
+  height: var(--sheet-drag-height, 42px) !important;
+  max-height: var(--sheet-drag-height, calc(100svh - var(--bottom-nav-height) - env(safe-area-inset-bottom) - 16px)) !important;
+  transition: none !important;
+}
+
+#setup-panel.sim-panel.is-dragging[data-sheet-state="collapsed"] > :not(.sheet-handle),
+#setup-panel.sim-panel.is-dragging[data-sheet-state="closed"] > :not(.sheet-handle) {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+#setup-panel.sim-panel.is-dragging .sim-panel-scroll {
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  visibility: visible !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+}
+
+/* Slightly larger legend numerals and a slimmer desktop vertical legend. */
+body[data-active-bottom-tab="earthquake-tab"] .intensity-scale span {
+  font-size: 0.82rem !important;
+  font-weight: 900 !important;
+}
+
+@media (min-width: 768px) {
+  body[data-active-bottom-tab="earthquake-tab"] .intensity-legend {
+    box-sizing: border-box !important;
+    width: 24px !important;
+    min-width: 24px !important;
+    max-width: 24px !important;
+    flex: 0 0 24px !important;
+    padding: 0 !important;
+  }
+
+  body[data-active-bottom-tab="earthquake-tab"] .intensity-scale {
+    box-sizing: border-box !important;
+    width: 22px !important;
+    min-width: 22px !important;
+    max-width: 22px !important;
+    flex: 0 0 22px !important;
+  }
+
+  body[data-active-bottom-tab="earthquake-tab"] .intensity-scale span {
+    box-sizing: border-box !important;
+    width: 22px !important;
+    min-width: 22px !important;
+    max-width: 22px !important;
+    height: 31px !important;
+    min-height: 31px !important;
+    font-size: 0.78rem !important;
+  }
+}
+
+/* Match the information ticket to the timeline width and remove its legacy 92px floor. */
+.simulation-runtime-hud .simulation-summary,
+.simulation-runtime-hud .simulation-progress-panel {
+  width: 100% !important;
+  max-width: 100% !important;
+  justify-self: stretch !important;
+  box-sizing: border-box !important;
+}
+
+.simulation-runtime-hud .simulation-summary {
+  height: auto !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+}
+
+.simulation-runtime-hud .max-shindo-card {
+  height: auto !important;
+  min-height: 0 !important;
+}
+
+.simulation-runtime-hud .max-shindo-card > span {
+  font-size: 0.84rem !important;
+}
+
+.simulation-runtime-hud .max-shindo-card strong {
+  font-size: 2.85rem !important;
+}
+
+.simulation-runtime-hud .simulation-summary dt,
+.simulation-runtime-hud .simulation-origin-time-card > span,
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card > span {
+  font-size: 0.88rem !important;
+}
+
+.simulation-runtime-hud #simulation-region-name {
+  font-size: 1.38rem !important;
+  font-weight: 900 !important;
+}
+
+.simulation-runtime-hud #simulation-depth,
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card strong,
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card strong::before,
+.simulation-runtime-hud #simulation-magnitude {
+  font-size: 1.22rem !important;
+}
+
+.simulation-runtime-hud .simulation-origin-time-card strong {
+  font-size: 1rem !important;
+  font-weight: 900 !important;
+}
+
+@media (max-width: 350px) {
+  .simulation-runtime-hud .simulation-summary dt,
+  .simulation-runtime-hud .simulation-origin-time-card > span,
+  .simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card > span {
+    font-size: 0.78rem !important;
+  }
+
+  .simulation-runtime-hud #simulation-region-name {
+    font-size: 1.15rem !important;
+  }
+
+  .simulation-runtime-hud #simulation-depth,
+  .simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card strong,
+  .simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card strong::before,
+  .simulation-runtime-hud #simulation-magnitude {
+    font-size: 1.05rem !important;
+  }
+
+  .simulation-runtime-hud .simulation-origin-time-card strong {
+    font-size: 0.82rem !important;
+  }
+}
+
+/* Refine the runtime information ticket without changing the intensity-card footprint. */
+.simulation-runtime-hud .simulation-summary {
+  grid-template-rows: repeat(3, minmax(23px, auto)) !important;
+  row-gap: 2px !important;
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+}
+
+.simulation-runtime-hud .max-shindo-card strong {
+  display: grid !important;
+  place-items: center !important;
+  padding: 0 !important;
+  font-size: 2.65rem !important;
+  line-height: 1 !important;
+  text-align: center !important;
+}
+
+.simulation-runtime-hud .max-shindo-card > span {
+  font-size: 0.78rem !important;
+}
+
+.simulation-runtime-hud .simulation-summary > div:has(#simulation-region-name),
+.simulation-runtime-hud .simulation-depth-magnitude-row > div:has(#simulation-depth),
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card,
+.simulation-runtime-hud .simulation-origin-time-card {
+  align-items: baseline !important;
+}
+
+.simulation-runtime-hud .simulation-depth-magnitude-row {
+  gap: clamp(18px, 5cqw, 28px) !important;
+}
+
+.simulation-runtime-hud .simulation-summary dt,
+.simulation-runtime-hud .simulation-origin-time-card > span,
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card > span {
+  font-size: 0.8rem !important;
+  font-weight: 500 !important;
+  line-height: 1.15 !important;
+}
+
+.simulation-runtime-hud #simulation-region-name {
+  font-size: 1.25rem !important;
+  font-weight: 900 !important;
+  line-height: 1.15 !important;
+}
+
+.simulation-runtime-hud #simulation-depth,
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card strong,
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card strong::before,
+.simulation-runtime-hud #simulation-magnitude {
+  font-size: 1.1rem !important;
+  font-weight: 500 !important;
+  line-height: 1.15 !important;
+}
+
+.simulation-runtime-hud .simulation-origin-time-card strong {
+  font-size: 0.9rem !important;
+  font-weight: 500 !important;
+  line-height: 1.15 !important;
+}
+
+@media (max-width: 350px) {
+  .simulation-runtime-hud .max-shindo-card strong {
+    font-size: 2.4rem !important;
+  }
+
+  .simulation-runtime-hud .simulation-depth-magnitude-row {
+    gap: 12px !important;
+  }
+}
+
+/* Use one typographic system for every information-ticket label/value pair. */
+.simulation-runtime-hud .simulation-summary dt,
+.simulation-runtime-hud .simulation-summary dd,
+.simulation-runtime-hud .simulation-origin-time-card > span,
+.simulation-runtime-hud .simulation-origin-time-card strong,
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card > span,
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card strong,
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card strong::before,
+.simulation-runtime-hud #simulation-region-name,
+.simulation-runtime-hud #simulation-depth,
+.simulation-runtime-hud #simulation-magnitude {
+  font-family: inherit !important;
+  font-size: 0.9rem !important;
+  font-style: normal !important;
+  font-weight: 600 !important;
+  font-stretch: normal !important;
+  line-height: 1.15 !important;
+  letter-spacing: 0 !important;
+}
+
+.simulation-runtime-hud .simulation-summary > div:has(#simulation-region-name),
+.simulation-runtime-hud .simulation-depth-magnitude-row > div:has(#simulation-depth),
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card,
+.simulation-runtime-hud .simulation-origin-time-card {
+  align-items: baseline !important;
+}
+
+/* Keep the existing card dimensions and optically lock the numeral to its center. */
+.simulation-runtime-hud .max-shindo-card strong {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-sizing: border-box !important;
+  padding: 0 !important;
+  font-family: inherit !important;
+  font-style: normal !important;
+  font-stretch: normal !important;
+  font-variant-numeric: tabular-nums !important;
+  line-height: 1 !important;
+  text-align: center !important;
+  text-indent: 0 !important;
+  letter-spacing: 0 !important;
+  transform: none !important;
+}
+
+.simulation-runtime-hud .max-shindo-card strong::before,
+.simulation-runtime-hud .max-shindo-card strong::after {
+  content: none !important;
+  display: none !important;
+}
+
+.simulation-runtime-hud .max-shindo-card strong:is(
+  [data-intensity-rank="5"],
+  [data-intensity-rank="6"],
+  [data-intensity-rank="7"],
+  [data-intensity-rank="8"]
+) {
+  font-size: 1.8rem !important;
+  letter-spacing: -0.08em !important;
+  white-space: nowrap !important;
+}
+
+.simulation-runtime-hud .max-shindo-card strong[data-intensity-rank="0"] {
+  font-size: 0 !important;
+}
+
+.simulation-runtime-hud .max-shindo-card strong[data-intensity-rank="0"]::after {
+  content: "−" !important;
+  display: block !important;
+  margin: 0 !important;
+  font-size: 2.2rem !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  letter-spacing: 0 !important;
+}
+
+/* Tint the information ticket with a diluted version of the observed intensity color. */
+.simulation-runtime-hud .simulation-summary.has-observed-intensity {
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--simulation-ticket-intensity-color) 30%, #17223d 70%),
+      color-mix(in srgb, var(--simulation-ticket-intensity-color) 16%, #071126 84%)
+    ) !important;
+  border-color: color-mix(in srgb, var(--simulation-ticket-intensity-color) 42%, rgba(255, 255, 255, 0.18)) !important;
+}
+
+/* Extend the navigation backdrop beyond its box so nothing can show below it. */
+.bottom-tabs {
+  box-sizing: border-box !important;
+  bottom: 0 !important;
+  overflow: visible !important;
+  background-color: #0f1010 !important;
+}
+
+.bottom-tabs::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  top: calc(100% - 1px);
+  right: 0;
+  left: 0;
+  height: max(48px, env(safe-area-inset-bottom));
+  background: #0f1010;
+  pointer-events: none;
+}
+
+/* Learning content category switcher. */
+.learning-category-switch {
+  position: sticky;
+  top: 0;
+  z-index: 12;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 2px 0 8px;
+  background: rgba(14, 15, 15, 0.98);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.learning-category-switch button {
+  min-height: 40px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.045);
+  color: rgba(255, 255, 255, 0.66);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.learning-category-switch button[aria-selected="true"] {
+  border-color: rgba(38, 217, 255, 0.72);
+  background: rgba(38, 217, 255, 0.13);
+  color: #5ee8ff;
+}
+
+.learning-category-panel {
+  display: grid;
+  min-width: 0;
+  gap: 14px;
+}
+
+.learning-category-panel.hidden {
+  display: none !important;
+}
+
+.learning-category-panel > .learning-weather-section:first-child > .learning-section-heading {
+  padding: 4px 2px 2px !important;
+}
+
+html[data-resolved-theme="light"] .learning-category-switch {
+  background: rgba(248, 250, 252, 0.98);
+}
+
+html[data-resolved-theme="light"] .learning-category-switch button {
+  border-color: rgba(15, 23, 42, 0.14);
+  background: rgba(15, 23, 42, 0.04);
+  color: rgba(15, 23, 42, 0.62);
+}
+
+html[data-resolved-theme="light"] .learning-category-switch button[aria-selected="true"] {
+  border-color: rgba(0, 138, 163, 0.58);
+  background: rgba(0, 138, 163, 0.1);
+  color: #007b91;
 }
 
 /* Keep learning content inside narrow mobile viewports. */
@@ -16177,6 +18538,7 @@ html[data-resolved-theme="light"] .weather-quiz-history article {
   color: #a4f5ff !important;
   font-size: 0.86rem !important;
   line-height: 1.65 !important;
+  white-space: pre-line !important;
 }
 
 .weather-quiz-answer.hidden {
