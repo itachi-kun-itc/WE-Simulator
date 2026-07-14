@@ -1,4 +1,4 @@
-const CACHE_NAME = "we-simulator-pwa-v13";
+const CACHE_NAME = "we-simulator-pwa-v14";
 const PUSH_METADATA_CACHE_NAME = "we-simulator-push-metadata";
 const LOCAL_DEV_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
 const IS_LOCAL_DEV = LOCAL_DEV_HOSTNAMES.has(new URL(self.location.href).hostname);
