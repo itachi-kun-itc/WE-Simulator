@@ -1873,7 +1873,7 @@ function setupTabs() {
       return {
         ...item,
         quizMode: "fill",
-        question: `次の問いに対する正しい用語を選んでください。\n${item.question}\n\n回答文：${blankedAnswer}`,
+        question: `${item.question}\n\n回答文：${blankedAnswer}`,
         correctTerm,
         options: shuffleWeatherQuizItems(terms),
       };
