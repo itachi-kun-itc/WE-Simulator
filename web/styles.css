@@ -18812,3 +18812,104 @@ html[data-resolved-theme="light"] .weather-quiz-note {
   content: none !important;
   display: none !important;
 }
+
+/* Keep all three information-ticket rows on an even vertical rhythm. */
+.simulation-runtime-hud .simulation-summary {
+  grid-template-rows: repeat(3, minmax(0, 1fr)) !important;
+  row-gap: 0 !important;
+}
+
+.simulation-runtime-hud .simulation-summary > div:has(#simulation-region-name),
+.simulation-runtime-hud .simulation-depth-magnitude-row,
+.simulation-runtime-hud .simulation-origin-time-card {
+  align-self: center !important;
+  margin-block: 0 !important;
+}
+
+.simulation-runtime-hud .simulation-summary > div:has(#simulation-region-name) dt,
+.simulation-runtime-hud #simulation-region-name {
+  font-size: 0.96rem !important;
+}
+
+/* Keep the EEW warning list directly below the persistent layer control. */
+body[data-active-bottom-tab="earthquake-tab"] .eew-forecast-panel {
+  position: fixed !important;
+  z-index: 14000 !important;
+  top: calc(max(8px, env(safe-area-inset-top)) + 37px) !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: max(8px, env(safe-area-inset-left)) !important;
+  width: min(300px, calc(100vw - 16px)) !important;
+  min-width: 0 !important;
+  max-height: min(320px, calc(100svh - var(--bottom-nav-height) - env(safe-area-inset-bottom) - 62px)) !important;
+}
+
+.map-layer-control-button {
+  z-index: 14020 !important;
+}
+
+.map-layer-control-panel {
+  z-index: 14030 !important;
+}
+
+/* Running controls: black pause and red cancel, split into equal halves. */
+body.simulation-session-active:not(.simulation-session-complete) .simulation-runtime-hud .setup-result-section {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+body.simulation-session-active:not(.simulation-session-complete) .simulation-runtime-hud .simulation-summary,
+body.simulation-session-active:not(.simulation-session-complete) .simulation-runtime-hud .simulation-progress-panel {
+  grid-column: 1 / -1 !important;
+}
+
+body.simulation-session-active:not(.simulation-session-complete) .simulation-runtime-hud .simulation-summary {
+  grid-row: 1 !important;
+}
+
+body.simulation-session-active:not(.simulation-session-complete) .simulation-runtime-hud .simulation-progress-panel {
+  grid-row: 2 !important;
+}
+
+body.simulation-session-active:not(.simulation-session-complete) .simulation-runtime-hud .simulation-timeline-controls {
+  grid-column: 1 !important;
+  grid-row: 3 !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 0 !important;
+  margin: 0 !important;
+}
+
+body.simulation-session-active:not(.simulation-session-complete) .simulation-runtime-hud #simulation-rewind {
+  display: none !important;
+}
+
+body.simulation-session-active:not(.simulation-session-complete) .simulation-runtime-hud .simulation-actions {
+  grid-column: 2 !important;
+  grid-row: 3 !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  margin: 0 !important;
+}
+
+body.simulation-session-active:not(.simulation-session-complete) .simulation-runtime-hud .simulation-pause,
+body.simulation-session-active:not(.simulation-session-complete) .simulation-runtime-hud .simulation-stop {
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 38px !important;
+  border-radius: 11px !important;
+  font-size: 0.84rem !important;
+  font-weight: 900 !important;
+}
+
+body.simulation-session-active:not(.simulation-session-complete) .simulation-runtime-hud .simulation-pause {
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  background: #17191d !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+}
+
+body.simulation-session-active:not(.simulation-session-complete) .simulation-runtime-hud .simulation-stop {
+  border-color: rgba(255, 255, 255, 0.18) !important;
+  background: linear-gradient(180deg, #f13462, #c91849) !important;
+  color: #ffffff !important;
+}
