@@ -14612,66 +14612,6 @@ body.community-pick-mode .community-post-button {
   stroke-width: 1.5 !important;
 }
 
-.typhoon-callout rect {
-  stroke: rgba(0, 0, 0, 0.32) !important;
-  stroke-width: 1.25 !important;
-}
-
-.typhoon-callout text {
-  text-anchor: middle !important;
-  dominant-baseline: middle !important;
-  font-size: 18px !important;
-  font-weight: 950 !important;
-}
-
-.typhoon-callout > path {
-  fill: none !important;
-  stroke-linecap: round !important;
-  stroke-linejoin: round !important;
-}
-
-.typhoon-callout-forecast rect {
-  fill: #f8fafc !important;
-}
-
-.typhoon-callout-forecast text {
-  fill: #101827 !important;
-}
-
-.typhoon-callout-forecast > path {
-  stroke: #fff !important;
-  stroke-width: 4 !important;
-}
-
-.typhoon-callout-strong rect {
-  fill: #ffe500 !important;
-}
-
-.typhoon-callout-strong text {
-  fill: #101010 !important;
-}
-
-.typhoon-callout-strong > path {
-  stroke: #ffe500 !important;
-  stroke-width: 7 !important;
-}
-
-.typhoon-callout-storm rect,
-.typhoon-callout-warning rect {
-  fill: #e20b22 !important;
-}
-
-.typhoon-callout-storm text,
-.typhoon-callout-warning text {
-  fill: #fff !important;
-}
-
-.typhoon-callout-storm > path,
-.typhoon-callout-warning > path {
-  stroke: #e20b22 !important;
-  stroke-width: 7 !important;
-}
-
 .learning-typhoon-symbol-list article {
   display: grid !important;
   grid-template-columns: 34px minmax(0, 1fr) !important;
