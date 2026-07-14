@@ -1,4 +1,5 @@
-const CACHE_NAME = "we-simulator-pwa-v9";
+const CACHE_NAME = "we-simulator-pwa-v11";
+const PUSH_METADATA_CACHE_NAME = "we-simulator-push-metadata";
 const LOCAL_DEV_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
 const IS_LOCAL_DEV = LOCAL_DEV_HOSTNAMES.has(new URL(self.location.href).hostname);
 const NOTIFICATION_HISTORY_DB_NAME = "we-simulator-notification-history";
@@ -42,7 +43,11 @@ self.addEventListener("activate", (event) => {
     caches
       .keys()
       .then((keys) =>
-        Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))),
+        Promise.all(
+          keys
+            .filter((key) => key !== CACHE_NAME && key !== PUSH_METADATA_CACHE_NAME)
+            .map((key) => caches.delete(key)),
+        ),
       )
       .then(() => pruneNotificationHistory().catch((error) => console.warn("notification history prune failed", error)))
       .then(() => self.clients.claim()),
@@ -90,6 +95,12 @@ self.addEventListener("push", (event) => {
   event.waitUntil(showPushNotification(event));
 });
 
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "set-push-subscription-key") {
+    event.waitUntil(savePushSubscriptionKey(event.data.key));
+  }
+});
+
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const targetUrl = event.notification.data?.url || "./";
@@ -110,7 +121,7 @@ self.addEventListener("notificationclick", (event) => {
 
 async function showPushNotification(event) {
   const payload = event.data ? safeJsonParse(event.data.text()) : null;
-  const notification = payload || (await fetchLatestNotification()) || {};
+  const notification = payload || (await fetchTargetedNotification()) || (await fetchLatestNotification()) || {};
   const title = notification.title || "WE-Simulator";
   const historyItem = {
     id: notification.id || `notification-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
@@ -133,6 +144,45 @@ async function showPushNotification(event) {
   };
 
   return self.registration.showNotification(title, options);
+}
+
+async function fetchTargetedNotification() {
+  const [config, key] = await Promise.all([loadPushConfig(), readPushSubscriptionKey()]);
+  if (!config.workerUrl || !key) {
+    return null;
+  }
+  try {
+    const response = await fetch(
+      `${config.workerUrl.replace(/\/+$/, "")}/subscription-notification?key=${encodeURIComponent(key)}`,
+      { cache: "no-store" },
+    );
+    if (!response.ok) {
+      return null;
+    }
+    const notification = await response.json();
+    return notification?.id ? notification : null;
+  } catch (error) {
+    console.warn("targeted notification fetch failed", error);
+    return null;
+  }
+}
+
+async function savePushSubscriptionKey(key) {
+  const normalizedKey = String(key || "");
+  if (!/^[A-Za-z0-9_-]{20,100}$/.test(normalizedKey)) {
+    return;
+  }
+  const cache = await caches.open(PUSH_METADATA_CACHE_NAME);
+  await cache.put(
+    new Request(new URL("./push-subscription-key", self.registration.scope)),
+    new Response(normalizedKey),
+  );
+}
+
+async function readPushSubscriptionKey() {
+  const cache = await caches.open(PUSH_METADATA_CACHE_NAME);
+  const response = await cache.match(new Request(new URL("./push-subscription-key", self.registration.scope)));
+  return response ? response.text() : "";
 }
 
 async function fetchLatestNotification() {
