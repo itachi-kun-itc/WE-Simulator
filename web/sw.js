@@ -1,4 +1,4 @@
-const CACHE_NAME = "we-simulator-pwa-v11";
+const CACHE_NAME = "we-simulator-pwa-v12";
 const PUSH_METADATA_CACHE_NAME = "we-simulator-push-metadata";
 const LOCAL_DEV_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
 const IS_LOCAL_DEV = LOCAL_DEV_HOSTNAMES.has(new URL(self.location.href).hostname);
@@ -181,8 +181,29 @@ async function savePushSubscriptionKey(key) {
 
 async function readPushSubscriptionKey() {
   const cache = await caches.open(PUSH_METADATA_CACHE_NAME);
-  const response = await cache.match(new Request(new URL("./push-subscription-key", self.registration.scope)));
-  return response ? response.text() : "";
+  const request = new Request(new URL("./push-subscription-key", self.registration.scope));
+  const cachedResponse = await cache.match(request);
+  const cachedKey = cachedResponse ? await cachedResponse.text() : "";
+
+  try {
+    const subscription = await self.registration.pushManager?.getSubscription();
+    const endpoint = String(subscription?.endpoint || "");
+    if (!endpoint) {
+      return cachedKey;
+    }
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(endpoint));
+    const calculatedKey = btoa(String.fromCharCode(...new Uint8Array(digest)))
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/g, "");
+    if (calculatedKey !== cachedKey) {
+      await savePushSubscriptionKey(calculatedKey);
+    }
+    return calculatedKey;
+  } catch (error) {
+    console.warn("push subscription key calculation failed", error);
+    return cachedKey;
+  }
 }
 
 async function fetchLatestNotification() {

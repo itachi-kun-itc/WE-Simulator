@@ -62,11 +62,7 @@ export default {
         if (!/^[A-Za-z0-9_-]{20,100}$/.test(key)) {
           return json({ error: "invalid subscription key" }, 400);
         }
-        const notificationKey = `${TARGETED_NOTIFICATION_PREFIX}${key}`;
-        const notification = await env.PUSH_SUBSCRIPTIONS.get(notificationKey, "json");
-        if (notification) {
-          await env.PUSH_SUBSCRIPTIONS.delete(notificationKey);
-        }
+        const notification = await takeTargetedNotification(env, key);
         return json(notification || {});
       }
 
@@ -313,20 +309,16 @@ async function sendNotificationToAccounts(workerUrl, env, accountIds, notificati
     .filter(({ subscription }) => targets.has(String(subscription.accountId || "")));
   const settled = await Promise.allSettled(
     subscriptions.map(async ({ key, subscription, subscriptionKey: targetKey }) => {
-      await env.PUSH_SUBSCRIPTIONS.put(
-        `${TARGETED_NOTIFICATION_PREFIX}${targetKey}`,
-        JSON.stringify(notification),
-        { expirationTtl: 24 * 60 * 60 },
-      );
+      await saveTargetedNotification(env, targetKey, notification);
       const response = await sendEmptyPush(subscription, workerUrl, env);
       if (response.status === 404 || response.status === 410) {
         await Promise.all([
           env.PUSH_SUBSCRIPTIONS.delete(key),
-          env.PUSH_SUBSCRIPTIONS.delete(`${TARGETED_NOTIFICATION_PREFIX}${targetKey}`),
+          deleteTargetedNotification(env, targetKey),
         ]);
       }
       if (!response.ok && response.status !== 404 && response.status !== 410) {
-        await env.PUSH_SUBSCRIPTIONS.delete(`${TARGETED_NOTIFICATION_PREFIX}${targetKey}`);
+        await deleteTargetedNotification(env, targetKey);
         throw new Error(`push failed: ${response.status}`);
       }
     }),
@@ -336,6 +328,72 @@ async function sendNotificationToAccounts(workerUrl, env, accountIds, notificati
     sent: settled.filter((item) => item.status === "fulfilled").length,
     failed: settled.filter((item) => item.status === "rejected").length,
   };
+}
+
+async function ensureTargetedNotificationSchema(db) {
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS push_targeted_notifications (
+      subscription_key TEXT PRIMARY KEY,
+      payload TEXT NOT NULL,
+      expires_at TEXT NOT NULL
+    )
+  `).run();
+}
+
+async function saveTargetedNotification(env, subscriptionKeyValue, notification) {
+  const key = String(subscriptionKeyValue || "");
+  const payload = JSON.stringify(notification);
+  const db = getAppDb(env);
+  await ensureTargetedNotificationSchema(db);
+  await Promise.all([
+    db.prepare(`
+      INSERT INTO push_targeted_notifications (subscription_key, payload, expires_at)
+      VALUES (?, ?, ?)
+      ON CONFLICT(subscription_key) DO UPDATE SET
+        payload = excluded.payload,
+        expires_at = excluded.expires_at
+    `).bind(key, payload, new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()).run(),
+    env.PUSH_SUBSCRIPTIONS.put(
+      `${TARGETED_NOTIFICATION_PREFIX}${key}`,
+      payload,
+      { expirationTtl: 24 * 60 * 60 },
+    ),
+  ]);
+}
+
+async function takeTargetedNotification(env, subscriptionKeyValue) {
+  const key = String(subscriptionKeyValue || "");
+  const db = getAppDb(env);
+  await ensureTargetedNotificationSchema(db);
+  const row = await db.prepare(`
+    SELECT payload FROM push_targeted_notifications
+    WHERE subscription_key = ? AND expires_at > ?
+  `).bind(key, new Date().toISOString()).first();
+  const kvNotification = row?.payload
+    ? null
+    : await env.PUSH_SUBSCRIPTIONS.get(`${TARGETED_NOTIFICATION_PREFIX}${key}`, "json");
+  await Promise.all([
+    db.prepare("DELETE FROM push_targeted_notifications WHERE subscription_key = ?").bind(key).run(),
+    env.PUSH_SUBSCRIPTIONS.delete(`${TARGETED_NOTIFICATION_PREFIX}${key}`),
+  ]);
+  if (row?.payload) {
+    try {
+      return JSON.parse(String(row.payload));
+    } catch (error) {
+      console.warn("targeted notification payload parse failed", error);
+    }
+  }
+  return kvNotification;
+}
+
+async function deleteTargetedNotification(env, subscriptionKeyValue) {
+  const key = String(subscriptionKeyValue || "");
+  const db = getAppDb(env);
+  await ensureTargetedNotificationSchema(db);
+  await Promise.all([
+    db.prepare("DELETE FROM push_targeted_notifications WHERE subscription_key = ?").bind(key).run(),
+    env.PUSH_SUBSCRIPTIONS.delete(`${TARGETED_NOTIFICATION_PREFIX}${key}`),
+  ]);
 }
 
 async function listSubscriptions(env) {
