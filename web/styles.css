@@ -20412,6 +20412,26 @@ html[data-resolved-theme="light"] .maplibregl-ctrl-group button + button {
   border-top-color: rgba(51, 65, 85, 0.14) !important;
 }
 
+html[data-resolved-theme="light"] .station-popup.maplibregl-popup-anchor-top .maplibregl-popup-tip,
+html[data-resolved-theme="light"] .station-popup.maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
+html[data-resolved-theme="light"] .station-popup.maplibregl-popup-anchor-top-right .maplibregl-popup-tip {
+  border-bottom-color: #ffffff !important;
+}
+
+html[data-resolved-theme="light"] .station-popup.maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+html[data-resolved-theme="light"] .station-popup.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
+html[data-resolved-theme="light"] .station-popup.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip {
+  border-top-color: #ffffff !important;
+}
+
+html[data-resolved-theme="light"] .station-popup.maplibregl-popup-anchor-left .maplibregl-popup-tip {
+  border-right-color: #ffffff !important;
+}
+
+html[data-resolved-theme="light"] .station-popup.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+  border-left-color: #ffffff !important;
+}
+
 /* Light-theme contrast audit: borders, semantic learning colors and timeline labels. */
 html[data-resolved-theme="light"] .learning-hero,
 html[data-resolved-theme="light"] .learning-card,
@@ -20968,12 +20988,19 @@ html[data-resolved-theme="light"] .settings-color-scheme-choice input {
   accent-color: #0f766e !important;
 }
 
-/* Keep the source sheet out of the first paint until its collapsed state is laid out. */
-html[data-app-booting="true"] #setup-panel {
-  visibility: hidden !important;
-  pointer-events: none !important;
-  transition: none !important;
-  animation: none !important;
+/* Match the pre-MapLibre surface to the resolved sea color from the first paint. */
+html[data-resolved-theme="light"] .map-wrap,
+html[data-resolved-theme="light"] #map,
+html[data-resolved-theme="light"] .maplibregl-map,
+html[data-resolved-theme="light"] .map-wrap::after {
+  background: #dbe8f0 !important;
+}
+
+html[data-resolved-theme="dark"] .map-wrap,
+html[data-resolved-theme="dark"] #map,
+html[data-resolved-theme="dark"] .maplibregl-map,
+html[data-resolved-theme="dark"] .map-wrap::after {
+  background: #050914 !important;
 }
 
 /* Final simulation light-theme and information-ticket alignment fixes. */
@@ -21000,4 +21027,431 @@ html[data-resolved-theme="light"] body.simulation-session-active:not(.simulation
 body.simulation-session-active #setup-panel.simulation-result-report-open
   .simulation-result-report-summary-host .max-shindo-card strong {
   padding: 0 !important;
+}
+
+/* Settings pages must fully cover the profile and map behind the sheet. */
+.settings-menu-sheet .settings-inline-panel.settings-detail-panel {
+  opacity: 1 !important;
+  isolation: isolate !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html[data-resolved-theme="light"] .settings-menu-sheet,
+html[data-resolved-theme="light"] .settings-menu-sheet .settings-inline-panel.settings-detail-panel {
+  background: #f4f7fa !important;
+}
+
+html[data-resolved-theme="dark"] .settings-menu-sheet,
+html[data-resolved-theme="dark"] .settings-menu-sheet .settings-inline-panel.settings-detail-panel {
+  background: #0a0e16 !important;
+}
+
+/* Leave breathing room between the appearance header and its first card. */
+.settings-menu-sheet.settings-detail-open
+  #settings-appearance-panel .settings-appearance-content {
+  padding-top: 14px !important;
+}
+
+/* Weather-quiz quality curation and reporting. */
+.weather-quiz-choice-grid.weather-quiz-target-grid label > span {
+  justify-content: flex-start !important;
+  text-align: left !important;
+}
+
+.weather-quiz-choice-grid input:disabled + span {
+  cursor: not-allowed !important;
+  opacity: 0.48 !important;
+}
+
+.weather-quiz-quality-actions {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 9px !important;
+}
+
+.weather-quiz-quality-actions button {
+  min-height: 40px !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 13px !important;
+  background: rgba(255, 255, 255, 0.045) !important;
+  color: rgba(255, 255, 255, 0.78) !important;
+  font-weight: 850 !important;
+}
+
+.weather-quiz-good-button span {
+  color: #f6c453 !important;
+}
+
+.weather-quiz-good-button.is-selected {
+  border-color: rgba(246, 196, 83, 0.72) !important;
+  background: rgba(246, 196, 83, 0.13) !important;
+  color: #ffe8a3 !important;
+}
+
+.weather-quiz-bad-button span {
+  display: inline-grid !important;
+  place-items: center !important;
+  width: 17px !important;
+  height: 17px !important;
+  margin-right: 3px !important;
+  border: 1px solid currentColor !important;
+  border-radius: 50% !important;
+  color: #ff7d91 !important;
+  font-size: 0.72rem !important;
+}
+
+.weather-quiz-quality-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 24000 !important;
+  display: grid !important;
+  place-items: center !important;
+  padding: 18px !important;
+  background: rgba(0, 0, 0, 0.66) !important;
+}
+
+.weather-quiz-quality-dialog {
+  display: grid !important;
+  gap: 13px !important;
+  width: min(460px, 100%) !important;
+  max-height: min(680px, calc(100svh - 36px)) !important;
+  overflow-y: auto !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 22px !important;
+  padding: 20px !important;
+  background: #0f1520 !important;
+  color: #eef4fb !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.42) !important;
+}
+
+.weather-quiz-quality-dialog h2,
+.weather-quiz-quality-dialog p {
+  margin: 0 !important;
+}
+
+.weather-quiz-quality-question {
+  max-height: 132px !important;
+  overflow-y: auto !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 13px !important;
+  padding: 11px !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  white-space: pre-wrap !important;
+  font-size: 0.82rem !important;
+  line-height: 1.6 !important;
+}
+
+.weather-quiz-quality-dialog label {
+  display: grid !important;
+  gap: 7px !important;
+  font-weight: 800 !important;
+}
+
+.weather-quiz-quality-dialog textarea {
+  width: 100% !important;
+  min-height: 126px !important;
+  resize: vertical !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  border-radius: 13px !important;
+  padding: 11px !important;
+  background: #171e2a !important;
+  color: #f4f7fb !important;
+  line-height: 1.55 !important;
+  box-sizing: border-box !important;
+}
+
+.weather-quiz-quality-status {
+  min-height: 1.4em !important;
+  color: #ff9bab !important;
+  font-size: 0.76rem !important;
+}
+
+.weather-quiz-quality-status:has(+ .weather-quiz-quality-dialog-actions button[type="submit"]:disabled) {
+  color: #9ceef8 !important;
+}
+
+.weather-quiz-quality-dialog-actions {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 9px !important;
+}
+
+.weather-quiz-quality-dialog-actions button {
+  min-height: 43px !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 13px !important;
+  background: #202938 !important;
+  color: #eaf0f7 !important;
+  font-weight: 900 !important;
+}
+
+.weather-quiz-quality-dialog-actions button[type="submit"] {
+  border-color: #d9485f !important;
+  background: #c93650 !important;
+  color: #ffffff !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-quality-actions button {
+  border-color: rgba(51, 65, 85, 0.2) !important;
+  background: #f8fafc !important;
+  color: #334155 !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-good-button.is-selected {
+  border-color: #b88714 !important;
+  background: #fff7d6 !important;
+  color: #76570b !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-quality-dialog {
+  border-color: rgba(51, 65, 85, 0.2) !important;
+  background: #f7f9fb !important;
+  color: #172033 !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-quality-question {
+  border-color: rgba(51, 65, 85, 0.16) !important;
+  background: #ffffff !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-quality-dialog textarea {
+  border-color: rgba(51, 65, 85, 0.24) !important;
+  background: #ffffff !important;
+  color: #172033 !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-quality-dialog-actions button {
+  border-color: rgba(51, 65, 85, 0.2) !important;
+  background: #e7edf3 !important;
+  color: #334155 !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-quality-dialog-actions button[type="submit"] {
+  border-color: #c93650 !important;
+  background: #c93650 !important;
+  color: #ffffff !important;
+}
+
+/* Tools and Learning are full pages: never show the map or another tab through them. */
+#info-full-panel,
+#info-full-panel .tool-home-page,
+#info-full-panel .tool-station-page,
+#info-full-panel .tool-weather-quiz-page,
+#info-full-panel .weather-quiz-content,
+#learning-full-panel,
+#learning-full-panel .learning-content {
+  opacity: 1 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html[data-resolved-theme="light"] #info-full-panel,
+html[data-resolved-theme="light"] #info-full-panel .tool-home-page,
+html[data-resolved-theme="light"] #info-full-panel .tool-station-page,
+html[data-resolved-theme="light"] #info-full-panel .tool-weather-quiz-page,
+html[data-resolved-theme="light"] #info-full-panel .weather-quiz-content,
+html[data-resolved-theme="light"] #learning-full-panel,
+html[data-resolved-theme="light"] #learning-full-panel .learning-content {
+  background: #f4f7fa !important;
+}
+
+html[data-resolved-theme="dark"] #info-full-panel,
+html[data-resolved-theme="dark"] #info-full-panel .tool-home-page,
+html[data-resolved-theme="dark"] #info-full-panel .tool-station-page,
+html[data-resolved-theme="dark"] #info-full-panel .tool-weather-quiz-page,
+html[data-resolved-theme="dark"] #info-full-panel .weather-quiz-content,
+html[data-resolved-theme="dark"] #learning-full-panel,
+html[data-resolved-theme="dark"] #learning-full-panel .learning-content {
+  background: #0a0e16 !important;
+}
+
+/* The learning introduction belongs directly on the page, without a white card shell. */
+#learning-full-panel .learning-hero,
+html[data-resolved-theme="light"] #learning-full-panel .learning-hero,
+html[data-resolved-theme="dark"] #learning-full-panel .learning-hero {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Compact question rating controls above the question text. */
+.weather-quiz-card-head {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  margin-bottom: 10px !important;
+}
+
+.weather-quiz-card-head .weather-quiz-label {
+  flex: 0 0 auto !important;
+}
+
+.weather-quiz-card-head .weather-quiz-quality-actions {
+  display: flex !important;
+  grid-template-columns: none !important;
+  justify-content: flex-end !important;
+  gap: 5px !important;
+  margin-left: auto !important;
+}
+
+.weather-quiz-card-head .weather-quiz-quality-actions button {
+  min-width: 0 !important;
+  min-height: 28px !important;
+  height: 28px !important;
+  border-radius: 999px !important;
+  padding: 3px 9px !important;
+  font-size: 0.67rem !important;
+  line-height: 1 !important;
+}
+
+.weather-quiz-card-head .weather-quiz-bad-button span {
+  width: 13px !important;
+  height: 13px !important;
+  margin-right: 1px !important;
+  font-size: 0.58rem !important;
+}
+
+/* Good-question mode ignores year selection and exposes a removable saved list. */
+.weather-quiz-setup fieldset.is-disabled .weather-quiz-year-grid {
+  opacity: 0.42 !important;
+  pointer-events: none !important;
+}
+
+.weather-quiz-setup fieldset.is-disabled .weather-quiz-year-grid label {
+  cursor: default !important;
+}
+
+.weather-quiz-good-list-button {
+  min-height: 38px !important;
+  border: 1px solid rgba(246, 196, 83, 0.36) !important;
+  border-radius: 12px !important;
+  background: rgba(246, 196, 83, 0.09) !important;
+  color: #ffe19a !important;
+  font-size: 0.76rem !important;
+  font-weight: 900 !important;
+}
+
+.weather-quiz-good-list-button:disabled {
+  opacity: 0.45 !important;
+}
+
+.weather-quiz-good-list-page,
+.weather-quiz-good-list {
+  display: grid !important;
+  gap: 11px !important;
+}
+
+.weather-quiz-good-list-head {
+  display: flex !important;
+  align-items: end !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+}
+
+.weather-quiz-good-list-head span,
+.weather-quiz-good-list-head h3,
+.weather-quiz-good-list-head strong {
+  margin: 0 !important;
+}
+
+.weather-quiz-good-list-head span {
+  color: rgba(255, 255, 255, 0.52) !important;
+  font-size: 0.68rem !important;
+}
+
+.weather-quiz-good-list-head h3 {
+  color: #f8fafc !important;
+  font-size: 1.05rem !important;
+}
+
+.weather-quiz-good-list-head strong {
+  color: #f6c453 !important;
+  font-size: 0.82rem !important;
+}
+
+.weather-quiz-good-list article {
+  display: grid !important;
+  gap: 9px !important;
+  border: 1px solid rgba(255, 255, 255, 0.11) !important;
+  border-radius: 15px !important;
+  padding: 12px !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+
+.weather-quiz-good-list-meta {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 5px !important;
+}
+
+.weather-quiz-good-list-meta span {
+  border-radius: 999px !important;
+  padding: 3px 7px !important;
+  background: rgba(38, 217, 255, 0.08) !important;
+  color: #91eaf5 !important;
+  font-size: 0.61rem !important;
+  font-weight: 800 !important;
+}
+
+.weather-quiz-good-list article p,
+.weather-quiz-good-list-empty {
+  margin: 0 !important;
+  color: rgba(255, 255, 255, 0.84) !important;
+  white-space: pre-wrap !important;
+  font-size: 0.78rem !important;
+  line-height: 1.55 !important;
+}
+
+.weather-quiz-good-list article button {
+  justify-self: end !important;
+  min-height: 30px !important;
+  border: 1px solid rgba(255, 125, 145, 0.4) !important;
+  border-radius: 999px !important;
+  padding: 4px 10px !important;
+  background: rgba(255, 125, 145, 0.08) !important;
+  color: #ffadba !important;
+  font-size: 0.68rem !important;
+  font-weight: 850 !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-good-list-button {
+  border-color: #c99b2c !important;
+  background: #fff8dc !important;
+  color: #72530a !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-good-list-head span {
+  color: #64748b !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-good-list-head h3 {
+  color: #172033 !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-good-list-head strong {
+  color: #8a650d !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-good-list article {
+  border-color: rgba(51, 65, 85, 0.16) !important;
+  background: #ffffff !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-good-list-meta span {
+  background: #e8f4f6 !important;
+  color: #126477 !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-good-list article p,
+html[data-resolved-theme="light"] .weather-quiz-good-list-empty {
+  color: #334155 !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-good-list article button {
+  border-color: #d26678 !important;
+  background: #fff1f3 !important;
+  color: #9f243a !important;
 }
