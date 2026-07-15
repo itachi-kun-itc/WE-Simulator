@@ -174,7 +174,7 @@ const EEW_BLINK_INTERVAL_SEC = 0.7;
 const EEW_BLINK_PHASES = 6;
 const SIMULATION_END_GRACE_SEC = 8;
 const SIMULATION_ORIGIN_OFFSET_SEC = 1.4;
-const SIMULATION_DATA_UPDATE_HZ = 3;
+const SIMULATION_DATA_UPDATE_HZ = 2;
 const SIMULATION_TIMELINE_PX_PER_SEC = 56;
 const SIMULATION_TIMELINE_START_PX = 64;
 const GEOLOCATION_TARGET_ACCURACY_M = 35;
@@ -476,6 +476,7 @@ const els = {
   municipalityOutput: document.querySelector("#municipality-output"),
   maxIntensityOutput: document.querySelector("#max-intensity-output"),
   epicenterEditToggle: document.querySelector("#epicenter-edit-toggle"),
+  currentLocationRequestButton: document.querySelector("#request-current-location"),
   stationLayerToggle: document.querySelector("#station-layer-toggle"),
   submarineStationLayerToggle: document.querySelector("#submarine-station-layer-toggle"),
   regionLayerToggle: document.querySelector("#region-layer-toggle"),
@@ -567,6 +568,7 @@ let submarineObservationFeatureCache = { key: "", data: null, features: [] };
 let submarineObservationIntensityCache = { key: "", features: [] };
 let predictedMaximumCache;
 let presetObservationLookupCache;
+let presetStationObservationMatchCache = { presetId: "", matches: new Map() };
 let presetDetailLoadingId = "";
 const earthquakePresetDetailCache = new Map();
 let presetPickerScrollClampFrame = 0;
@@ -597,6 +599,10 @@ let currentLocationForecastCache;
 let locationResolveTimer;
 let simulationFrame;
 let simulationCompleteAtSec = null;
+let simulationSetupMagnitude = null;
+let simulationDisplayedMagnitude = null;
+let simulationMagnitudeReports = [];
+let simulationMagnitudeReportIndex = -1;
 let simulationTimelineEvents = [];
 let simulationTimelineLastEewReport = null;
 let simulationTimelineLastEewAreaSignature = "";
@@ -623,6 +629,8 @@ let pendingMaxStationListRender = null;
 let maxStationListItemCache = new Map();
 let maxStationListEmptyItem = null;
 let simulationMaxAreaListSignature = "";
+let simulationResultReportSnapshot = null;
+let simulationResultSummaryMount = null;
 let simulationSeeking = false;
 let simulationTimeTextCache = "";
 let eewForecastPanelRenderSignature = "";
@@ -819,6 +827,7 @@ window.matchMedia?.("(prefers-color-scheme: dark)")?.addEventListener?.("change"
   }
 });
 setupMobileSheets();
+setupMapMenuGestures();
 setupTransientPanelScrollbars();
 setupPanelScrollbarOffsets();
 preventNonMapZoom();
@@ -840,10 +849,12 @@ async function bootstrapApplication() {
   backfillLegacyNotificationHistory();
 
   if (window.maplibregl) {
-    initEarthquakeMap().catch((error) => {
-      console.error(error);
-      els.status.textContent = "Map initialization failed";
-    });
+    initEarthquakeMap()
+      .then(() => updateCurrentLocationMarker())
+      .catch((error) => {
+        console.error(error);
+        els.status.textContent = "Map initialization failed";
+      });
   } else {
     els.status.textContent = "MapLibre GL JS was not loaded";
   }
@@ -1204,7 +1215,7 @@ function setupTabs() {
     if (els.historicalEarthquakeButton && !quickHost.contains(els.historicalEarthquakeButton)) {
       quickHost.append(els.historicalEarthquakeButton);
     }
-    els.historicalEarthquakeButton?.querySelector("span")?.replaceChildren("地震を選択");
+    els.historicalEarthquakeButton?.querySelector("span")?.replaceChildren("過去の地震");
     if (!quickHost.querySelector(".sheet-speech-toggle")) {
       const { speechConfirmOverlay } = setupGlobalOverlays();
       const speechButton = document.createElement("button");
@@ -4187,9 +4198,9 @@ function updateEarthquakePresetButtonLabel() {
   const preset = getSelectedPreset();
   els.historicalEarthquakeButton.textContent = preset
     ? formatEarthquakePresetButtonLabel(preset)
-    : "地震を選ぶ";
+    : "過去の地震";
   const presetButtonLabel = document.createElement("span");
-  presetButtonLabel.textContent = preset ? formatEarthquakePresetButtonLabel(preset) : "地震を選択";
+  presetButtonLabel.textContent = preset ? formatEarthquakePresetButtonLabel(preset) : "過去の地震";
   els.historicalEarthquakeButton.replaceChildren(presetButtonLabel);
   els.historicalEarthquakeButton.classList.toggle("has-preset", Boolean(preset));
   updateSubmarineObservationToggleAvailability();
@@ -5210,6 +5221,7 @@ function setCommunityMapModeActive(active) {
   ];
   if (active) {
     ensureCommunityMapLayer();
+    void refreshSystemPermissionStates();
   }
   updateCommunityMapStyleLayers(Boolean(active));
   map.setMaxZoom?.(active ? 18 : 14);
@@ -5229,6 +5241,7 @@ function setCommunityMapModeActive(active) {
     ensureCommunityPostUi();
     loadCommunityPosts().catch((error) => console.warn("community posts load failed", error));
     renderCommunityPostMarkers();
+    updateCurrentLocationMarker();
     closeInactiveStationPopups();
     scheduleStationCanvasRender({ force: true });
     return;
@@ -5240,6 +5253,7 @@ function setCommunityMapModeActive(active) {
   renderCommunityPostMarkers();
   restoreSimulationMapLayersAfterCommunityMode();
   updateDisplayMode();
+  updateCurrentLocationMarker();
 }
 
 function restoreSimulationMapLayersAfterCommunityMode() {
@@ -5629,6 +5643,7 @@ function bindSimulationControls() {
     applyIntensityColorScheme(els.intensityColorScheme.value);
   });
   els.epicenterEditToggle.addEventListener("change", () => updateEpicenterEditMode());
+  els.currentLocationRequestButton?.addEventListener("click", () => requestCurrentLocationForMaps());
   els.stationLayerToggle.addEventListener("change", () => updateDisplayMode());
   els.submarineStationLayerToggle?.addEventListener("change", () => updateDisplayMode());
   els.regionLayerToggle.addEventListener("change", () => updateDisplayMode());
@@ -5702,7 +5717,7 @@ function bindSimulationControls() {
   });
   els.simulationRewind?.addEventListener("click", () => {
     if (state.simulationCompleted) {
-      startSimulation();
+      showSimulationResultReport();
       return;
     }
     if (!state.simulationRunning || !simulationStartedAt) {
@@ -5736,6 +5751,498 @@ function activateSettingsTab(tabId) {
   document.querySelectorAll("[data-settings-section]").forEach((section) => {
     section.hidden = section.dataset.settingsSection !== nextTabId;
   });
+}
+
+function ensureSimulationResultReportPage() {
+  const scrollHost = els.setupPanel?.querySelector(".sim-panel-scroll");
+  if (!scrollHost) {
+    return null;
+  }
+
+  let page = scrollHost.querySelector("#simulation-result-report-page");
+  if (page) {
+    return page;
+  }
+
+  page = document.createElement("section");
+  page.id = "simulation-result-report-page";
+  page.className = "simulation-result-report-page hidden";
+  page.setAttribute("aria-label", "シミュレーション結果");
+  page.innerHTML = `
+    <header class="simulation-result-report-head">
+      <button type="button" data-simulation-result-back aria-label="シミュレーション終了時点へ戻る">‹</button>
+      <h3>シミュレーション結果</h3>
+      <span aria-hidden="true"></span>
+    </header>
+    <div class="simulation-result-report-content"></div>
+    <div class="simulation-result-report-actions">
+      <button type="button" data-simulation-result-pdf>PDF出力</button>
+    </div>
+  `;
+  page.querySelector("[data-simulation-result-back]")?.addEventListener("click", () => {
+    closeSimulationResultReport();
+  });
+  page.querySelector("[data-simulation-result-pdf]")?.addEventListener("click", () => {
+    downloadSimulationResultPdf();
+  });
+  scrollHost.append(page);
+  return page;
+}
+
+function captureSimulationResultReport() {
+  return {
+    epicenter: els.simulationRegionName?.textContent?.trim() || "-",
+    magnitude: els.simulationMagnitude?.textContent?.trim() || "-",
+    depth: els.simulationDepth?.textContent?.trim() || "-",
+    originTime: els.simulationOriginTime?.textContent?.trim() || "-",
+    maxIntensity: els.simulationMaxIntensity?.textContent?.trim() || "-",
+    magnitudeHistory: simulationMagnitudeReports.map((report) => ({
+      reportNumber: report.reportNumber,
+      elapsedSec: report.elapsedSec,
+      magnitude: report.magnitude,
+      isFinal: report.isFinal === true,
+    })),
+    stationGroups: buildSimulationResultStationGroups(),
+  };
+}
+
+function buildSimulationResultStationGroups() {
+  const stationFeatures = getObservedStationSummaryForElapsed(Infinity).stationFeatures;
+  const groups = new Map();
+  stationFeatures.forEach((feature) => {
+    const properties = feature.properties ?? {};
+    const rank = Number(properties.intensityRank) || 0;
+    const name = String(properties.name || "").trim();
+    if (rank <= 0 || !name) {
+      return;
+    }
+    const intensityClass = INTENSITY_CLASSES.find((candidate) => candidate.rank === rank);
+    const label = String(properties.intensityLabel || intensityClass?.label || "-");
+    if (!groups.has(rank)) {
+      groups.set(rank, {
+        rank,
+        label,
+        color: intensityClass?.color || properties.intensityColor || "#64748b",
+        textColor: intensityClass?.textColor || "#ffffff",
+        names: new Set(),
+      });
+    }
+    groups.get(rank).names.add(name);
+  });
+  return [...groups.values()]
+    .sort((left, right) => right.rank - left.rank)
+    .map((group) => ({ ...group, names: [...group.names].sort((a, b) => a.localeCompare(b, "ja")) }));
+}
+
+function renderSimulationResultReport(snapshot) {
+  const page = ensureSimulationResultReportPage();
+  const content = page?.querySelector(".simulation-result-report-content");
+  if (!page || !content) {
+    return null;
+  }
+
+  const stationGroups = snapshot.stationGroups.length
+    ? snapshot.stationGroups.map((group) => `
+      <section class="simulation-result-station-group">
+        <header>
+          <b style="--simulation-intensity-color:${escapeHtml(group.color)};--simulation-intensity-text:${escapeHtml(group.textColor)}">震度${escapeHtml(group.label)}</b>
+          <span>${group.names.length}地点</span>
+        </header>
+        <ul>${group.names.map((name) => `<li>${escapeHtml(name)}</li>`).join("")}</ul>
+      </section>
+    `).join("")
+    : '<p class="simulation-result-stations-empty">震度1以上を観測した観測点はありません</p>';
+  const actions = page.querySelector(".simulation-result-report-actions");
+  content.innerHTML = `
+    <section class="simulation-result-report-summary-host"></section>
+    <section class="simulation-result-report-stations">
+      <h4>震度別観測点</h4>
+      <div class="simulation-result-station-groups">${stationGroups}</div>
+    </section>
+  `;
+  content.querySelector(".simulation-result-report-summary-host")?.insertAdjacentElement("afterend", actions);
+  return page;
+}
+
+function mountLiveSimulationSummaryOnResultPage(page) {
+  restoreLiveSimulationSummary();
+  const host = page?.querySelector(".simulation-result-report-summary-host");
+  const summary = document.querySelector(".map-wrap > .simulation-runtime-hud .simulation-summary");
+  if (!host || !summary || !summary.parentElement) {
+    return false;
+  }
+
+  const context = document.createElement("div");
+  context.className = "simulation-runtime-hud simulation-result-report-runtime-hud";
+  simulationResultSummaryMount = {
+    summary,
+    parent: summary.parentElement,
+    nextSibling: summary.nextSibling,
+  };
+  host.replaceChildren(context);
+  context.append(summary);
+  return true;
+}
+
+function restoreLiveSimulationSummary() {
+  if (!simulationResultSummaryMount) {
+    return;
+  }
+  const { summary, parent, nextSibling } = simulationResultSummaryMount;
+  if (nextSibling?.parentElement === parent) {
+    parent.insertBefore(summary, nextSibling);
+  } else {
+    parent.append(summary);
+  }
+  simulationResultSummaryMount = null;
+}
+
+function showSimulationResultReport() {
+  if (!state.simulationCompleted) {
+    return;
+  }
+
+  const snapshot = captureSimulationResultReport();
+  simulationResultReportSnapshot = snapshot;
+  const page = renderSimulationResultReport(snapshot);
+  if (!page || !els.setupPanel) {
+    return;
+  }
+
+  mountLiveSimulationSummaryOnResultPage(page);
+  document.body.classList.add("simulation-result-report-visible");
+  els.setupPanel.classList.remove("hidden");
+  els.setupPanel.classList.add("simulation-result-report-open");
+  page.classList.remove("hidden");
+  setSetupMenuOpen(true);
+  page.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+}
+
+function closeSimulationResultReport(options = {}) {
+  const returnToCompletedSimulation = options.returnToCompleted !== false
+    && document.body.classList.contains("simulation-result-report-visible")
+    && state.simulationCompleted;
+  const page = document.querySelector("#simulation-result-report-page");
+  restoreLiveSimulationSummary();
+  page?.classList.add("hidden");
+  els.setupPanel?.classList.remove("simulation-result-report-open");
+  document.body.classList.remove("simulation-result-report-visible");
+  if (returnToCompletedSimulation) {
+    els.setupPanel?.classList.add("hidden");
+    const runtimeHud = document.querySelector(".simulation-runtime-hud");
+    runtimeHud?.classList.remove("is-collapsed", "is-dragging");
+    runtimeHud?.style.removeProperty("--runtime-hud-drag-y");
+    const runtimeHudHandle = runtimeHud?.querySelector(".simulation-runtime-handle");
+    runtimeHudHandle?.setAttribute("aria-expanded", "true");
+    runtimeHudHandle?.setAttribute("aria-label", "シミュレーション情報を折りたたむ");
+    return;
+  }
+  if (options.activatePrimary !== false) {
+    activateSettingsTab("primary");
+  }
+}
+
+function downloadSimulationResultPdf() {
+  const page = document.querySelector("#simulation-result-report-page");
+  const button = page?.querySelector("[data-simulation-result-pdf]");
+  if (!page || page.classList.contains("hidden") || !simulationResultReportSnapshot || !button) {
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = "PDF生成中...";
+  try {
+    const canvases = renderSimulationResultPdfCanvases(simulationResultReportSnapshot);
+    const pdfBytes = buildJpegPagesPdf(canvases);
+    const blob = new Blob([pdfBytes], { type: "application/pdf" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    const timestamp = new Date().toISOString().replace(/[-:]/g, "").slice(0, 13);
+    anchor.href = url;
+    anchor.download = `WE-Simulator_シミュレーション結果_${timestamp}.pdf`;
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (error) {
+    console.warn("simulation result PDF generation failed", error);
+    button.textContent = "PDF生成失敗・再試行";
+    return;
+  } finally {
+    button.disabled = false;
+  }
+  button.textContent = "PDF出力";
+}
+
+function renderSimulationResultPdfCanvases(snapshot) {
+  const width = 1240;
+  const height = 1754;
+  const margin = 78;
+  const bottomLimit = height - 100;
+  const pages = [];
+  let canvas;
+  let context;
+  let y;
+
+  const newPage = () => {
+    canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    context = canvas.getContext("2d");
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, width, height);
+    context.fillStyle = "#0f172a";
+    context.font = "900 42px sans-serif";
+    context.fillText("シミュレーション結果", margin, 74);
+    context.strokeStyle = "#cbd5e1";
+    context.lineWidth = 2;
+    context.beginPath();
+    context.moveTo(margin, 96);
+    context.lineTo(width - margin, 96);
+    context.stroke();
+    pages.push(canvas);
+    y = 130;
+  };
+
+  const drawInfoTicket = () => {
+    const ticketHeight = 250;
+    context.fillStyle = "#0b1224";
+    roundCanvasRect(context, margin, y, width - margin * 2, ticketHeight, 24);
+    context.fill();
+    context.fillStyle = "#1f2937";
+    roundCanvasRect(context, margin + 24, y + 55, 150, 150, 18);
+    context.fill();
+    context.fillStyle = "#cbd5e1";
+    context.font = "800 24px sans-serif";
+    context.fillText("最大震度", margin + 48, y + 42);
+    context.fillStyle = "#ffffff";
+    context.font = "900 72px sans-serif";
+    context.textAlign = "center";
+    context.fillText(snapshot.maxIntensity, margin + 99, y + 155);
+    context.textAlign = "left";
+    const rows = [
+      ["震源地", snapshot.epicenter],
+      ["マグニチュード", snapshot.magnitude],
+      ["深さ", snapshot.depth],
+      ["発生時刻", snapshot.originTime],
+    ];
+    rows.forEach(([label, value], index) => {
+      const rowY = y + 50 + index * 47;
+      context.fillStyle = "#94a3b8";
+      context.font = "800 23px sans-serif";
+      context.fillText(label, margin + 205, rowY);
+      context.fillStyle = "#ffffff";
+      context.font = "900 29px sans-serif";
+      context.fillText(fitCanvasText(context, value, width - margin * 2 - 430), margin + 430, rowY);
+    });
+    y += ticketHeight + 48;
+  };
+
+  const drawMagnitudeHistory = () => {
+    const reports = Array.isArray(snapshot.magnitudeHistory) ? snapshot.magnitudeHistory : [];
+    if (reports.length === 0) {
+      return;
+    }
+    let reportIndex = 0;
+    while (reportIndex < reports.length) {
+      if (y + 92 > bottomLimit) {
+        newPage();
+      }
+      context.fillStyle = "#0f172a";
+      context.font = "900 32px sans-serif";
+      context.fillText(reportIndex === 0 ? "マグニチュードの推移" : "マグニチュードの推移（続き）", margin, y);
+      y += 46;
+      const columnGap = 32;
+      const columnWidth = (width - margin * 2 - columnGap) / 2;
+      const availableRows = Math.max(1, Math.floor((bottomLimit - y - 24) / 38));
+      const entries = reports.slice(reportIndex, reportIndex + availableRows * 2);
+      entries.forEach((report, index) => {
+        const column = index % 2;
+        const row = Math.floor(index / 2);
+        const x = margin + column * (columnWidth + columnGap);
+        const label = reports.length === 1
+          ? `開始時確定　M${Number(report.magnitude).toFixed(1)}`
+          : `第${report.reportNumber}報　${Number(report.elapsedSec).toFixed(1)}秒　M${Number(report.magnitude).toFixed(1)}${report.isFinal ? "（最終）" : ""}`;
+        context.fillStyle = row % 2 === 0 ? "#f1f5f9" : "#ffffff";
+        context.fillRect(x, y + row * 38, columnWidth, 34);
+        context.fillStyle = "#1e293b";
+        context.font = "700 21px sans-serif";
+        context.fillText(fitCanvasText(context, label, columnWidth - 20), x + 10, y + row * 38 + 25);
+      });
+      y += Math.ceil(entries.length / 2) * 38 + 30;
+      reportIndex += entries.length;
+      if (reportIndex < reports.length) {
+        newPage();
+      }
+    }
+  };
+
+  newPage();
+  drawInfoTicket();
+  drawMagnitudeHistory();
+  if (y + 80 > bottomLimit) {
+    newPage();
+  }
+  context.fillStyle = "#0f172a";
+  context.font = "900 32px sans-serif";
+  context.fillText("震度別観測点", margin, y);
+  y += 38;
+
+  if (!snapshot.stationGroups.length) {
+    context.fillStyle = "#475569";
+    context.font = "500 25px sans-serif";
+    context.fillText("震度1以上を観測した観測点はありません", margin, y + 34);
+  }
+
+  snapshot.stationGroups.forEach((group) => {
+    let nameIndex = 0;
+    while (nameIndex < group.names.length) {
+      if (y + 130 > bottomLimit) {
+        newPage();
+      }
+      context.fillStyle = group.color;
+      roundCanvasRect(context, margin, y + 8, 160, 42, 9);
+      context.fill();
+      context.fillStyle = group.textColor;
+      context.font = "900 25px sans-serif";
+      context.textAlign = "center";
+      context.fillText(`震度${group.label}`, margin + 80, y + 37);
+      context.textAlign = "left";
+      context.fillStyle = "#64748b";
+      context.font = "800 22px sans-serif";
+      const continuation = nameIndex > 0 ? "・続き" : "";
+      context.fillText(`${group.names.length}地点${continuation}`, margin + 180, y + 36);
+      // Leave enough room below the intensity badge for the first station name.
+      y += 82;
+      const columnWidth = (width - margin * 2 - 34) / 2;
+      const availableRows = Math.max(1, Math.floor((bottomLimit - y - 48) / 40));
+      const names = group.names.slice(nameIndex, nameIndex + availableRows * 2);
+      names.forEach((name, index) => {
+        const column = index % 2;
+        const row = Math.floor(index / 2);
+        context.fillStyle = "#0f172a";
+        context.font = "600 23px sans-serif";
+        context.fillText(`・${fitCanvasText(context, name, columnWidth - 18)}`, margin + column * (columnWidth + 34), y + row * 40);
+      });
+      y += Math.ceil(names.length / 2) * 40 + 22;
+      context.strokeStyle = "#e2e8f0";
+      context.beginPath();
+      context.moveTo(margin, y);
+      context.lineTo(width - margin, y);
+      context.stroke();
+      y += 24;
+      nameIndex += names.length;
+      if (nameIndex < group.names.length) {
+        newPage();
+      }
+    }
+  });
+
+  pages.forEach((pageCanvas, index) => {
+    const pageContext = pageCanvas.getContext("2d");
+    pageContext.fillStyle = "#64748b";
+    pageContext.font = "500 20px sans-serif";
+    pageContext.textAlign = "center";
+    pageContext.fillText(`${index + 1} / ${pages.length}`, width / 2, height - 42);
+    pageContext.textAlign = "left";
+  });
+  return pages;
+}
+
+function roundCanvasRect(context, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2);
+  context.beginPath();
+  context.moveTo(x + r, y);
+  context.arcTo(x + width, y, x + width, y + height, r);
+  context.arcTo(x + width, y + height, x, y + height, r);
+  context.arcTo(x, y + height, x, y, r);
+  context.arcTo(x, y, x + width, y, r);
+  context.closePath();
+}
+
+function fitCanvasText(context, value, maxWidth) {
+  const text = String(value || "-");
+  if (context.measureText(text).width <= maxWidth) {
+    return text;
+  }
+  let fitted = text;
+  while (fitted.length > 1 && context.measureText(`${fitted}…`).width > maxWidth) {
+    fitted = fitted.slice(0, -1);
+  }
+  return `${fitted}…`;
+}
+
+function buildJpegPagesPdf(canvases) {
+  const pageWidth = 595.28;
+  const pageHeight = 841.89;
+  const encoder = new TextEncoder();
+  const jpegPages = canvases.map((canvas) => ({
+    width: canvas.width,
+    height: canvas.height,
+    bytes: decodeBase64Bytes(canvas.toDataURL("image/jpeg", 0.92).split(",")[1]),
+  }));
+  const objectCount = 2 + jpegPages.length * 3;
+  const objects = new Array(objectCount + 1);
+  objects[1] = encoder.encode("<< /Type /Catalog /Pages 2 0 R >>");
+  const pageIds = jpegPages.map((_, index) => 3 + index * 3);
+  objects[2] = encoder.encode(`<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${pageIds.length} >>`);
+  jpegPages.forEach((image, index) => {
+    const pageId = 3 + index * 3;
+    const contentId = pageId + 1;
+    const imageId = pageId + 2;
+    objects[pageId] = encoder.encode(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /XObject << /Im0 ${imageId} 0 R >> >> /Contents ${contentId} 0 R >>`);
+    const content = `q ${pageWidth} 0 0 ${pageHeight} 0 0 cm /Im0 Do Q`;
+    objects[contentId] = joinByteArrays([
+      encoder.encode(`<< /Length ${content.length} >>\nstream\n${content}\nendstream`),
+    ]);
+    objects[imageId] = joinByteArrays([
+      encoder.encode(`<< /Type /XObject /Subtype /Image /Width ${image.width} /Height ${image.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${image.bytes.length} >>\nstream\n`),
+      image.bytes,
+      encoder.encode("\nendstream"),
+    ]);
+  });
+
+  const chunks = [encoder.encode("%PDF-1.4\n%PDFIMAGE\n")];
+  const offsets = new Array(objectCount + 1).fill(0);
+  let byteLength = chunks[0].length;
+  for (let id = 1; id <= objectCount; id += 1) {
+    offsets[id] = byteLength;
+    const objectBytes = joinByteArrays([
+      encoder.encode(`${id} 0 obj\n`),
+      objects[id],
+      encoder.encode("\nendobj\n"),
+    ]);
+    chunks.push(objectBytes);
+    byteLength += objectBytes.length;
+  }
+  const xrefOffset = byteLength;
+  const xref = ["xref", `0 ${objectCount + 1}`, "0000000000 65535 f "];
+  for (let id = 1; id <= objectCount; id += 1) {
+    xref.push(`${String(offsets[id]).padStart(10, "0")} 00000 n `);
+  }
+  xref.push(`trailer\n<< /Size ${objectCount + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`);
+  chunks.push(encoder.encode(`${xref.join("\n")}\n`));
+  return joinByteArrays(chunks);
+}
+
+function decodeBase64Bytes(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+function joinByteArrays(arrays) {
+  const totalLength = arrays.reduce((sum, array) => sum + array.length, 0);
+  const joined = new Uint8Array(totalLength);
+  let offset = 0;
+  arrays.forEach((array) => {
+    joined.set(array, offset);
+    offset += array.length;
+  });
+  return joined;
 }
 
 function setSetupMenuOpen(open) {
@@ -5798,6 +6305,37 @@ function resetEpicenterToInitialState(options = {}) {
     resetViewAnimating = false;
     updateSimulationAvailability();
   });
+}
+
+async function requestCurrentLocationForMaps() {
+  const button = els.currentLocationRequestButton;
+  if (!button || state.simulationRunning || button.getAttribute("aria-busy") === "true") {
+    return;
+  }
+
+  button.disabled = true;
+  button.setAttribute("aria-busy", "true");
+  button.classList.remove("is-error");
+  button.textContent = "取得中...";
+
+  try {
+    const position = await requestCurrentPosition();
+    if (!isUsableGeolocationPosition(position)) {
+      throw new Error("Geolocation returned invalid coordinates.");
+    }
+
+    const latitude = Number(position.coords.latitude);
+    const longitude = Number(position.coords.longitude);
+    await syncCurrentLocationSettingFromCoordinates(latitude, longitude);
+    button.textContent = "位置情報を取得";
+  } catch (error) {
+    console.warn("failed to get current location for maps", error);
+    button.classList.add("is-error");
+    button.textContent = "取得失敗・再試行";
+  } finally {
+    button.removeAttribute("aria-busy");
+    button.disabled = state.simulationRunning;
+  }
 }
 
 async function setupPushNotifications() {
@@ -7749,14 +8287,23 @@ function getPresetStationObservation(station) {
     return null;
   }
 
+  if (presetStationObservationMatchCache.presetId !== preset.id) {
+    presetStationObservationMatchCache = { presetId: preset.id, matches: new Map() };
+  }
+  const stationKey = String(station.id ?? station.name ?? "");
+  if (presetStationObservationMatchCache.matches.has(stationKey)) {
+    return presetStationObservationMatchCache.matches.get(stationKey);
+  }
+
   const lookup = getPresetObservationLookup(preset);
   const normalizedStationName = normalizeStationNameForMatch(station.name);
   const exactMatch = lookup.byStationId.get(station.id) ?? lookup.byName.get(normalizedStationName);
   if (exactMatch) {
+    presetStationObservationMatchCache.matches.set(stationKey, exactMatch);
     return exactMatch;
   }
 
-  return (
+  const fuzzyMatch = (
     lookup.fuzzyCandidates.find(
       (observation) => {
         const normalizedObservationName = observation.normalizedStationName;
@@ -7769,6 +8316,8 @@ function getPresetStationObservation(station) {
     ) ??
     null
   );
+  presetStationObservationMatchCache.matches.set(stationKey, fuzzyMatch);
+  return fuzzyMatch;
 }
 
 function getPresetObservationLookup(preset) {
@@ -7867,6 +8416,9 @@ function setupMobileSheets() {
     }
 
     const beginDrag = (event) => {
+      if (panel.classList.contains("simulation-result-report-open")) {
+        return;
+      }
       const panelRect = panel.getBoundingClientRect();
       const startedOnHandle = Boolean(event.target?.closest?.(".sheet-handle"));
       const startedOnTopGrabZone = event.clientY - panelRect.top <= 78;
@@ -7955,10 +8507,127 @@ function setupMobileSheets() {
   });
 }
 
+function closeMapLayerControlPanel() {
+  els.mapLayerControlPanel?.classList.add("hidden");
+  els.mapLayerControlButton?.setAttribute("aria-expanded", "false");
+}
+
+function setupMapMenuGestures() {
+  let tapCount = 0;
+  let lastTapAt = 0;
+  let lastTapX = 0;
+  let lastTapY = 0;
+  let pointerStart = null;
+  const tripleTapWindowMs = 700;
+  const tapRadiusPx = 42;
+  const maxTapTravelPx = 14;
+
+  const isBottomTabsTarget = (target) => Boolean(target?.closest?.(".bottom-tabs"));
+  const isLayerMenuTarget = (target) => Boolean(
+    target?.closest?.("#map-layer-control-panel, #map-layer-control-button"),
+  );
+  const isSheetMenuTarget = (target) => Boolean(
+    target?.closest?.("#setup-panel, .simulation-runtime-hud"),
+  );
+  const isInteractiveTarget = (target) => Boolean(
+    target?.closest?.("button, input, select, textarea, a, label, [role='button'], [contenteditable='true']"),
+  );
+
+  document.addEventListener(
+    "pointerdown",
+    (event) => {
+      const target = event.target;
+      if (
+        !els.mapLayerControlPanel?.classList.contains("hidden")
+        && !isLayerMenuTarget(target)
+        && !isBottomTabsTarget(target)
+      ) {
+        closeMapLayerControlPanel();
+      }
+
+      if (event.isPrimary === false || (event.pointerType === "mouse" && event.button !== 0)) {
+        pointerStart = null;
+        return;
+      }
+      pointerStart = {
+        pointerId: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+        target,
+      };
+    },
+    { capture: true, passive: true },
+  );
+
+  document.addEventListener(
+    "pointerup",
+    (event) => {
+      if (!pointerStart || pointerStart.pointerId !== event.pointerId) {
+        return;
+      }
+
+      const start = pointerStart;
+      pointerStart = null;
+      const travel = Math.hypot(event.clientX - start.x, event.clientY - start.y);
+      const target = event.target;
+      const excluded =
+        document.body.dataset.activeBottomTab !== "earthquake-tab"
+        || isBottomTabsTarget(target)
+        || isLayerMenuTarget(target)
+        || isSheetMenuTarget(target)
+        || isInteractiveTarget(target);
+      if (travel > maxTapTravelPx || excluded) {
+        tapCount = 0;
+        return;
+      }
+
+      const now = performance.now();
+      const nearLastTap = Math.hypot(event.clientX - lastTapX, event.clientY - lastTapY) <= tapRadiusPx;
+      if (now - lastTapAt > tripleTapWindowMs || !nearLastTap) {
+        tapCount = 0;
+      }
+      tapCount += 1;
+      lastTapAt = now;
+      lastTapX = event.clientX;
+      lastTapY = event.clientY;
+      if (tapCount < 3) {
+        return;
+      }
+
+      tapCount = 0;
+      event.preventDefault();
+      event.stopPropagation();
+      const runtimeHud = document.querySelector(".simulation-runtime-hud");
+      if (document.body.classList.contains("simulation-session-active") && runtimeHud) {
+        runtimeHud.querySelector(".simulation-runtime-handle")?.click();
+        return;
+      }
+
+      if (!els.setupPanel?.classList.contains("hidden")) {
+        if (els.setupPanel.classList.contains("simulation-result-report-open")) {
+          return;
+        }
+        const nextState = els.setupPanel.dataset.sheetState === "open" ? "collapsed" : "open";
+        setSheetState(els.setupPanel, nextState);
+      }
+    },
+    { capture: true, passive: false },
+  );
+
+  document.addEventListener(
+    "pointercancel",
+    () => {
+      pointerStart = null;
+      tapCount = 0;
+    },
+    { capture: true, passive: true },
+  );
+}
+
 function getSetupSheetOpenHeight(viewportHeight = window.visualViewport?.height || window.innerHeight || 720) {
   const bottomTabsHeight = document.querySelector(".bottom-tabs")?.getBoundingClientRect().height || 64;
   const availableHeight = viewportHeight - bottomTabsHeight - 16;
-  const preferredHeight = isCompactViewport() ? viewportHeight * 0.67 : availableHeight;
+  const preferredHeight = viewportHeight * 0.67;
   return Math.max(56, Math.min(availableHeight, preferredHeight));
 }
 
@@ -12915,6 +13584,9 @@ function updateEpicenterEditMode() {
 
   els.epicenterEditToggle.checked = state.epicenterEditEnabled;
   els.epicenterEditToggle.disabled = state.simulationRunning;
+  if (els.currentLocationRequestButton) {
+    els.currentLocationRequestButton.disabled = state.simulationRunning;
+  }
 
   if (epicenterMarker) {
     epicenterMarker.setDraggable(state.epicenterEditEnabled);
@@ -13392,6 +14064,7 @@ async function toggleCurrentLocationLink() {
   saveLastKnownCurrentLocation(state.currentLocation);
   state.currentLocationName = "位置情報を取得中...";
   state.currentLocationStatus = "loading";
+  updateCurrentLocationMarker();
   updateCurrentLocationForecast(getSimulationStationElapsedSec());
   const resolvedLocationName = await resolveMunicipalityNameAt(
     state.currentLocation.longitude,
@@ -13407,13 +14080,20 @@ async function toggleCurrentLocationLink() {
 }
 
 async function restoreCurrentLocationPreference() {
-  if (localStorage.getItem(CURRENT_LOCATION_ENABLED_KEY) !== "true" || !els.currentLocationToggle) {
+  if (!els.currentLocationToggle) {
     return;
   }
 
-  if (!navigator.geolocation || !navigator.permissions?.query) {
+  if (!navigator.geolocation) {
     els.currentLocationToggle.checked = false;
     updateSettingsScreenNotificationState();
+    return;
+  }
+
+  if (!navigator.permissions?.query) {
+    els.currentLocationToggle.checked = false;
+    updateSettingsScreenNotificationState();
+    showStartupLocationPermissionPrompt("prompt");
     return;
   }
 
@@ -13422,15 +14102,87 @@ async function restoreCurrentLocationPreference() {
     if (permission.state !== "granted") {
       els.currentLocationToggle.checked = false;
       updateSettingsScreenNotificationState();
+      showStartupLocationPermissionPrompt(permission.state);
       return;
     }
     els.currentLocationToggle.checked = true;
+    localStorage.setItem(CURRENT_LOCATION_ENABLED_KEY, "true");
     updateSettingsScreenNotificationState();
     await toggleCurrentLocationLink();
     updateSettingsScreenNotificationState();
+    closeStartupLocationPermissionPrompt();
   } catch (error) {
     console.warn("location permission restore failed", error);
+    showStartupLocationPermissionPrompt("prompt");
   }
+}
+
+function showStartupLocationPermissionPrompt(permissionState = "prompt") {
+  if (!navigator.geolocation) {
+    return null;
+  }
+
+  let overlay = document.querySelector("#startup-location-permission-overlay");
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.id = "startup-location-permission-overlay";
+    overlay.className = "startup-location-permission-overlay";
+    overlay.innerHTML = `
+      <section class="startup-location-permission-dialog" role="dialog" aria-modal="true" aria-labelledby="startup-location-permission-title">
+        <span class="startup-location-permission-icon" aria-hidden="true"></span>
+        <h2 id="startup-location-permission-title">位置情報を使用しますか？</h2>
+        <p>現在地をシミュレーションマップと投稿マップに表示します。現在地を震源地として設定することはありません。</p>
+        <p class="startup-location-permission-status" aria-live="polite"></p>
+        <div class="startup-location-permission-actions">
+          <button type="button" data-location-permission-later>後で</button>
+          <button type="button" data-location-permission-allow>位置情報を許可</button>
+        </div>
+      </section>
+    `;
+    overlay.querySelector("[data-location-permission-later]")?.addEventListener("click", () => {
+      closeStartupLocationPermissionPrompt();
+    });
+    overlay.querySelector("[data-location-permission-allow]")?.addEventListener("click", async () => {
+      const allowButton = overlay.querySelector("[data-location-permission-allow]");
+      const laterButton = overlay.querySelector("[data-location-permission-later]");
+      const status = overlay.querySelector(".startup-location-permission-status");
+      allowButton.disabled = true;
+      laterButton.disabled = true;
+      allowButton.textContent = "取得中...";
+      status.textContent = "ブラウザまたはOSの確認画面で位置情報を許可してください。";
+      try {
+        const position = await requestCurrentPosition();
+        if (!isUsableGeolocationPosition(position)) {
+          throw new Error("Geolocation returned invalid coordinates.");
+        }
+        await syncCurrentLocationSettingFromCoordinates(
+          Number(position.coords.latitude),
+          Number(position.coords.longitude),
+        );
+        closeStartupLocationPermissionPrompt();
+      } catch (error) {
+        console.warn("startup location permission request failed", error);
+        const permissionDenied = error?.code === 1 || error?.code === error?.PERMISSION_DENIED;
+        status.textContent = permissionDenied
+          ? "位置情報が拒否されています。ブラウザまたはOSの設定で許可してから再確認してください。"
+          : "位置情報を取得できませんでした。通信状態を確認して再度お試しください。";
+        allowButton.textContent = "再確認";
+        allowButton.disabled = false;
+        laterButton.disabled = false;
+      }
+    });
+    document.body.append(overlay);
+  }
+
+  const status = overlay.querySelector(".startup-location-permission-status");
+  status.textContent = permissionState === "denied"
+    ? "位置情報が拒否されています。ブラウザまたはOSの設定で許可してください。"
+    : "許可後、現在地マークを地図に表示します。";
+  return overlay;
+}
+
+function closeStartupLocationPermissionPrompt() {
+  document.querySelector("#startup-location-permission-overlay")?.remove();
 }
 
 async function refreshSystemPermissionStates() {
@@ -13441,11 +14193,19 @@ async function refreshSystemPermissionStates() {
         clearCurrentLocationLink();
       } else if (
         permission.state === "granted"
-        && localStorage.getItem(CURRENT_LOCATION_ENABLED_KEY) === "true"
-        && !els.currentLocationToggle.checked
+        && (
+          !els.currentLocationToggle.checked
+          || !state.currentLocationEnabled
+          || !state.currentLocation
+        )
       ) {
         els.currentLocationToggle.checked = true;
+        localStorage.setItem(CURRENT_LOCATION_ENABLED_KEY, "true");
         await toggleCurrentLocationLink();
+        closeStartupLocationPermissionPrompt();
+      } else if (permission.state === "granted" && state.currentLocation) {
+        updateCurrentLocationMarker();
+        closeStartupLocationPermissionPrompt();
       }
     } catch (error) {
       console.warn("location permission check failed", error);
@@ -13677,7 +14437,10 @@ async function resolveMunicipalityNameAt(longitude, latitude) {
 }
 
 function updateCurrentLocationMarker() {
-  if (!map || !state.simulationRunning || !state.currentLocationEnabled || !state.currentLocation) {
+  const isLocationMapVisible =
+    document.body.dataset.activeBottomTab === "earthquake-tab"
+    || document.body.classList.contains("community-map-mode");
+  if (!map || !isLocationMapVisible || !state.currentLocationEnabled || !state.currentLocation) {
     removeCurrentLocationMarker();
     return;
   }
@@ -13692,6 +14455,8 @@ function updateCurrentLocationMarker() {
     if (!currentLocationMarker) {
       const markerElement = document.createElement("span");
       markerElement.className = "current-location-marker";
+      markerElement.setAttribute("role", "img");
+      markerElement.setAttribute("aria-label", "現在地");
       currentLocationMarker = new maplibregl.Marker({
         element: markerElement,
         anchor: "bottom",
@@ -13835,7 +14600,17 @@ async function startSimulation() {
   state.eewWarningForecastAreas = [];
   resetSpeechAnnouncementState();
   resetWaveRenderCache();
+  simulationSetupMagnitude = state.magnitude;
   simulationCompleteAtSec = getSimulationCompleteAtSec();
+  prepareSimulationMagnitudeReports();
+  const finalMagnitudeReport = simulationMagnitudeReports.at(-1);
+  if (Number.isFinite(Number(finalMagnitudeReport?.elapsedSec))) {
+    simulationCompleteAtSec = Math.max(
+      simulationCompleteAtSec,
+      Number(finalMagnitudeReport.elapsedSec) + SIMULATION_ORIGIN_OFFSET_SEC + SIMULATION_END_GRACE_SEC,
+    );
+  }
+  updateSimulationMagnitudeForElapsed(0, { force: true });
   resetSimulationTimeline();
   stationSummaryCache = { data: null, summary: null };
   eewForecastPanelRenderSignature = "";
@@ -13920,7 +14695,7 @@ async function startSimulation() {
     els.simulationRewind.setAttribute("aria-label", "5秒巻き戻す");
   }
   if (els.simulationStop) {
-    els.simulationStop.textContent = "シミュレーション中止";
+    els.simulationStop.textContent = "シミュレーション終了";
   }
   els.simulationStart.textContent = "シミュレーション中止";
   els.setupPanel.classList.add("hidden");
@@ -13933,6 +14708,8 @@ async function startSimulation() {
 
 function stopSimulation(options = {}) {
   const expandSetup = Boolean(options.expandSetup);
+  closeSimulationResultReport({ activatePrimary: false, returnToCompleted: false });
+  restoreSimulationSetupMagnitude();
   cancelSpeechAnnouncements();
   state.simulationRunning = false;
   state.simulationPaused = false;
@@ -13952,6 +14729,10 @@ function stopSimulation(options = {}) {
   simulationFrame = null;
   simulationStartedAt = null;
   simulationCompleteAtSec = null;
+  simulationSetupMagnitude = null;
+  simulationDisplayedMagnitude = null;
+  simulationMagnitudeReports = [];
+  simulationMagnitudeReportIndex = -1;
   simulationPausedAt = null;
   simulationRenderBucket = -1;
   simulationStationRenderBucket = -1;
@@ -13974,7 +14755,7 @@ function stopSimulation(options = {}) {
     els.simulationRewind.setAttribute("aria-label", "5秒巻き戻す");
   }
   if (els.simulationStop) {
-    els.simulationStop.textContent = "終了";
+    els.simulationStop.textContent = "シミュレーション終了";
   }
   updateSimulationProgress(0);
   els.setupPanel.classList.remove("hidden");
@@ -14105,6 +14886,7 @@ function renderSimulationAtElapsed(elapsedSec) {
   simulationSeeking = true;
   try {
     const modelElapsedSec = getSimulationModelElapsedSec(elapsedSec);
+    updateSimulationMagnitudeForElapsed(modelElapsedSec);
     updateSimulationProgress(elapsedSec);
     const { pRadiusKm, sRadiusKm } = getWaveSurfaceRadiiForElapsed(modelElapsedSec);
     setWaveRadiusData(pRadiusKm, sRadiusKm);
@@ -14142,6 +14924,7 @@ function tickSimulation(now) {
     ? Math.min(rawElapsedSec, simulationCompleteAtSec)
     : rawElapsedSec;
   const modelElapsedSec = getSimulationModelElapsedSec(elapsedSec);
+  updateSimulationMagnitudeForElapsed(modelElapsedSec);
   updateSimulationProgress(elapsedSec);
   const { pRadiusKm, sRadiusKm } = getWaveSurfaceRadiiForElapsed(modelElapsedSec);
   setWaveRadiusData(pRadiusKm, sRadiusKm);
@@ -14177,6 +14960,7 @@ function tickSimulation(now) {
   }
 
   if (isSimulationComplete(elapsedSec)) {
+    updateSimulationMagnitudeForElapsed(Infinity, { force: true });
     state.simulationRunning = false;
     state.simulationPaused = false;
     state.simulationCompleted = true;
@@ -14208,12 +14992,12 @@ function tickSimulation(now) {
       els.simulationPause.setAttribute("aria-label", "シミュレーションを終了して震源設定に戻る");
     }
     if (els.simulationRewind) {
-      els.simulationRewind.textContent = "再度実施";
+      els.simulationRewind.textContent = "結果";
       els.simulationRewind.disabled = false;
-      els.simulationRewind.setAttribute("aria-label", "同じ条件でもう一度実行");
+      els.simulationRewind.setAttribute("aria-label", "シミュレーション結果を表示");
     }
     if (els.simulationStop) {
-      els.simulationStop.textContent = "終了";
+      els.simulationStop.textContent = "シミュレーション終了";
     }
     updateSimulationAvailability();
     return;
@@ -14229,6 +15013,150 @@ function getSimulationElapsedSec(now = performance.now()) {
 
 function getSimulationModelElapsedSec(sessionElapsedSec = getSimulationElapsedSec()) {
   return Math.max((Number(sessionElapsedSec) || 0) - SIMULATION_ORIGIN_OFFSET_SEC, 0);
+}
+
+function prepareSimulationMagnitudeReports() {
+  const preset = getSelectedPreset();
+  const setupMagnitude = Number(simulationSetupMagnitude ?? state.magnitude);
+  const presetReports = Array.isArray(preset?.eewReports) ? preset.eewReports : [];
+  const presetMagnitudeReports = presetReports
+    .map((report, index) => ({
+      reportNumber: Number(report.reportNumber) || index + 1,
+      elapsedSec: Math.max(Number(report.elapsedSec) || 0, 0),
+      magnitude: Number(report.magnitude),
+    }))
+    .filter((report) => Number.isFinite(report.magnitude) && report.magnitude > 0)
+    .sort((left, right) => left.elapsedSec - right.elapsedSec);
+
+  if (presetMagnitudeReports.length > 0) {
+    simulationMagnitudeReports = presetMagnitudeReports.map((report, index, reports) => ({
+      ...report,
+      magnitude: Number(clamp(report.magnitude, 0.1, 10).toFixed(1)),
+      isFinal: index === reports.length - 1,
+    }));
+    simulationMagnitudeReportIndex = -1;
+    return;
+  }
+
+  if (preset) {
+    simulationMagnitudeReports = [{
+      reportNumber: 1,
+      elapsedSec: 0,
+      magnitude: setupMagnitude,
+      isFinal: true,
+    }];
+    simulationMagnitudeReportIndex = -1;
+    return;
+  }
+
+  simulationMagnitudeReports = buildSyntheticSimulationMagnitudeReports(setupMagnitude);
+  simulationMagnitudeReportIndex = -1;
+}
+
+function buildSyntheticSimulationMagnitudeReports(finalMagnitude) {
+  const predictedStations = shindoStationData ? buildStationIntensityFeatures(shindoStationData) : [];
+  const arrivalCandidates = predictedStations
+    .filter((feature) => Number(feature.properties?.predictedIntensityRank) >= 1)
+    .map((feature) => Number(feature.properties?.pArrivalSec))
+    .filter(Number.isFinite);
+  const firstReportSec = clamp(
+    (arrivalCandidates.length ? Math.min(...arrivalCandidates) : 1.2) + EARTHQUAKE_MODEL.eewProcessingDelaySec,
+    2.4,
+    7.5,
+  );
+  const reviewDurationSec = clamp(
+    11 + Math.max(finalMagnitude - 5.0, 0) * 12 + getOffshoreEpicenterFactor() * 8,
+    11,
+    78,
+  );
+  const availableEndSec = Number.isFinite(simulationCompleteAtSec)
+    ? Math.max(simulationCompleteAtSec - SIMULATION_ORIGIN_OFFSET_SEC - SIMULATION_END_GRACE_SEC, firstReportSec)
+    : firstReportSec + reviewDurationSec;
+  const finalReportSec = Math.min(firstReportSec + reviewDurationSec, availableEndSec);
+  const reportCount = Math.round(clamp(4 + Math.max(finalMagnitude - 4.0, 0) * 2.1, 4, 18));
+  const intervalWeights = Array.from({ length: Math.max(reportCount - 1, 1) }, (_, index) => (
+    0.45 + stableUnitInterval([
+      "magnitude-report-time",
+      state.latitude.toFixed(3),
+      state.longitude.toFixed(3),
+      finalMagnitude.toFixed(1),
+      index,
+    ].join("|")) * 1.9
+  ));
+  const totalWeight = intervalWeights.reduce((sum, weight) => sum + weight, 0);
+  let accumulatedWeight = 0;
+  const initialDeficit = clamp(0.45 + Math.max(finalMagnitude - 5.0, 0) * 0.24, 0.45, 1.65);
+
+  return Array.from({ length: reportCount }, (_, index) => {
+    const isFinal = index === reportCount - 1;
+    if (index > 0) {
+      accumulatedWeight += intervalWeights[index - 1];
+    }
+    const progress = isFinal ? 1 : accumulatedWeight / totalWeight;
+    const remainingUncertainty = (1 - progress) ** 1.35;
+    const noise = (
+      stableUnitInterval([
+        "magnitude-report-value",
+        state.latitude.toFixed(3),
+        state.longitude.toFixed(3),
+        finalMagnitude.toFixed(1),
+        index,
+      ].join("|")) - 0.5
+    ) * 0.8 * remainingUncertainty;
+    const estimate = isFinal
+      ? finalMagnitude
+      : finalMagnitude - initialDeficit * remainingUncertainty + noise;
+    return {
+      reportNumber: index + 1,
+      elapsedSec: Number((firstReportSec + (finalReportSec - firstReportSec) * progress).toFixed(2)),
+      magnitude: Number(clamp(Math.round(estimate * 10) / 10, 0.1, 10).toFixed(1)),
+      isFinal,
+    };
+  });
+}
+
+function getSimulationMagnitudeReportForElapsed(elapsedSec = Infinity) {
+  if (simulationMagnitudeReports.length === 0) {
+    return null;
+  }
+  if (!Number.isFinite(elapsedSec)) {
+    return simulationMagnitudeReports.at(-1);
+  }
+  for (let index = simulationMagnitudeReports.length - 1; index >= 0; index -= 1) {
+    if (simulationMagnitudeReports[index].elapsedSec <= elapsedSec) {
+      return simulationMagnitudeReports[index];
+    }
+  }
+  return simulationMagnitudeReports[0];
+}
+
+function updateSimulationMagnitudeForElapsed(elapsedSec, options = {}) {
+  const report = getSimulationMagnitudeReportForElapsed(elapsedSec);
+  if (!report) {
+    return false;
+  }
+  const nextIndex = simulationMagnitudeReports.indexOf(report);
+  const nextMagnitude = Number(report.magnitude);
+  if (
+    !options.force
+    && nextIndex === simulationMagnitudeReportIndex
+    && Math.abs(nextMagnitude - Number(simulationDisplayedMagnitude)) < 0.0001
+  ) {
+    return false;
+  }
+  simulationMagnitudeReportIndex = nextIndex;
+  simulationDisplayedMagnitude = nextMagnitude;
+  setTextContentIfChanged(els.simulationMagnitude, nextMagnitude.toFixed(1));
+  return true;
+}
+
+function restoreSimulationSetupMagnitude() {
+  simulationDisplayedMagnitude = null;
+  if (!Number.isFinite(Number(simulationSetupMagnitude))) {
+    return;
+  }
+  const setupMagnitude = Number(simulationSetupMagnitude);
+  setTextContentIfChanged(els.simulationMagnitude, setupMagnitude.toFixed(1));
 }
 
 function updateSimulationProgress(elapsedSec = 0) {
@@ -14309,7 +15237,7 @@ function resetSimulationTimeline() {
   addExpectedSimulationEewTimelineEvents();
   addExpectedSimulationIntensityTimelineEvents();
   if (Number.isFinite(simulationCompleteAtSec)) {
-    addSimulationTimelineEvent("complete", simulationCompleteAtSec, "終了", "complete");
+    addSimulationTimelineEvent("complete", simulationCompleteAtSec, "シミュレーション終了", "complete");
   }
   renderSimulationTimelineGuides();
 }
@@ -14558,7 +15486,7 @@ function updateSimulationSummary(elapsedSec = getSimulationStationElapsedSec()) 
     els.simulationMaxIntensity,
     state.simulationRunning && Number.isFinite(elapsedSec) && !hasObservedIntensity ? null : maxClass,
   );
-  setTextContentIfChanged(els.simulationMagnitude, state.magnitude.toFixed(1));
+  setTextContentIfChanged(els.simulationMagnitude, getSimulationTicketMagnitude().toFixed(1));
   setTextContentIfChanged(els.simulationEpicenter, `${state.latitude.toFixed(3)}, ${state.longitude.toFixed(3)}`);
   setTextContentIfChanged(els.simulationRegionName, state.epicenterName);
   setTextContentIfChanged(els.simulationDepth, formatDepth(state.depthKm));
@@ -14569,6 +15497,17 @@ function updateSimulationSummary(elapsedSec = getSimulationStationElapsedSec()) 
   if (!simulationSeeking) {
     announceSimulationUpdates(elapsedSec);
   }
+}
+
+function getSimulationTicketMagnitude() {
+  const presetMagnitude = Number(getSelectedPreset()?.magnitude);
+  if (state.simulationCompleted && Number.isFinite(presetMagnitude)) {
+    return presetMagnitude;
+  }
+  if (state.simulationRunning && Number.isFinite(Number(simulationDisplayedMagnitude))) {
+    return Number(simulationDisplayedMagnitude);
+  }
+  return state.magnitude;
 }
 
 function applySimulationIntensityCard(element, intensityClass) {
@@ -14900,7 +15839,7 @@ function refreshSimulationCompletionSchedule() {
   }
 
   simulationCompleteAtSec = nextCompleteAtSec;
-  addSimulationTimelineEvent("complete", simulationCompleteAtSec, "終了", "complete");
+  addSimulationTimelineEvent("complete", simulationCompleteAtSec, "シミュレーション終了", "complete");
   renderSimulationTimelineGuides();
   return true;
 }
@@ -15550,13 +16489,14 @@ function parseClampedInput(value, fallback, min, max) {
   return Number.isFinite(number) ? clamp(number, min, max) : fallback;
 }
 
-function invalidateIntensityEstimateCache() {
+function invalidateIntensityEstimateCache(options = {}) {
   const previousSimulationCompleteAtSec = simulationCompleteAtSec;
   stationIntensityFeatureCache = null;
   submarineObservationFeatureCache = { key: "", data: null, features: [] };
   submarineObservationIntensityCache = { key: "", features: [] };
   predictedMaximumCache = null;
   presetObservationLookupCache = null;
+  presetStationObservationMatchCache = { presetId: "", matches: new Map() };
   hyogoNanbuSyntheticStationCache = null;
   currentLocationForecastCache = null;
   stationSummaryCache = { data: null, summary: null };
@@ -15581,9 +16521,11 @@ function invalidateIntensityEstimateCache() {
   cancelPendingMaxStationListRender();
   if (state.simulationRunning) {
     simulationCompleteAtSec = previousSimulationCompleteAtSec;
-    refreshSimulationCompletionSchedule();
+    if (!options.preserveSimulationSchedule) {
+      refreshSimulationCompletionSchedule();
+    }
   } else {
-    simulationCompleteAtSec = null;
+    simulationCompleteAtSec = options.preserveSimulationSchedule ? previousSimulationCompleteAtSec : null;
   }
 }
 
@@ -16706,13 +17648,12 @@ function updateEewReportState(features, selectedPreset, activePresetEewReport, e
     state.eewSyntheticReportNumber += 1;
   }
 
-  const timedReportNumber = getSimulationEewTimedReportNumber(elapsedSec);
-  state.eewSyntheticReportNumber = Math.max(state.eewSyntheticReportNumber, timedReportNumber);
+  const magnitudeReport = getSimulationMagnitudeReportForElapsed(elapsedSec);
+  const scheduledReportNumber = Number(magnitudeReport?.reportNumber) || 1;
+  state.eewSyntheticReportNumber = Math.max(state.eewSyntheticReportNumber, scheduledReportNumber);
   state.eewReportAreaKeySignature = nextSignature;
   state.eewWarningReportNumber = state.eewSyntheticReportNumber;
-  state.eewWarningFinalReport =
-    !hasPendingSimulationEewUpdate(features, elapsedSec) &&
-    hasSimulationEewHadEnoughReview(elapsedSec, state.eewSyntheticReportNumber);
+  state.eewWarningFinalReport = magnitudeReport?.isFinal === true;
 }
 
 function hasPendingSimulationEewUpdate(features, elapsedSec) {
@@ -17528,11 +18469,11 @@ function buildStationIntensityFeatures(data) {
   const baseFeatures = data.stations
     .filter((station) => station.active)
     .map((station) => {
-      const ground = getGroundModelAt(station.longitude, station.latitude);
       const actualObservation = getPresetStationObservation(station);
       if (preset && !actualObservation) {
         return null;
       }
+      const ground = getGroundModelAt(station.longitude, station.latitude);
       const intensityValue = actualObservation
         ? actualObservation.intensityValue
         : estimateIntensityAtPoint(station.longitude, station.latitude);

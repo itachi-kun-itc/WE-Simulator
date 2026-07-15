@@ -15523,6 +15523,11 @@ body.simulation-session-complete #setup-panel .simulation-actions {
   border-left-color: #fb7185 !important;
 }
 
+.simulation-runtime-hud .simulation-timeline-event.is-complete {
+  top: 0 !important;
+  height: 80px !important;
+}
+
 .simulation-timeline-event.is-complete b {
   border-color: rgba(251, 113, 133, 0.32) !important;
   background: rgba(66, 12, 24, 0.94) !important;
@@ -16616,7 +16621,7 @@ body.simulation-session-complete .simulation-runtime-hud .simulation-timeline-co
   display: none !important;
 }
 
-/* Let source setup use the full map height while keeping a small gap above the tabs. */
+/* Keep source setup attached above the tabs with a small gap. */
 #setup-panel.sim-panel {
   top: auto !important;
   bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 8px) !important;
@@ -17568,17 +17573,16 @@ body[data-active-bottom-tab="earthquake-tab"] .intensity-scale span {
   padding: 4px 2px 2px !important;
 }
 
-@media (max-width: 720px) {
-  #setup-panel.setup-menu-open,
-  #setup-panel.sim-panel[data-sheet-state="open"] {
-    top: auto !important;
-    height: min(67svh, calc(100svh - var(--bottom-nav-height) - env(safe-area-inset-bottom) - 16px)) !important;
-    max-height: min(67svh, calc(100svh - var(--bottom-nav-height) - env(safe-area-inset-bottom) - 16px)) !important;
-  }
+/* Use the phone pull-up limit at every viewport width. */
+#setup-panel.setup-menu-open,
+#setup-panel.sim-panel[data-sheet-state="open"] {
+  top: auto !important;
+  height: min(67svh, calc(100svh - var(--bottom-nav-height) - env(safe-area-inset-bottom) - 16px)) !important;
+  max-height: min(67svh, calc(100svh - var(--bottom-nav-height) - env(safe-area-inset-bottom) - 16px)) !important;
+}
 
-  #setup-panel.sim-panel.is-dragging {
-    max-height: min(67svh, var(--sheet-drag-height, 67svh)) !important;
-  }
+#setup-panel.sim-panel.is-dragging {
+  max-height: min(67svh, var(--sheet-drag-height, 67svh)) !important;
 }
 
 html[data-resolved-theme="light"] .learning-category-switch {
@@ -18912,4 +18916,506 @@ body.simulation-session-active:not(.simulation-session-complete) .simulation-run
   border-color: rgba(255, 255, 255, 0.18) !important;
   background: linear-gradient(180deg, #f13462, #c91849) !important;
   color: #ffffff !important;
+}
+
+/* Split the epicenter controls evenly between map selection and geolocation. */
+#setup-panel .setup-epicenter-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+}
+
+#setup-panel .setup-epicenter-actions .toggle-row {
+  grid-column: auto !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+}
+
+#setup-panel .setup-current-location-button {
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 38px !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: var(--pill-radius) !important;
+  padding: 8px 10px !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.072), rgba(255, 255, 255, 0.018)), rgba(255, 255, 255, 0.055) !important;
+  color: rgba(226, 236, 244, 0.74) !important;
+  font: inherit !important;
+  font-size: 0.86rem !important;
+  font-weight: 850 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  cursor: pointer !important;
+  transition: border-color 140ms ease, background 140ms ease, color 140ms ease, transform 140ms ease !important;
+}
+
+#setup-panel .setup-current-location-button:hover,
+#setup-panel .setup-current-location-button:focus-visible {
+  border-color: rgba(125, 211, 252, 0.58) !important;
+  color: #ffffff !important;
+  outline: none !important;
+}
+
+#setup-panel .setup-current-location-button[aria-busy="true"] {
+  border-color: rgba(125, 211, 252, 0.42) !important;
+  color: #e8fbff !important;
+}
+
+#setup-panel .setup-current-location-button.is-error {
+  border-color: rgba(251, 113, 133, 0.48) !important;
+  color: #fecdd3 !important;
+}
+
+#setup-panel .setup-current-location-button:disabled {
+  cursor: not-allowed !important;
+  opacity: 0.52 !important;
+  transform: none !important;
+}
+
+/* Current-position marker shared by the simulation and community maps. */
+.current-location-marker {
+  z-index: 500 !important;
+  width: 20px !important;
+  height: 20px !important;
+  border: 3px solid #ffffff !important;
+  border-radius: 50% !important;
+  background: #168cff !important;
+  box-shadow: 0 0 0 8px rgba(22, 140, 255, 0.22), 0 3px 9px rgba(0, 0, 0, 0.48) !important;
+  color: transparent !important;
+  filter: none !important;
+}
+
+.current-location-marker::before {
+  content: "" !important;
+}
+
+/* Completed simulation: green result action and an in-menu report page. */
+body.simulation-session-complete .simulation-runtime-hud #simulation-rewind {
+  border-color: rgba(74, 222, 128, 0.58) !important;
+  background: linear-gradient(180deg, #22c55e, #15803d) !important;
+  color: #ffffff !important;
+}
+
+body.simulation-session-active.simulation-result-report-visible .map-wrap > .simulation-runtime-hud {
+  display: none !important;
+}
+
+body.simulation-session-active.simulation-result-report-visible #setup-panel {
+  display: block !important;
+}
+
+#setup-panel.simulation-result-report-open .sim-panel-scroll > :not(.simulation-result-report-page) {
+  display: none !important;
+}
+
+#setup-panel.simulation-result-report-open .sim-panel-head {
+  display: none !important;
+}
+
+#setup-panel.simulation-result-report-open {
+  top: max(8px, env(safe-area-inset-top)) !important;
+  bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 8px) !important;
+  height: calc(100svh - var(--bottom-nav-height) - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 16px) !important;
+  max-height: calc(100svh - var(--bottom-nav-height) - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 16px) !important;
+  padding-top: 7px !important;
+  transform: translate(-50%, 0) !important;
+  transition: none !important;
+}
+
+#setup-panel.simulation-result-report-open .sheet-handle {
+  display: none !important;
+}
+
+#setup-panel.simulation-result-report-open .sim-panel-scroll {
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior-y: contain !important;
+  touch-action: pan-y !important;
+}
+
+#setup-panel .simulation-result-report-page {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+  padding: 0 2px 8px;
+}
+
+#setup-panel .simulation-result-report-page.hidden {
+  display: none !important;
+}
+
+.simulation-result-report-head {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 42px;
+  align-items: center;
+  min-height: 46px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.simulation-result-report-head h3 {
+  margin: 0;
+  text-align: center;
+  font-size: 1rem;
+}
+
+.simulation-result-report-head button {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: #ffffff;
+  font: inherit;
+  font-size: 1.8rem;
+  cursor: pointer;
+}
+
+.simulation-result-report-content {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+}
+
+/* Use the actual live HUD ticket without rebuilding its layout. */
+.simulation-result-report-summary-host .simulation-result-report-runtime-hud {
+  position: static !important;
+  inset: auto !important;
+  display: block !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: none !important;
+  padding: 0 !important;
+  transform: none !important;
+  transition: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.simulation-result-report-summary-host .simulation-summary {
+  width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 0 !important;
+  align-self: start !important;
+  align-content: start !important;
+  grid-template-rows: repeat(3, minmax(23px, auto)) !important;
+}
+
+.simulation-result-report-summary,
+.simulation-result-report-stations {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.simulation-result-report-summary {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 14px;
+}
+
+.simulation-result-report-intensity {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 5px;
+}
+
+.simulation-result-report-intensity span,
+.simulation-result-report-summary dt {
+  color: rgba(226, 236, 244, 0.72);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.simulation-result-report-intensity strong {
+  display: grid;
+  min-width: 68px;
+  min-height: 58px;
+  place-items: center;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 2rem;
+}
+
+.simulation-result-report-summary dl {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+}
+
+.simulation-result-report-summary dl > div {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px;
+}
+
+.simulation-result-report-summary dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-weight: 850;
+}
+
+.simulation-result-report-stations h4 {
+  margin: 0 0 9px;
+  font-size: 0.9rem;
+}
+
+.simulation-result-station-groups {
+  display: grid;
+  gap: 12px;
+}
+
+.simulation-result-station-group {
+  display: grid;
+  gap: 8px;
+}
+
+.simulation-result-station-group + .simulation-result-station-group {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 12px;
+}
+
+.simulation-result-station-group header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.simulation-result-station-group header b {
+  display: inline-grid;
+  min-width: 62px;
+  min-height: 30px;
+  place-items: center;
+  border-radius: 8px;
+  padding: 4px 9px;
+  background: var(--simulation-intensity-color);
+  color: var(--simulation-intensity-text);
+  font-size: 0.82rem;
+}
+
+.simulation-result-station-group header span {
+  color: rgba(226, 236, 244, 0.7);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.simulation-result-station-group ul {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 12px;
+  margin: 0;
+  padding-left: 1.2rem;
+  font-size: 0.84rem;
+}
+
+.simulation-result-station-group li {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.simulation-result-stations-empty {
+  margin: 0;
+  color: rgba(226, 236, 244, 0.7);
+  font-size: 0.84rem;
+}
+
+.simulation-result-report-actions {
+  display: grid;
+}
+
+.simulation-result-report-actions button {
+  min-height: 46px;
+  border: 1px solid rgba(74, 222, 128, 0.48);
+  border-radius: 14px;
+  background: linear-gradient(180deg, #22c55e, #15803d);
+  color: #ffffff;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+@media (max-width: 420px) {
+  .simulation-result-report-summary {
+    grid-template-columns: 82px minmax(0, 1fr);
+    gap: 10px;
+    padding: 12px 10px;
+  }
+
+  .simulation-result-report-summary dl > div {
+    grid-template-columns: 76px minmax(0, 1fr);
+  }
+}
+
+@media print {
+  body.printing-simulation-result * {
+    visibility: hidden !important;
+  }
+
+  body.printing-simulation-result #simulation-result-report-page,
+  body.printing-simulation-result #simulation-result-report-page * {
+    visibility: visible !important;
+  }
+
+  body.printing-simulation-result #simulation-result-report-page {
+    position: fixed !important;
+    inset: 0 !important;
+    display: grid !important;
+    align-content: start !important;
+    width: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding: 12mm !important;
+    background: #ffffff !important;
+    color: #111827 !important;
+  }
+
+  body.printing-simulation-result #setup-panel,
+  body.printing-simulation-result #setup-panel .sim-panel-scroll {
+    position: static !important;
+    width: auto !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    transform: none !important;
+  }
+
+  body.printing-simulation-result .simulation-result-report-head button,
+  body.printing-simulation-result .simulation-result-report-actions {
+    display: none !important;
+  }
+
+  body.printing-simulation-result .simulation-result-report-summary,
+  body.printing-simulation-result .simulation-result-report-stations {
+    border-color: #cbd5e1 !important;
+    background: #ffffff !important;
+  }
+
+  body.printing-simulation-result .simulation-result-report-intensity span,
+  body.printing-simulation-result .simulation-result-report-summary dt {
+    color: #475569 !important;
+  }
+}
+
+/* Startup geolocation permission request. */
+.startup-location-permission-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 32000;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  padding: 20px;
+  background: rgba(1, 5, 14, 0.78);
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+}
+
+.startup-location-permission-dialog {
+  display: grid;
+  width: min(100%, 390px);
+  gap: 12px;
+  box-sizing: border-box;
+  border: 1px solid rgba(125, 211, 252, 0.3);
+  border-radius: 20px;
+  padding: 22px;
+  background: rgba(6, 12, 29, 0.98);
+  color: #f8fbff;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+  text-align: center;
+}
+
+.startup-location-permission-icon {
+  justify-self: center;
+  width: 24px;
+  height: 24px;
+  border: 4px solid #ffffff;
+  border-radius: 50%;
+  background: #168cff;
+  box-shadow: 0 0 0 9px rgba(22, 140, 255, 0.2);
+}
+
+.startup-location-permission-dialog h2 {
+  margin: 4px 0 0;
+  font-size: 1.12rem;
+}
+
+.startup-location-permission-dialog p {
+  margin: 0;
+  color: rgba(226, 236, 244, 0.78);
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
+.startup-location-permission-dialog .startup-location-permission-status {
+  min-height: 1.35em;
+  color: #bae6fd;
+  font-size: 0.78rem;
+}
+
+.startup-location-permission-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 9px;
+  margin-top: 2px;
+}
+
+.startup-location-permission-actions button {
+  min-height: 44px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.startup-location-permission-actions [data-location-permission-allow] {
+  border-color: rgba(56, 189, 248, 0.55);
+  background: linear-gradient(180deg, #168cff, #0865c7);
+}
+
+.startup-location-permission-actions button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+/* Show the current magnitude status inline without expanding the information ticket. */
+.simulation-magnitude-status {
+  display: none !important;
+}
+
+/* Lift the maximum-intensity label and card together without moving the other fields. */
+.simulation-runtime-hud .max-shindo-card {
+  transform: translateY(-3px) !important;
+}
+
+.simulation-runtime-hud .simulation-depth-magnitude-row > div,
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card {
+  gap: 2px !important;
+}
+
+body.simulation-session-active:not(.simulation-session-complete) .simulation-runtime-hud .simulation-magnitude-preliminary,
+body.simulation-session-complete .simulation-runtime-hud .simulation-magnitude-confirmed {
+  display: inline !important;
+  flex: 0 0 auto !important;
+  margin-left: 1px !important;
+  font-size: clamp(0.59rem, 2.45cqw, 0.7rem) !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  letter-spacing: -0.02em !important;
+  white-space: nowrap !important;
 }
