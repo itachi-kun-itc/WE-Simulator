@@ -15951,6 +15951,21 @@ body.community-pick-mode .community-map-controls {
   -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='white' fill-rule='evenodd' d='M11 1h2v2.06A9 9 0 0 1 20.94 11H23v2h-2.06A9 9 0 0 1 13 20.94V23h-2v-2.06A9 9 0 0 1 3.06 13H1v-2h2.06A9 9 0 0 1 11 3.06V1Zm1 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14Zm0 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z'/%3E%3C/svg%3E");
 }
 
+.community-map-current-location.is-marker-hidden {
+  color: #94a3b8;
+}
+
+.community-map-current-location.is-marker-hidden::after {
+  position: absolute;
+  width: 26px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+  content: "";
+  transform: rotate(-45deg);
+  pointer-events: none;
+}
+
 .community-map-control.is-loading > span {
   animation: community-map-control-spin 700ms linear infinite;
 }
@@ -17699,6 +17714,21 @@ body.tool-source-search-mode #history-full-panel .tool-page-back {
   font-size: 1.8rem !important;
 }
 
+body.tool-source-search-mode #history-full-panel {
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+body.tool-source-search-mode #history-full-panel .history-stats-list {
+  min-height: 0 !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior-y: contain !important;
+  -webkit-overflow-scrolling: touch !important;
+  touch-action: pan-y !important;
+  padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 20px) !important;
+}
+
 @media (max-width: 640px) {
   #learning-full-panel .learning-content {
     padding-right: 10px !important;
@@ -18976,12 +19006,12 @@ body.simulation-session-active:not(.simulation-session-complete) .simulation-run
 /* Current-position marker shared by the simulation and community maps. */
 .current-location-marker {
   z-index: 500 !important;
-  width: 20px !important;
-  height: 20px !important;
-  border: 3px solid #ffffff !important;
+  width: 14px !important;
+  height: 14px !important;
+  border: 2px solid #ffffff !important;
   border-radius: 50% !important;
   background: #168cff !important;
-  box-shadow: 0 0 0 8px rgba(22, 140, 255, 0.22), 0 3px 9px rgba(0, 0, 0, 0.48) !important;
+  box-shadow: 0 0 0 5px rgba(22, 140, 255, 0.2), 0 2px 6px rgba(0, 0, 0, 0.42) !important;
   color: transparent !important;
   filter: none !important;
 }
@@ -19104,8 +19134,57 @@ body.simulation-session-active.simulation-result-report-visible #setup-panel {
   max-height: none !important;
   margin: 0 !important;
   align-self: start !important;
-  align-content: start !important;
-  grid-template-rows: repeat(3, minmax(23px, auto)) !important;
+  align-content: stretch !important;
+  grid-template-rows: repeat(3, minmax(23px, 1fr)) !important;
+}
+
+/* Prevent setup-menu card rules from stretching the live ticket after it is mounted here. */
+body.simulation-session-active #setup-panel.simulation-result-report-open
+  .simulation-result-report-summary-host .simulation-summary {
+  column-gap: clamp(6px, 2vw, 12px) !important;
+  row-gap: 0 !important;
+}
+
+body.simulation-session-active #setup-panel.simulation-result-report-open
+  .simulation-result-report-summary-host .simulation-summary > * {
+  min-width: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+body.simulation-session-active #setup-panel.simulation-result-report-open
+  .simulation-result-report-summary-host .max-shindo-card,
+body.simulation-session-active #setup-panel.simulation-result-report-open
+  .simulation-result-report-summary-host .magnitude-card {
+  height: auto !important;
+  min-height: 0 !important;
+  gap: 2px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+body.simulation-session-active #setup-panel.simulation-result-report-open
+  .simulation-result-report-summary-host .max-shindo-card strong {
+  font-size: 2.65rem !important;
+}
+
+body.simulation-session-active #setup-panel.simulation-result-report-open
+  .simulation-result-report-summary-host .magnitude-card strong {
+  height: auto !important;
+  min-height: 0 !important;
+  font-size: 0.9rem !important;
+  letter-spacing: 0 !important;
+}
+
+body.simulation-session-active #setup-panel.simulation-result-report-open
+  .simulation-result-report-summary-host .max-shindo-card > span,
+body.simulation-session-active #setup-panel.simulation-result-report-open
+  .simulation-result-report-summary-host .magnitude-card > span {
+  font-size: 0.8rem !important;
 }
 
 .simulation-result-report-summary,
@@ -19413,9 +19492,506 @@ body.simulation-session-complete .simulation-runtime-hud .simulation-magnitude-c
   display: inline !important;
   flex: 0 0 auto !important;
   margin-left: 1px !important;
-  font-size: clamp(0.59rem, 2.45cqw, 0.7rem) !important;
+  font-size: 0.86em !important;
   font-weight: 700 !important;
   line-height: 1 !important;
   letter-spacing: -0.02em !important;
   white-space: nowrap !important;
+}
+
+/* Information ticket: epicenter on row one, then depth and magnitude on row two. */
+.simulation-runtime-hud .simulation-summary > div:has(#simulation-region-name) {
+  display: block !important;
+  min-width: 0 !important;
+}
+
+.simulation-runtime-hud .simulation-summary > div:has(#simulation-region-name) dt,
+.simulation-runtime-hud .simulation-depth-magnitude-row > div:has(#simulation-depth) dt,
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card > span,
+.simulation-runtime-hud .simulation-origin-time-card > span {
+  display: none !important;
+}
+
+.simulation-runtime-hud #simulation-region-name {
+  display: block !important;
+  overflow: hidden !important;
+  font-size: clamp(1.1rem, 4.6cqw, 1.3rem) !important;
+  font-weight: 900 !important;
+  line-height: 1.1 !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.simulation-runtime-hud .simulation-depth-magnitude-row {
+  grid-row: 2 !important;
+  display: flex !important;
+  align-items: baseline !important;
+  justify-content: flex-start !important;
+  gap: 10px !important;
+}
+
+.simulation-runtime-hud .simulation-summary > div:has(#simulation-region-name) {
+  grid-row: 1 !important;
+  align-self: center !important;
+}
+
+.simulation-runtime-hud .simulation-origin-time-card {
+  grid-row: 3 !important;
+  align-self: center !important;
+}
+
+.simulation-runtime-hud .simulation-depth-magnitude-row > div:has(#simulation-depth),
+.simulation-runtime-hud .simulation-depth-magnitude-row .magnitude-card {
+  gap: 0 !important;
+}
+
+/* Center the intensity numeral optically as well as geometrically. */
+.simulation-runtime-hud .max-shindo-card strong,
+body.simulation-session-active #setup-panel.simulation-result-report-open
+  .simulation-result-report-summary-host .max-shindo-card strong {
+  display: grid !important;
+  place-items: center !important;
+  box-sizing: border-box !important;
+  padding: 0 0 3px !important;
+  line-height: 1 !important;
+  text-align: center !important;
+}
+
+/* Light frosted surfaces for source setup and the running simulation menu. */
+#setup-panel.sim-panel:not(.simulation-result-report-open) {
+  border-color: rgba(51, 65, 85, 0.22) !important;
+  background: rgba(241, 245, 249, 0.95) !important;
+  color: #172033 !important;
+  box-shadow: 0 18px 46px rgba(15, 23, 42, 0.28) !important;
+}
+
+#setup-panel.sim-panel:not(.simulation-result-report-open)::before {
+  background:
+    radial-gradient(circle at 18% 0%, rgba(56, 189, 248, 0.12), transparent 46%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(226, 232, 240, 0.16) 45%) !important;
+}
+
+#setup-panel:not(.simulation-result-report-open) .sheet-handle,
+.simulation-runtime-handle {
+  border-color: rgba(51, 65, 85, 0.2) !important;
+  background: rgba(241, 245, 249, 0.97) !important;
+}
+
+#setup-panel:not(.simulation-result-report-open) .sheet-handle::after,
+.simulation-runtime-handle::after {
+  background: rgba(71, 85, 105, 0.72) !important;
+  box-shadow: none !important;
+}
+
+#setup-panel:not(.simulation-result-report-open) .settings-section,
+#setup-panel:not(.simulation-result-report-open) .field input,
+#setup-panel:not(.simulation-result-report-open) .field select,
+#setup-panel:not(.simulation-result-report-open) .preset-picker-button,
+#setup-panel:not(.simulation-result-report-open) .settings-tabs,
+#setup-panel:not(.simulation-result-report-open) .toggle-grid .toggle-row {
+  border-color: rgba(51, 65, 85, 0.16) !important;
+  background: rgba(255, 255, 255, 0.7) !important;
+  color: #1e293b !important;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.9), 0 5px 16px rgba(15, 23, 42, 0.06) !important;
+}
+
+#setup-panel:not(.simulation-result-report-open) .field,
+#setup-panel:not(.simulation-result-report-open) .settings-section h3,
+#setup-panel:not(.simulation-result-report-open) .settings-tab {
+  color: rgba(30, 41, 59, 0.7) !important;
+}
+
+#setup-panel:not(.simulation-result-report-open) .settings-tab.is-active {
+  border-color: rgba(2, 132, 199, 0.3) !important;
+  background: rgba(14, 165, 233, 0.13) !important;
+  color: #075985 !important;
+}
+
+#setup-panel:not(.simulation-result-report-open) .setup-current-location-button {
+  border-color: rgba(51, 65, 85, 0.16) !important;
+  background: rgba(255, 255, 255, 0.72) !important;
+  color: #334155 !important;
+}
+
+#setup-panel:not(.simulation-result-report-open) .control-separator {
+  background: rgba(51, 65, 85, 0.16) !important;
+}
+
+.simulation-runtime-hud .setup-result-section {
+  border-color: rgba(51, 65, 85, 0.2) !important;
+  background: rgba(241, 245, 249, 0.96) !important;
+  color: #172033 !important;
+  box-shadow: 0 18px 46px rgba(15, 23, 42, 0.3) !important;
+}
+
+.simulation-runtime-hud .simulation-summary,
+.simulation-runtime-hud .simulation-progress-track {
+  border-color: rgba(51, 65, 85, 0.18) !important;
+  background: rgba(255, 255, 255, 0.74) !important;
+  color: #1e293b !important;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.9) !important;
+}
+
+.simulation-runtime-hud .simulation-summary dt,
+.simulation-runtime-hud .simulation-summary dd,
+.simulation-runtime-hud .simulation-progress-head,
+.simulation-runtime-hud .simulation-progress-head strong,
+.simulation-runtime-hud #simulation-region-name,
+.simulation-runtime-hud #simulation-depth,
+.simulation-runtime-hud #simulation-magnitude,
+.simulation-runtime-hud .simulation-origin-time-card strong {
+  color: #1e293b !important;
+}
+
+.simulation-runtime-hud .simulation-progress-canvas::before {
+  background: rgba(71, 85, 105, 0.3) !important;
+  box-shadow: none !important;
+}
+
+.simulation-runtime-hud .simulation-timeline-event {
+  color: #334155 !important;
+}
+
+/* Balance the light sheets with stronger contrast and wider inner content. */
+#setup-panel.sim-panel:not(.simulation-result-report-open) {
+  background: rgba(211, 221, 231, 0.96) !important;
+}
+
+#setup-panel.sim-panel:not(.simulation-result-report-open)::before {
+  background:
+    radial-gradient(circle at 18% 0%, rgba(56, 189, 248, 0.14), transparent 44%),
+    linear-gradient(180deg, rgba(238, 244, 248, 0.5), rgba(148, 163, 184, 0.1) 58%) !important;
+}
+
+#setup-panel:not(.simulation-result-report-open) .sheet-handle {
+  background: rgba(211, 221, 231, 0.98) !important;
+}
+
+#setup-panel.sim-panel[data-sheet-state="open"] .sim-panel-scroll,
+#setup-panel:not(.simulation-result-report-open) .sim-panel-scroll {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  padding-right: 0 !important;
+  padding-left: 0 !important;
+}
+
+#setup-panel:not(.simulation-result-report-open) .settings-section {
+  width: 100% !important;
+  min-width: 0 !important;
+  padding-right: 8px !important;
+  padding-left: 8px !important;
+  background: rgba(235, 241, 246, 0.78) !important;
+}
+
+#setup-panel:not(.simulation-result-report-open) .field-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+#setup-panel:not(.simulation-result-report-open) .field,
+#setup-panel:not(.simulation-result-report-open) .field input,
+#setup-panel:not(.simulation-result-report-open) .field select {
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+
+#setup-panel:not(.simulation-result-report-open) .field input,
+#setup-panel:not(.simulation-result-report-open) .field select {
+  border-color: rgba(51, 65, 85, 0.24) !important;
+  background: rgba(248, 250, 252, 0.92) !important;
+  color: #172033 !important;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.95), 0 4px 12px rgba(15, 23, 42, 0.07) !important;
+}
+
+#setup-panel:not(.simulation-result-report-open) .simulation-quick-actions,
+#setup-panel:not(.simulation-result-report-open) .simulation-start-sheet-host {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+#setup-panel:not(.simulation-result-report-open)
+  .simulation-quick-actions #historical-earthquake-button {
+  border-color: rgba(30, 64, 175, 0.42) !important;
+  background: linear-gradient(180deg, #3b82f6, #1d4ed8) !important;
+  color: #ffffff !important;
+  box-shadow: 0 7px 18px rgba(29, 78, 216, 0.22), inset 0 1px rgba(255, 255, 255, 0.24) !important;
+}
+
+#setup-panel:not(.simulation-result-report-open)
+  .simulation-quick-actions .sheet-speech-toggle {
+  border-color: rgba(14, 116, 144, 0.42) !important;
+  background: linear-gradient(180deg, #1594ad, #0e7490) !important;
+  color: #ffffff !important;
+  box-shadow: 0 7px 18px rgba(14, 116, 144, 0.2), inset 0 1px rgba(255, 255, 255, 0.2) !important;
+}
+
+#setup-panel:not(.simulation-result-report-open)
+  .simulation-quick-actions .sheet-speech-toggle.is-muted {
+  border-color: rgba(71, 85, 105, 0.42) !important;
+  background: linear-gradient(180deg, #64748b, #475569) !important;
+  color: #ffffff !important;
+  box-shadow: 0 7px 18px rgba(51, 65, 85, 0.18), inset 0 1px rgba(255, 255, 255, 0.18) !important;
+}
+
+#setup-panel:not(.simulation-result-report-open) .setup-current-location-button,
+#setup-panel:not(.simulation-result-report-open) .toggle-grid .toggle-row {
+  border-color: rgba(51, 65, 85, 0.26) !important;
+  background: rgba(248, 250, 252, 0.84) !important;
+  color: #1e293b !important;
+}
+
+.simulation-runtime-handle,
+.simulation-runtime-hud .setup-result-section {
+  background: rgba(211, 221, 231, 0.96) !important;
+}
+
+.simulation-runtime-hud .simulation-summary,
+.simulation-runtime-hud .simulation-progress-track {
+  background: rgba(238, 243, 247, 0.86) !important;
+}
+
+/* Admin notification spacing. */
+.settings-admin-embedded .admin-mode-field:has(#admin-notification-body),
+.admin-notification-panel .admin-mode-field:has(#admin-notification-body) {
+  margin-bottom: 8px !important;
+}
+
+/* Match the information-ticket text to the active intensity color. */
+.simulation-runtime-hud .simulation-summary.has-observed-intensity,
+.simulation-result-report-summary-host .simulation-summary.has-observed-intensity {
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--simulation-ticket-intensity-color) 78%, #f1f5f9 22%),
+      color-mix(in srgb, var(--simulation-ticket-intensity-color) 62%, #e2e8f0 38%)
+    ) !important;
+  border-color: color-mix(in srgb, var(--simulation-ticket-intensity-color) 72%, #475569 28%) !important;
+  color: var(--simulation-ticket-intensity-text, #1f2937) !important;
+}
+
+.simulation-runtime-hud .simulation-summary.has-observed-intensity dt,
+.simulation-runtime-hud .simulation-summary.has-observed-intensity dd,
+.simulation-runtime-hud .simulation-summary.has-observed-intensity #simulation-region-name,
+.simulation-runtime-hud .simulation-summary.has-observed-intensity #simulation-depth,
+.simulation-runtime-hud .simulation-summary.has-observed-intensity #simulation-magnitude,
+.simulation-runtime-hud .simulation-summary.has-observed-intensity .simulation-origin-time-card strong,
+.simulation-runtime-hud .simulation-summary.has-observed-intensity .simulation-magnitude-status,
+.simulation-result-report-summary-host .simulation-summary.has-observed-intensity dt,
+.simulation-result-report-summary-host .simulation-summary.has-observed-intensity dd,
+.simulation-result-report-summary-host .simulation-summary.has-observed-intensity #simulation-region-name,
+.simulation-result-report-summary-host .simulation-summary.has-observed-intensity #simulation-depth,
+.simulation-result-report-summary-host .simulation-summary.has-observed-intensity #simulation-magnitude,
+.simulation-result-report-summary-host .simulation-summary.has-observed-intensity .simulation-origin-time-card strong,
+.simulation-result-report-summary-host .simulation-summary.has-observed-intensity .simulation-magnitude-status {
+  color: var(--simulation-ticket-intensity-text, #1f2937) !important;
+}
+
+/* Orange current-time cursor. */
+.simulation-progress-now,
+.simulation-runtime-hud .simulation-progress-now {
+  background: #f97316 !important;
+  box-shadow: 0 0 12px rgba(249, 115, 22, 0.86) !important;
+}
+
+.simulation-progress-now::before,
+.simulation-runtime-hud .simulation-progress-now::before {
+  border-top-color: #f97316 !important;
+}
+
+/* Completed simulation: make the return-to-source action clearly blue. */
+body.simulation-session-complete .simulation-runtime-hud #simulation-pause {
+  border-color: rgba(37, 99, 235, 0.58) !important;
+  background: linear-gradient(180deg, #3b82f6, #1d4ed8) !important;
+  color: #ffffff !important;
+  box-shadow: 0 7px 18px rgba(29, 78, 216, 0.24) !important;
+}
+
+/* Use the same light-gray basis for the result/PDF export menu. */
+#setup-panel.simulation-result-report-open {
+  border-color: rgba(51, 65, 85, 0.22) !important;
+  background: rgba(211, 221, 231, 0.97) !important;
+  color: #172033 !important;
+  box-shadow: 0 18px 46px rgba(15, 23, 42, 0.28) !important;
+}
+
+#setup-panel.simulation-result-report-open .simulation-result-report-head {
+  border-bottom-color: rgba(51, 65, 85, 0.18) !important;
+}
+
+#setup-panel.simulation-result-report-open .simulation-result-report-head button {
+  color: #1e293b !important;
+}
+
+#setup-panel.simulation-result-report-open .simulation-result-report-summary,
+#setup-panel.simulation-result-report-open .simulation-result-report-stations {
+  border-color: rgba(51, 65, 85, 0.18) !important;
+  background: rgba(238, 243, 247, 0.86) !important;
+  color: #1e293b !important;
+}
+
+#setup-panel.simulation-result-report-open .simulation-result-report-intensity span,
+#setup-panel.simulation-result-report-open .simulation-result-report-summary dt,
+#setup-panel.simulation-result-report-open .simulation-result-station-group header span,
+#setup-panel.simulation-result-report-open .simulation-result-stations-empty {
+  color: rgba(30, 41, 59, 0.7) !important;
+}
+
+#setup-panel.simulation-result-report-open .simulation-result-station-group + .simulation-result-station-group {
+  border-top-color: rgba(51, 65, 85, 0.14) !important;
+}
+
+/* Old JMA-scale legend: keep the seven cells flush to the right with no spare inset. */
+@media (max-width: 767px) {
+  body[data-active-bottom-tab="earthquake-tab"] .intensity-legend.is-old-jma-scale {
+    justify-content: flex-end !important;
+    padding: 0 !important;
+  }
+
+  body[data-active-bottom-tab="earthquake-tab"]
+    .intensity-legend.is-old-jma-scale .intensity-scale {
+    grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+    width: calc(100% * 7 / 9) !important;
+    margin-right: 0 !important;
+    margin-left: auto !important;
+    padding: 0 !important;
+  }
+}
+
+/* Apply the intensity-aware text color to every information-ticket label and value. */
+.simulation-runtime-hud .simulation-summary.has-observed-intensity .max-shindo-card,
+.simulation-runtime-hud .simulation-summary.has-observed-intensity .max-shindo-card > span,
+.simulation-runtime-hud .simulation-summary.has-observed-intensity .max-shindo-card strong,
+.simulation-runtime-hud .simulation-summary.has-observed-intensity .max-shindo-card strong::before,
+.simulation-runtime-hud .simulation-summary.has-observed-intensity .magnitude-card,
+.simulation-runtime-hud .simulation-summary.has-observed-intensity .magnitude-card > span,
+.simulation-runtime-hud .simulation-summary.has-observed-intensity .magnitude-card strong,
+.simulation-runtime-hud .simulation-summary.has-observed-intensity .magnitude-card strong::before,
+.simulation-runtime-hud .simulation-summary.has-observed-intensity #simulation-magnitude,
+.simulation-result-report-summary-host .simulation-summary.has-observed-intensity .max-shindo-card,
+.simulation-result-report-summary-host .simulation-summary.has-observed-intensity .max-shindo-card > span,
+.simulation-result-report-summary-host .simulation-summary.has-observed-intensity .max-shindo-card strong,
+.simulation-result-report-summary-host .simulation-summary.has-observed-intensity .max-shindo-card strong::before,
+.simulation-result-report-summary-host .simulation-summary.has-observed-intensity .magnitude-card,
+.simulation-result-report-summary-host .simulation-summary.has-observed-intensity .magnitude-card > span,
+.simulation-result-report-summary-host .simulation-summary.has-observed-intensity .magnitude-card strong,
+.simulation-result-report-summary-host .simulation-summary.has-observed-intensity .magnitude-card strong::before,
+.simulation-result-report-summary-host .simulation-summary.has-observed-intensity #simulation-magnitude {
+  color: var(--simulation-ticket-intensity-text, #1f2937) !important;
+}
+
+/* Timeline line colors: ordinary/time lines black, intensity orange, EEW red. */
+.simulation-progress-guides > span {
+  background: rgba(15, 23, 42, 0.58) !important;
+}
+
+.simulation-timeline-event,
+.simulation-timeline-event.is-lower {
+  border-left-color: #111827 !important;
+}
+
+.simulation-progress-now,
+.simulation-runtime-hud .simulation-progress-now {
+  background: #111827 !important;
+  box-shadow: 0 0 8px rgba(17, 24, 39, 0.52) !important;
+}
+
+.simulation-progress-now::before,
+.simulation-runtime-hud .simulation-progress-now::before {
+  border-top-color: #111827 !important;
+}
+
+.simulation-timeline-event.is-intensity,
+.simulation-runtime-hud .simulation-timeline-event.is-intensity,
+.simulation-timeline-event.is-intensity-planned,
+.simulation-runtime-hud .simulation-timeline-event.is-intensity-planned {
+  border-left-color: #f97316 !important;
+}
+
+.simulation-timeline-event.is-intensity-planned,
+.simulation-runtime-hud .simulation-timeline-event.is-intensity-planned {
+  border-left: 2px dashed #f97316 !important;
+}
+
+.simulation-timeline-event.is-intensity b,
+.simulation-runtime-hud .simulation-timeline-event.is-intensity b,
+.simulation-timeline-event.is-intensity-planned b,
+.simulation-runtime-hud .simulation-timeline-event.is-intensity-planned b {
+  color: #c2410c !important;
+}
+
+.simulation-timeline-event.is-eew,
+.simulation-runtime-hud .simulation-timeline-event.is-eew,
+.simulation-timeline-event.is-eew-planned,
+.simulation-runtime-hud .simulation-timeline-event.is-eew-planned {
+  border-left-color: #ef4444 !important;
+}
+
+.simulation-timeline-event.is-eew-planned,
+.simulation-runtime-hud .simulation-timeline-event.is-eew-planned {
+  border-left: 2px dashed #ef4444 !important;
+}
+
+.simulation-timeline-event.is-eew b,
+.simulation-runtime-hud .simulation-timeline-event.is-eew b,
+.simulation-timeline-event.is-eew-planned b,
+.simulation-runtime-hud .simulation-timeline-event.is-eew-planned b {
+  color: #dc2626 !important;
+}
+
+/* Keep timeline labels compact and readable on the light simulation HUD. */
+.simulation-timeline-event b,
+.simulation-runtime-hud .simulation-timeline-event b {
+  max-width: 148px !important;
+  border: 1px solid rgba(71, 85, 105, 0.16) !important;
+  border-radius: 6px !important;
+  padding: 3px 6px !important;
+  background: rgba(248, 250, 252, 0.9) !important;
+  color: #475569 !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08) !important;
+  font-size: 0.63rem !important;
+  font-weight: 750 !important;
+  line-height: 1.15 !important;
+  letter-spacing: 0 !important;
+}
+
+.simulation-timeline-event.is-intensity b,
+.simulation-runtime-hud .simulation-timeline-event.is-intensity b,
+.simulation-timeline-event.is-intensity-planned b,
+.simulation-runtime-hud .simulation-timeline-event.is-intensity-planned b {
+  border-color: rgba(249, 115, 22, 0.2) !important;
+  background: rgba(255, 247, 237, 0.92) !important;
+  color: #c2410c !important;
+}
+
+.simulation-timeline-event.is-eew b,
+.simulation-runtime-hud .simulation-timeline-event.is-eew b,
+.simulation-timeline-event.is-eew-planned b,
+.simulation-runtime-hud .simulation-timeline-event.is-eew-planned b {
+  border-color: rgba(239, 68, 68, 0.18) !important;
+  background: rgba(254, 242, 242, 0.92) !important;
+  color: #b91c1c !important;
+}
+
+.simulation-timeline-event.is-magnitude,
+.simulation-runtime-hud .simulation-timeline-event.is-magnitude,
+.simulation-timeline-event.is-magnitude-planned,
+.simulation-runtime-hud .simulation-timeline-event.is-magnitude-planned {
+  border-left-color: #64748b !important;
+}
+
+.simulation-timeline-event.is-magnitude-planned,
+.simulation-runtime-hud .simulation-timeline-event.is-magnitude-planned {
+  border-left: 2px dashed #64748b !important;
+}
+
+.simulation-timeline-event.is-magnitude b,
+.simulation-runtime-hud .simulation-timeline-event.is-magnitude b,
+.simulation-timeline-event.is-magnitude-planned b,
+.simulation-runtime-hud .simulation-timeline-event.is-magnitude-planned b {
+  border-color: rgba(100, 116, 139, 0.2) !important;
+  background: rgba(241, 245, 249, 0.92) !important;
+  color: #475569 !important;
 }
