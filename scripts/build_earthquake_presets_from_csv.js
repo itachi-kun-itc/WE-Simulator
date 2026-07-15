@@ -371,6 +371,7 @@ function parseEewReports(eventName) {
       reportRows.push({
         reportNumber: Number(firstCell),
         elapsedSec,
+        magnitude: parseMagnitude(row[6]),
         marker,
       });
       return;
@@ -409,18 +410,19 @@ function parseEewReports(eventName) {
   let cumulativeAreas = new Set();
 
   return reportRows
-    .filter((report) => report.reportNumber >= firstWarningReportNumber)
     .map((report) => {
-      const areas = detailAreasByMarker.get(report.marker) ?? new Set();
+      const areas = report.reportNumber >= firstWarningReportNumber
+        ? detailAreasByMarker.get(report.marker) ?? new Set()
+        : new Set();
       cumulativeAreas = new Set([...cumulativeAreas, ...areas]);
       return {
         reportNumber: report.reportNumber,
         elapsedSec: report.elapsedSec,
+        magnitude: report.magnitude > 0 ? report.magnitude : null,
         marker: report.marker,
         areas: [...cumulativeAreas],
       };
-    })
-    .filter((report) => report.areas.length > 0);
+    });
 }
 
 function isEewWarningDetailType(value) {

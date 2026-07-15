@@ -22,7 +22,10 @@ if (!adminToken) {
 }
 
 const source = JSON.parse(fs.readFileSync(inputPath, "utf8"));
-const presets = Array.isArray(source.presets) ? source.presets : [];
+const sourcePresets = Array.isArray(source.presets) ? source.presets : [];
+const presets = process.env.EARTHQUAKE_PRESETS_EEW_ONLY === "1"
+  ? sourcePresets.filter((preset) => Array.isArray(preset.eewReports) && preset.eewReports.length > 0)
+  : sourcePresets;
 
 uploadPresets().catch((error) => {
   console.error(error);

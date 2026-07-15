@@ -27,13 +27,13 @@
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta name="twitter:image" content="https://itachi-kun-itc.github.io/WE-Simulator/og-image.png" />
-    <link rel="manifest" href="./manifest.webmanifest?v=0.1.6" />
-    <link rel="icon" type="image/png" sizes="32x32" href="./favicon.png?v=0.1.6" />
-    <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=0.1.6" />
+    <link rel="manifest" href="./manifest.webmanifest?v=0.1.22" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./favicon.png?v=0.1.22" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=0.1.22" />
     <link rel="preconnect" href="https://we-simulator-push.h6fgpg2zht.workers.dev" crossorigin />
     <link rel="preconnect" href="https://unpkg.com" crossorigin />
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.css" />
-    <link rel="stylesheet" href="./styles.css?v=0.1.6" />
+    <link rel="stylesheet" href="./styles.css?v=0.1.22" />
   </head>
   <body>
     <main class="app-shell">
@@ -93,14 +93,17 @@
             <label class="field">
               <span>地震プリセット</span>
               <button class="preset-picker-button" id="historical-earthquake-button" type="button">
-                地震を選ぶ
+                過去の地震
               </button>
             </label>
-            <div class="toggle-grid setup-primary-toggles">
+            <div class="toggle-grid setup-primary-toggles setup-epicenter-actions">
               <label class="toggle-row layer-toggle-full">
                 <input id="epicenter-edit-toggle" type="checkbox" />
                 <span>震源地を設定</span>
               </label>
+              <button class="setup-current-location-button" id="request-current-location" type="button">
+                位置情報を取得
+              </button>
             </div>
             </section>
             <div class="control-separator" aria-hidden="true"></div>
@@ -203,7 +206,7 @@
               </div>
               <div class="magnitude-card">
                 <span>規模</span>
-                <strong><span id="simulation-magnitude">-</span></strong>
+                <strong><span id="simulation-magnitude">-</span><small class="simulation-magnitude-status simulation-magnitude-preliminary">（速報値）</small><small class="simulation-magnitude-status simulation-magnitude-confirmed">（確定値）</small></strong>
               </div>
             </div>
 
@@ -283,7 +286,7 @@
             </details>
 
             <div class="simulation-actions">
-              <button class="simulation-stop" id="simulation-stop" type="button">終了</button>
+              <button class="simulation-stop" id="simulation-stop" type="button">シミュレーション終了</button>
             </div>
             </section>
 
@@ -456,6 +459,6 @@
     </script>
     <script src="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.js"></script>
     <script src="./vendor/pmtiles.js?v=0.1.1"></script>
-    <script src="./app.js?v=0.1.6"></script>
+    <script src="./app.js?v=0.1.22"></script>
   </body>
 </html>
