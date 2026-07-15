@@ -71,7 +71,7 @@ function appendWeatherQuizReport_(payload) {
     choices[3],
     normalizeLineBreaks_(payload.answer),
     normalizeLineBreaks_(payload.explanation),
-    normalizeLineBreaks_(payload.userAgent),
+    getWeatherQuizUserAgent_(payload),
   ];
 
   sheet.getRange(row, 1, 1, WEATHER_QUIZ_HEADERS.length).setValues([values]);
@@ -99,6 +99,11 @@ function getWeatherQuizChoices_(payload) {
   }
 
   return choices;
+}
+
+function getWeatherQuizUserAgent_(payload) {
+  const userAgent = payload.userAgent || payload.user_agent || payload.ua;
+  return normalizeLineBreaks_(userAgent) || "取得不可";
 }
 
 function prepareWeatherQuizSheet_() {

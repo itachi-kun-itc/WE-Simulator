@@ -16101,7 +16101,8 @@ body.simulation-session-active .simulation-runtime-hud {
 
 @media (max-width: 560px) {
   body.simulation-session-active .simulation-runtime-hud {
-    bottom: 5px !important;
+    position: fixed !important;
+    bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 8px) !important;
   }
 
   .simulation-runtime-hud .simulation-summary {
@@ -20970,6 +20971,10 @@ html[data-resolved-theme="light"] #settings-admin-button span:first-child::after
   font-style: normal !important;
   font-weight: 900 !important;
   line-height: 1 !important;
+}
+
+html[data-resolved-theme="light"] .settings-appearance-section .settings-color-scheme-preview i {
+  color: var(--preview-text) !important;
 }
 
 html[data-resolved-theme="light"] .settings-color-scheme-choice {
