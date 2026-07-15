@@ -16101,7 +16101,7 @@ body.simulation-session-active .simulation-runtime-hud {
 
 @media (max-width: 560px) {
   body.simulation-session-active .simulation-runtime-hud {
-    bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 5px) !important;
+    bottom: 5px !important;
   }
 
   .simulation-runtime-hud .simulation-summary {
