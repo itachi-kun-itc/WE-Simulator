@@ -395,7 +395,7 @@ const INTENSITY_COLOR_SCHEME_OPTIONS = [
 ];
 
 function getIntensitySchemeTextColor(scheme, key) {
-  return INTENSITY_WHITE_TEXT_LABELS.has(String(key))
+  return scheme !== INTENSITY_COLOR_SCHEMES.a && INTENSITY_WHITE_TEXT_LABELS.has(String(key))
     ? "#ffffff"
     : scheme?.textColors?.[key] ?? "#111827";
 }
@@ -2063,6 +2063,9 @@ function setupTabs() {
 
   const sendWeatherQuizBadQuestionReport = async (item, mode, reason) => {
     const details = getWeatherQuizReportDetails(item, mode);
+    const userAgent = String(navigator.userAgent || "").trim()
+      || String(navigator.userAgentData?.platform || navigator.platform || "").trim()
+      || "取得不可";
     await fetch(FEEDBACK_ENDPOINT_URL, {
       method: "POST",
       mode: "no-cors",
@@ -2072,7 +2075,7 @@ function setupTabs() {
       body: JSON.stringify({
         action: "reportWeatherQuizQuestion",
         createdAt: new Date().toISOString(),
-        userAgent: navigator.userAgent,
+        userAgent,
         badQuestionReason: String(reason || "").replace(/\r\n?/g, "\n"),
         ...details,
       }),
