@@ -9774,7 +9774,6 @@ body[data-active-bottom-tab="bottom-history-tab"] .epicenter-marker-shell {
 }
 
 html[data-resolved-theme="light"] .learning-content,
-html[data-resolved-theme="light"] .learning-content *,
 html[data-resolved-theme="light"] .learning-hero h2,
 html[data-resolved-theme="light"] .learning-card h3 {
   color: #111827 !important;
@@ -15825,47 +15824,6 @@ html[data-resolved-theme="light"] .learning-typhoon-scale-grid th {
 }
 
 /* Community-map refresh and current-location controls. */
-.community-map-style-controls {
-  position: fixed;
-  left: max(12px, env(safe-area-inset-left));
-  top: max(12px, env(safe-area-inset-top));
-  z-index: 12520;
-  display: none;
-  overflow: hidden;
-  padding: 3px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 12px;
-  background: rgba(8, 18, 22, 0.9);
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.32);
-  backdrop-filter: blur(10px);
-}
-
-body.community-map-mode .community-map-style-controls {
-  display: flex;
-}
-
-.community-map-style-controls button {
-  min-width: 62px;
-  height: 34px;
-  border: 0;
-  border-radius: 9px;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.7);
-  padding: 0 10px;
-  font: 900 12px/1 system-ui, sans-serif;
-}
-
-.community-map-style-controls button.is-active {
-  background: #eafcff;
-  color: #083a43;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
-}
-
-.community-map-style-controls button:focus-visible {
-  outline: 2px solid #54eaff;
-  outline-offset: -2px;
-}
-
 .community-map-controls {
   position: fixed;
   left: max(12px, env(safe-area-inset-left));
@@ -15977,17 +15935,6 @@ body.community-pick-mode .community-map-controls {
 }
 
 @media (max-width: 720px) {
-  .community-map-style-controls {
-    left: max(10px, env(safe-area-inset-left));
-    top: max(10px, env(safe-area-inset-top));
-  }
-
-  .community-map-style-controls button {
-    min-width: 58px;
-    height: 32px;
-    padding: 0 8px;
-  }
-
   .community-map-controls {
     left: max(10px, env(safe-area-inset-left));
     bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 14px);
@@ -19994,4 +19941,827 @@ body.simulation-session-complete .simulation-runtime-hud #simulation-pause {
   border-color: rgba(100, 116, 139, 0.2) !important;
   background: rgba(241, 245, 249, 0.92) !important;
   color: #475569 !important;
+}
+
+/* Application appearance themes. Intensity colors remain owned by their components. */
+html[data-resolved-theme="dark"] {
+  color-scheme: dark;
+}
+
+html[data-resolved-theme="light"] body,
+html[data-resolved-theme="light"] .app-shell {
+  background: #eef2f5 !important;
+  color: #172033 !important;
+}
+
+html[data-resolved-theme="dark"] body,
+html[data-resolved-theme="dark"] .app-shell {
+  background: #070b12 !important;
+  color: #e8edf4 !important;
+}
+
+html[data-resolved-theme="light"] .bottom-tabs,
+html[data-resolved-theme="light"] .settings-menu-sheet,
+html[data-resolved-theme="light"] .settings-inline-panel.settings-detail-panel,
+html[data-resolved-theme="light"] .nerv-full-panel,
+html[data-resolved-theme="light"] .community-post-sheet,
+html[data-resolved-theme="light"] .community-post-detail-sheet,
+html[data-resolved-theme="light"] .community-account-panel,
+html[data-resolved-theme="light"] .source-info-overlay-content,
+html[data-resolved-theme="light"] .preset-picker-dialog,
+html[data-resolved-theme="light"] .weather-quiz-leave-dialog {
+  border-color: rgba(51, 65, 85, 0.16) !important;
+  background: rgba(244, 247, 250, 0.98) !important;
+  color: #172033 !important;
+}
+
+html[data-resolved-theme="dark"] .bottom-tabs,
+html[data-resolved-theme="dark"] .settings-menu-sheet,
+html[data-resolved-theme="dark"] .settings-inline-panel.settings-detail-panel,
+html[data-resolved-theme="dark"] .nerv-full-panel,
+html[data-resolved-theme="dark"] .community-post-sheet,
+html[data-resolved-theme="dark"] .community-post-detail-sheet,
+html[data-resolved-theme="dark"] .community-account-panel,
+html[data-resolved-theme="dark"] .source-info-overlay-content,
+html[data-resolved-theme="dark"] .preset-picker-dialog,
+html[data-resolved-theme="dark"] .weather-quiz-leave-dialog {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  background: rgba(10, 14, 22, 0.98) !important;
+  color: #e8edf4 !important;
+}
+
+html[data-resolved-theme="light"] .settings-menu-head,
+html[data-resolved-theme="light"] .settings-detail-head,
+html[data-resolved-theme="light"] .community-post-head,
+html[data-resolved-theme="light"] .simulation-result-report-head {
+  border-color: rgba(51, 65, 85, 0.14) !important;
+  background: rgba(248, 250, 252, 0.96) !important;
+  color: #172033 !important;
+}
+
+html[data-resolved-theme="dark"] .settings-menu-head,
+html[data-resolved-theme="dark"] .settings-detail-head,
+html[data-resolved-theme="dark"] .community-post-head,
+html[data-resolved-theme="dark"] .simulation-result-report-head {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  background: rgba(10, 14, 22, 0.96) !important;
+  color: #f1f5f9 !important;
+}
+
+html[data-resolved-theme="light"] .settings-menu-head h2,
+html[data-resolved-theme="light"] .settings-detail-head h3,
+html[data-resolved-theme="light"] .settings-menu-close,
+html[data-resolved-theme="light"] .settings-detail-back,
+html[data-resolved-theme="light"] .community-post-head,
+html[data-resolved-theme="light"] .bottom-tabs .tab {
+  color: #334155 !important;
+}
+
+html[data-resolved-theme="dark"] .settings-menu-head h2,
+html[data-resolved-theme="dark"] .settings-detail-head h3,
+html[data-resolved-theme="dark"] .settings-menu-close,
+html[data-resolved-theme="dark"] .settings-detail-back,
+html[data-resolved-theme="dark"] .community-post-head,
+html[data-resolved-theme="dark"] .bottom-tabs .tab {
+  color: #cbd5e1 !important;
+}
+
+html[data-resolved-theme="dark"] .settings-menu-row,
+html[data-resolved-theme="dark"] .settings-status-card,
+html[data-resolved-theme="dark"] .settings-appearance-section,
+html[data-resolved-theme="dark"] .settings-theme-options label,
+html[data-resolved-theme="dark"] .station-info-card,
+html[data-resolved-theme="dark"] .history-stats-card,
+html[data-resolved-theme="dark"] .learning-card,
+html[data-resolved-theme="dark"] .learning-long-period-item,
+html[data-resolved-theme="dark"] .weather-quiz-overview,
+html[data-resolved-theme="dark"] .weather-quiz-card,
+html[data-resolved-theme="dark"] .weather-quiz-history article,
+html[data-resolved-theme="dark"] .community-post-section {
+  border-color: rgba(255, 255, 255, 0.11) !important;
+  background: rgba(255, 255, 255, 0.045) !important;
+  color: #e2e8f0 !important;
+}
+
+html[data-resolved-theme="light"] .community-post-section,
+html[data-resolved-theme="light"] .weather-quiz-overview,
+html[data-resolved-theme="light"] .weather-quiz-card,
+html[data-resolved-theme="light"] .weather-quiz-history article {
+  border-color: rgba(51, 65, 85, 0.14) !important;
+  background: rgba(255, 255, 255, 0.78) !important;
+  color: #1e293b !important;
+}
+
+html[data-resolved-theme="dark"] input:not([type="radio"]):not([type="checkbox"]),
+html[data-resolved-theme="dark"] select,
+html[data-resolved-theme="dark"] textarea {
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  background: rgba(255, 255, 255, 0.07) !important;
+  color: #f1f5f9 !important;
+}
+
+html[data-resolved-theme="dark"] #setup-panel.sim-panel:not(.simulation-result-report-open),
+html[data-resolved-theme="dark"] .simulation-runtime-hud .setup-result-section,
+html[data-resolved-theme="dark"] #setup-panel.simulation-result-report-open {
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  background: rgba(13, 18, 28, 0.96) !important;
+  color: #e5eaf1 !important;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.48) !important;
+}
+
+html[data-resolved-theme="dark"] #setup-panel.sim-panel:not(.simulation-result-report-open)::before {
+  background:
+    radial-gradient(circle at 18% 0%, rgba(14, 165, 233, 0.11), transparent 45%),
+    linear-gradient(180deg, rgba(30, 41, 59, 0.32), rgba(2, 6, 23, 0.08) 58%) !important;
+}
+
+html[data-resolved-theme="dark"] #setup-panel:not(.simulation-result-report-open) .sheet-handle,
+html[data-resolved-theme="dark"] .simulation-runtime-handle {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  background: rgba(13, 18, 28, 0.98) !important;
+}
+
+html[data-resolved-theme="dark"] #setup-panel:not(.simulation-result-report-open) .sheet-handle::after,
+html[data-resolved-theme="dark"] .simulation-runtime-handle::after {
+  background: rgba(203, 213, 225, 0.62) !important;
+}
+
+html[data-resolved-theme="dark"] #setup-panel:not(.simulation-result-report-open) .settings-section,
+html[data-resolved-theme="dark"] #setup-panel:not(.simulation-result-report-open) .field input,
+html[data-resolved-theme="dark"] #setup-panel:not(.simulation-result-report-open) .field select,
+html[data-resolved-theme="dark"] #setup-panel:not(.simulation-result-report-open) .settings-tabs,
+html[data-resolved-theme="dark"] #setup-panel:not(.simulation-result-report-open) .toggle-grid .toggle-row,
+html[data-resolved-theme="dark"] #setup-panel:not(.simulation-result-report-open) .setup-current-location-button,
+html[data-resolved-theme="dark"] .simulation-runtime-hud .simulation-summary:not(.has-observed-intensity),
+html[data-resolved-theme="dark"] .simulation-runtime-hud .simulation-progress-track,
+html[data-resolved-theme="dark"] #setup-panel.simulation-result-report-open .simulation-result-report-summary:not(.has-observed-intensity),
+html[data-resolved-theme="dark"] #setup-panel.simulation-result-report-open .simulation-result-report-stations {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  background: rgba(255, 255, 255, 0.055) !important;
+  color: #e2e8f0 !important;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.035) !important;
+}
+
+html[data-resolved-theme="dark"] #setup-panel:not(.simulation-result-report-open) .field,
+html[data-resolved-theme="dark"] #setup-panel:not(.simulation-result-report-open) .settings-section h3,
+html[data-resolved-theme="dark"] #setup-panel:not(.simulation-result-report-open) .settings-tab,
+html[data-resolved-theme="dark"] .simulation-runtime-hud .simulation-summary:not(.has-observed-intensity) dt,
+html[data-resolved-theme="dark"] .simulation-runtime-hud .simulation-summary:not(.has-observed-intensity) dd,
+html[data-resolved-theme="dark"] .simulation-runtime-hud .simulation-progress-head,
+html[data-resolved-theme="dark"] .simulation-runtime-hud #simulation-region-name,
+html[data-resolved-theme="dark"] .simulation-runtime-hud #simulation-depth,
+html[data-resolved-theme="dark"] .simulation-runtime-hud #simulation-magnitude,
+html[data-resolved-theme="dark"] #setup-panel.simulation-result-report-open .simulation-result-report-head button {
+  color: #dbe4ee !important;
+}
+
+html[data-resolved-theme="dark"] .simulation-timeline-event b,
+html[data-resolved-theme="dark"] .simulation-runtime-hud .simulation-timeline-event b {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  background: rgba(15, 23, 42, 0.92) !important;
+  color: #cbd5e1 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28) !important;
+}
+
+html[data-resolved-theme="dark"] .simulation-timeline-event.is-intensity b,
+html[data-resolved-theme="dark"] .simulation-timeline-event.is-intensity-planned b {
+  border-color: rgba(251, 146, 60, 0.3) !important;
+  background: rgba(67, 32, 8, 0.92) !important;
+  color: #fdba74 !important;
+}
+
+html[data-resolved-theme="dark"] .simulation-timeline-event.is-eew b,
+html[data-resolved-theme="dark"] .simulation-timeline-event.is-eew-planned b {
+  border-color: rgba(248, 113, 113, 0.3) !important;
+  background: rgba(69, 10, 10, 0.92) !important;
+  color: #fca5a5 !important;
+}
+
+html[data-resolved-theme="dark"] .simulation-timeline-event.is-magnitude b,
+html[data-resolved-theme="dark"] .simulation-timeline-event.is-magnitude-planned b {
+  border-color: rgba(148, 163, 184, 0.25) !important;
+  background: rgba(30, 41, 59, 0.92) !important;
+  color: #cbd5e1 !important;
+}
+
+/* Final appearance contrast and fixed-control refinements. */
+html[data-resolved-theme="dark"] .simulation-progress-guides > span {
+  background: rgba(226, 232, 240, 0.48) !important;
+}
+
+html[data-resolved-theme="dark"] .simulation-timeline-event:not(.is-intensity):not(.is-intensity-planned):not(.is-eew):not(.is-eew-planned),
+html[data-resolved-theme="dark"] .simulation-timeline-event.is-lower:not(.is-intensity):not(.is-intensity-planned):not(.is-eew):not(.is-eew-planned) {
+  border-left-color: #cbd5e1 !important;
+}
+
+html[data-resolved-theme="dark"] .simulation-progress-now,
+html[data-resolved-theme="dark"] .simulation-runtime-hud .simulation-progress-now {
+  background: #d6dee8 !important;
+  box-shadow: 0 0 8px rgba(226, 232, 240, 0.42) !important;
+}
+
+html[data-resolved-theme="dark"] .simulation-progress-now::before,
+html[data-resolved-theme="dark"] .simulation-runtime-hud .simulation-progress-now::before {
+  border-top-color: #d6dee8 !important;
+}
+
+.learning-category-switch {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 40 !important;
+  align-self: start !important;
+  transform: none !important;
+  translate: none !important;
+}
+
+html[data-resolved-theme="light"] .learning-intensity-badge {
+  color: var(--learning-intensity-text, #1f2937) !important;
+}
+
+html[data-resolved-theme="light"] .bottom-tabs::after {
+  background: #f5f7fa !important;
+}
+
+html[data-resolved-theme="light"] #info-full-panel .tool-menu-list {
+  gap: 10px !important;
+  padding: 12px !important;
+}
+
+html[data-resolved-theme="light"] #info-full-panel .tool-menu-row {
+  min-height: 92px !important;
+  border: 1px solid rgba(51, 65, 85, 0.15) !important;
+  border-radius: 16px !important;
+  padding: 14px 16px !important;
+  background: rgba(255, 255, 255, 0.86) !important;
+  color: #172033 !important;
+  box-shadow: 0 5px 15px rgba(15, 23, 42, 0.055) !important;
+}
+
+html[data-resolved-theme="light"] #info-full-panel .tool-menu-row strong {
+  color: #172033 !important;
+}
+
+html[data-resolved-theme="light"] #info-full-panel .tool-menu-row small {
+  color: #526176 !important;
+}
+
+html[data-resolved-theme="light"] #info-full-panel .tool-menu-row > span:last-child {
+  color: #64748b !important;
+}
+
+html[data-resolved-theme="dark"] #info-full-panel .tool-menu-list {
+  gap: 10px !important;
+  padding: 12px !important;
+}
+
+html[data-resolved-theme="dark"] #info-full-panel .tool-menu-row {
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 16px !important;
+  padding: 14px 16px !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+
+html[data-resolved-theme="light"] .community-post-button {
+  border-color: #0369a1 !important;
+  background: linear-gradient(180deg, #0284c7, #0369a1) !important;
+  color: #ffffff !important;
+  box-shadow: 0 12px 28px rgba(3, 105, 161, 0.28), inset 0 1px rgba(255, 255, 255, 0.24) !important;
+}
+
+html[data-resolved-theme="light"] .community-map-control {
+  border-color: rgba(51, 65, 85, 0.22) !important;
+  background: rgba(255, 255, 255, 0.94) !important;
+  color: #075985 !important;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.16), inset 0 1px #ffffff !important;
+}
+
+html[data-resolved-theme="light"] .community-map-control:hover,
+html[data-resolved-theme="light"] .community-map-control:focus-visible {
+  border-color: #0284c7 !important;
+  color: #0369a1 !important;
+}
+
+html[data-resolved-theme="dark"] .community-post-button {
+  border-color: rgba(56, 189, 248, 0.48) !important;
+  background: linear-gradient(180deg, #075985, #0c4a6e) !important;
+  color: #e0f2fe !important;
+}
+
+html[data-resolved-theme="light"] .community-profile-card {
+  border-color: rgba(51, 65, 85, 0.14) !important;
+  background:
+    radial-gradient(circle at 85% 20%, rgba(14, 165, 233, 0.1), transparent 38%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(241, 245, 249, 0.9)) !important;
+}
+
+html[data-resolved-theme="light"] .community-profile-main span,
+html[data-resolved-theme="light"] .community-account-note,
+html[data-resolved-theme="light"] .community-account-status {
+  color: #526176 !important;
+}
+
+html[data-resolved-theme="light"] .community-profile-main strong,
+html[data-resolved-theme="light"] .community-profile-follow-counts b,
+html[data-resolved-theme="light"] .community-profile-follow-counts button {
+  color: #172033 !important;
+}
+
+html[data-resolved-theme="light"] .community-profile-main em {
+  background: #dff6fb !important;
+  color: #075985 !important;
+}
+
+html[data-resolved-theme="light"] .community-account-required-card button,
+html[data-resolved-theme="light"] .community-account-panel button {
+  border-color: rgba(3, 105, 161, 0.42) !important;
+  background: #e0f2fe !important;
+  color: #075985 !important;
+}
+
+html[data-resolved-theme="light"] .community-account-panel .community-account-wide-button {
+  border-color: #0e7490 !important;
+  background: #0e7490 !important;
+  color: #ffffff !important;
+}
+
+html[data-resolved-theme="light"] .community-account-panel button:disabled,
+html[data-resolved-theme="light"] .community-account-panel button.is-disabled {
+  border-color: #cbd5e1 !important;
+  background: #e8edf2 !important;
+  color: #64748b !important;
+  opacity: 1 !important;
+}
+
+html[data-resolved-theme="light"] .community-account-danger-actions button:last-child:not(:disabled) {
+  border-color: rgba(190, 24, 93, 0.3) !important;
+  background: #fff1f2 !important;
+  color: #be123c !important;
+}
+
+html[data-resolved-theme="light"] .settings-status-card .settings-notification-row span {
+  color: #172033 !important;
+}
+
+html[data-resolved-theme="light"] .settings-status-card .settings-notification-row strong[data-state="on"] {
+  border-color: #22a564 !important;
+  background: #dcfce7 !important;
+  color: #166534 !important;
+}
+
+html[data-resolved-theme="light"] .settings-status-card .settings-notification-row strong:not([data-state="on"]) {
+  border-color: #fb7185 !important;
+  background: #fff1f2 !important;
+  color: #be123c !important;
+}
+
+/* Complete the light appearance for map controls and preset-earthquake surfaces. */
+html[data-resolved-theme="light"] .map-layer-control-button {
+  border-color: rgba(51, 65, 85, 0.2) !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+  color: #334155 !important;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.15) !important;
+}
+
+html[data-resolved-theme="light"] .map-layer-control-button[aria-expanded="true"] {
+  border-color: #0284c7 !important;
+  color: #0369a1 !important;
+}
+
+html[data-resolved-theme="light"] .map-layer-control-panel {
+  border-color: rgba(51, 65, 85, 0.18) !important;
+  background: rgba(248, 250, 252, 0.98) !important;
+  color: #172033 !important;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.18) !important;
+}
+
+html[data-resolved-theme="light"] .map-layer-control-panel > label {
+  border: 1px solid rgba(51, 65, 85, 0.1) !important;
+  background: rgba(255, 255, 255, 0.9) !important;
+  color: #334155 !important;
+}
+
+html[data-resolved-theme="light"] .preset-picker-head {
+  border-bottom-color: rgba(51, 65, 85, 0.14) !important;
+  background: rgba(248, 250, 252, 0.99) !important;
+  color: #172033 !important;
+}
+
+html[data-resolved-theme="light"] .preset-picker-close,
+html[data-resolved-theme="light"] #preset-picker-close {
+  color: #334155 !important;
+}
+
+html[data-resolved-theme="light"] .preset-filter-input,
+html[data-resolved-theme="light"] .preset-sort-select,
+html[data-resolved-theme="light"] .preset-sort-choice {
+  border-color: rgba(51, 65, 85, 0.18) !important;
+  background: #ffffff !important;
+  color: #334155 !important;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.9) !important;
+}
+
+html[data-resolved-theme="light"] .preset-filter-input::placeholder {
+  color: #64748b !important;
+}
+
+html[data-resolved-theme="light"] .preset-sort-choice.is-active,
+html[data-resolved-theme="light"] .preset-sort-choice[aria-pressed="true"] {
+  border-color: #0284c7 !important;
+  background: #e0f2fe !important;
+  color: #075985 !important;
+}
+
+html[data-resolved-theme="light"] .preset-picker-table-wrap {
+  background: #f1f5f8 !important;
+  color: #172033 !important;
+}
+
+html[data-resolved-theme="light"] .preset-picker-table tbody tr {
+  border-color: rgba(51, 65, 85, 0.12) !important;
+  background: rgba(255, 255, 255, 0.82) !important;
+  color: #172033 !important;
+}
+
+html[data-resolved-theme="light"] .preset-picker-table td {
+  border-color: rgba(51, 65, 85, 0.1) !important;
+  color: #334155 !important;
+}
+
+/* Fixed map HUDs that otherwise retained their dark glass shell in light mode. */
+html[data-resolved-theme="light"] .eew-forecast-panel {
+  border-color: rgba(51, 65, 85, 0.18) !important;
+  background: rgba(248, 250, 252, 0.95) !important;
+  color: #172033 !important;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16) !important;
+}
+
+html[data-resolved-theme="light"] .eew-forecast-panel h2 {
+  color: #172033 !important;
+}
+
+html[data-resolved-theme="light"] .station-popup .maplibregl-popup-content,
+html[data-resolved-theme="light"] .maplibregl-ctrl-group,
+html[data-resolved-theme="light"] .source-info-button {
+  border-color: rgba(51, 65, 85, 0.18) !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+  color: #334155 !important;
+  box-shadow: 0 7px 20px rgba(15, 23, 42, 0.14) !important;
+}
+
+html[data-resolved-theme="light"] .maplibregl-ctrl-group button + button {
+  border-top-color: rgba(51, 65, 85, 0.14) !important;
+}
+
+/* Light-theme contrast audit: borders, semantic learning colors and timeline labels. */
+html[data-resolved-theme="light"] .learning-hero,
+html[data-resolved-theme="light"] .learning-card,
+html[data-resolved-theme="light"] .learning-intensity-item,
+html[data-resolved-theme="light"] .learning-long-period-item,
+html[data-resolved-theme="light"] .weather-quiz-overview,
+html[data-resolved-theme="light"] .weather-quiz-card,
+html[data-resolved-theme="light"] .weather-quiz-results,
+html[data-resolved-theme="light"] .weather-quiz-history article {
+  border-color: rgba(71, 85, 105, 0.24) !important;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.07) !important;
+}
+
+html[data-resolved-theme="light"] .learning-warning-kind-table-wrap,
+html[data-resolved-theme="light"] .learning-level-table-wrap {
+  border-color: #b8c2ce !important;
+  background: #ffffff !important;
+}
+
+html[data-resolved-theme="light"] .learning-warning-kind-table th,
+html[data-resolved-theme="light"] .learning-warning-kind-table td,
+html[data-resolved-theme="light"] .learning-level-table th,
+html[data-resolved-theme="light"] .learning-level-table td,
+html[data-resolved-theme="light"] .learning-typhoon-scale-grid th,
+html[data-resolved-theme="light"] .learning-typhoon-scale-grid td {
+  border: 1px solid #c5ced8 !important;
+}
+
+html[data-resolved-theme="light"] .learning-warning-kind-table thead th,
+html[data-resolved-theme="light"] .learning-level-table thead th,
+html[data-resolved-theme="light"] .learning-typhoon-scale-grid th {
+  background: #e8edf2 !important;
+  color: #1e293b !important;
+}
+
+html[data-resolved-theme="light"] .learning-warning-kind-table tr.is-early {
+  --learning-warning-kind-color: #047857;
+}
+
+html[data-resolved-theme="light"] .learning-warning-kind-table tr.is-advisory {
+  --learning-warning-kind-color: #9a6700;
+}
+
+html[data-resolved-theme="light"] .learning-warning-kind-table tr.is-warning {
+  --learning-warning-kind-color: #c2414f;
+}
+
+html[data-resolved-theme="light"] .learning-warning-kind-table tr.is-danger {
+  --learning-warning-kind-color: #7e22ce;
+}
+
+html[data-resolved-theme="light"] .learning-warning-kind-table tr.is-special {
+  --learning-warning-kind-color: #6b21a8;
+}
+
+html[data-resolved-theme="light"] .learning-warning-kind-table tbody th span {
+  color: var(--learning-warning-kind-color) !important;
+}
+
+html[data-resolved-theme="light"] .learning-level-table tbody tr.is-level-5 th { color: #6b21a8 !important; }
+html[data-resolved-theme="light"] .learning-level-table tbody tr.is-level-4 th { color: #7e22ce !important; }
+html[data-resolved-theme="light"] .learning-level-table tbody tr.is-level-3 th { color: #c2414f !important; }
+html[data-resolved-theme="light"] .learning-level-table tbody tr.is-level-2 th { color: #9a6700 !important; }
+html[data-resolved-theme="light"] .learning-level-table tbody tr.is-level-1 th { color: #047857 !important; }
+
+html[data-resolved-theme="light"] .learning-alert-item.is-tsunami-advisory,
+html[data-resolved-theme="light"] .learning-alert-item.is-level-2 { --learning-alert-color: #9a6700; }
+html[data-resolved-theme="light"] .learning-alert-item.is-tsunami-warning,
+html[data-resolved-theme="light"] .learning-alert-item.is-level-3 { --learning-alert-color: #c2414f; }
+html[data-resolved-theme="light"] .learning-alert-item.is-level-4 { --learning-alert-color: #7e22ce; }
+html[data-resolved-theme="light"] .learning-alert-item.is-major-tsunami,
+html[data-resolved-theme="light"] .learning-alert-item.is-level-5 { --learning-alert-color: #6b21a8; }
+
+html[data-resolved-theme="light"] .learning-alert-item span {
+  color: var(--learning-alert-color) !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-setup fieldset,
+html[data-resolved-theme="light"] .weather-quiz-count-field,
+html[data-resolved-theme="light"] .weather-quiz-choice-grid label > span,
+html[data-resolved-theme="light"] .weather-quiz-judgment button,
+html[data-resolved-theme="light"] .weather-quiz-fill-options button {
+  border-color: #bcc7d2 !important;
+  background: rgba(255, 255, 255, 0.92) !important;
+  color: #1e293b !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-choice-grid label > span::before {
+  border-color: #64748b !important;
+  background: #ffffff !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-choice-grid input:checked + span {
+  border-color: #0f766e !important;
+  background: #e6f4f1 !important;
+  color: #134e4a !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-choice-grid input:checked + span::before {
+  border-color: #0f766e !important;
+  background: #0f766e !important;
+  box-shadow: inset 0 0 0 3px #ffffff !important;
+}
+
+html[data-resolved-theme="light"] input[type="checkbox"],
+html[data-resolved-theme="light"] input[type="radio"] {
+  accent-color: #0f766e !important;
+}
+
+html[data-resolved-theme="light"] .toggle-grid .toggle-row:has(input:checked),
+html[data-resolved-theme="light"] .simulation-layer-toggles .toggle-row:has(input:checked),
+html[data-resolved-theme="light"] .current-location-toggle:has(input:checked) {
+  border-color: rgba(15, 118, 110, 0.5) !important;
+  background: #e6f4f1 !important;
+  color: #134e4a !important;
+  box-shadow: inset 0 1px #ffffff !important;
+}
+
+html[data-resolved-theme="light"] .toggle-grid .toggle-row:has(input:checked)::before,
+html[data-resolved-theme="light"] .simulation-layer-toggles .toggle-row:has(input:checked)::before,
+html[data-resolved-theme="light"] .current-location-toggle:has(input:checked)::before {
+  background: #0f766e !important;
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.13) !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-start,
+html[data-resolved-theme="light"] .weather-quiz-next,
+html[data-resolved-theme="light"] .weather-quiz-restart,
+html[data-resolved-theme="light"] .weather-quiz-actions button:last-child {
+  border-color: #0f766e !important;
+  background: #0f766e !important;
+  color: #ffffff !important;
+  box-shadow: 0 5px 13px rgba(15, 118, 110, 0.18) !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-start:disabled,
+html[data-resolved-theme="light"] .weather-quiz-actions button:disabled {
+  border-color: #cbd5e1 !important;
+  background: #e8edf2 !important;
+  color: #64748b !important;
+  box-shadow: none !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-judgment button.is-correct b,
+html[data-resolved-theme="light"] .weather-quiz-history article:not(.is-wrong) > b,
+html[data-resolved-theme="light"] .weather-quiz-answer:not(.is-wrong) strong {
+  color: #047857 !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-judgment button.is-selected.is-correct,
+html[data-resolved-theme="light"] .weather-quiz-fill-options button.is-correct-answer {
+  border-color: #047857 !important;
+  background: #e8f5ef !important;
+  color: #065f46 !important;
+  opacity: 1 !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-judgment > p,
+html[data-resolved-theme="light"] .weather-quiz-progress-row,
+html[data-resolved-theme="light"] .weather-quiz-results > span,
+html[data-resolved-theme="light"] .weather-quiz-results > p,
+html[data-resolved-theme="light"] .weather-quiz-results > strong small,
+html[data-resolved-theme="light"] .weather-quiz-history article span {
+  color: #526176 !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-meta span,
+html[data-resolved-theme="light"] .weather-quiz-category {
+  border-color: rgba(15, 118, 110, 0.34) !important;
+  background: #e6f4f1 !important;
+  color: #0f766e !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-progress {
+  background: #d5dde5 !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-progress i {
+  background: #0f766e !important;
+}
+
+html[data-resolved-theme="light"] .settings-menu-row,
+html[data-resolved-theme="light"] .settings-status-card,
+html[data-resolved-theme="light"] .settings-appearance-section,
+html[data-resolved-theme="light"] .settings-theme-options label,
+html[data-resolved-theme="light"] .community-profile-card,
+html[data-resolved-theme="light"] .community-account-panel button,
+html[data-resolved-theme="light"] #setup-panel:not(.simulation-result-report-open) .settings-section,
+html[data-resolved-theme="light"] #setup-panel:not(.simulation-result-report-open) .toggle-row {
+  border-color: rgba(71, 85, 105, 0.24) !important;
+}
+
+html[data-resolved-theme="light"] .community-account-panel .community-account-wide-button {
+  border-color: #0f766e !important;
+  background: #0f766e !important;
+}
+
+html[data-resolved-theme="light"] .settings-status-card .settings-notification-row strong[data-state="on"] {
+  border-color: #16865f !important;
+  background: #e7f4ed !important;
+  color: #166534 !important;
+}
+
+html[data-resolved-theme="light"] .simulation-progress-guides > span {
+  width: 1px !important;
+  background: rgba(51, 65, 85, 0.34) !important;
+}
+
+html[data-resolved-theme="light"] .simulation-progress-guides > span::after,
+html[data-resolved-theme="light"] .simulation-timeline-event small {
+  color: #475569 !important;
+}
+
+html[data-resolved-theme="light"] .simulation-progress-now,
+html[data-resolved-theme="light"] .simulation-runtime-hud .simulation-progress-now {
+  width: 1px !important;
+  background: #111827 !important;
+  box-shadow: 0 0 3px rgba(17, 24, 39, 0.28) !important;
+}
+
+/* Make timeline guide lines meet the track frame exactly. */
+.simulation-progress-track {
+  --timeline-track-height: 176px;
+}
+
+.simulation-runtime-hud .simulation-progress-track {
+  --timeline-track-height: 88px;
+}
+
+.simulation-progress-guides {
+  top: 0 !important;
+  bottom: auto !important;
+  height: var(--timeline-track-height) !important;
+}
+
+.simulation-progress-guides > span {
+  top: 0 !important;
+  bottom: 0 !important;
+}
+
+/* The simulation layer control remains a white control in the light map. */
+html[data-resolved-theme="light"] body[data-active-bottom-tab="earthquake-tab"] #map-layer-control-button {
+  border: 1px solid rgba(71, 85, 105, 0.28) !important;
+  background: #ffffff !important;
+  color: #334155 !important;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.16) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html[data-resolved-theme="light"] body[data-active-bottom-tab="earthquake-tab"] #map-layer-control-button[aria-expanded="true"] {
+  border-color: #0f766e !important;
+  color: #0f766e !important;
+}
+
+/* Final light-theme readability for destructive actions, dialogs and posting UI. */
+html[data-resolved-theme="light"] .simulation-start:not(:disabled),
+html[data-resolved-theme="light"] .simulation-stop:not(:disabled),
+html[data-resolved-theme="light"] .feedback-submit:not(:disabled),
+html[data-resolved-theme="light"] .admin-mode-maintenance:not(:disabled),
+html[data-resolved-theme="light"] .maintenance-reason-submit:not(:disabled),
+html[data-resolved-theme="light"] .community-post-submit:not(:disabled),
+html[data-resolved-theme="light"] .community-post-delete-button:not(:disabled) {
+  color: #ffffff !important;
+}
+
+html[data-resolved-theme="light"] .community-profile-icon {
+  border: 2px solid #94a3b8 !important;
+  background: #ffffff !important;
+  color: #334155 !important;
+  box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.16), 0 4px 10px rgba(15, 23, 42, 0.1) !important;
+}
+
+html[data-resolved-theme="light"] .community-profile-icon img {
+  border: 1px solid rgba(71, 85, 105, 0.18) !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-leave-dialog {
+  border-color: rgba(71, 85, 105, 0.28) !important;
+  background: #f8fafc !important;
+  color: #172033 !important;
+  box-shadow: 0 22px 70px rgba(15, 23, 42, 0.3) !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-leave-dialog h2 {
+  color: #172033 !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-leave-dialog p {
+  color: #526176 !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-leave-actions button {
+  border-color: #b8c3ce !important;
+  background: #ffffff !important;
+  color: #334155 !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-leave-actions [data-weather-quiz-leave-yes] {
+  border-color: #e11d48 !important;
+  background: #e11d48 !important;
+  color: #ffffff !important;
+}
+
+html[data-resolved-theme="light"] .community-post-head {
+  border-bottom: 1px solid rgba(71, 85, 105, 0.18) !important;
+  background: rgba(248, 250, 252, 0.98) !important;
+  color: #172033 !important;
+}
+
+html[data-resolved-theme="light"] .community-post-close {
+  border-color: rgba(71, 85, 105, 0.24) !important;
+  background: #ffffff !important;
+  color: #334155 !important;
+}
+
+html[data-resolved-theme="light"] .community-post-section h3,
+html[data-resolved-theme="light"] .community-post-location,
+html[data-resolved-theme="light"] .community-media-picker span,
+html[data-resolved-theme="light"] .community-media-picker small {
+  color: #475569 !important;
+}
+
+html[data-resolved-theme="light"] .community-post-location-actions button,
+html[data-resolved-theme="light"] .community-post-tags label,
+html[data-resolved-theme="light"] .community-media-picker,
+html[data-resolved-theme="light"] .community-media-remove {
+  border-color: #b8c3ce !important;
+  background: #ffffff !important;
+  color: #334155 !important;
+}
+
+html[data-resolved-theme="light"] .community-media-picker {
+  border-color: #94a3b8 !important;
+}
+
+html[data-resolved-theme="light"] .community-post-tags label:has(input:checked) {
+  border-color: #0f766e !important;
+  background: #e6f4f1 !important;
+  color: #134e4a !important;
+}
+
+html[data-resolved-theme="light"] .community-post-submit {
+  border-color: #c70c40 !important;
+  background: linear-gradient(180deg, #f43f5e, #be123c) !important;
+  color: #ffffff !important;
+}
+
+html[data-resolved-theme="light"] .admin-mode-maintenance,
+html[data-resolved-theme="light"] .maintenance-reason-submit,
+html[data-resolved-theme="light"] .feedback-submit {
+  color: #ffffff !important;
 }

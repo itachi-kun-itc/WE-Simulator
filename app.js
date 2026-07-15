@@ -560,11 +560,9 @@ let sourceInfoScrollClampFrame = 0;
 let sourceInfoTouchStart = null;
 let hyogoNanbuSyntheticStationCache;
 let stationPopup;
-let stationClickPopup;
 let stationHoverEventsBound = false;
 let hoveredStationFeatureId = null;
 let hoveredStationLngLat = null;
-let clickedStationFeatureId = null;
 let stationCanvasOverlay;
 let stationCanvasRenderFrame = 0;
 let stationSourceInputDataRef = null;
@@ -575,9 +573,7 @@ let appOverlays;
 let latestMaintenanceStatus = { maintenance: false, reason: "" };
 let currentLocationMarker;
 let epicenterHoverPopup;
-let epicenterClickPopup;
 let epicenterHoverLngLat = null;
-let epicenterPopupPinned = false;
 let currentLocationRequestId = 0;
 let currentLocationForecastCache;
 let locationResolveTimer;
@@ -976,10 +972,25 @@ function setupTabs() {
   };
 
   const ensureSettingsAppearanceElements = () => {
-    els.settingsMenuSheet?.querySelector("#settings-appearance-button")?.remove();
-    els.settingsMenuSheet?.querySelector("#settings-appearance-panel")?.remove();
-    els.settingsAppearanceButton = null;
-    els.settingsAppearancePanel = null;
+    const list = els.settingsMenuSheet?.querySelector(".settings-menu-list");
+    if (!list) return;
+    if (!els.settingsAppearanceButton) {
+      const button = document.createElement("button");
+      button.className = "settings-menu-row";
+      button.id = "settings-appearance-button";
+      button.type = "button";
+      button.innerHTML = `<span>外観</span><span aria-hidden="true">›</span>`;
+      list.append(button);
+      els.settingsAppearanceButton = button;
+    }
+    if (!els.settingsAppearancePanel) {
+      const panel = document.createElement("section");
+      panel.className = "settings-inline-panel hidden";
+      panel.id = "settings-appearance-panel";
+      panel.setAttribute("aria-label", "外観");
+      list.append(panel);
+      els.settingsAppearancePanel = panel;
+    }
   };
 
   const ensureSettingsAppearancePanel = () => {
@@ -1001,9 +1012,9 @@ function setupTabs() {
       <section class="settings-appearance-section">
         <h4>表示テーマ</h4>
         <div class="settings-theme-options" role="radiogroup" aria-label="表示テーマ">
+          <label><input type="radio" name="appearance-theme" value="light" /> <span>ホワイト</span></label>
+          <label><input type="radio" name="appearance-theme" value="dark" /> <span>ダーク</span></label>
           <label><input type="radio" name="appearance-theme" value="system" /> <span>システムに従う</span></label>
-          <label><input type="radio" name="appearance-theme" value="light" /> <span>ライトモード</span></label>
-          <label><input type="radio" name="appearance-theme" value="dark" /> <span>ダークモード</span></label>
         </div>
       </section>
       <section class="settings-appearance-section settings-appearance-color-section">
@@ -1019,7 +1030,7 @@ function setupTabs() {
       appearanceHeadings[1].textContent = "震度配色";
     }
     const themeLabels = els.settingsAppearancePanel.querySelectorAll(".settings-theme-options label span");
-    ["システムに従う", "ライトモード", "ダークモード"].forEach((label, index) => {
+    ["ホワイト", "ダーク", "システムに従う"].forEach((label, index) => {
       if (themeLabels[index]) {
         themeLabels[index].textContent = label;
       }
@@ -4992,7 +5003,7 @@ function setHistoryMapModeActive(active) {
   if (!map) {
     return;
   }
-  applySimulationWhiteMapStyle(!active);
+  applySimulationWhiteMapStyle(isResolvedAppearanceLight());
   map.setMaxZoom?.(active ? 7.2 : SIMULATION_MAP_MAX_ZOOM);
 
   if (active && !wasActive) {
@@ -5259,6 +5270,7 @@ function setCommunityMapModeActive(active) {
   ];
   if (active) {
     ensureCommunityMapLayer();
+    setCommunityMapStyle(isResolvedAppearanceLight() ? "light" : "dark", { persist: false });
     void refreshSystemPermissionStates();
   }
   updateCommunityMapStyleLayers(Boolean(active));
@@ -5307,7 +5319,7 @@ function restoreSimulationMapLayersAfterCommunityMode() {
   ].forEach((layerId) => updateLayerVisibility(layerId, true));
   updateLayerVisibility("community-light-map", false);
   updateLayerVisibility("community-dark-map", false);
-  applySimulationWhiteMapStyle(!document.body.classList.contains("history-map-mode"));
+  applySimulationWhiteMapStyle(isResolvedAppearanceLight());
 }
 
 function ensureCommunityMapLayer() {
@@ -7270,17 +7282,6 @@ function ensureCommunityPostUi() {
     });
   }
 
-  const styleControls = document.createElement("div");
-  styleControls.className = "community-map-style-controls";
-  styleControls.setAttribute("aria-label", "投稿マップの配色");
-  styleControls.innerHTML = `
-    <button type="button" data-community-map-style="light" aria-pressed="false">ライト</button>
-    <button type="button" data-community-map-style="dark" aria-pressed="false">ダーク</button>
-  `;
-  styleControls.querySelectorAll("[data-community-map-style]").forEach((styleButton) => {
-    styleButton.addEventListener("click", () => setCommunityMapStyle(styleButton.dataset.communityMapStyle));
-  });
-
   const overlay = document.createElement("section");
   overlay.id = "community-post-overlay";
   overlay.className = "community-post-overlay hidden";
@@ -7358,7 +7359,7 @@ function ensureCommunityPostUi() {
     </div>
   `;
 
-  document.body.append(button, mapControls, styleControls, overlay);
+  document.body.append(button, mapControls, overlay);
   setCommunityMapStyle(communityMapStyle, { persist: false });
 
   const form = overlay.querySelector("#community-post-form");
@@ -7394,7 +7395,6 @@ function ensureCommunityPostUi() {
   communityPostOverlayElements = {
     button,
     mapControls,
-    styleControls,
     refreshControl,
     currentLocationControl,
     overlay,
@@ -8179,6 +8179,23 @@ function applyAppearanceTheme(value = getAppearanceTheme()) {
   const resolved = value === "system" ? (systemDark ? "dark" : "light") : value;
   document.documentElement.dataset.appearanceTheme = value;
   document.documentElement.dataset.resolvedTheme = resolved;
+  document.querySelector('meta[name="theme-color"]')?.setAttribute(
+    "content",
+    resolved === "light" ? "#eef2f5" : "#070b12",
+  );
+  if (map) {
+    setCommunityMapStyle(resolved, { persist: false });
+    if (!document.body.classList.contains("community-map-mode")) {
+      applySimulationWhiteMapStyle(resolved === "light");
+    }
+  }
+  els.settingsAppearancePanel?.querySelectorAll('input[name="appearance-theme"]').forEach((input) => {
+    input.checked = input.value === value;
+  });
+}
+
+function isResolvedAppearanceLight() {
+  return document.documentElement.dataset.resolvedTheme === "light";
 }
 
 function base64UrlToUint8Array(value) {
@@ -13244,6 +13261,7 @@ function addMapLayers() {
   });
 
   keepWaveAndStationLayerOrder();
+  applySimulationWhiteMapStyle(isResolvedAppearanceLight());
 }
 
 function addLayerIfMissing(layer) {
@@ -13367,8 +13385,16 @@ function applySimulationWhiteMapStyle(enabled) {
     "fill-outline-color",
     whiteMap ? "rgba(174, 184, 195, 0)" : "rgba(60, 61, 64, 0)",
   );
-  setPaint("japan-land-gap-fill", "line-color", whiteMap ? "#eef1f4" : "#3c3d40");
-  setPaint("japan-land-gap-fill", "line-opacity", whiteMap ? 0 : 1);
+  setPaint("japan-land-gap-fill", "line-color", whiteMap ? "#96a3b0" : "#3c3d40");
+  setPaint("japan-land-gap-fill", "line-opacity", whiteMap ? 0.9 : 1);
+  setPaint(
+    "japan-land-gap-fill",
+    "line-width",
+    whiteMap
+      ? ["interpolate", ["linear"], ["zoom"], 4, 0.55, 7, 0.78, 10, 1.02, 12, 1.15]
+      : ["interpolate", ["linear"], ["zoom"], 4, 2.1, 7, 1.45, 10, 0.8, 12, 0.55],
+  );
+  setPaint("japan-land-gap-fill", "line-blur", whiteMap ? 0.08 : 0);
   setPaint("jma-local-area-boundaries", "line-color", whiteMap ? "#aab3bd" : "#dce3ed");
   setPaint(
     "jma-local-area-boundaries",
@@ -14008,10 +14034,6 @@ function closeInactiveStationPopups() {
     stationPopup?.remove();
   }
 
-  if (isSubmarineFeatureId(clickedStationFeatureId) && !visibleIds.has(clickedStationFeatureId)) {
-    clickedStationFeatureId = null;
-    stationClickPopup?.remove();
-  }
 }
 
 function isSubmarineFeatureId(featureId) {
@@ -14102,16 +14124,6 @@ function setupStationHoverPopup() {
     className: "station-popup",
     offset: 10,
   });
-  stationClickPopup = new maplibregl.Popup({
-    anchor: "bottom",
-    closeButton: true,
-    closeOnClick: false,
-    className: "station-popup",
-    offset: 14,
-  });
-  stationClickPopup.on("close", () => {
-    clickedStationFeatureId = null;
-  });
 
   ["shindo-station-points", "submarine-observation-fill"].forEach((layerId) => {
     bindStationPopupLayer(layerId);
@@ -14135,38 +14147,11 @@ function bindStationPopupLayer(layerId) {
     }
 
     hoveredStationFeatureId = String(feature.properties?.id ?? "");
-    if (clickedStationFeatureId && clickedStationFeatureId === hoveredStationFeatureId) {
-      stationPopup.remove();
-      return;
-    }
     hoveredStationLngLat = event.lngLat;
     stationPopup
       .setLngLat(event.lngLat)
       .setHTML(stationPopupHtml(properties))
       .addTo(map);
-  });
-
-  map.on("click", layerId, (event) => {
-    const feature = event.features?.[0];
-    if (!feature) {
-      return;
-    }
-    const properties = getStationPopupProperties(feature.properties);
-    if (!isStationFeatureInteractive(properties)) {
-      return;
-    }
-
-    event.preventDefault();
-    event.originalEvent?.stopPropagation?.();
-    const nextClickedStationFeatureId = String(feature.properties?.id ?? "");
-    if (nextClickedStationFeatureId === hoveredStationFeatureId) {
-      stationPopup.remove();
-    }
-    stationClickPopup
-      .setLngLat(event.lngLat)
-      .setHTML(stationPopupHtml(properties))
-      .addTo(map);
-    clickedStationFeatureId = nextClickedStationFeatureId;
   });
 
   map.on("mouseleave", layerId, () => {
@@ -14198,21 +14183,10 @@ function updateActiveStationPopups(data = sourceDataRefs.get("shindo-stations"))
   if (hoveredStationFeatureId && stationPopup?.isOpen?.()) {
     const properties = findStationFeaturePropertiesById(hoveredStationFeatureId, data);
     if (properties) {
-      if (clickedStationFeatureId && clickedStationFeatureId === hoveredStationFeatureId) {
-        stationPopup.remove();
-        return;
-      }
       if (hoveredStationLngLat) {
         stationPopup.setLngLat(hoveredStationLngLat);
       }
       stationPopup.setHTML(stationPopupHtml(properties));
-    }
-  }
-
-  if (clickedStationFeatureId && stationClickPopup?.isOpen?.()) {
-    const properties = findStationFeaturePropertiesById(clickedStationFeatureId, data);
-    if (properties) {
-      stationClickPopup.setHTML(stationPopupHtml(properties));
     }
   }
 }
@@ -16990,8 +16964,8 @@ async function updateEpicenter(options = {}) {
     const markerElement = document.createElement("span");
     markerElement.className = "epicenter-marker-shell";
     markerElement.tabIndex = 0;
-    markerElement.setAttribute("role", "button");
-    markerElement.setAttribute("aria-label", "震度情報を表示");
+    markerElement.setAttribute("role", "img");
+    markerElement.setAttribute("aria-label", "震源地");
     markerElement.innerHTML = `
       <svg class="epicenter-marker" viewBox="0 0 48 48" aria-hidden="true">
         <path d="M10 15 L15 10 L24 19 L33 10 L38 15 L29 24 L38 33 L33 38 L24 29 L15 38 L10 33 L19 24 Z" />
@@ -17012,16 +16986,6 @@ async function updateEpicenter(options = {}) {
       className: "station-popup epicenter-popup",
       offset: 10,
     });
-    epicenterClickPopup = new maplibregl.Popup({
-      anchor: "bottom",
-      closeButton: true,
-      closeOnClick: true,
-      className: "station-popup epicenter-popup",
-      offset: 14,
-    });
-    epicenterClickPopup.on("close", () => {
-      epicenterPopupPinned = false;
-    });
 
     const getEpicenterEventLngLat = (event) => {
       const rect = map.getContainer().getBoundingClientRect();
@@ -17029,7 +16993,7 @@ async function updateEpicenter(options = {}) {
     };
 
     const openEpicenterHoverPopup = (event) => {
-      if (state.epicenterEditEnabled || epicenterPopupPinned) {
+      if (state.epicenterEditEnabled) {
         epicenterHoverPopup.remove();
         return;
       }
@@ -17080,13 +17044,9 @@ async function updateEpicenter(options = {}) {
         return;
       }
       event.stopPropagation();
-      epicenterPopupPinned = true;
       epicenterHoverLngLat = null;
       epicenterHoverPopup.remove();
-      epicenterClickPopup
-        .setLngLat(getEpicenterEventLngLat(event))
-        .setHTML(buildEpicenterPopupHtml())
-        .addTo(map);
+      markerElement.blur();
     });
 
     epicenterMarker.on("dragend", () => {
@@ -17131,18 +17091,11 @@ function updateActiveEpicenterPopups(lngLat = [state.longitude, state.latitude])
       .setHTML(buildEpicenterPopupHtml());
   }
 
-  if (epicenterClickPopup?.isOpen?.()) {
-    epicenterClickPopup
-      .setLngLat(lngLat)
-      .setHTML(buildEpicenterPopupHtml());
-  }
 }
 
 function closeEpicenterInfoPopups() {
-  epicenterPopupPinned = false;
   epicenterHoverLngLat = null;
   epicenterHoverPopup?.remove();
-  epicenterClickPopup?.remove();
   if (map) {
     map.getCanvas().style.cursor = "";
   }
