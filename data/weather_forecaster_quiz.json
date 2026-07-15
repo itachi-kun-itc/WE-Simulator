@@ -388,7 +388,7 @@
   { "exam": "第60回", "year": "令和5年度第1回", "category": "専門知識", "sourceQuestion": 12, "question": "地震で堤防が損傷した場合、洪水警報基準を暫定的に下げることがありますか。", "answer": "あります。", "wrongAnswer": "基準は被害状況にかかわらず固定です。" },
   { "exam": "第60回", "year": "令和5年度第1回", "category": "専門知識", "sourceQuestion": 13, "question": "湿った雪による着雪害は、豪雪地帯以外でも発生しますか。", "answer": "発生します。", "wrongAnswer": "豪雪地帯だけで発生します。" },
   { "exam": "第60回", "year": "令和5年度第1回", "category": "専門知識", "sourceQuestion": 14, "question": "二乗平均平方根誤差（RMSE）で、予報誤差の標準的な大きさを評価できますか。", "answer": "評価できます。", "wrongAnswer": "正負の系統的偏りだけを評価する指標です。" },
-  { "exam": "第60回", "year": "令和5年度第1回", "category": "専門知識", "sourceQuestion": 15, "question": "負の北極振動では、寒帯前線ジェットが弱まり蛇行しやすいですか。", "answer": "その傾向があります。", "wrongAnswer": "強まり直線的になりやすいです。" },
+  { "exam": "第60回", "year": "令和5年度第1回", "category": "専門知識", "sourceQuestion": 15, "question": "負の北極振動では、寒帯前線ジェットが弱まり蛇行しやすいですか。", "answer": "その傾向があります。", "wrongAnswer": "負の北極振動では、寒帯前線ジェットが強まり直線的になりやすいです。" },
   { "exam": "第61回", "year": "令和5年度第2回", "category": "一般知識", "sourceQuestion": 1, "question": "成層圏のオゾンは、酸素分子の光解離で生じた酸素原子と酸素分子の結合によって生成されますか。", "answer": "生成されます。", "wrongAnswer": "窒素分子同士の結合だけで生成されます。" },
   { "exam": "第61回", "year": "令和5年度第2回", "category": "一般知識", "sourceQuestion": 2, "question": "地球のアルベドが大きくなると、放射平衡温度は低下しますか。", "answer": "低下します。", "wrongAnswer": "吸収する太陽放射が増えるため上昇します。" },
   { "exam": "第61回", "year": "令和5年度第2回", "category": "一般知識", "sourceQuestion": 3, "question": "未飽和空気塊を断熱上昇させる間、温位と水蒸気混合比は保存されますか。", "answer": "凝結高度まではどちらも保存されます。", "wrongAnswer": "温位は低下し、混合比は増加します。" },

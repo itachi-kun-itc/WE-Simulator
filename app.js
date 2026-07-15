@@ -79,6 +79,7 @@ const LEGACY_NOTIFICATION_HISTORY_ITEMS = [
   },
 ];
 const WEATHER_FORECASTER_QUIZ_URL = "./data/weather_forecaster_quiz_questions.json";
+const WEATHER_QUIZ_GOOD_QUESTION_KEYS_STORAGE_KEY = "weather-earthquake-weather-quiz-good-question-keys-v1";
 let weatherForecasterQuizItems = null;
 let weatherForecasterQuizLoadPromise = null;
 const MAINTENANCE_STATUS_POLL_MS = 60000;
@@ -830,11 +831,6 @@ window.matchMedia?.("(prefers-color-scheme: dark)")?.addEventListener?.("change"
   }
 });
 setupMobileSheets();
-window.requestAnimationFrame(() => {
-  window.requestAnimationFrame(() => {
-    document.documentElement.removeAttribute("data-app-booting");
-  });
-});
 setupMapMenuGestures();
 setupTransientPanelScrollbars();
 setupPanelScrollbarOffsets();
@@ -1782,8 +1778,8 @@ function setupTabs() {
     return WEATHER_QUIZ_QUESTION_REWRITES.get(value) || value;
   };
 
-  const loadWeatherForecasterQuizItems = async () => {
-    if (weatherForecasterQuizItems?.length) {
+  const loadWeatherForecasterQuizItems = async ({ forceRefresh = false } = {}) => {
+    if (weatherForecasterQuizItems?.length && !forceRefresh) {
       return weatherForecasterQuizItems;
     }
     if (!weatherForecasterQuizLoadPromise) {
@@ -2001,6 +1997,138 @@ function setupTabs() {
 
   const getWeatherQuizStage = () => els.infoFullPanel?.querySelector("#weather-quiz-stage");
 
+  const getWeatherQuizGoodQuestionKeys = () => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(WEATHER_QUIZ_GOOD_QUESTION_KEYS_STORAGE_KEY) || "[]");
+      return new Set(Array.isArray(stored) ? stored.map(String) : []);
+    } catch (error) {
+      console.warn("Failed to load good weather quiz questions", error);
+      return new Set();
+    }
+  };
+
+  const getWeatherQuizQuestionKey = (item, mode) => {
+    const itemKey = item?.id || `${item?.exam || ""}|${item?.category || ""}|${item?.sourceQuestion || ""}`;
+    return `${mode === "fill" ? "fill" : "truefalse"}:${itemKey}`;
+  };
+
+  const isGoodWeatherQuizQuestion = (item, mode) => (
+    getWeatherQuizGoodQuestionKeys().has(getWeatherQuizQuestionKey(item, mode))
+  );
+
+  const setGoodWeatherQuizQuestion = (item, mode, selected) => {
+    const keys = getWeatherQuizGoodQuestionKeys();
+    const key = getWeatherQuizQuestionKey(item, mode);
+    if (selected) {
+      keys.add(key);
+    } else {
+      keys.delete(key);
+    }
+    try {
+      localStorage.setItem(WEATHER_QUIZ_GOOD_QUESTION_KEYS_STORAGE_KEY, JSON.stringify([...keys]));
+    } catch (error) {
+      console.warn("Failed to save good weather quiz questions", error);
+    }
+    return selected;
+  };
+
+  const getWeatherQuizReportDetails = (item, mode) => {
+    const isFillQuestion = mode === "fill";
+    const choices = isFillQuestion
+      ? [...(item?.options || [])].slice(0, 4)
+      : ["◯", "✕", "", ""];
+    while (choices.length < 4) {
+      choices.push("");
+    }
+    return {
+      questionType: isFillQuestion ? "4択問題" : "◯✕問題",
+      question: String(isFillQuestion ? item?.question : item?.statement || "").trim(),
+      choices: choices.map((choice) => String(choice || "")),
+      choice1: String(choices[0] || ""),
+      choice2: String(choices[1] || ""),
+      choice3: String(choices[2] || ""),
+      choice4: String(choices[3] || ""),
+      answer: String(isFillQuestion ? item?.correctTerm : (item?.answerIsCorrect ? "◯" : "✕")),
+      explanation: String(createWeatherQuizKnowledgeExplanation(item) || "").trim(),
+    };
+  };
+
+  const sendWeatherQuizBadQuestionReport = async (item, mode, reason) => {
+    const details = getWeatherQuizReportDetails(item, mode);
+    await fetch(FEEDBACK_ENDPOINT_URL, {
+      method: "POST",
+      mode: "no-cors",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8",
+      },
+      body: JSON.stringify({
+        action: "reportWeatherQuizQuestion",
+        createdAt: new Date().toISOString(),
+        userAgent: navigator.userAgent,
+        badQuestionReason: String(reason || "").replace(/\r\n?/g, "\n"),
+        ...details,
+      }),
+    });
+  };
+
+  const openWeatherQuizBadQuestionDialog = (item, mode) => {
+    document.querySelector(".weather-quiz-quality-overlay")?.remove();
+    const details = getWeatherQuizReportDetails(item, mode);
+    const overlay = document.createElement("section");
+    overlay.className = "weather-quiz-quality-overlay";
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.setAttribute("aria-labelledby", "weather-quiz-quality-title");
+    overlay.innerHTML = `
+      <form class="weather-quiz-quality-dialog">
+        <h2 id="weather-quiz-quality-title">悪問として報告</h2>
+        <p class="weather-quiz-quality-question">${escapeHtml(details.question)}</p>
+        <label>
+          <span>悪問だと思った理由</span>
+          <textarea name="reason" rows="5" maxlength="2000" required placeholder="問題文が不自然、正解が複数ある、解説と解答が一致しないなど"></textarea>
+        </label>
+        <p class="weather-quiz-quality-status" role="status" aria-live="polite"></p>
+        <div class="weather-quiz-quality-dialog-actions">
+          <button type="button" data-weather-quiz-quality-cancel>キャンセル</button>
+          <button type="submit">送信</button>
+        </div>
+      </form>
+    `;
+    const form = overlay.querySelector("form");
+    const textarea = overlay.querySelector("textarea");
+    const status = overlay.querySelector(".weather-quiz-quality-status");
+    const submitButton = form?.querySelector('button[type="submit"]');
+    const close = () => overlay.remove();
+    overlay.querySelector("[data-weather-quiz-quality-cancel]")?.addEventListener("click", close);
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) close();
+    });
+    form?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const reason = textarea?.value.trim() || "";
+      if (!reason) {
+        if (status) status.textContent = "悪問理由を入力してください。";
+        textarea?.focus();
+        return;
+      }
+      if (submitButton) submitButton.disabled = true;
+      if (textarea) textarea.disabled = true;
+      if (status) status.textContent = "送信中…";
+      try {
+        await sendWeatherQuizBadQuestionReport(item, mode, reason);
+        if (status) status.textContent = "送信しました。";
+        setTimeout(close, 700);
+      } catch (error) {
+        console.warn("Failed to report bad weather quiz question", error);
+        if (status) status.textContent = "送信できませんでした。時間をおいて再度お試しください。";
+        if (submitButton) submitButton.disabled = false;
+        if (textarea) textarea.disabled = false;
+      }
+    });
+    document.body.append(overlay);
+    requestAnimationFrame(() => textarea?.focus());
+  };
+
   const WEATHER_QUIZ_FILL_TERM_GROUPS = [
     ["露点温度", "湿球温度", "仮温度", "相当温位"],
     ["衝突・併合過程", "凝結過程", "昇華過程", "蒸発過程"],
@@ -2043,30 +2171,8 @@ function setupTabs() {
         quizMode: "fill",
         question: item.multipleChoice.question,
         correctTerm: item.multipleChoice.choices[item.multipleChoice.correctIndex],
-        options: shuffleWeatherQuizItems(item.multipleChoice.choices),
+        options: [...item.multipleChoice.choices],
         explanation: item.multipleChoice.explanation,
-      };
-    }
-    if (item?.quizMode === "fill" && Array.isArray(item.options)) {
-      return { ...item, options: shuffleWeatherQuizItems(item.options) };
-    }
-    const answer = String(item?.answer || "").trim();
-    const question = String(item?.question || "").trim();
-    for (const terms of WEATHER_QUIZ_FILL_TERM_GROUPS) {
-      const correctTerm = terms.find((term) => answer.includes(term));
-      if (!correctTerm || question.includes(correctTerm)) {
-        continue;
-      }
-      const answerWithoutCorrectTerm = answer.split(correctTerm).join("");
-      if (terms.some((term) => term !== correctTerm && answerWithoutCorrectTerm.includes(term))) {
-        continue;
-      }
-      return {
-        ...item,
-        quizMode: "fill",
-        question,
-        correctTerm,
-        options: shuffleWeatherQuizItems(terms),
       };
     }
     return null;
@@ -2191,18 +2297,7 @@ function setupTabs() {
         }],
       };
     }
-    if (Array.isArray(item?.trueFalseVariants) && item.trueFalseVariants.length) {
-      return item;
-    }
-    const distractor = createWeatherQuizDistractor(item);
-    const variants = [
-      { answerIsCorrect: true, claim: item.answer },
-      ...(distractor ? [{ answerIsCorrect: false, claim: distractor }] : []),
-    ].map((variant) => ({
-      ...variant,
-      statement: createWeatherQuizTrueFalseStatement(item, variant.claim),
-    })).filter((variant) => isWeatherQuizTrueFalseStatementValid(variant.statement));
-    return variants.length ? { ...item, trueFalseVariants: variants } : null;
+    return null;
   };
 
   const createWeatherQuizKnowledgeExplanation = (item) => {
@@ -2234,20 +2329,14 @@ function setupTabs() {
     if (!uniqueItems.length) {
       return;
     }
-    const correctFirst = Math.random() >= 0.5;
     weatherQuizSession = {
       mode: quizMode,
-      questions: uniqueItems.map((item, index) => {
+      questions: uniqueItems.map((item) => {
         if (quizMode === "fill") {
-          return {
-            ...item,
-            options: shuffleWeatherQuizItems(item.options),
-          };
+          return { ...item, options: shuffleWeatherQuizItems(item.options) };
         }
-        const shouldShowCorrectAnswer = index % 2 === (correctFirst ? 0 : 1);
         const variants = item.trueFalseVariants || [];
-        const variant = variants.find((candidate) => candidate.answerIsCorrect === shouldShowCorrectAnswer)
-          || variants[index % variants.length];
+        const variant = variants[0];
         return {
           ...item,
           answerIsCorrect: variant.answerIsCorrect,
@@ -2262,11 +2351,81 @@ function setupTabs() {
     renderWeatherQuizQuestion();
   };
 
+  const getWeatherQuizGoodQuestionEntries = () => {
+    const goodKeys = getWeatherQuizGoodQuestionKeys();
+    return weatherForecasterQuizItems.flatMap((sourceItem) => ["truefalse", "fill"].flatMap((mode) => {
+      if (!goodKeys.has(getWeatherQuizQuestionKey(sourceItem, mode))) {
+        return [];
+      }
+      const preparedItem = mode === "fill"
+        ? createWeatherQuizFillItem(sourceItem)
+        : prepareWeatherQuizTrueFalseItem(sourceItem);
+      if (!preparedItem) {
+        return [];
+      }
+      const question = mode === "fill"
+        ? preparedItem.question
+        : preparedItem.trueFalseVariants?.[0]?.statement;
+      return [{ sourceItem, preparedItem, mode, question: String(question || "") }];
+    })).sort((left, right) => (
+      Number(right.sourceItem.exam?.match(/\d+/)?.[0] || 0) - Number(left.sourceItem.exam?.match(/\d+/)?.[0] || 0)
+      || String(left.sourceItem.category || "").localeCompare(String(right.sourceItem.category || ""), "ja")
+      || Number(left.sourceItem.sourceQuestion || 0) - Number(right.sourceItem.sourceQuestion || 0)
+      || left.mode.localeCompare(right.mode)
+    ));
+  };
+
+  const renderWeatherQuizGoodQuestionList = () => {
+    const stage = getWeatherQuizStage();
+    if (!stage) {
+      return;
+    }
+    stage.dataset.weatherQuizView = "good-list";
+    const entries = getWeatherQuizGoodQuestionEntries();
+    stage.closest(".weather-quiz-content")?.querySelector(".weather-quiz-overview")?.classList.add("hidden");
+    stage.innerHTML = `
+      <section class="weather-quiz-good-list-page">
+        <div class="weather-quiz-good-list-head">
+          <div><span>保存済み</span><h3>良問一覧</h3></div>
+          <strong>${entries.length}問</strong>
+        </div>
+        <div class="weather-quiz-good-list">
+          ${entries.length ? entries.map((entry) => `
+            <article>
+              <div class="weather-quiz-good-list-meta">
+                <span>${entry.mode === "fill" ? "4択問題" : "◯✕問題"}</span>
+                <span>${escapeHtml(entry.sourceItem.year)}</span>
+                <span>${escapeHtml(entry.sourceItem.category)}</span>
+              </div>
+              <p>${escapeHtml(entry.question)}</p>
+              <button type="button" data-weather-quiz-good-remove="${escapeHtml(getWeatherQuizQuestionKey(entry.sourceItem, entry.mode))}">良問を解除</button>
+            </article>
+          `).join("") : `<p class="weather-quiz-good-list-empty">登録されている良問はありません。</p>`}
+        </div>
+        <button class="weather-quiz-restart" type="button" data-weather-quiz-good-list-back>条件選択へ戻る</button>
+      </section>
+    `;
+    stage.querySelectorAll("[data-weather-quiz-good-remove]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const entry = entries.find((candidate) => (
+          getWeatherQuizQuestionKey(candidate.sourceItem, candidate.mode) === button.dataset.weatherQuizGoodRemove
+        ));
+        if (entry) {
+          setGoodWeatherQuizQuestion(entry.sourceItem, entry.mode, false);
+          renderWeatherQuizGoodQuestionList();
+        }
+      });
+    });
+    stage.querySelector("[data-weather-quiz-good-list-back]")?.addEventListener("click", renderWeatherQuizSetup);
+    resetWeatherQuizContentScroll(stage);
+  };
+
   const renderWeatherQuizSetup = () => {
     const stage = getWeatherQuizStage();
     if (!stage || !weatherForecasterQuizItems?.length) {
       return;
     }
+    delete stage.dataset.weatherQuizView;
     stage.closest(".weather-quiz-content")?.querySelector(".weather-quiz-overview")?.classList.remove("hidden");
     weatherQuizSession = null;
     const exams = [...new Map(weatherForecasterQuizItems.map((item) => [item.exam, item.year])).entries()]
@@ -2280,6 +2439,15 @@ function setupTabs() {
             <label><input type="radio" name="mode" value="fill" /><span><b>4択問題</b></span></label>
           </div>
           <small>どちらか一方を選択してください。</small>
+        </fieldset>
+        <fieldset>
+          <legend>出題対象</legend>
+          <div class="weather-quiz-choice-grid weather-quiz-target-grid">
+            <label><input type="radio" name="target" value="all" checked /><span><b>すべての問題</b></span></label>
+            <label><input type="radio" name="target" value="good" /><span><b>良問のみ</b><small data-weather-quiz-good-count></small></span></label>
+          </div>
+          <button class="weather-quiz-good-list-button" type="button" data-weather-quiz-good-list>良問一覧を見る</button>
+          <small>「良問」に登録した問題だけを集めて学習できます。</small>
         </fieldset>
         <fieldset>
           <legend>出題区分</legend>
@@ -2311,25 +2479,63 @@ function setupTabs() {
     const setupForm = stage.querySelector("[data-weather-quiz-setup]");
     const getSetupSelection = (form) => {
       const mode = form.elements.mode?.value === "fill" ? "fill" : "truefalse";
+      const target = form.elements.target?.value === "good" ? "good" : "all";
       const categories = [...form.querySelectorAll('input[name="category"]:checked')].map((input) => input.value);
       const examsSelected = [...form.querySelectorAll('input[name="exam"]:checked')].map((input) => input.value);
-      const sourceCandidates = getUniqueWeatherQuizItems(weatherForecasterQuizItems.filter((item) => (
-        categories.includes(item.category) && examsSelected.includes(item.exam)
+      let sourceCandidates = getUniqueWeatherQuizItems(weatherForecasterQuizItems.filter((item) => (
+        categories.includes(item.category) && (target === "good" || examsSelected.includes(item.exam))
       )));
+      if (target === "good") {
+        const goodKeys = getWeatherQuizGoodQuestionKeys();
+        sourceCandidates = sourceCandidates.filter((item) => goodKeys.has(getWeatherQuizQuestionKey(item, mode)));
+      }
       const candidates = mode === "fill"
         ? sourceCandidates.map(createWeatherQuizFillItem).filter(Boolean)
         : sourceCandidates.map(prepareWeatherQuizTrueFalseItem).filter(Boolean);
-      return { mode, categories, examsSelected, candidates };
+      return { mode, target, categories, examsSelected, candidates };
     };
     const syncSetupState = () => {
       if (!setupForm) {
         return;
       }
-      const { categories, examsSelected, candidates } = getSetupSelection(setupForm);
+      const { target, categories, examsSelected, candidates } = getSetupSelection(setupForm);
       const countInput = setupForm.elements.count;
       const countRange = setupForm.querySelector("[data-weather-quiz-count-range]");
       const startButton = setupForm.querySelector(".weather-quiz-start");
+      const mode = setupForm.elements.mode?.value === "fill" ? "fill" : "truefalse";
+      const goodSourceItems = weatherForecasterQuizItems.filter((item) => isGoodWeatherQuizQuestion(item, mode));
+      const goodCount = (mode === "fill"
+        ? goodSourceItems.map(createWeatherQuizFillItem)
+        : goodSourceItems.map(prepareWeatherQuizTrueFalseItem)
+      ).filter(Boolean).length;
+      const goodCountLabel = setupForm.querySelector("[data-weather-quiz-good-count]");
+      const goodTargetInput = setupForm.querySelector('input[name="target"][value="good"]');
+      const goodListButton = setupForm.querySelector("[data-weather-quiz-good-list]");
+      const examInputs = [...setupForm.querySelectorAll('input[name="exam"]')];
+      const yearFieldset = examInputs[0]?.closest("fieldset");
+      const allGoodCount = getWeatherQuizGoodQuestionEntries().length;
       const maximumCount = candidates.length;
+      if (goodCountLabel) {
+        goodCountLabel.textContent = `${goodCount}問登録`;
+      }
+      if (goodTargetInput) {
+        goodTargetInput.disabled = goodCount === 0;
+        if (goodCount === 0 && goodTargetInput.checked) {
+          setupForm.querySelector('input[name="target"][value="all"]')?.click();
+          return;
+        }
+      }
+      examInputs.forEach((input) => {
+        input.disabled = target === "good";
+      });
+      yearFieldset?.classList.toggle("is-disabled", target === "good");
+      yearFieldset?.setAttribute("aria-disabled", String(target === "good"));
+      if (goodListButton) {
+        goodListButton.disabled = allGoodCount === 0;
+        goodListButton.textContent = allGoodCount > 0
+          ? `良問一覧を見る（${allGoodCount}問）`
+          : "良問一覧を見る";
+      }
       countInput.max = String(maximumCount);
       countInput.disabled = maximumCount === 0;
       if (maximumCount > 0) {
@@ -2340,25 +2546,30 @@ function setupTabs() {
         countRange.textContent = maximumCount > 0 ? `1〜${maximumCount}問` : "選択範囲：0問";
       }
       if (startButton) {
-        startButton.disabled = !categories.length || !examsSelected.length || maximumCount === 0;
+        startButton.disabled = !categories.length
+          || (target !== "good" && !examsSelected.length)
+          || maximumCount === 0;
       }
       const error = setupForm.querySelector(".weather-quiz-setup-error");
       if (error) {
         error.textContent = "";
       }
     };
-    setupForm?.querySelectorAll('input[name="mode"], input[name="category"], input[name="exam"]').forEach((input) => {
+    setupForm?.querySelectorAll('input[name="mode"], input[name="target"], input[name="category"], input[name="exam"]').forEach((input) => {
       input.addEventListener("change", syncSetupState);
     });
     setupForm?.querySelector('input[name="count"]')?.addEventListener("change", syncSetupState);
+    setupForm?.querySelector("[data-weather-quiz-good-list]")?.addEventListener("click", renderWeatherQuizGoodQuestionList);
     syncSetupState();
     setupForm?.addEventListener("submit", (event) => {
       event.preventDefault();
       const form = event.currentTarget;
-      const { mode, categories, examsSelected, candidates } = getSetupSelection(form);
+      const { mode, target, categories, examsSelected, candidates } = getSetupSelection(form);
       const error = form.querySelector(".weather-quiz-setup-error");
-      if (!categories.length || !examsSelected.length) {
-        error.textContent = "出題区分と出題年次を1つ以上選択してください。";
+      if (!categories.length || (target !== "good" && !examsSelected.length)) {
+        error.textContent = target === "good"
+          ? "出題区分を1つ以上選択してください。"
+          : "出題区分と出題年次を1つ以上選択してください。";
         return;
       }
       if (!candidates.length) {
@@ -2383,6 +2594,7 @@ function setupTabs() {
     stage.closest(".weather-quiz-content")?.querySelector(".weather-quiz-overview")?.classList.add("hidden");
     const isFillQuestion = session.mode === "fill";
     const displayedQuestion = isFillQuestion ? item.question : item.statement;
+    const isGoodQuestion = isGoodWeatherQuizQuestion(item, session.mode);
     const responseControlsHtml = isFillQuestion ? `
       <div class="weather-quiz-judgment weather-quiz-fill-judgment" aria-label="正しい選択肢を回答">
         <p>正しいものはどれ？</p>
@@ -2408,13 +2620,35 @@ function setupTabs() {
       </div>
       <div class="weather-quiz-meta"><span>${isFillQuestion ? "4択問題" : "○×問題"}</span><span>${escapeHtml(item.category)}</span><span>${escapeHtml(item.year)}</span><span>${escapeHtml(item.exam)}</span></div>
       <article class="weather-quiz-card">
-        <span class="weather-quiz-label">問題</span>
+        <div class="weather-quiz-card-head">
+          <span class="weather-quiz-label">問題</span>
+          <div class="weather-quiz-quality-actions" aria-label="問題の評価">
+            <button class="weather-quiz-good-button ${isGoodQuestion ? "is-selected" : ""}" type="button" data-weather-quiz-good aria-pressed="${isGoodQuestion}">
+              <span aria-hidden="true">${isGoodQuestion ? "★" : "☆"}</span> 良問
+            </button>
+            <button class="weather-quiz-bad-button" type="button" data-weather-quiz-bad>
+              <span aria-hidden="true">!</span> 悪問
+            </button>
+          </div>
+        </div>
         <p class="weather-quiz-question">${escapeHtml(displayedQuestion)}</p>
         <div class="weather-quiz-answer hidden" aria-live="polite"></div>
       </article>
       ${responseControlsHtml}
       <button class="weather-quiz-next hidden" type="button" data-weather-quiz-next>${session.index + 1 === session.questions.length ? "結果を見る" : "次の問題"}</button>
     `;
+    stage.querySelector("[data-weather-quiz-good]")?.addEventListener("click", (event) => {
+      const button = event.currentTarget;
+      const selected = button.getAttribute("aria-pressed") !== "true";
+      setGoodWeatherQuizQuestion(item, session.mode, selected);
+      button.setAttribute("aria-pressed", String(selected));
+      button.classList.toggle("is-selected", selected);
+      const icon = button.querySelector("span");
+      if (icon) icon.textContent = selected ? "★" : "☆";
+    });
+    stage.querySelector("[data-weather-quiz-bad]")?.addEventListener("click", () => {
+      openWeatherQuizBadQuestionDialog(item, session.mode);
+    });
     stage.querySelectorAll("[data-weather-quiz-judge]").forEach((button) => {
       button.addEventListener("click", () => {
         if (session.results[session.index]) {
@@ -2558,6 +2792,11 @@ function setupTabs() {
   };
 
   const handleWeatherQuizPageBack = () => {
+    const stage = getWeatherQuizStage();
+    if (stage?.dataset.weatherQuizView === "good-list") {
+      renderWeatherQuizSetup();
+      return;
+    }
     if (weatherQuizSession?.questions?.length && !weatherQuizSession.completed) {
       renderWeatherQuizSetup();
       return;
@@ -2582,21 +2821,22 @@ function setupTabs() {
     page?.classList.remove("hidden");
     page?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
     els.infoFullPanel?.classList.remove("hidden");
-    if (weatherForecasterQuizItems?.length) {
-      renderRandomWeatherQuizQuestion();
-      return;
-    }
     const loading = page?.querySelector(".weather-quiz-loading");
-    loading?.classList.remove("hidden");
+    const hasCachedQuestions = Boolean(weatherForecasterQuizItems?.length);
+    if (!hasCachedQuestions) {
+      loading?.classList.remove("hidden");
+    }
     if (loading) {
       loading.textContent = "問題を読み込んでいます...";
     }
     try {
-      await loadWeatherForecasterQuizItems();
+      await loadWeatherForecasterQuizItems({ forceRefresh: true });
       renderRandomWeatherQuizQuestion();
     } catch (error) {
       console.warn("Failed to load weather forecaster quiz", error);
-      if (loading) {
+      if (hasCachedQuestions) {
+        renderRandomWeatherQuizQuestion();
+      } else if (loading) {
         loading.textContent = "問題を読み込めませんでした。画面を開き直してください。";
       }
     }
@@ -12608,23 +12848,67 @@ async function hydrateDeferredSimulationMapData() {
   const hasShindoStationData = Array.isArray(shindoStations?.stations) && shindoStations.stations.length > 0;
 
   localAreaData = localAreas;
-  shindoStationData = hasShindoStationData ? shindoStations : null;
-  eewForecastAreaData = eewForecastAreas;
-  eewForecastAreaNameCache.clear();
-  invalidateIntensityEstimateCache();
   ensureStaticIntensityAreaSource();
   if (shouldSyncAreaSourceData()) {
     syncVisibleAreaSourceData(Infinity);
   }
+  await waitForStartupMapSourcePaint("jma-intensity-areas");
+  await yieldStartupHydrationFrame();
+
+  shindoStationData = hasShindoStationData ? shindoStations : null;
+  eewForecastAreaData = eewForecastAreas;
+  eewForecastAreaNameCache.clear();
+  invalidateIntensityEstimateCache();
+  await yieldStartupHydrationFrame();
+
   if (state.showStationLayer) {
     setGeoJsonSourceData(
       "shindo-stations",
       hasShindoStationData ? buildStationIntensityData(shindoStations, Infinity) : emptyFeatureCollection(),
     );
   }
+  await yieldStartupHydrationFrame();
+
   updateSetupResultOutputs();
-  updateIntensityLayer();
   updateSimulationAvailability();
+  await yieldStartupHydrationFrame();
+  updateIntensityLayer();
+}
+
+function waitForStartupMapSourcePaint(sourceId, timeoutMs = 1200) {
+  if (!map?.getSource(sourceId)) {
+    return Promise.resolve();
+  }
+  try {
+    if (map.isSourceLoaded?.(sourceId)) {
+      return Promise.resolve();
+    }
+  } catch (_error) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeoutId);
+      map?.off?.("sourcedata", handleSourceData);
+      window.requestAnimationFrame(() => window.requestAnimationFrame(resolve));
+    };
+    const handleSourceData = (event) => {
+      if (event.sourceId === sourceId && event.isSourceLoaded) {
+        finish();
+      }
+    };
+    const timeoutId = window.setTimeout(finish, timeoutMs);
+    map.on("sourcedata", handleSourceData);
+  });
+}
+
+function yieldStartupHydrationFrame() {
+  return new Promise((resolve) => {
+    window.requestAnimationFrame(() => window.setTimeout(resolve, 0));
+  });
 }
 
 async function loadOptionalGeoJsonData(loader, label) {
@@ -18117,12 +18401,34 @@ function getLocalAreaStationMembership(geojson, stationFeatures) {
   }
 
   const stationIdsByArea = geojson.features.map(() => []);
+  const areaIndexByName = new Map(
+    geojson.features.map((feature, index) => [
+      String(feature.properties?.name ?? "").normalize("NFKC").replace(/\s+/g, "").trim(),
+      index,
+    ]),
+  );
+  const stationsWithoutPrecomputedArea = [];
+
   stationFeatures.forEach((stationFeature) => {
+    const areaName = String(stationFeature.properties?.areaName ?? "")
+      .normalize("NFKC")
+      .replace(/\s+/g, "")
+      .trim();
+    const areaIndex = areaIndexByName.get(areaName);
+    if (areaIndex != null) {
+      stationIdsByArea[areaIndex].push(stationFeature.properties.id);
+      return;
+    }
+    stationsWithoutPrecomputedArea.push(stationFeature);
+  });
+
+  // Old/synthetic station data may not carry the precomputed JMA area name.
+  // Keep spatial lookup only for those exceptional records.
+  stationsWithoutPrecomputedArea.forEach((stationFeature) => {
     const point = stationFeature.geometry.coordinates;
     const areaIndex = geojson.features.findIndex((feature) =>
       getFeaturePolygons(feature).some((polygon) => pointInPolygon(point, polygon)),
     );
-
     if (areaIndex >= 0) {
       stationIdsByArea[areaIndex].push(stationFeature.properties.id);
     }
@@ -18140,7 +18446,9 @@ function getLocalAreaStationMembership(geojson, stationFeatures) {
 }
 
 function getStationMembershipSignature(stationFeatures) {
-  return stationFeatures.map((feature) => feature.properties?.id ?? "").join("|");
+  return stationFeatures.map((feature) => (
+    `${feature.properties?.id ?? ""}@${feature.properties?.areaName ?? ""}`
+  )).join("|");
 }
 
 function compactForecastAreas(areaNames) {
