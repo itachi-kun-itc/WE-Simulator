@@ -187,6 +187,7 @@ const PLATE_BOUNDARY_DEFERRED_DATA_DELAY_MS = 11000;
 const EARTHQUAKE_PRESETS = [];
 
 const INTENSITY_INFORMATION_GRAY = "#d9dee5";
+const INTENSITY_WHITE_TEXT_LABELS = new Set(["3", "6-", "6+", "7"]);
 const INTENSITY_CLASSES = [
   { label: "0", shortLabel: "0", min: 0, color: INTENSITY_INFORMATION_GRAY, textColor: "#1f2937", rank: 0 },
   { label: "1", shortLabel: "1", min: 0.5, color: INTENSITY_INFORMATION_GRAY, textColor: "#1f2937", rank: 1 },
@@ -392,6 +393,12 @@ const INTENSITY_COLOR_SCHEME_OPTIONS = [
   ["t", "T型色覚"],
   ["a", "A型色覚"],
 ];
+
+function getIntensitySchemeTextColor(scheme, key) {
+  return INTENSITY_WHITE_TEXT_LABELS.has(String(key))
+    ? "#ffffff"
+    : scheme?.textColors?.[key] ?? "#111827";
+}
 
 function getStoredIntensityColorScheme() {
   try {
@@ -604,6 +611,7 @@ let simulationDisplayedMagnitude = null;
 let simulationMagnitudeReports = [];
 let simulationMagnitudeReportIndex = -1;
 let simulationTimelineEvents = [];
+let simulationTimelineElapsedSec = 0;
 let simulationTimelineLastEewReport = null;
 let simulationTimelineMaxRank = 0;
 let simulationObservedMaxRank = 0;
@@ -1025,7 +1033,7 @@ function setupTabs() {
       const scheme = INTENSITY_COLOR_SCHEMES[value];
       const preview = intensityPreviewKeys.map((key) => {
         const color = key === "1" ? INTENSITY_INFORMATION_GRAY : scheme.colors[key];
-        const textColor = key === "1" ? "#1f2937" : scheme.textColors[key];
+        const textColor = key === "1" ? "#1f2937" : getIntensitySchemeTextColor(scheme, key);
         return `<i style="--preview-color:${escapeHtml(color)};--preview-text:${escapeHtml(textColor)}">${escapeHtml(key)}</i>`;
       }).join("");
       return `
@@ -8581,7 +8589,7 @@ function applyIntensityColorScheme(schemeId, options = {}) {
       : scheme.colors[key] ?? intensityClass.color;
     intensityClass.textColor = intensityClass.rank === 1
       ? "#1f2937"
-      : scheme.textColors[key] ?? intensityClass.textColor;
+      : getIntensitySchemeTextColor(scheme, key);
   });
 
   if (els.intensityColorScheme) {
@@ -15807,6 +15815,7 @@ function updateSimulationProgress(elapsedSec = 0) {
   const progress = hasFiniteTotal ? Math.min(elapsed / total, 1) : 0;
   const percent = Math.round(progress * 1000) / 10;
   const timelineElapsed = hasFiniteTotal ? Math.min(elapsed, total) : elapsed;
+  simulationTimelineElapsedSec = timelineElapsed;
   const currentX = Math.round(SIMULATION_TIMELINE_START_PX + timelineElapsed * SIMULATION_TIMELINE_PX_PER_SEC);
   const viewportWidth = Math.max(els.simulationProgressTrack?.clientWidth || 0, 320);
   const timelineEndSec = hasFiniteTotal ? total : elapsed + 60;
@@ -15842,6 +15851,7 @@ function updateSimulationProgress(elapsedSec = 0) {
   if (els.simulationProgressNow) {
     els.simulationProgressNow.style.left = `${SIMULATION_TIMELINE_START_PX}px`;
   }
+  syncSimulationTimelineEventStates();
   if (els.simulationProgressTrack) {
     els.simulationProgressTrack.setAttribute("aria-valuenow", String(Math.round(percent)));
     els.simulationProgressTrack.setAttribute(
@@ -15863,6 +15873,7 @@ function updateSimulationProgress(elapsedSec = 0) {
 
 function resetSimulationTimeline() {
   simulationTimelineEvents = [];
+  simulationTimelineElapsedSec = 0;
   els.simulationProgressEvents?.replaceChildren();
   simulationTimelineLastEewReport = null;
   simulationTimelineMaxRank = 0;
@@ -16122,7 +16133,8 @@ function renderSimulationTimelineEvents() {
       event.append(document.createElement("b"));
     }
     activeIds.add(item.id);
-    event.className = `simulation-timeline-event is-${item.type} ${index % 2 ? "is-lower" : "is-upper"}`;
+    const renderType = getSimulationTimelineEventRenderType(item);
+    event.className = `simulation-timeline-event is-${renderType} ${index % 2 ? "is-lower" : "is-upper"}`;
     event.style.left = `${Math.round(SIMULATION_TIMELINE_START_PX + item.elapsedSec * SIMULATION_TIMELINE_PX_PER_SEC)}px`;
     const labelNode = event.querySelector("b") ?? event.appendChild(document.createElement("b"));
     labelNode.textContent = item.label;
@@ -16134,6 +16146,33 @@ function renderSimulationTimelineEvents() {
     }
   });
   els.simulationProgressEvents.append(fragment);
+}
+
+function getSimulationTimelineEventRenderType(item) {
+  const type = String(item?.type || "event");
+  if (type.endsWith("-planned") && simulationTimelineElapsedSec >= Number(item?.elapsedSec)) {
+    return type.slice(0, -"-planned".length);
+  }
+  return type;
+}
+
+function syncSimulationTimelineEventStates() {
+  if (!els.simulationProgressEvents) return;
+  const existingNodes = new Map(
+    [...els.simulationProgressEvents.children].map((node) => [node.dataset.timelineEventId, node]),
+  );
+  simulationTimelineEvents.forEach((item) => {
+    const event = existingNodes.get(item.id);
+    if (!event) return;
+    const plannedType = String(item.type || "event");
+    const renderType = getSimulationTimelineEventRenderType(item);
+    event.classList.toggle(`is-${plannedType}`, renderType === plannedType);
+    if (renderType !== plannedType) {
+      event.classList.add(`is-${renderType}`);
+    } else if (plannedType.endsWith("-planned")) {
+      event.classList.remove(`is-${plannedType.slice(0, -"-planned".length)}`);
+    }
+  });
 }
 
 function recordSimulationMaxIntensityEvent(elapsedSec, maxRank, label) {
