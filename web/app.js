@@ -3761,8 +3761,7 @@ function setupTabs() {
     els.settingsFeedbackPanel.innerHTML = `
       <form class="settings-feedback-form">
         <label class="feedback-field" for="settings-feedback-message">
-          <span>気づいた点・改善してほしい点</span>
-          <textarea id="settings-feedback-message" rows="8" maxlength="4000"></textarea>
+          <textarea id="settings-feedback-message" rows="8" maxlength="4000" aria-label="フィードバック内容"></textarea>
         </label>
         <p class="feedback-status" role="status" aria-live="polite"></p>
         <button class="feedback-submit" type="submit">送信</button>

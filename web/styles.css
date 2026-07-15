@@ -21455,3 +21455,146 @@ html[data-resolved-theme="light"] .weather-quiz-good-list article button {
   background: #fff1f3 !important;
   color: #9f243a !important;
 }
+
+/* Light profile: readable admin labels and clean follow surfaces. */
+html[data-resolved-theme="light"] #settings-admin-button span:first-child::after {
+  color: #526176 !important;
+}
+
+html[data-resolved-theme="light"] .community-account-wide-button::after {
+  color: #f1f7fb !important;
+}
+
+html[data-resolved-theme="light"] .community-profile-main .community-profile-follow-counts button,
+html[data-resolved-theme="light"] .community-profile-main .community-profile-follow-counts button:disabled {
+  min-height: auto !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 2px 0 !important;
+  background: transparent !important;
+  color: #334155 !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+}
+
+html[data-resolved-theme="light"] .community-profile-follow-counts b {
+  color: #172033 !important;
+}
+
+html[data-resolved-theme="light"] .community-account-screen {
+  background: #ffffff !important;
+  color: #172033 !important;
+}
+
+html[data-resolved-theme="light"] .community-account-screen h2,
+html[data-resolved-theme="light"] .community-account-screen-back,
+html[data-resolved-theme="light"] .community-account-screen-status {
+  color: #172033 !important;
+}
+
+html[data-resolved-theme="light"] .community-connection-list {
+  color: #334155 !important;
+}
+
+html[data-resolved-theme="light"] .community-connection-item {
+  border-color: #d8e0e8 !important;
+  background: #ffffff !important;
+  color: #172033 !important;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.055) !important;
+}
+
+html[data-resolved-theme="light"] .community-connection-icon {
+  border: 1px solid #cbd5e1 !important;
+  background: #eef2f6 !important;
+  color: #334155 !important;
+}
+
+html[data-resolved-theme="light"] .community-connection-name strong {
+  color: #172033 !important;
+}
+
+html[data-resolved-theme="light"] .community-connection-name span {
+  color: #075985 !important;
+}
+
+html[data-resolved-theme="light"] .community-connection-follow {
+  border-color: #19718a !important;
+  background: #e5f3f6 !important;
+  color: #075d73 !important;
+}
+
+html[data-resolved-theme="light"] .community-connection-follow.is-following {
+  border-color: #cbd5e1 !important;
+  background: #eef2f6 !important;
+  color: #475569 !important;
+}
+
+html[data-resolved-theme="light"] .community-connection-empty {
+  color: #526176 !important;
+}
+
+/* Search controls sit directly on the page in both themes. */
+.history-stats-toolbar,
+.station-info-toolbar,
+html[data-resolved-theme="light"] .history-stats-toolbar,
+html[data-resolved-theme="light"] .station-info-toolbar,
+html[data-resolved-theme="dark"] .history-stats-toolbar,
+html[data-resolved-theme="dark"] .station-info-toolbar {
+  border-bottom: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Light settings details: keep source and privacy sections visibly separated. */
+html[data-resolved-theme="light"] #settings-source-panel .source-info-section,
+html[data-resolved-theme="light"] #settings-privacy-panel .source-info-section {
+  border: 1px solid #d3dce6 !important;
+  background: #ffffff !important;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.045) !important;
+}
+
+html[data-resolved-theme="light"] #settings-source-panel .source-link-card,
+html[data-resolved-theme="light"] #settings-privacy-panel .source-link-card {
+  border: 1px solid #d9e1e9 !important;
+  background: #f8fafc !important;
+}
+
+/* The statistics action stays legible while it is waiting for a region. */
+html[data-resolved-theme="light"] #history-statistics-load {
+  border-color: #aebac7 !important;
+  background: #e7edf3 !important;
+  color: #334155 !important;
+}
+
+html[data-resolved-theme="light"] #history-statistics-load:disabled,
+html[data-resolved-theme="light"] #history-statistics-load[aria-disabled="true"] {
+  border-color: #c4ced8 !important;
+  background: #e9edf1 !important;
+  color: #64748b !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+/* Keep the feedback input closer to its detail header in every theme. */
+#settings-feedback-panel .settings-feedback-form {
+  grid-template-rows: auto auto minmax(0, 1fr) auto !important;
+  gap: 8px !important;
+  margin-top: 12px !important;
+}
+
+#settings-feedback-panel .feedback-field {
+  grid-row: 1 !important;
+}
+
+#settings-feedback-panel .feedback-status {
+  grid-row: 2 !important;
+  align-self: start !important;
+  margin: 0 !important;
+}
+
+#settings-feedback-panel .feedback-submit {
+  grid-row: 4 !important;
+  align-self: end !important;
+}
