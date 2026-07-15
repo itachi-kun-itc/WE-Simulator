@@ -84,6 +84,7 @@ let weatherForecasterQuizLoadPromise = null;
 const MAINTENANCE_STATUS_POLL_MS = 60000;
 const APPEARANCE_THEME_KEY = "weather-earthquake-appearance-theme";
 const DEFAULT_APPEARANCE_THEME = "dark";
+const INTENSITY_COLOR_SCHEME_KEY = "weather-earthquake-intensity-color-scheme";
 const LOCAL_PARENT_UNAVAILABLE_LABEL = "Localサーバーでは\n親端末に設定できません";
 
 const INITIAL_CENTER = [139.767, 35.681];
@@ -381,6 +382,24 @@ const INTENSITY_COLOR_SCHEMES = {
     },
   },
 };
+const INTENSITY_COLOR_SCHEME_OPTIONS = [
+  ["normal", "気象庁配色"],
+  ["high", "高コントラスト"],
+  ["low", "低コントラスト"],
+  ["p", "P型色覚"],
+  ["d", "D型色覚"],
+  ["t", "T型色覚"],
+  ["a", "A型色覚"],
+];
+
+function getStoredIntensityColorScheme() {
+  try {
+    const value = localStorage.getItem(INTENSITY_COLOR_SCHEME_KEY);
+    return INTENSITY_COLOR_SCHEMES[value] ? value : "normal";
+  } catch (_error) {
+    return "normal";
+  }
+}
 
 function observationsFromNames(stationNames, intensityValue) {
   return stationNames.map((stationName) => ({ stationName, intensityValue }));
@@ -405,7 +424,7 @@ const state = {
   presetFilterText: "",
   presetSortKey: null,
   presetSortDirection: "desc",
-  intensityColorScheme: "normal",
+  intensityColorScheme: getStoredIntensityColorScheme(),
   eewWarningForecastAreas: [],
   eewWarningReportNumber: null,
   eewWarningFinalReport: false,
@@ -811,6 +830,11 @@ window.matchMedia?.("(prefers-color-scheme: dark)")?.addEventListener?.("change"
   }
 });
 setupMobileSheets();
+window.requestAnimationFrame(() => {
+  window.requestAnimationFrame(() => {
+    document.documentElement.removeAttribute("data-app-booting");
+  });
+});
 setupMapMenuGestures();
 setupTransientPanelScrollbars();
 setupPanelScrollbarOffsets();
@@ -999,14 +1023,23 @@ function setupTabs() {
       return;
     }
 
-    const colorField = els.intensityColorScheme?.closest(".field");
-    const colorFieldHost = document.createElement("div");
-    colorFieldHost.className = "settings-appearance-color-host";
-    if (colorField) {
-      colorFieldHost.append(colorField);
-    }
-
     els.settingsAppearancePanel.replaceChildren();
+    const intensityPreviewKeys = ["7", "6+", "6-", "5+", "5-", "4", "3", "2", "1"];
+    const colorSchemeChoices = INTENSITY_COLOR_SCHEME_OPTIONS.map(([value, label]) => {
+      const scheme = INTENSITY_COLOR_SCHEMES[value];
+      const preview = intensityPreviewKeys.map((key) => {
+        const color = key === "1" ? INTENSITY_INFORMATION_GRAY : scheme.colors[key];
+        const textColor = key === "1" ? "#1f2937" : scheme.textColors[key];
+        return `<i style="--preview-color:${escapeHtml(color)};--preview-text:${escapeHtml(textColor)}">${escapeHtml(key)}</i>`;
+      }).join("");
+      return `
+        <label class="settings-color-scheme-choice">
+          <input type="radio" name="intensity-color-scheme-choice" value="${escapeHtml(value)}" />
+          <span class="settings-color-scheme-name">${escapeHtml(label)}</span>
+          <span class="settings-color-scheme-preview" aria-label="${escapeHtml(label)}の震度凡例例">${preview}</span>
+        </label>
+      `;
+    }).join("");
     els.settingsAppearancePanel.insertAdjacentHTML("beforeend", `
       <div class="settings-appearance-content">
       <section class="settings-appearance-section">
@@ -1019,6 +1052,9 @@ function setupTabs() {
       </section>
       <section class="settings-appearance-section settings-appearance-color-section">
         <h4>震度配色</h4>
+        <div class="settings-color-scheme-options" role="radiogroup" aria-label="震度配色">
+          ${colorSchemeChoices}
+        </div>
       </section>
       </div>
     `);
@@ -1035,12 +1071,19 @@ function setupTabs() {
         themeLabels[index].textContent = label;
       }
     });
-    els.settingsAppearancePanel.querySelector(".settings-appearance-color-section")?.append(colorFieldHost);
     els.settingsAppearancePanel.querySelectorAll('input[name="appearance-theme"]').forEach((input) => {
       input.checked = input.value === getAppearanceTheme();
       input.addEventListener("change", () => {
         if (input.checked) {
           setAppearanceTheme(input.value);
+        }
+      });
+    });
+    els.settingsAppearancePanel.querySelectorAll('input[name="intensity-color-scheme-choice"]').forEach((input) => {
+      input.checked = input.value === state.intensityColorScheme;
+      input.addEventListener("change", () => {
+        if (input.checked) {
+          applyIntensityColorScheme(input.value);
         }
       });
     });
@@ -1753,22 +1796,30 @@ function setupTabs() {
           if (!Array.isArray(items) || !items.length) {
             throw new Error("問題データが空です。");
           }
-          weatherForecasterQuizItems = items.filter((item) => (
-            item?.id
-            && item?.category
-            && item?.exam
-            && item?.year
-            && item?.trueFalse?.statement
-            && typeof item?.trueFalse?.correct === "boolean"
-            && item?.trueFalse?.explanation
-            && item?.multipleChoice?.question
-            && Array.isArray(item?.multipleChoice?.choices)
-            && item.multipleChoice.choices.length === 4
-            && Number.isInteger(item?.multipleChoice?.correctIndex)
-            && item.multipleChoice.correctIndex >= 0
-            && item.multipleChoice.correctIndex < 4
-            && item?.multipleChoice?.explanation
-          ));
+          weatherForecasterQuizItems = items.filter((item) => {
+            const hasTrueFalse = Boolean(
+              item?.trueFalse?.statement
+              && typeof item?.trueFalse?.correct === "boolean"
+              && item?.trueFalse?.correctStatement
+              && item?.trueFalse?.explanation
+            );
+            const hasMultipleChoice = Boolean(
+              item?.multipleChoice?.question
+              && Array.isArray(item?.multipleChoice?.choices)
+              && item.multipleChoice.choices.length === 4
+              && Number.isInteger(item?.multipleChoice?.correctIndex)
+              && item.multipleChoice.correctIndex >= 0
+              && item.multipleChoice.correctIndex < 4
+              && item?.multipleChoice?.explanation
+            );
+            return Boolean(
+              item?.id
+              && item?.category
+              && item?.exam
+              && item?.year
+              && (hasTrueFalse || hasMultipleChoice)
+            );
+          });
           if (!weatherForecasterQuizItems.length) {
             throw new Error("有効な問題がありません。");
           }
@@ -2125,9 +2176,13 @@ function setupTabs() {
       const correctStatement = item?.trueFalse?.correctStatement
         || item?.multipleChoice?.choices?.[item.multipleChoice.correctIndex]
         || (item.trueFalse.correct ? item.trueFalse.statement : "");
+      const suppliedExplanation = String(item.trueFalse.explanation || "").trim();
+      const pairedExplanation = correctStatement && !suppliedExplanation.startsWith(correctStatement)
+        ? [correctStatement, suppliedExplanation].filter(Boolean).join("\n")
+        : suppliedExplanation;
       return {
         ...item,
-        explanation: item.trueFalse.explanation,
+        explanation: pairedExplanation,
         correctStatement,
         trueFalseVariants: [{
           answerIsCorrect: item.trueFalse.correct,
@@ -2153,19 +2208,7 @@ function setupTabs() {
   const createWeatherQuizKnowledgeExplanation = (item) => {
     const suppliedExplanation = String(item?.explanation || "").trim();
     if (suppliedExplanation) {
-      const sentences = suppliedExplanation
-        .split(/\n+|(?<=。)\s*/u)
-        .map((sentence) => sentence.trim())
-        .filter(Boolean);
-      if (
-        sentences.length > 1
-        && sentences[0].length < 18
-        && /です。?$/u.test(sentences[0])
-        && !/(?:ため|ので|から|場合|とき)/u.test(sentences[0])
-      ) {
-        sentences.shift();
-      }
-      return sentences.join("\n");
+      return suppliedExplanation;
     }
     const answer = String(item?.answer || "").trim();
     if (item?.quizMode === "fill") {
@@ -2390,8 +2433,10 @@ function setupTabs() {
           answer.classList.toggle("is-correct", correct);
           answer.classList.toggle("is-wrong", !correct);
           answer.innerHTML = `
-            <strong>${correct ? "正解" : "不正解"}</strong>
-            <span>解説</span>
+            <strong>あなたの回答：${correct ? "正解" : "不正解"}</strong>
+            <span>問題文の判定</span>
+            <p>${item.answerIsCorrect ? "○ 正しい記述" : "✕ 誤った記述"}</p>
+            <span>${item.answerIsCorrect ? "解説" : "正しい内容・解説"}</span>
             <p>${escapeHtml(createWeatherQuizKnowledgeExplanation(item))}</p>
           `;
         }
@@ -2938,7 +2983,7 @@ function setupTabs() {
           <article><span class="is-strong-wind"></span><div><strong>黄色の実線：強風域</strong><p>平均風速15m/s以上の強風が吹く可能性がある範囲です。</p></div></article>
           <article><span class="is-storm"></span><div><strong>赤色の太実線：暴風域</strong><p>平均風速25m/s以上の暴風が吹く可能性がある範囲です。</p></div></article>
           <article><span class="is-warning-area"></span><div><strong>赤色の実線：暴風警戒域</strong><p>台風中心が予報円内を進んだ場合に、暴風域へ入るおそれがある範囲全体です。</p></div></article>
-          <article><span class="is-forecast"></span><div><strong>白い破線：予報円</strong><p>予報時刻に台風の中心が入る確率が70％の範囲。円の大きさは台風の大きさではなく、進路予報の不確実性です。</p></div></article>
+          <article><span class="is-forecast"></span><div><strong><span class="typhoon-forecast-label-dark">白い破線：予報円</span><span class="typhoon-forecast-label-light">黒い破線：予報円</span></strong><p>予報時刻に台風の中心が入る確率が70％の範囲。円の大きさは台風の大きさではなく、進路予報の不確実性です。</p></div></article>
           <article><span class="is-center-line"></span><div><strong>予報円の中心を結ぶ線</strong><p>代表的な進路ですが、台風が必ず線上を進むわけではありません。</p></div></article>
         </div>
       </section>
@@ -4006,15 +4051,7 @@ function renderIntensityColorSchemeOptions() {
     return;
   }
 
-  const options = [
-    ["normal", "気象庁配色"],
-    ["high", "高コントラスト"],
-    ["low", "低コントラスト"],
-    ["p", "P型色覚"],
-    ["d", "D型色覚"],
-    ["t", "T型色覚"],
-    ["a", "A型色覚"],
-  ].map(([value, label]) => {
+  const options = INTENSITY_COLOR_SCHEME_OPTIONS.map(([value, label]) => {
     const option = document.createElement("option");
     option.value = value;
     option.textContent = label;
@@ -5004,6 +5041,11 @@ function setHistoryMapModeActive(active) {
     return;
   }
   applySimulationWhiteMapStyle(isResolvedAppearanceLight());
+  if (active) {
+    window.requestAnimationFrame(() => {
+      applySimulationWhiteMapStyle(isResolvedAppearanceLight());
+    });
+  }
   map.setMaxZoom?.(active ? 7.2 : SIMULATION_MAP_MAX_ZOOM);
 
   if (active && !wasActive) {
@@ -5258,7 +5300,6 @@ function setCommunityMapModeActive(active) {
     "history-epicenter-area-fill",
     "eew-warning-fill",
     "jma-local-area-boundaries",
-    "prefecture-boundaries",
     "submarine-observation-fill",
     "shindo-station-points",
     "plate-boundaries",
@@ -5314,7 +5355,6 @@ function restoreSimulationMapLayersAfterCommunityMode() {
     "surrounding-land-gap-fill",
     "japan-land-fill",
     "japan-land-gap-fill",
-    "prefecture-boundaries",
     "jma-local-area-boundaries",
   ].forEach((layerId) => updateLayerVisibility(layerId, true));
   updateLayerVisibility("community-light-map", false);
@@ -8179,6 +8219,7 @@ function applyAppearanceTheme(value = getAppearanceTheme()) {
   const resolved = value === "system" ? (systemDark ? "dark" : "light") : value;
   document.documentElement.dataset.appearanceTheme = value;
   document.documentElement.dataset.resolvedTheme = resolved;
+  document.documentElement.style.colorScheme = resolved;
   document.querySelector('meta[name="theme-color"]')?.setAttribute(
     "content",
     resolved === "light" ? "#eef2f5" : "#070b12",
@@ -8288,6 +8329,11 @@ function applyIntensityColorScheme(schemeId, options = {}) {
   const scheme = INTENSITY_COLOR_SCHEMES[schemeId] ?? INTENSITY_COLOR_SCHEMES.normal;
   const nextSchemeId = INTENSITY_COLOR_SCHEMES[schemeId] ? schemeId : "normal";
   state.intensityColorScheme = nextSchemeId;
+  try {
+    localStorage.setItem(INTENSITY_COLOR_SCHEME_KEY, nextSchemeId);
+  } catch (_error) {
+    // Storage may be unavailable in private/restricted contexts.
+  }
 
   INTENSITY_CLASSES.forEach((intensityClass) => {
     const key = intensityClass.shortLabel;
@@ -8302,6 +8348,9 @@ function applyIntensityColorScheme(schemeId, options = {}) {
   if (els.intensityColorScheme) {
     els.intensityColorScheme.value = nextSchemeId;
   }
+  els.settingsAppearancePanel?.querySelectorAll('input[name="intensity-color-scheme-choice"]').forEach((input) => {
+    input.checked = input.value === nextSchemeId;
+  });
 
   updateLegendColors();
   ensureStationIntensityLabelImages({ refresh: true });
@@ -9147,7 +9196,7 @@ async function initEarthquakeMap() {
           id: "sea-background",
           type: "background",
           paint: {
-            "background-color": "#dbe8f0",
+            "background-color": isResolvedAppearanceLight() ? "#dbe8f0" : "#050914",
           },
         },
       ],
@@ -12389,6 +12438,8 @@ async function showMapLayers() {
   addMapLayers();
   setupStationHoverPopup();
   keepWaveAndStationLayerOrder();
+  // 地図本体と並行して細分区域線を読み込み、起動後の遅れて現れる状態を短縮する。
+  hydrateStartupLocalAreaBoundaries().catch((error) => console.warn(error));
   fitInitialMapBounds(getInitialJapanBounds());
   startupLocationResolved = true;
   municipalityBoundaryVisible = true;
@@ -12414,6 +12465,16 @@ function scheduleStartupBackgroundData() {
   scheduleDeferredTask(() => scheduleLocationResolve(), 1200, 3200);
   updateSimulationAvailability();
   schedulePostMunicipalityDataHydration();
+}
+
+async function hydrateStartupLocalAreaBoundaries() {
+  const localAreas = await loadOptionalGeoJsonData(loadLocalAreas, "JMA local area GeoJSON");
+  localAreaData = localAreas;
+  ensureStaticIntensityAreaSource();
+  if (shouldSyncAreaSourceData()) {
+    syncVisibleAreaSourceData(Infinity);
+  }
+  keepWaveAndStationLayerOrder();
 }
 
 function watchJapanPmtilesStartup() {
@@ -13141,22 +13202,6 @@ function addMapLayers() {
   });
 
   addLayerIfMissing({
-    id: "prefecture-boundaries",
-    type: "line",
-    source: "japan-pmtiles",
-    "source-layer": JAPAN_PMTILES_SOURCE_LAYER_PREF,
-    layout: {
-      "line-cap": "round",
-      "line-join": "round",
-    },
-    paint: {
-      "line-color": "#77828e",
-      "line-width": ["interpolate", ["linear"], ["zoom"], 3, 0.65, 5, 0.8, 7, 0.9, 10, 1.05],
-      "line-opacity": 0.82,
-    },
-  });
-
-  addLayerIfMissing({
     id: "submarine-observation-fill",
     type: "circle",
     source: "submarine-observation-points",
@@ -13329,7 +13374,6 @@ function moveLayerToTop(layerId) {
 
 function keepWaveAndStationLayerOrder() {
   moveLayerToTop("jma-local-area-boundaries");
-  moveLayerToTop("prefecture-boundaries");
   moveLayerToTop("active-fault-lines");
   moveLayerToTop("p-wave-fill");
   moveLayerToTop("s-wave-fill");
@@ -13362,31 +13406,36 @@ function applySimulationWhiteMapStyle(enabled) {
     }
   };
   const whiteMap = Boolean(enabled);
-  setPaint("sea-background", "background-color", whiteMap ? "#dbe8f0" : "#0c1326");
+  setPaint("sea-background", "background-color", whiteMap ? "#dbe8f0" : "#050914");
   setPaint(
     "surrounding-land-fill",
     "fill-color",
     whiteMap
       ? "#e5e9ee"
-      : ["case", ["==", ["get", "territoryType"], "northern-territories"], "#3c3d40", "#252a33"],
+      : ["case", ["==", ["get", "territoryType"], "northern-territories"], "#202833", "#111821"],
   );
   setPaint(
     "surrounding-land-fill",
     "fill-outline-color",
     whiteMap
       ? "#b7c0ca"
-      : ["case", ["==", ["get", "territoryType"], "northern-territories"], "#3c3d40", "#252a33"],
+      : ["case", ["==", ["get", "territoryType"], "northern-territories"], "#394452", "#303a47"],
   );
-  setPaint("surrounding-land-gap-fill", "line-color", whiteMap ? "#b7c0ca" : "#252a33");
-  setPaint("surrounding-land-gap-fill", "line-opacity", whiteMap ? 0 : 1);
-  setPaint("japan-land-fill", "fill-color", whiteMap ? "#eef1f4" : "#3c3d40");
+  setPaint("surrounding-land-gap-fill", "line-color", whiteMap ? "#b7c0ca" : "#303a47");
+  setPaint("surrounding-land-gap-fill", "line-opacity", whiteMap ? 0 : 0.82);
+  setPaint("japan-land-fill", "fill-color", whiteMap ? "#eef1f4" : "#151b23");
   setPaint(
     "japan-land-fill",
     "fill-outline-color",
-    whiteMap ? "rgba(174, 184, 195, 0)" : "rgba(60, 61, 64, 0)",
+    "rgba(0, 0, 0, 0)",
   );
-  setPaint("japan-land-gap-fill", "line-color", whiteMap ? "#96a3b0" : "#3c3d40");
-  setPaint("japan-land-gap-fill", "line-opacity", whiteMap ? 0.9 : 1);
+  /*
+   * The prefecture polygon edge and this former gap line shared the same
+   * geometry. Drawing both produced a faint second coastline. Keep one
+   * authoritative edge so the land fill and coastline stay pixel-aligned.
+   */
+  setPaint("japan-land-gap-fill", "line-color", whiteMap ? "#77828e" : "#9aa7b6");
+  setPaint("japan-land-gap-fill", "line-opacity", 0);
   setPaint(
     "japan-land-gap-fill",
     "line-width",
@@ -13394,32 +13443,19 @@ function applySimulationWhiteMapStyle(enabled) {
       ? ["interpolate", ["linear"], ["zoom"], 4, 0.55, 7, 0.78, 10, 1.02, 12, 1.15]
       : ["interpolate", ["linear"], ["zoom"], 4, 2.1, 7, 1.45, 10, 0.8, 12, 0.55],
   );
-  setPaint("japan-land-gap-fill", "line-blur", whiteMap ? 0.08 : 0);
-  setPaint("jma-local-area-boundaries", "line-color", whiteMap ? "#aab3bd" : "#dce3ed");
+  setPaint("japan-land-gap-fill", "line-blur", 0);
+  setPaint("jma-local-area-boundaries", "line-color", whiteMap ? "#aab3bd" : "#667383");
   setPaint(
     "jma-local-area-boundaries",
     "line-width",
     whiteMap
       ? ["interpolate", ["linear"], ["zoom"], 4, 0.42, 7, 0.68, 10, 0.9]
-      : ["interpolate", ["linear"], ["zoom"], 4, 0.75, 7, 1.12, 10, 1.42],
-  );
-  setPaint("prefecture-boundaries", "line-color", whiteMap ? "#77828e" : "#f7fbff");
-  setPaint(
-    "prefecture-boundaries",
-    "line-width",
-    whiteMap
-      ? ["interpolate", ["linear"], ["zoom"], 3, 0.65, 5, 0.8, 7, 0.9, 10, 1.05]
-      : ["interpolate", ["linear"], ["zoom"], 3, 1.05, 5, 1.35, 6.5, 1.1, 7.4, 0.55],
-  );
-  setPaint(
-    "prefecture-boundaries",
-    "line-opacity",
-    whiteMap ? 0.82 : ["interpolate", ["linear"], ["zoom"], 3, 0.64, 5.5, 0.54, 6.6, 0.22, 7.4, 0],
+      : ["interpolate", ["linear"], ["zoom"], 4, 0.48, 7, 0.72, 10, 0.94],
   );
   setPaint(
     "eew-warning-fill",
     "fill-color",
-    ["case", ["==", ["feature-state", "eewBlinkOff"], true], whiteMap ? "#eef1f4" : "#3c3d40", "#e60012"],
+    ["case", ["==", ["feature-state", "eewBlinkOff"], true], whiteMap ? "#eef1f4" : "#151b23", "#e60012"],
   );
 }
 
@@ -14334,36 +14370,55 @@ async function restoreCurrentLocationPreference() {
     return;
   }
 
+  const locationEnabled = localStorage.getItem(CURRENT_LOCATION_ENABLED_KEY) === "true";
+  els.currentLocationToggle.checked = locationEnabled;
+  updateSettingsScreenNotificationState();
+
   if (!navigator.geolocation) {
     els.currentLocationToggle.checked = false;
     updateSettingsScreenNotificationState();
     return;
   }
 
+  if (!locationEnabled) {
+    if (!navigator.permissions?.query) {
+      showStartupLocationPermissionPrompt("prompt");
+      return;
+    }
+    try {
+      const permission = await navigator.permissions.query({ name: "geolocation" });
+      showStartupLocationPermissionPrompt(permission.state);
+    } catch (error) {
+      console.warn("location permission check failed", error);
+      showStartupLocationPermissionPrompt("prompt");
+    }
+    return;
+  }
+
   if (!navigator.permissions?.query) {
-    els.currentLocationToggle.checked = false;
+    await toggleCurrentLocationLink();
     updateSettingsScreenNotificationState();
-    showStartupLocationPermissionPrompt("prompt");
     return;
   }
 
   try {
     const permission = await navigator.permissions.query({ name: "geolocation" });
     if (permission.state !== "granted") {
-      els.currentLocationToggle.checked = false;
+      state.currentLocationEnabled = false;
+      state.currentLocation = null;
+      state.currentLocationName = permission.state === "denied"
+        ? "OSの設定で位置情報を許可してください。"
+        : "位置情報の許可を確認してください。";
+      state.currentLocationStatus = "error";
       updateSettingsScreenNotificationState();
-      showStartupLocationPermissionPrompt(permission.state);
       return;
     }
-    els.currentLocationToggle.checked = true;
-    localStorage.setItem(CURRENT_LOCATION_ENABLED_KEY, "true");
     updateSettingsScreenNotificationState();
     await toggleCurrentLocationLink();
     updateSettingsScreenNotificationState();
     closeStartupLocationPermissionPrompt();
   } catch (error) {
     console.warn("location permission restore failed", error);
-    showStartupLocationPermissionPrompt("prompt");
   }
 }
 
@@ -14439,10 +14494,12 @@ async function refreshSystemPermissionStates() {
   if (navigator.permissions?.query && els.currentLocationToggle) {
     try {
       const permission = await navigator.permissions.query({ name: "geolocation" });
+      const locationEnabled = localStorage.getItem(CURRENT_LOCATION_ENABLED_KEY) === "true";
       if (permission.state === "denied" && els.currentLocationToggle.checked) {
         clearCurrentLocationLink();
       } else if (
         permission.state === "granted"
+        && locationEnabled
         && (
           !els.currentLocationToggle.checked
           || !state.currentLocationEnabled
@@ -15348,6 +15405,8 @@ function buildSyntheticSimulationMagnitudeReports(finalMagnitude) {
   let accumulatedWeight = 0;
   const initialDeficit = clamp(0.45 + Math.max(finalMagnitude - 5.0, 0) * 0.24, 0.45, 1.65);
 
+  let previousMagnitude = null;
+  let previousStep = null;
   return Array.from({ length: reportCount }, (_, index) => {
     const isFinal = index === reportCount - 1;
     if (index > 0) {
@@ -15364,13 +15423,41 @@ function buildSyntheticSimulationMagnitudeReports(finalMagnitude) {
         index,
       ].join("|")) - 0.5
     ) * 0.8 * remainingUncertainty;
-    const estimate = isFinal
+    const targetEstimate = isFinal
       ? finalMagnitude
       : finalMagnitude - initialDeficit * remainingUncertainty + noise;
+    let estimate = targetEstimate;
+    if (!isFinal && previousMagnitude != null) {
+      const stepChoices = [-0.2, -0.1, 0.1, 0.2, 0.3];
+      estimate = stepChoices
+        .map((step) => {
+          const candidate = Number((previousMagnitude + step).toFixed(1));
+          const tieBreaker = stableUnitInterval([
+            "magnitude-report-step",
+            state.latitude.toFixed(3),
+            state.longitude.toFixed(3),
+            finalMagnitude.toFixed(1),
+            index,
+            step,
+          ].join("|"));
+          return {
+            step,
+            candidate,
+            score: Math.abs(candidate - targetEstimate)
+              + (step === previousStep ? 0.18 : 0)
+              + tieBreaker * 0.08,
+          };
+        })
+        .sort((left, right) => left.score - right.score)[0].candidate;
+    }
+    const magnitude = Number(clamp(Math.round(estimate * 10) / 10, 0.1, 10).toFixed(1));
+    const step = previousMagnitude == null ? null : Number((magnitude - previousMagnitude).toFixed(1));
+    previousMagnitude = magnitude;
+    previousStep = step;
     return {
       reportNumber: index + 1,
       elapsedSec: Number((firstReportSec + (finalReportSec - firstReportSec) * progress).toFixed(2)),
-      magnitude: Number(clamp(Math.round(estimate * 10) / 10, 0.1, 10).toFixed(1)),
+      magnitude,
       isFinal,
     };
   });

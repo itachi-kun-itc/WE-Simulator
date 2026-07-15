@@ -4,7 +4,9 @@ const vm = require("vm");
 
 const rootDir = path.resolve(__dirname, "..");
 const sourcePath = path.join(rootDir, "web", "data", "weather_forecaster_quiz.json");
-const outputPath = path.join(rootDir, "web", "data", "weather_forecaster_quiz_questions.json");
+const outputPath = process.argv[2]
+  ? path.resolve(process.argv[2])
+  : path.join(rootDir, "web", "data", "weather_forecaster_quiz_questions.json");
 const appPath = path.join(rootDir, "web", "app.js");
 
 const readMapEntries = (source, declaration) => {
@@ -516,7 +518,9 @@ const isWeakExplanationLead = (sentence) => {
 
 const buildExplanation = (itemNumber, question, answer, assertion) => {
   const override = EXPLANATION_OVERRIDES.get(itemNumber);
-  if (override) return override;
+  if (override) {
+    return override.startsWith(assertion) ? override : `${assertion}\n${override}`;
+  }
 
   const answerSentences = String(answer || "")
     .split("。")
@@ -525,21 +529,22 @@ const buildExplanation = (itemNumber, question, answer, assertion) => {
   while (answerSentences.length > 1 && isWeakExplanationLead(answerSentences[0])) answerSentences.shift();
   const base = answerSentences.join("\n") || cleanSentence(answer);
   const context = EXPLANATION_CONTEXTS.find(([pattern]) => pattern.test(`${question} ${answer}`))?.[1] || "";
-  if (context && !base.includes(context)) {
-    const lead = isWeakExplanationLead(base) && assertion ? assertion : base;
-    return `${lead}\n${context}`;
-  }
-  if (isWeakExplanationLead(base) && assertion) return assertion;
-  return base;
+  const details = [base, context]
+    .filter(Boolean)
+    .filter((text) => text !== assertion && !assertion.includes(text));
+  return [assertion, ...details].filter(Boolean).join("\n");
 };
 
 const buildDistractors = (item, question, correct, assertionOverride = "") => {
   const explicitWrong = item.wrongAnswer || questionDistractors.get(item.question) || questionDistractors.get(question) || "";
   const correctAssertion = cleanSentence(assertionOverride) || makeAssertion(question, correct);
-  const explicitWrongAssertion = explicitWrong ? makeAssertion(question, explicitWrong) : "";
+  const cleanedExplicitWrong = cleanSentence(explicitWrong);
+  const explicitWrongAssertion = isStandaloneAssertion(cleanedExplicitWrong)
+    ? cleanedExplicitWrong
+    : (explicitWrong ? makeAssertion(question, explicitWrong) : "");
   const seeds = unique([
-    ...mutateTerms(correctAssertion),
     explicitWrongAssertion,
+    ...mutateTerms(correctAssertion),
     mutatePolarity(correctAssertion),
   ]);
   const expanded = [...seeds];
@@ -732,6 +737,11 @@ const CHOICE_OVERRIDES = new Map([
   [197, { question: "二重偏波レーダーで雨量推定に使う量はどれですか。", correct: "偏波間位相差", distractors: ["気温差", "海面気圧", "日照時間"] }],
   [199, { question: "メソスケール強雨の予測に適する組み合わせはどれですか。", correct: "細格子・非静力学", distractors: ["粗格子・静力学", "粗格子・地衡風", "全球平均・静力学"] }],
   [217, { question: "空気塊が極側から低緯度へ移ると強まるものはどれですか。", correct: "低気圧性相対渦度", distractors: ["高気圧性相対渦度", "水平発散", "静的安定度"] }],
+  [220, {
+    question: "夏半球の成層圏で卓越する風として正しいものはどれですか。",
+    correct: "東風",
+    distractors: ["西風", "季節によらず同じ風", "高度によらず無風"],
+  }],
   [221, { question: "エルニーニョ時に弱まりやすい風はどれですか。", correct: "赤道太平洋の東風", distractors: ["中緯度の西風", "極東風", "海風"] }],
   [222, { question: "予報業務の許可要件に含まれる体制はどれですか。", correct: "資料収集・解析体制", distractors: ["資料収集のみ", "広報体制のみ", "端末保守のみ"] }],
   [226, { question: "海面気圧の換算に使う要素はどれですか。", correct: "気圧・気温・標高", distractors: ["湿度・日照・風速", "雨量・雲量・視程", "緯度・経度のみ"] }],
@@ -756,7 +766,12 @@ const output = sourceItems.map((sourceItem, index) => {
   const answer = cleanSentence(sourceItem.answer);
   const correctAssertion = cleanSentence(override?.assertion || assertionOverride) || makeAssertion(question, answer);
   const generatedDistractors = override?.distractors?.map(cleanSentence) || buildDistractors(sourceItem, question, answer, correctAssertion);
+  const cleanedSourceWrong = cleanSentence(sourceItem.wrongAnswer);
+  const sourceWrongStatement = isStandaloneAssertion(cleanedSourceWrong)
+    ? cleanedSourceWrong
+    : (sourceItem.wrongAnswer ? makeAssertion(question, sourceItem.wrongAnswer) : "");
   const distractors = unique([
+    sourceWrongStatement,
     FALSE_STATEMENT_OVERRIDES.get(index + 1),
     ...generatedDistractors,
   ]).filter((candidate) => candidate !== correctAssertion && isStandaloneAssertion(candidate)).slice(0, 3);
@@ -770,15 +785,33 @@ const output = sourceItems.map((sourceItem, index) => {
   }
 
   const choiceOverride = CHOICE_OVERRIDES.get(index + 1);
-  const correctChoice = cleanSentence(choiceOverride?.correct) || firstSentence(answer) || correctAssertion;
-  const choiceDistractors = choiceOverride?.distractors
-    || buildChoiceDistractors(sourceItem, question, answer, distractors);
-  const choices = unique([correctChoice, ...choiceDistractors]).slice(0, 4);
-  if (choices.length !== 4) failures.push(`${index + 1}: 4択不成立 (${choices.length}) ${question}`);
-  const rotation = index % 4;
-  const orderedChoices = [...choices.slice(rotation), ...choices.slice(0, rotation)];
-  const correctChoiceIndex = orderedChoices.indexOf(correctChoice);
-  const compactChoices = compactChoiceSet(orderedChoices);
+  let multipleChoice;
+  if (choiceOverride) {
+    const correctChoice = cleanSentence(choiceOverride.correct);
+    const choices = unique([correctChoice, ...choiceOverride.distractors.map(cleanSentence)]).slice(0, 4);
+    if (choices.length !== 4) failures.push(`${index + 1}: 4択不成立 (${choices.length}) ${question}`);
+    const rotation = index % 4;
+    const orderedChoices = [...choices.slice(rotation), ...choices.slice(0, rotation)];
+    multipleChoice = {
+      question: choiceOverride.question || question,
+      choices: orderedChoices,
+      correctIndex: orderedChoices.indexOf(correctChoice),
+      explanation,
+    };
+  } else {
+    // 自動で文を短縮・連結せず、この論点だけの完全な断定文を4件用いる。
+    const correctChoice = correctAssertion;
+    const choices = unique([correctChoice, ...distractors]).slice(0, 4);
+    if (choices.length !== 4) failures.push(`${index + 1}: 4択不成立 (${choices.length}) ${question}`);
+    const rotation = index % 4;
+    const orderedChoices = [...choices.slice(rotation), ...choices.slice(0, rotation)];
+    multipleChoice = {
+      question: `次の問いに対する正しい記述はどれですか。\n${question}`,
+      choices: orderedChoices,
+      correctIndex: orderedChoices.indexOf(correctChoice),
+      explanation,
+    };
+  }
 
   return {
     id: `weather-${String(index + 1).padStart(3, "0")}`,
@@ -792,12 +825,7 @@ const output = sourceItems.map((sourceItem, index) => {
       correctStatement: correctAssertion,
       explanation,
     },
-    multipleChoice: {
-      question: choiceOverride?.question || question,
-      choices: compactChoices,
-      correctIndex: correctChoiceIndex,
-      explanation,
-    },
+    multipleChoice,
   };
 });
 
@@ -814,5 +842,6 @@ if (failures.length) {
   process.exitCode = 1;
 } else {
   fs.writeFileSync(outputPath, `${JSON.stringify(output, null, 2)}\n`, "utf8");
-  console.log(`Generated ${output.length * 2} fixed questions: ${outputPath}`);
+  const multipleChoiceCount = output.filter((item) => item.multipleChoice).length;
+  console.log(`Generated ${output.length} true/false and ${multipleChoiceCount} paired multiple-choice questions: ${outputPath}`);
 }

@@ -20765,3 +20765,239 @@ html[data-resolved-theme="light"] .maintenance-reason-submit,
 html[data-resolved-theme="light"] .feedback-submit {
   color: #ffffff !important;
 }
+
+/* Complete the light-theme treatment for the lower learning content. */
+html[data-resolved-theme="light"] .learning-typhoon-fact-grid article,
+html[data-resolved-theme="light"] .learning-typhoon-symbol-list article,
+html[data-resolved-theme="light"] .learning-typhoon-action-list article,
+html[data-resolved-theme="light"] .learning-typhoon-scale-grid > div {
+  border-color: #b8c3ce !important;
+  background: #ffffff !important;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.05) !important;
+}
+
+html[data-resolved-theme="light"] .learning-typhoon-fact-grid article {
+  border-color: #9fb9c2 !important;
+  background: #f2f8fa !important;
+}
+
+html[data-resolved-theme="light"] .learning-typhoon-fact-grid strong,
+html[data-resolved-theme="light"] .learning-typhoon-scale-grid h4 {
+  color: #075e70 !important;
+}
+
+html[data-resolved-theme="light"] .learning-typhoon-scale-grid h4 {
+  border-bottom: 1px solid #c5ced8 !important;
+  background: #e8edf2 !important;
+}
+
+html[data-resolved-theme="light"] .learning-typhoon-route-diagram {
+  border-color: #aab7c4 !important;
+  background:
+    linear-gradient(rgba(71, 85, 105, 0.07) 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(90deg, rgba(71, 85, 105, 0.07) 1px, transparent 1px) 0 0 / 24px 24px,
+    #ffffff !important;
+}
+
+html[data-resolved-theme="light"] .learning-typhoon-route-diagram text {
+  fill: #334155 !important;
+}
+
+/* Keep the warning/wind areas semantic; only neutral white route lines become dark. */
+html[data-resolved-theme="light"] .typhoon-forecast-route {
+  stroke: #111827 !important;
+}
+
+html[data-resolved-theme="light"] .typhoon-forecast-guide,
+html[data-resolved-theme="light"] .typhoon-forecast-circle-links {
+  stroke: rgba(17, 24, 39, 0.66) !important;
+}
+
+html[data-resolved-theme="light"] .typhoon-forecast-circle {
+  fill: rgba(255, 255, 255, 0.72) !important;
+  stroke: #111827 !important;
+}
+
+html[data-resolved-theme="light"] .typhoon-current-mark {
+  stroke: #111827 !important;
+}
+
+html[data-resolved-theme="light"] .typhoon-forecast-center {
+  fill: #111827 !important;
+  stroke: #ffffff !important;
+}
+
+html[data-resolved-theme="light"] .learning-typhoon-symbol-list article > span {
+  color: #111827 !important;
+}
+
+html[data-resolved-theme="light"] .learning-typhoon-symbol-list .is-forecast {
+  border-color: #111827 !important;
+}
+
+html[data-resolved-theme="light"] .learning-typhoon-symbol-list .is-center-line::before {
+  border-top-color: #111827 !important;
+}
+
+html[data-resolved-theme="light"] .learning-typhoon-action-list article > span {
+  border: 1px solid #91b5bf !important;
+  background: #e4f2f5 !important;
+  color: #075e70 !important;
+}
+
+/* EEW copy must remain readable on the light map. */
+html[data-resolved-theme="light"] .eew-forecast-message {
+  color: #172033 !important;
+}
+
+html[data-resolved-theme="light"] .eew-forecast-panel li {
+  border-color: #e94b5c !important;
+  background: #ffe5e8 !important;
+  color: #172033 !important;
+}
+
+.typhoon-forecast-label-light {
+  display: none !important;
+}
+
+html[data-resolved-theme="light"] .typhoon-forecast-label-dark {
+  display: none !important;
+}
+
+html[data-resolved-theme="light"] .typhoon-forecast-label-light {
+  display: inline !important;
+}
+
+html[data-resolved-theme="light"] .typhoon-forecast-route,
+html[data-resolved-theme="light"] .typhoon-forecast-guide,
+html[data-resolved-theme="light"] .typhoon-forecast-circle-links {
+  stroke: #111827 !important;
+}
+
+/* Muted account action color for the light profile screen. */
+html[data-resolved-theme="light"] .community-account-panel .community-account-wide-button {
+  border-color: #40586d !important;
+  background: #50697d !important;
+  color: #ffffff !important;
+  box-shadow: 0 5px 14px rgba(38, 55, 70, 0.14) !important;
+}
+
+html[data-resolved-theme="light"] .community-account-wide-button::after,
+html[data-resolved-theme="light"] #settings-admin-button span:first-child::after {
+  color: #e6f3ff !important;
+}
+
+/* Appearance color schemes use selectable legend previews instead of a select. */
+.intensity-color-scheme-native {
+  display: none !important;
+}
+
+.settings-color-scheme-options {
+  display: grid !important;
+  gap: 9px !important;
+}
+
+.settings-color-scheme-choice {
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr) !important;
+  grid-template-areas: "radio name" "preview preview" !important;
+  align-items: center !important;
+  gap: 8px 10px !important;
+  min-width: 0 !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 14px !important;
+  padding: 10px !important;
+  background: rgba(255, 255, 255, 0.055) !important;
+  color: #e5edf5 !important;
+  cursor: pointer !important;
+}
+
+.settings-color-scheme-choice:has(input:checked) {
+  border-color: rgba(56, 189, 248, 0.68) !important;
+  background: rgba(14, 165, 233, 0.14) !important;
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.1) !important;
+}
+
+.settings-color-scheme-choice input {
+  grid-area: radio !important;
+  margin: 0 !important;
+  accent-color: #0ea5e9 !important;
+}
+
+.settings-color-scheme-name {
+  grid-area: name !important;
+  font-size: 0.88rem !important;
+  font-weight: 850 !important;
+}
+
+.settings-color-scheme-preview {
+  grid-area: preview !important;
+  display: grid !important;
+  grid-template-columns: repeat(9, minmax(0, 1fr)) !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(148, 163, 184, 0.42) !important;
+  border-radius: 9px !important;
+}
+
+.settings-color-scheme-preview i {
+  display: grid !important;
+  min-width: 0 !important;
+  min-height: 28px !important;
+  place-items: center !important;
+  background: var(--preview-color) !important;
+  color: var(--preview-text) !important;
+  font-size: clamp(0.58rem, 2.5vw, 0.72rem) !important;
+  font-style: normal !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+}
+
+html[data-resolved-theme="light"] .settings-color-scheme-choice {
+  border-color: #bcc7d2 !important;
+  background: #ffffff !important;
+  color: #1e293b !important;
+}
+
+html[data-resolved-theme="light"] .settings-color-scheme-choice:has(input:checked) {
+  border-color: #0f766e !important;
+  background: #e6f4f1 !important;
+  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.1) !important;
+}
+
+html[data-resolved-theme="light"] .settings-color-scheme-choice input {
+  accent-color: #0f766e !important;
+}
+
+/* Keep the source sheet out of the first paint until its collapsed state is laid out. */
+html[data-app-booting="true"] #setup-panel {
+  visibility: hidden !important;
+  pointer-events: none !important;
+  transition: none !important;
+  animation: none !important;
+}
+
+/* Final simulation light-theme and information-ticket alignment fixes. */
+html[data-resolved-theme="light"] .preset-depth-over,
+html[data-resolved-theme="light"] .preset-magnitude-under {
+  color: #526176 !important;
+}
+
+html[data-resolved-theme="light"] body.simulation-session-active:not(.simulation-session-complete)
+  .simulation-runtime-hud #simulation-pause {
+  border-color: #9aa8b8 !important;
+  background: linear-gradient(180deg, #e8edf2, #d3dce5) !important;
+  color: #334155 !important;
+  box-shadow: 0 5px 13px rgba(51, 65, 85, 0.14), inset 0 1px #ffffff !important;
+}
+
+.simulation-runtime-hud .max-shindo-card {
+  transform: none !important;
+  align-self: center !important;
+  justify-content: center !important;
+}
+
+.simulation-runtime-hud .max-shindo-card strong,
+body.simulation-session-active #setup-panel.simulation-result-report-open
+  .simulation-result-report-summary-host .max-shindo-card strong {
+  padding: 0 !important;
+}
