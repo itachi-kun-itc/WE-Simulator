@@ -355,8 +355,7 @@ function syncWeatherQuizQuestionLists(commitSha) {
     ["問題ID", "問題文", "解答", "解説"],
     trueFalseRows,
     [100, 420, 80, 520],
-    0,
-    3
+    0
   );
   const multipleChoiceResult = syncWeatherQuizQuestionListSheet_(
     spreadsheet,
@@ -364,8 +363,7 @@ function syncWeatherQuizQuestionLists(commitSha) {
     ["問題ID", "問題文", "選択肢1（正解）", "選択肢2", "選択肢3", "選択肢4", "解説"],
     multipleChoiceRows,
     [100, 400, 300, 300, 300, 300, 500],
-    3,
-    0
+    3
   );
   return {
     revision,
@@ -405,8 +403,7 @@ function syncWeatherQuizQuestionListSheet_(
   headers,
   rows,
   columnWidths,
-  correctChoiceColumn,
-  centeredColumn
+  correctChoiceColumn
 ) {
   let sheet = spreadsheet.getSheetByName(sheetName);
   const created = !sheet;
@@ -467,16 +464,14 @@ function syncWeatherQuizQuestionListSheet_(
       sheet.appendRow(desiredRow);
       const rowNumber = sheet.getLastRow();
       existingById.set(questionId, { rowNumber, values: desiredRow });
-      sheet.getRange(rowNumber, 1, 1, headers.length).setWrap(true).setVerticalAlignment("top");
+      if (rowNumber > 2) {
+        sheet.getRange(rowNumber - 1, 1, 1, headers.length)
+          .copyFormatToRange(sheet, 1, headers.length, rowNumber, rowNumber);
+      }
       sheet.getRange(rowNumber, 1, 1, headers.length)
         .setBackground(WEATHER_QUIZ_CHANGED_ROW_BACKGROUND);
       if (correctChoiceColumn) {
         sheet.getRange(rowNumber, correctChoiceColumn).setFontColor("#ff0000");
-      }
-      if (centeredColumn) {
-        sheet.getRange(rowNumber, centeredColumn)
-          .setHorizontalAlignment("center")
-          .setVerticalAlignment("middle");
       }
       structuralChange = true;
       addedRowCount += 1;
@@ -505,12 +500,6 @@ function syncWeatherQuizQuestionListSheet_(
       .setVerticalAlignment("middle");
     sheet.setFrozenRows(1);
     columnWidths.forEach((width, index) => sheet.setColumnWidth(index + 1, width));
-  }
-
-  if (centeredColumn && sheet.getLastRow() > 1) {
-    sheet.getRange(2, centeredColumn, sheet.getLastRow() - 1, 1)
-      .setHorizontalAlignment("center")
-      .setVerticalAlignment("middle");
   }
 
   if (structuralChange || created) {
