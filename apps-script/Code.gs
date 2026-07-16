@@ -21,14 +21,6 @@ const WEATHER_QUIZ_HEADERS = [
   "受付日時",
   "悪問理由",
   "問題ID",
-  "問題内容",
-  "選択肢①",
-  "選択肢②",
-  "選択肢③",
-  "選択肢④",
-  "解答",
-  "解説文",
-  "ユーザーエージェント",
 ];
 
 /**
@@ -68,51 +60,16 @@ function doPost(e) {
 function appendWeatherQuizReport_(payload) {
   const sheet = prepareWeatherQuizSheet_();
   const row = sheet.getLastRow() + 1;
-  const choices = getWeatherQuizChoices_(payload);
-  const values = [
+  sheet.getRange(row, 1, 1, 2).setValues([[
     formatDateTime_(payload.createdAt),
     normalizeLineBreaks_(payload.badQuestionReason),
-    normalizeLineBreaks_(payload.questionId),
-    normalizeLineBreaks_(payload.question),
-    choices[0],
-    choices[1],
-    choices[2],
-    choices[3],
-    normalizeLineBreaks_(payload.answer),
-    normalizeLineBreaks_(payload.explanation),
-    getWeatherQuizUserAgent_(payload),
-  ];
-
-  sheet.getRange(row, 1, 1, WEATHER_QUIZ_HEADERS.length).setValues([values]);
+  ]]);
+  setWeatherQuizReportQuestionLink_(sheet.getRange(row, 3), payload.questionId);
   sheet.getRange(row, 1, 1, WEATHER_QUIZ_HEADERS.length)
     .setBackground(null)
     .setVerticalAlignment("top");
-  sheet.getRange(row, 2, 1, 10).setWrap(true);
+  sheet.getRange(row, 2).setWrap(true);
   sheet.autoResizeRows(row, 1);
-}
-
-function getWeatherQuizChoices_(payload) {
-  const suppliedChoices = Array.isArray(payload.choices) ? payload.choices : [];
-  const choices = [
-    payload.choice1 !== undefined ? payload.choice1 : suppliedChoices[0],
-    payload.choice2 !== undefined ? payload.choice2 : suppliedChoices[1],
-    payload.choice3 !== undefined ? payload.choice3 : suppliedChoices[2],
-    payload.choice4 !== undefined ? payload.choice4 : suppliedChoices[3],
-  ].map(normalizeLineBreaks_);
-
-  const questionId = String(payload.questionId || "");
-  const isTrueFalse = /^1-/u.test(questionId);
-  if (isTrueFalse) {
-    choices[0] = choices[0] || "◯";
-    choices[1] = choices[1] || "✕";
-  }
-
-  return choices;
-}
-
-function getWeatherQuizUserAgent_(payload) {
-  const userAgent = payload.userAgent || payload.user_agent || payload.ua;
-  return normalizeLineBreaks_(userAgent) || "取得不可";
 }
 
 function prepareWeatherQuizSheet_() {
@@ -120,15 +77,6 @@ function prepareWeatherQuizSheet_() {
   const sheet = spreadsheet.getSheetByName(WEATHER_QUIZ_SHEET_NAME)
     || spreadsheet.insertSheet(WEATHER_QUIZ_SHEET_NAME);
 
-  // 旧6列・7列版に記録済みのデータがある場合は、解答の前へ選択肢4列を挿入します。
-  if (sheet.getLastColumn() >= 6) {
-    const legacyAnswerHeaders = sheet.getRange(1, 5, 1, 2).getValues()[0];
-    if (legacyAnswerHeaders[0] === "解答" && legacyAnswerHeaders[1] === "解説文") {
-      sheet.insertColumnsBefore(5, 4);
-    }
-  }
-
-  backfillWeatherQuizTrueFalseChoices_(sheet);
   migrateWeatherQuizReportColumns_(sheet);
   removeBackgrounds_(sheet);
   return sheet;
@@ -147,63 +95,74 @@ function migrateWeatherQuizReportColumns_(sheet) {
   const alreadyCurrent = WEATHER_QUIZ_HEADERS.every((header, index) => (
     currentHeaders[index] === header
   ));
-  if (alreadyCurrent) {
-    return;
-  }
+  const needsMigration = !alreadyCurrent || sheet.getMaxColumns() > WEATHER_QUIZ_HEADERS.length;
+  if (!alreadyCurrent) {
+    const rowCount = Math.max(0, sheet.getLastRow() - 1);
+    const oldRows = rowCount
+      ? sheet.getRange(2, 1, rowCount, currentWidth).getValues()
+      : [];
+    const oldColumnByHeader = new Map(currentHeaders.map((header, index) => [header, index]));
+    const migratedRows = oldRows.map((oldRow) => WEATHER_QUIZ_HEADERS.map((header) => {
+      // 旧データには問題IDがないため空欄にします。次回以降の報告には新IDが入ります。
+      if (header === "問題ID" && !oldColumnByHeader.has(header)) {
+        return "";
+      }
+      const oldColumn = oldColumnByHeader.get(header);
+      return oldColumn === undefined ? "" : oldRow[oldColumn];
+    }));
 
-  const rowCount = Math.max(0, sheet.getLastRow() - 1);
-  const oldRows = rowCount
-    ? sheet.getRange(2, 1, rowCount, currentWidth).getValues()
-    : [];
-  const oldColumnByHeader = new Map(currentHeaders.map((header, index) => [header, index]));
-  const migratedRows = oldRows.map((oldRow) => WEATHER_QUIZ_HEADERS.map((header) => {
-    // 旧データには問題IDがないため空欄にします。次回以降の報告には新IDが入ります。
-    if (header === "問題ID" && !oldColumnByHeader.has(header)) {
-      return "";
+    sheet.getRange(1, 1, Math.max(1, sheet.getLastRow()), currentWidth).clearContent();
+    sheet.getRange(1, 1, 1, WEATHER_QUIZ_HEADERS.length).setValues([WEATHER_QUIZ_HEADERS]);
+    if (migratedRows.length) {
+      sheet.getRange(2, 1, migratedRows.length, WEATHER_QUIZ_HEADERS.length).setValues(migratedRows);
     }
-    const oldColumn = oldColumnByHeader.get(header);
-    return oldColumn === undefined ? "" : oldRow[oldColumn];
-  }));
-
-  sheet.getRange(1, 1, Math.max(1, sheet.getLastRow()), currentWidth).clearContent();
-  sheet.getRange(1, 1, 1, WEATHER_QUIZ_HEADERS.length).setValues([WEATHER_QUIZ_HEADERS]);
-  if (migratedRows.length) {
-    sheet.getRange(2, 1, migratedRows.length, WEATHER_QUIZ_HEADERS.length).setValues(migratedRows);
+  }
+  if (sheet.getMaxColumns() > WEATHER_QUIZ_HEADERS.length) {
+    sheet.deleteColumns(
+      WEATHER_QUIZ_HEADERS.length + 1,
+      sheet.getMaxColumns() - WEATHER_QUIZ_HEADERS.length
+    );
+  }
+  if (needsMigration) {
+    for (let row = 2; row <= sheet.getLastRow(); row += 1) {
+      setWeatherQuizReportQuestionLink_(sheet.getRange(row, 3), sheet.getRange(row, 3).getDisplayValue());
+    }
   }
 }
 
-function backfillWeatherQuizTrueFalseChoices_(sheet) {
-  const rowCount = sheet.getLastRow() - 1;
-  if (rowCount <= 0) {
+function setWeatherQuizReportQuestionLink_(cell, questionIdValue) {
+  const questionId = String(questionIdValue || "").trim();
+  const targetSheetName = /^1-\d{3}$/u.test(questionId)
+    ? WEATHER_QUIZ_TRUE_FALSE_LIST_SHEET_NAME
+    : /^2-\d{3}$/u.test(questionId)
+      ? WEATHER_QUIZ_MULTIPLE_CHOICE_LIST_SHEET_NAME
+      : "";
+  if (!targetSheetName) {
+    cell.setValue(questionId || "-");
     return;
   }
 
-  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  const questionTypeColumn = headers.indexOf("問題形式") + 1;
-  if (!questionTypeColumn) {
+  const spreadsheet = cell.getSheet().getParent();
+  const targetSheet = spreadsheet.getSheetByName(targetSheetName);
+  const targetRowCount = targetSheet ? Math.max(0, targetSheet.getLastRow() - 1) : 0;
+  const targetCell = targetRowCount
+    ? targetSheet.getRange(2, 1, targetRowCount, 1)
+      .createTextFinder(questionId)
+      .matchEntireCell(true)
+      .findNext()
+    : null;
+  if (!targetCell) {
+    cell.setValue(questionId);
     return;
   }
-  const questionTypes = sheet.getRange(2, questionTypeColumn, rowCount, 1).getValues();
-  const choices = sheet.getRange(2, 5, rowCount, 2).getValues();
-  let changed = false;
 
-  for (let index = 0; index < rowCount; index += 1) {
-    if (!/[◯○][✕×]問題/u.test(String(questionTypes[index][0] || ""))) {
-      continue;
-    }
-    if (!choices[index][0]) {
-      choices[index][0] = "◯";
-      changed = true;
-    }
-    if (!choices[index][1]) {
-      choices[index][1] = "✕";
-      changed = true;
-    }
-  }
-
-  if (changed) {
-    sheet.getRange(2, 5, rowCount, 2).setValues(choices);
-  }
+  const linkUrl = `#gid=${targetSheet.getSheetId()}&range=A${targetCell.getRow()}`;
+  cell.setRichTextValue(
+    SpreadsheetApp.newRichTextValue()
+      .setText(questionId)
+      .setLinkUrl(linkUrl)
+      .build()
+  );
 }
 
 function appendFeedback_(payload) {
