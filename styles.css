@@ -19795,10 +19795,11 @@ body.simulation-session-active #setup-panel.simulation-result-report-open
   color: var(--simulation-ticket-intensity-text, #1f2937) !important;
 }
 
-/* Remove the bright seam above the information ticket in every theme and context. */
+/* Keep the information ticket frame continuous on every edge. */
 .simulation-runtime-hud .simulation-summary,
 .simulation-result-report-summary-host .simulation-summary {
-  border-top-width: 0 !important;
+  border-top-width: 1px !important;
+  border-top-style: solid !important;
   box-shadow: none !important;
 }
 
@@ -20837,6 +20838,74 @@ html[data-resolved-theme="light"] .simulation-runtime-hud .simulation-progress-n
 .simulation-result-report-summary-host .simulation-summary .simulation-origin-time-card strong {
   position: relative !important;
   top: 1.5px !important;
+}
+
+/* Depth and magnitude sit another 0.7px lower than the other ticket values. */
+.simulation-runtime-hud .simulation-summary #simulation-depth,
+.simulation-runtime-hud .simulation-summary .magnitude-card strong,
+.simulation-result-report-summary-host .simulation-summary #simulation-depth,
+.simulation-result-report-summary-host .simulation-summary .magnitude-card strong {
+  top: 2px !important;
+}
+
+/* Keep preliminary/final status text on the exact baseline of the M value. */
+.simulation-runtime-hud .simulation-summary .magnitude-card strong,
+.simulation-result-report-summary-host .simulation-summary .magnitude-card strong {
+  display: inline-flex !important;
+  align-items: baseline !important;
+  vertical-align: baseline !important;
+}
+
+.simulation-runtime-hud .simulation-summary .simulation-magnitude-status,
+.simulation-result-report-summary-host .simulation-summary .simulation-magnitude-status {
+  position: static !important;
+  top: auto !important;
+  align-self: baseline !important;
+  vertical-align: baseline !important;
+  transform: none !important;
+  line-height: inherit !important;
+}
+
+/* The light result page uses the panel surface directly, without white slabs. */
+html[data-resolved-theme="light"]
+  #setup-panel.simulation-result-report-open .simulation-result-report-head,
+html[data-resolved-theme="light"]
+  #setup-panel.simulation-result-report-open .simulation-result-report-stations {
+  background: transparent !important;
+}
+
+/* Keep every timeline event line clearly visible on the light surface. The
+   planned and confirmed states share the same 2px box, so labels do not move. */
+html[data-resolved-theme="light"] .simulation-timeline-event,
+html[data-resolved-theme="light"] .simulation-runtime-hud .simulation-timeline-event {
+  border-left-width: 2px !important;
+  border-left-style: solid !important;
+  border-left-color: #334155 !important;
+}
+
+html[data-resolved-theme="light"] .simulation-timeline-event.is-intensity,
+html[data-resolved-theme="light"] .simulation-runtime-hud .simulation-timeline-event.is-intensity {
+  border-left-color: #ea580c !important;
+}
+
+html[data-resolved-theme="light"] .simulation-timeline-event.is-eew,
+html[data-resolved-theme="light"] .simulation-runtime-hud .simulation-timeline-event.is-eew {
+  border-left-color: #dc2626 !important;
+}
+
+html[data-resolved-theme="light"] .simulation-timeline-event.is-magnitude,
+html[data-resolved-theme="light"] .simulation-runtime-hud .simulation-timeline-event.is-magnitude {
+  border-left-color: #475569 !important;
+}
+
+html[data-resolved-theme="light"] .simulation-timeline-event.is-intensity-planned,
+html[data-resolved-theme="light"] .simulation-runtime-hud .simulation-timeline-event.is-intensity-planned,
+html[data-resolved-theme="light"] .simulation-timeline-event.is-eew-planned,
+html[data-resolved-theme="light"] .simulation-runtime-hud .simulation-timeline-event.is-eew-planned,
+html[data-resolved-theme="light"] .simulation-timeline-event.is-magnitude-planned,
+html[data-resolved-theme="light"] .simulation-runtime-hud .simulation-timeline-event.is-magnitude-planned {
+  border-left: 2px solid transparent !important;
+  background-size: 2px 100% !important;
 }
 
 /* The simulation layer control remains a white control in the light map. */
@@ -22074,6 +22143,108 @@ html[data-resolved-theme="light"] .eew-forecast-panel li {
   background-size: 2px 100% !important;
   backface-visibility: hidden;
   transform: translateZ(0);
+}
+
+/* Light timeline markers use a real 2px paint surface. A 2px border on the
+   original 1px element can disappear at some desktop/device scale factors. */
+html[data-resolved-theme="light"] .simulation-timeline-event,
+html[data-resolved-theme="light"] .simulation-runtime-hud .simulation-timeline-event {
+  width: 2px !important;
+  border-left: 0 !important;
+  background-color: #334155 !important;
+  background-image: none !important;
+}
+
+html[data-resolved-theme="light"] .simulation-timeline-event.is-intensity,
+html[data-resolved-theme="light"] .simulation-runtime-hud .simulation-timeline-event.is-intensity {
+  background-color: #ea580c !important;
+}
+
+html[data-resolved-theme="light"] .simulation-timeline-event.is-eew,
+html[data-resolved-theme="light"] .simulation-runtime-hud .simulation-timeline-event.is-eew {
+  background-color: #dc2626 !important;
+}
+
+html[data-resolved-theme="light"] .simulation-timeline-event.is-magnitude,
+html[data-resolved-theme="light"] .simulation-runtime-hud .simulation-timeline-event.is-magnitude {
+  background-color: #475569 !important;
+}
+
+html[data-resolved-theme="light"] .simulation-timeline-event.is-complete,
+html[data-resolved-theme="light"] .simulation-runtime-hud .simulation-timeline-event.is-complete {
+  background-color: #e11d48 !important;
+}
+
+html[data-resolved-theme="light"] .simulation-timeline-event.is-intensity-planned,
+html[data-resolved-theme="light"] .simulation-runtime-hud .simulation-timeline-event.is-intensity-planned,
+html[data-resolved-theme="light"] .simulation-timeline-event.is-eew-planned,
+html[data-resolved-theme="light"] .simulation-runtime-hud .simulation-timeline-event.is-eew-planned,
+html[data-resolved-theme="light"] .simulation-timeline-event.is-magnitude-planned,
+html[data-resolved-theme="light"] .simulation-runtime-hud .simulation-timeline-event.is-magnitude-planned {
+  border-left: 0 !important;
+  background-color: transparent !important;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    var(--simulation-planned-line-color) 0 6px,
+    transparent 6px 11px
+  ) !important;
+  background-position: left top !important;
+  background-repeat: no-repeat !important;
+  background-size: 2px 100% !important;
+}
+
+/* Timeline labels always cover the planned dashed line beneath them. */
+.simulation-timeline-event b,
+.simulation-runtime-hud .simulation-timeline-event b {
+  z-index: 10 !important;
+  isolation: auto !important;
+  backface-visibility: visible !important;
+  transform: none !important;
+}
+
+/* Do not give individual markers their own stacking contexts: a later
+   marker's line must never be able to paint over an earlier label. */
+.simulation-timeline-event,
+.simulation-runtime-hud .simulation-timeline-event,
+.simulation-timeline-event.is-intensity-planned,
+.simulation-runtime-hud .simulation-timeline-event.is-intensity-planned,
+.simulation-timeline-event.is-eew-planned,
+.simulation-runtime-hud .simulation-timeline-event.is-eew-planned,
+.simulation-timeline-event.is-magnitude-planned,
+.simulation-runtime-hud .simulation-timeline-event.is-magnitude-planned {
+  z-index: auto !important;
+  backface-visibility: visible !important;
+  transform: none !important;
+}
+
+html[data-resolved-theme="light"] .simulation-timeline-event.is-intensity-planned b,
+html[data-resolved-theme="light"] .simulation-runtime-hud .simulation-timeline-event.is-intensity-planned b {
+  background: #fff7ed !important;
+}
+
+html[data-resolved-theme="light"] .simulation-timeline-event.is-eew-planned b,
+html[data-resolved-theme="light"] .simulation-runtime-hud .simulation-timeline-event.is-eew-planned b {
+  background: #fef2f2 !important;
+}
+
+html[data-resolved-theme="light"] .simulation-timeline-event.is-magnitude-planned b,
+html[data-resolved-theme="light"] .simulation-runtime-hud .simulation-timeline-event.is-magnitude-planned b {
+  background: #f1f5f9 !important;
+}
+
+html[data-resolved-theme="dark"] .simulation-timeline-event.is-intensity-planned b,
+html[data-resolved-theme="dark"] .simulation-runtime-hud .simulation-timeline-event.is-intensity-planned b {
+  background: #432008 !important;
+}
+
+html[data-resolved-theme="dark"] .simulation-timeline-event.is-eew-planned b,
+html[data-resolved-theme="dark"] .simulation-runtime-hud .simulation-timeline-event.is-eew-planned b {
+  background: #450a0a !important;
+}
+
+html[data-resolved-theme="dark"] .simulation-timeline-event.is-magnitude-planned b,
+html[data-resolved-theme="dark"] .simulation-runtime-hud .simulation-timeline-event.is-magnitude-planned b {
+  background: #1e293b !important;
 }
 
 /* Keep selected optional tags identical in both appearance themes. */
