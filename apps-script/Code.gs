@@ -6,6 +6,7 @@ const WEATHER_QUIZ_TRUE_FALSE_LIST_SHEET_NAME = "【問題一覧／◯✕】";
 const WEATHER_QUIZ_MULTIPLE_CHOICE_LIST_SHEET_NAME = "【問題一覧／4択】";
 const WEATHER_QUIZ_QUESTIONS_RAW_URL = "https://raw.githubusercontent.com/Itachi-kun-ITC/WE-Simulator/{revision}/web/data/weather_forecaster_quiz_questions.json";
 const WEATHER_QUIZ_SYNC_TOKEN_PROPERTY = "WEATHER_QUIZ_SYNC_TOKEN";
+const WEATHER_QUIZ_CHANGED_ROW_BACKGROUND = "#eeeeee";
 const DATE_TIME_ZONE = "Asia/Tokyo";
 const DATE_TIME_FORMAT = "yyyy年MM月dd日HH時mm分";
 
@@ -433,6 +434,7 @@ function syncWeatherQuizQuestionListSheet_(
   let changedCellCount = 0;
   let addedRowCount = 0;
   let deletedRowCount = 0;
+  const changedRowNumbers = new Set();
   const existingRowCount = Math.max(0, sheet.getLastRow() - 1);
   if (existingRowCount) {
     const existingIds = sheet.getRange(2, 1, existingRowCount, 1).getValues();
@@ -463,6 +465,8 @@ function syncWeatherQuizQuestionListSheet_(
       const rowNumber = sheet.getLastRow();
       existingById.set(questionId, { rowNumber, values: desiredRow });
       sheet.getRange(rowNumber, 1, 1, headers.length).setWrap(true).setVerticalAlignment("top");
+      sheet.getRange(rowNumber, 1, 1, headers.length)
+        .setBackground(WEATHER_QUIZ_CHANGED_ROW_BACKGROUND);
       if (correctChoiceColumn) {
         sheet.getRange(rowNumber, correctChoiceColumn).setFontColor("#ff0000");
       }
@@ -475,8 +479,14 @@ function syncWeatherQuizQuestionListSheet_(
       if (String(existing.values[columnIndex] ?? "") !== String(desiredValue ?? "")) {
         sheet.getRange(existing.rowNumber, columnIndex + 1).setValue(desiredValue);
         changedCellCount += 1;
+        changedRowNumbers.add(existing.rowNumber);
       }
     });
+  });
+
+  changedRowNumbers.forEach((rowNumber) => {
+    sheet.getRange(rowNumber, 1, 1, headers.length)
+      .setBackground(WEATHER_QUIZ_CHANGED_ROW_BACKGROUND);
   });
 
   if (created) {
@@ -496,5 +506,10 @@ function syncWeatherQuizQuestionListSheet_(
     }
     sheet.getRange(1, 1, Math.max(1, sheet.getLastRow()), headers.length).createFilter();
   }
-  return { changedCellCount, addedRowCount, deletedRowCount };
+  return {
+    changedCellCount,
+    addedRowCount,
+    deletedRowCount,
+    highlightedRowCount: changedRowNumbers.size + addedRowCount,
+  };
 }
