@@ -10,7 +10,7 @@ const WEATHER_QUIZ_CHANGED_ROW_BACKGROUND = "#eeeeee";
 const DATE_TIME_ZONE = "Asia/Tokyo";
 const DATE_TIME_FORMAT = "yyyy年MM月dd日HH時mm分";
 
-const FEEDBACK_HEADERS = ["受付日時", "内容", "ユーザーエージェント"];
+const FEEDBACK_HEADERS = ["対応済み", "受付日時", "内容", "ユーザーエージェント"];
 const MAINTENANCE_HEADERS = [
   "日時",
   "メンテナンス状況",
@@ -18,6 +18,7 @@ const MAINTENANCE_HEADERS = [
   "ユーザーエージェント",
 ];
 const WEATHER_QUIZ_HEADERS = [
+  "対応済み",
   "受付日時",
   "悪問理由",
   "問題ID",
@@ -60,15 +61,16 @@ function doPost(e) {
 function appendWeatherQuizReport_(payload) {
   const sheet = prepareWeatherQuizSheet_();
   const row = sheet.getLastRow() + 1;
-  sheet.getRange(row, 1, 1, 2).setValues([[
+  sheet.getRange(row, 1).insertCheckboxes().setValue(false);
+  sheet.getRange(row, 2, 1, 2).setValues([[
     formatDateTime_(payload.createdAt),
     normalizeLineBreaks_(payload.badQuestionReason),
   ]]);
-  setWeatherQuizReportQuestionLink_(sheet.getRange(row, 3), payload.questionId);
+  setWeatherQuizReportQuestionLink_(sheet.getRange(row, 4), payload.questionId);
   sheet.getRange(row, 1, 1, WEATHER_QUIZ_HEADERS.length)
     .setBackground(null)
     .setVerticalAlignment("top");
-  sheet.getRange(row, 2).setWrap(true);
+  sheet.getRange(row, 3).setWrap(true);
   sheet.autoResizeRows(row, 1);
 }
 
@@ -89,6 +91,12 @@ function migrateWeatherQuizReportSheet() {
 }
 
 function migrateWeatherQuizReportColumns_(sheet) {
+  if (sheet.getMaxColumns() < WEATHER_QUIZ_HEADERS.length) {
+    sheet.insertColumnsAfter(
+      sheet.getMaxColumns(),
+      WEATHER_QUIZ_HEADERS.length - sheet.getMaxColumns()
+    );
+  }
   const currentWidth = Math.max(sheet.getLastColumn(), WEATHER_QUIZ_HEADERS.length);
   const currentHeaders = sheet.getRange(1, 1, 1, currentWidth).getValues()[0]
     .map((value) => String(value || ""));
@@ -103,6 +111,9 @@ function migrateWeatherQuizReportColumns_(sheet) {
       : [];
     const oldColumnByHeader = new Map(currentHeaders.map((header, index) => [header, index]));
     const migratedRows = oldRows.map((oldRow) => WEATHER_QUIZ_HEADERS.map((header) => {
+      if (header === "対応済み" && !oldColumnByHeader.has(header)) {
+        return false;
+      }
       // 旧データには問題IDがないため空欄にします。次回以降の報告には新IDが入ります。
       if (header === "問題ID" && !oldColumnByHeader.has(header)) {
         return "";
@@ -115,6 +126,7 @@ function migrateWeatherQuizReportColumns_(sheet) {
     sheet.getRange(1, 1, 1, WEATHER_QUIZ_HEADERS.length).setValues([WEATHER_QUIZ_HEADERS]);
     if (migratedRows.length) {
       sheet.getRange(2, 1, migratedRows.length, WEATHER_QUIZ_HEADERS.length).setValues(migratedRows);
+      sheet.getRange(2, 1, migratedRows.length, 1).insertCheckboxes();
     }
   }
   if (sheet.getMaxColumns() > WEATHER_QUIZ_HEADERS.length) {
@@ -125,7 +137,7 @@ function migrateWeatherQuizReportColumns_(sheet) {
   }
   if (needsMigration) {
     for (let row = 2; row <= sheet.getLastRow(); row += 1) {
-      setWeatherQuizReportQuestionLink_(sheet.getRange(row, 3), sheet.getRange(row, 3).getDisplayValue());
+      setWeatherQuizReportQuestionLink_(sheet.getRange(row, 4), sheet.getRange(row, 4).getDisplayValue());
     }
   }
 }
@@ -166,18 +178,65 @@ function setWeatherQuizReportQuestionLink_(cell, questionIdValue) {
 }
 
 function appendFeedback_(payload) {
-  const sheet = prepareSheet_(FEEDBACK_SHEET_NAME, FEEDBACK_HEADERS);
+  const sheet = prepareFeedbackSheet_();
   const row = sheet.getLastRow() + 1;
 
-  sheet.getRange(row, 1, 1, FEEDBACK_HEADERS.length).setValues([[
+  sheet.getRange(row, 1).insertCheckboxes().setValue(false);
+  sheet.getRange(row, 2, 1, FEEDBACK_HEADERS.length - 1).setValues([[
     formatDateTime_(payload.createdAt),
     String(payload.message || ""),
     String(payload.userAgent || ""),
   ]]);
 
   // セル内の改行も表示できるようにし、塗りつぶしは設定しません。
-  sheet.getRange(row, 2).setWrap(true);
+  sheet.getRange(row, 3).setWrap(true);
   removeBackgrounds_(sheet);
+}
+
+function prepareFeedbackSheet_() {
+  const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = spreadsheet.getSheetByName(FEEDBACK_SHEET_NAME)
+    || spreadsheet.insertSheet(FEEDBACK_SHEET_NAME);
+  migrateFeedbackColumns_(sheet);
+  removeBackgrounds_(sheet);
+  return sheet;
+}
+
+/** Apps Script更新後、既存のフィードバックシートをすぐ移行したい場合に一度実行します。 */
+function migrateFeedbackSheet() {
+  prepareFeedbackSheet_();
+  return { ok: true, sheetName: FEEDBACK_SHEET_NAME };
+}
+
+function migrateFeedbackColumns_(sheet) {
+  if (sheet.getMaxColumns() < FEEDBACK_HEADERS.length) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), FEEDBACK_HEADERS.length - sheet.getMaxColumns());
+  }
+  const currentWidth = Math.max(sheet.getLastColumn(), FEEDBACK_HEADERS.length);
+  const currentHeaders = sheet.getRange(1, 1, 1, currentWidth).getValues()[0]
+    .map((value) => String(value || ""));
+  const alreadyCurrent = FEEDBACK_HEADERS.every((header, index) => currentHeaders[index] === header);
+  if (alreadyCurrent) {
+    return;
+  }
+
+  const rowCount = Math.max(0, sheet.getLastRow() - 1);
+  const oldRows = rowCount ? sheet.getRange(2, 1, rowCount, currentWidth).getValues() : [];
+  const oldColumnByHeader = new Map(currentHeaders.map((header, index) => [header, index]));
+  const migratedRows = oldRows.map((oldRow) => FEEDBACK_HEADERS.map((header) => {
+    if (header === "対応済み" && !oldColumnByHeader.has(header)) {
+      return false;
+    }
+    const oldColumn = oldColumnByHeader.get(header);
+    return oldColumn === undefined ? "" : oldRow[oldColumn];
+  }));
+
+  sheet.getRange(1, 1, Math.max(1, sheet.getLastRow()), currentWidth).clearContent();
+  sheet.getRange(1, 1, 1, FEEDBACK_HEADERS.length).setValues([FEEDBACK_HEADERS]);
+  if (migratedRows.length) {
+    sheet.getRange(2, 1, migratedRows.length, FEEDBACK_HEADERS.length).setValues(migratedRows);
+    sheet.getRange(2, 1, migratedRows.length, 1).insertCheckboxes();
+  }
 }
 
 function appendMaintenance_(payload) {
