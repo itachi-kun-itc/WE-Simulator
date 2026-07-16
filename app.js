@@ -13813,7 +13813,7 @@ function addMapLayers() {
     paint: {
       "circle-color": "#000000",
       "circle-opacity": 0.001,
-      "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 7.5, 7, 9, 10, 10.5],
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 4.6, 6, 5.8, 8, 7.2],
       "circle-stroke-opacity": 0,
     },
   });
@@ -14173,17 +14173,11 @@ function renderStationCanvasOverlay() {
 
   if (state.showSubmarineStationLayer && submarineFeatures.length) {
     const radius = interpolateByZoom(zoom, [
-      [4, 7.1],
-      [6, 8.6],
-      [7, 10.2],
-      [10, 12.2],
+      [4, 4.6],
+      [6, 5.8],
+      [8, 7.2],
     ]);
-    const fontSize = interpolateByZoom(zoom, [
-      [4, 9.2],
-      [6, 10.4],
-      [8.8, 12.1],
-      [11, 13.2],
-    ]);
+    const strokeWidth = interpolateByZoom(zoom, [[4, 0.8], [8, 1.2]]);
     const labelFadeStartZoom = STATION_LABEL_ALL_VISIBLE_MIN_ZOOM - 0.18;
     const labelAlpha = smoothStep(clamp((zoom - labelFadeStartZoom) / 0.18, 0, 1));
     const padding = radius + 6;
@@ -14206,7 +14200,7 @@ function renderStationCanvasOverlay() {
         }
 
         const properties = feature.properties ?? {};
-        drawSubmarineStationCanvasMarker(context, point.x, point.y, radius, fontSize, labelAlpha, properties);
+        drawSubmarineStationCanvasMarker(context, point.x, point.y, radius, strokeWidth, labelAlpha, properties);
       });
 
   }
@@ -14267,7 +14261,7 @@ function interpolateByZoom(zoom, stops) {
   return stops[stops.length - 1][1];
 }
 
-function drawSubmarineStationCanvasMarker(context, x, y, radius, fontSize, labelAlpha, properties) {
+function drawSubmarineStationCanvasMarker(context, x, y, radius, strokeWidth, labelAlpha, properties) {
   const intensityRank = Number(properties.intensityRank ?? 0);
   const observed = properties.observed === true;
   const hasRecordedIntensity = observed && intensityRank >= 1;
@@ -14279,21 +14273,32 @@ function drawSubmarineStationCanvasMarker(context, x, y, radius, fontSize, label
   context.shadowBlur = hasRecordedIntensity ? 2.2 : 0;
   context.shadowOffsetY = hasRecordedIntensity ? 0.5 : 0;
   context.beginPath();
-  context.arc(x, y, radius, 0, Math.PI * 2);
+  for (let vertex = 0; vertex < 6; vertex += 1) {
+    const angle = -Math.PI / 2 + vertex * Math.PI / 3;
+    const vertexX = x + Math.cos(angle) * radius;
+    const vertexY = y + Math.sin(angle) * radius;
+    if (vertex === 0) {
+      context.moveTo(vertexX, vertexY);
+    } else {
+      context.lineTo(vertexX, vertexY);
+    }
+  }
+  context.closePath();
   context.fillStyle = fillColor;
   context.fill();
   context.shadowColor = "transparent";
-  context.lineWidth = hasRecordedIntensity ? 1.6 : 1.7;
-  context.setLineDash(hasRecordedIntensity ? [2.8, 2.2] : [2.5, 3.2]);
+  context.lineWidth = strokeWidth;
+  context.setLineDash([]);
   context.strokeStyle = "#000000";
   context.stroke();
-  context.setLineDash([]);
   context.restore();
 
   if (!hasRecordedIntensity || labelAlpha <= 0) {
     return;
   }
 
+  const label = String(properties.intensityShortLabel ?? "");
+  const fontSize = label.length > 1 ? 7.5 : 9;
   drawStationCanvasLabel(context, x, y, fontSize, labelAlpha, textColor, properties);
 }
 
