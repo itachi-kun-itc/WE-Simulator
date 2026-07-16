@@ -12523,13 +12523,16 @@ body.community-post-detail-open .community-post-button {
   height: 14px;
   border: 2px solid rgba(255, 255, 255, 0.92);
   border-radius: 50%;
-  background: rgba(120, 244, 255, 0.28);
-  box-shadow: 0 0 0 7px rgba(64, 224, 255, 0.14);
+  background: transparent;
+  box-shadow: none;
   transform: translate(-50%, -50%) scale(0.76);
   opacity: 0.42;
 }
 
 .community-post-location-dot.is-set {
+  border-color: #ffffff;
+  background: #38bdf8;
+  box-shadow: 0 0 0 7px rgba(56, 189, 248, 0.18);
   opacity: 1;
   transform: translate(-50%, -50%) scale(1);
 }
@@ -12570,6 +12573,52 @@ body.community-post-detail-open .community-post-button {
   padding: 0 12px !important;
   border-radius: 999px !important;
   font-size: 12px !important;
+}
+
+.community-post-retention-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.community-post-retention-options label {
+  position: relative;
+  display: grid;
+  min-height: 36px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  padding: 0 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.community-post-retention-options input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.community-post-retention-options label:has(input:checked) {
+  border-color: rgba(56, 189, 248, 0.86);
+  background: rgba(14, 116, 144, 0.72);
+  color: #ffffff;
+}
+
+html[data-resolved-theme="light"] .community-post-retention-options label {
+  border-color: #94a3b8;
+  background: #e8eef4;
+  color: #334155;
+}
+
+html[data-resolved-theme="light"] .community-post-retention-options label:has(input:checked) {
+  border-color: #0284c7;
+  background: #0e7490;
+  color: #ffffff;
 }
 
 .community-media-picker {
@@ -20230,6 +20279,10 @@ html[data-resolved-theme="light"] .bottom-tabs::after {
   background: #f5f7fa !important;
 }
 
+html[data-resolved-theme="light"] .bottom-tabs {
+  box-shadow: none !important;
+}
+
 html[data-resolved-theme="light"] #info-full-panel .tool-menu-list {
   gap: 10px !important;
   padding: 12px !important;
@@ -20678,9 +20731,49 @@ html[data-resolved-theme="light"] .community-account-panel .community-account-wi
 }
 
 html[data-resolved-theme="light"] .settings-status-card .settings-notification-row strong[data-state="on"] {
-  border-color: #16865f !important;
-  background: #e7f4ed !important;
-  color: #166534 !important;
+  border-color: #087847 !important;
+  background: #86d8aa !important;
+  color: #075c35 !important;
+}
+
+/* Keep the app and bottom navigation fixed while a community post is open. */
+html.community-post-detail-open,
+body.community-post-detail-open {
+  width: 100% !important;
+  height: var(--app-height, 100dvh) !important;
+  max-height: var(--app-height, 100dvh) !important;
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+}
+
+body.community-post-detail-open {
+  position: fixed !important;
+  inset: 0 !important;
+}
+
+body.community-post-detail-open .community-post-detail-sheet {
+  box-sizing: border-box !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom)) !important;
+  width: 100% !important;
+  height: min(48svh, 390px) !important;
+  min-height: min(48svh, 390px) !important;
+  max-height: min(48svh, 390px) !important;
+  padding: 38px 16px 18px !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
+html[data-resolved-theme="light"] body.community-post-detail-open .community-post-detail-body,
+html[data-resolved-theme="dark"] body.community-post-detail-open .community-post-detail-body {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  max-width: 620px !important;
+  margin-inline: auto !important;
 }
 
 html[data-resolved-theme="light"] .simulation-progress-guides > span {
@@ -20839,6 +20932,13 @@ html[data-resolved-theme="light"] .community-post-detail-body {
   background: rgba(255, 255, 255, 0.5) !important;
 }
 
+html[data-resolved-theme="dark"] .community-post-detail-body {
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  border-radius: 18px !important;
+  padding: 14px !important;
+  background: rgba(255, 255, 255, 0.045) !important;
+}
+
 html[data-resolved-theme="light"] .community-post-detail-meta div {
   border: 1px solid #b8c3ce !important;
   background: #eef2f6 !important;
@@ -20888,23 +20988,23 @@ html[data-resolved-theme="dark"] .community-post-tags input + span::before {
 
 /* Selected post tags use one palette in both appearance themes. */
 .community-post-tags label:has(input[value="weather"]:checked) {
-  border-color: rgba(70, 190, 255, 0.82) !important;
-  background: rgba(12, 94, 139, 0.72) !important;
+  border-color: #138ed3 !important;
+  background: #138ed3 !important;
 }
 
 .community-post-tags label:has(input[value="disaster"]:checked) {
-  border-color: rgba(255, 86, 98, 0.82) !important;
-  background: rgba(126, 25, 32, 0.72) !important;
+  border-color: #d6263c !important;
+  background: #d6263c !important;
 }
 
 .community-post-tags label:has(input[value="earthquake"]:checked) {
-  border-color: rgba(86, 230, 142, 0.82) !important;
-  background: rgba(24, 109, 57, 0.72) !important;
+  border-color: #26a85c !important;
+  background: #26a85c !important;
 }
 
 .community-post-tags label:has(input[value="safety"]:checked) {
-  border-color: rgba(255, 222, 80, 0.86) !important;
-  background: rgba(128, 101, 18, 0.72) !important;
+  border-color: #d8ae18 !important;
+  background: #d8ae18 !important;
 }
 
 .community-post-optional-tags label:has(input:checked) {
@@ -20916,7 +21016,8 @@ html[data-resolved-theme="dark"] .community-post-tags input + span::before {
   color: #ffffff !important;
 }
 
-.community-post-tags input:checked + span::before {
+html[data-resolved-theme="light"] .community-post-tags input:checked + span::before,
+html[data-resolved-theme="dark"] .community-post-tags input:checked + span::before {
   background: #ffffff !important;
 }
 
@@ -20962,6 +21063,20 @@ html[data-resolved-theme="light"] .community-post-delete-button:not(:disabled) {
   border-color: #b91c1c !important;
   background: #dc2626 !important;
   color: #ffffff !important;
+}
+
+html[data-resolved-theme="dark"] .community-post-delete-button:not(:disabled) {
+  border-color: #ef4444 !important;
+  background: #dc2626 !important;
+  color: #ffffff !important;
+}
+
+html[data-resolved-theme="dark"] .settings-status-card .settings-notification-row strong[data-state="off"],
+html[data-resolved-theme="dark"] #settings-push-status[data-state="off"],
+html[data-resolved-theme="dark"] #settings-location-status[data-state="off"] {
+  border-color: #f43f5e !important;
+  background: rgba(190, 24, 53, 0.48) !important;
+  color: #ff8ba0 !important;
 }
 
 html[data-resolved-theme="light"] .community-post-section h3,
@@ -21933,4 +22048,62 @@ html[data-resolved-theme="light"] .eew-forecast-panel li {
   background-size: 2px 100% !important;
   backface-visibility: hidden;
   transform: translateZ(0);
+}
+
+/* Keep selected optional tags identical in both appearance themes. */
+html[data-resolved-theme="light"] .community-post-optional-tags label:has(input:checked),
+html[data-resolved-theme="dark"] .community-post-optional-tags label:has(input:checked) {
+  border-color: rgba(255, 169, 64, 0.88) !important;
+  background: rgba(168, 92, 18, 0.72) !important;
+  color: #ffffff !important;
+}
+
+html[data-resolved-theme="light"] .community-post-optional-tags input:checked + span::before,
+html[data-resolved-theme="dark"] .community-post-optional-tags input:checked + span::before {
+  background: #ffffff !important;
+}
+
+/* Final high-contrast settings status colors. */
+html[data-resolved-theme="light"] #settings-push-status[data-state="on"],
+html[data-resolved-theme="light"] #settings-location-status[data-state="on"] {
+  border-color: #087443 !important;
+  background: rgba(34, 168, 95, 0.28) !important;
+  color: #087443 !important;
+}
+
+html[data-resolved-theme="dark"] #settings-push-status[data-state="off"],
+html[data-resolved-theme="dark"] #settings-location-status[data-state="off"] {
+  border-color: #ff647f !important;
+  background: rgba(244, 63, 94, 0.36) !important;
+  color: #ffb0bd !important;
+}
+
+/* Let notification history use all space down to the bottom navigation. */
+#settings-push-history-panel.settings-detail-panel {
+  height: 100% !important;
+  min-height: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+#settings-push-history-panel.settings-detail-panel > .push-confirm-panel[data-push-panel="history"] {
+  align-self: stretch !important;
+  display: grid !important;
+  grid-template-rows: minmax(0, 1fr) auto !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  margin-bottom: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+#settings-push-history-panel.settings-detail-panel .push-history-list {
+  align-self: stretch !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom)) !important;
+}
+
+#settings-push-history-panel .push-history-status:empty {
+  display: none !important;
 }

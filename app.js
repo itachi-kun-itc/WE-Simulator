@@ -5688,7 +5688,7 @@ function ensureCommunityMapLayer() {
       paint: {
         "raster-opacity": 1,
         "raster-contrast": 0.12,
-        "raster-fade-duration": 120,
+        "raster-fade-duration": 0,
       },
     }, beforeId);
   }
@@ -5700,7 +5700,7 @@ function ensureCommunityMapLayer() {
       paint: {
         "raster-opacity": 1,
         "raster-contrast": 0,
-        "raster-fade-duration": 120,
+        "raster-fade-duration": 0,
       },
     }, beforeId);
   }
@@ -7002,9 +7002,8 @@ function ensureCommunityPostUi() {
           <h3>どこから投稿するか</h3>
           <div class="community-post-location-actions">
             <button type="button" data-community-location="current">現在地</button>
-            <button type="button" data-community-location="map">マップから指定</button>
+            <button type="button" data-community-location="map">指定する</button>
           </div>
-          <p class="community-post-location" id="community-post-location-status">場所を選択してください</p>
         </section>
         <section class="community-post-section">
           <h3>タグ</h3>
@@ -7028,7 +7027,7 @@ function ensureCommunityPostUi() {
             `).join("")}
             <label>
               <input type="checkbox" name="optionalTag" value="custom" data-community-custom-tag-toggle />
-              <span>その他</span>
+              <span>その他（任意で入力）</span>
             </label>
           </div>
           <div class="community-post-custom-tag-editor hidden" data-community-custom-tag-editor>
@@ -7050,6 +7049,14 @@ function ensureCommunityPostUi() {
         <section class="community-post-section">
           <h3>投稿文</h3>
           <textarea id="community-post-text" name="text" rows="5" maxlength="1200" required placeholder="状況、見えたもの、危険箇所など"></textarea>
+        </section>
+        <section class="community-post-section">
+          <h3>投稿保持時間</h3>
+          <div class="community-post-retention-options">
+            <label><input type="radio" name="retention" value="24h" /><span>24時間</span></label>
+            <label><input type="radio" name="retention" value="7d" /><span>1週間</span></label>
+            <label><input type="radio" name="retention" value="forever" checked /><span>削除するまで</span></label>
+          </div>
         </section>
         <p id="community-post-status" class="community-post-status" aria-live="polite"></p>
         <button class="community-post-submit" type="submit">投稿する</button>
@@ -7077,13 +7084,13 @@ function ensureCommunityPostUi() {
   overlay.querySelector(".community-post-head h2")?.replaceChildren("投稿設定");
   overlay.querySelector('[data-community-location="current"]')?.replaceChildren("現在地");
   overlay.querySelector('[data-community-location="vague"]')?.replaceChildren("曖昧な現在地");
-  overlay.querySelector('[data-community-location="map"]')?.replaceChildren("マップから選択");
+  overlay.querySelector('[data-community-location="map"]')?.replaceChildren("指定する");
   overlay.querySelector(".community-media-picker span")?.replaceChildren("ここをタップして画像・動画を追加");
   overlay.querySelector(".community-media-picker small")?.replaceChildren("PNG / JPEG / 30秒以内のMP4");
   overlay.querySelector(".community-post-submit")?.replaceChildren("投稿する");
   overlay.querySelector("#community-post-text")?.setAttribute("placeholder", "状況、見えたもの、危険箇所など");
   overlay.querySelectorAll(".community-post-section h3").forEach((heading, index) => {
-    const labels = ["投稿場所", "タグ", "任意タグ", "写真・動画", "投稿文"];
+    const labels = ["投稿場所", "タグ", "任意タグ", "写真・動画", "投稿文", "投稿保持時間"];
     if (labels[index]) {
       heading.textContent = labels[index];
     }
@@ -7576,6 +7583,7 @@ function getCommunityPostTagLabel(tag) {
 
 function renderCommunityPostTagPills(tags) {
   return (Array.isArray(tags) ? tags : [])
+    .filter((tag) => !["optional:custom", "optional:その他"].includes(String(tag || "").trim()))
     .map((tag) => {
       const optional = isCommunityPostOptionalTag(tag);
       return `<span data-community-tag-pill="${optional ? "optional" : "primary"}">${escapeHtml(getCommunityPostTagLabel(tag))}</span>`;
@@ -7719,9 +7727,8 @@ function ensureCommunityPostUi() {
           <div class="community-post-location-actions">
             <button type="button" data-community-location="current">現在地</button>
             <button type="button" data-community-location="vague">曖昧な現在地</button>
-            <button type="button" data-community-location="map">マップから選択</button>
+            <button type="button" data-community-location="map">指定する</button>
           </div>
-          <p class="community-post-location" id="community-post-location-status">場所を選択してください</p>
         </section>
         <section class="community-post-section">
           <h3>タグ</h3>
@@ -7745,7 +7752,7 @@ function ensureCommunityPostUi() {
             `).join("")}
             <label>
               <input type="checkbox" name="optionalTag" value="custom" data-community-custom-tag-toggle />
-              <span>その他</span>
+              <span>その他（任意で入力）</span>
             </label>
           </div>
           <div class="community-post-custom-tag-editor hidden" data-community-custom-tag-editor>
@@ -7768,6 +7775,14 @@ function ensureCommunityPostUi() {
         <section class="community-post-section">
           <h3>投稿文</h3>
           <textarea id="community-post-text" name="text" rows="5" maxlength="1200" required placeholder="状況、見えたもの、危険箇所など"></textarea>
+        </section>
+        <section class="community-post-section">
+          <h3>投稿保持時間</h3>
+          <div class="community-post-retention-options">
+            <label><input type="radio" name="retention" value="24h" /><span>24時間</span></label>
+            <label><input type="radio" name="retention" value="7d" /><span>1週間</span></label>
+            <label><input type="radio" name="retention" value="forever" checked /><span>削除するまで</span></label>
+          </div>
         </section>
         <p id="community-post-status" class="community-post-status" aria-live="polite"></p>
         <button class="community-post-submit" type="submit">投稿する</button>
@@ -7832,28 +7847,15 @@ async function updateCommunityPostLocationStatus() {
   const dot = ui.locationPreview?.querySelector(".community-post-location-dot");
   const requestId = ++communityPostLocationResolveRequestId;
   if (!communityPostLocation) {
-    if (ui.locationStatus) {
-      ui.locationStatus.textContent = "場所を選択してください";
-    }
     if (text) {
       text.textContent = "場所を選択してください";
     }
     dot?.classList.remove("is-set", "is-vague");
     return;
   }
-  const labels = {
-    current: "現在地",
-    vague: "曖昧な現在地",
-    map: "マップ指定",
-  };
   const location = communityPostLocation;
-  const label = labels[location.mode] || "投稿場所";
-  const locationText = `${label}を設定済み`;
-  if (ui.locationStatus) {
-    ui.locationStatus.textContent = `${locationText}（場所を確認中...）`;
-  }
   if (text) {
-    text.textContent = locationText;
+    text.textContent = "場所を確認中...";
   }
   dot?.classList.add("is-set");
   dot?.classList.toggle("is-vague", communityPostLocation.mode === "vague");
@@ -8029,6 +8031,7 @@ function ensureCommunityPostDetailUi() {
 async function openCommunityPostDetail(post) {
   const sheet = ensureCommunityPostDetailUi();
   activeCommunityPostDetail = post;
+  document.documentElement.classList.add("community-post-detail-open");
   document.body.classList.add("community-post-detail-open");
   sheet.classList.remove("hidden");
   renderCommunityPostDetail(post, "場所を判定中...");
@@ -8046,6 +8049,7 @@ function resetCommunityPostDetailScroll(sheet) {
 }
 
 function closeCommunityPostDetail() {
+  document.documentElement.classList.remove("community-post-detail-open");
   document.body.classList.remove("community-post-detail-open");
   communityPostOverlayElements?.detailSheet?.classList.add("hidden");
   activeCommunityPostDetail = null;
@@ -8100,11 +8104,20 @@ async function toggleCommunityPostLike(post, button) {
     window.alert("いいねするにはアカウントへログインしてください。");
     return;
   }
-  const workerUrl = await getWorkerBaseUrl();
-  button.disabled = true;
+  if (button.dataset.pending === "true") {
+    return;
+  }
+  const previousLiked = Boolean(post.liked);
+  const previousCount = Number(post.likeCount || 0);
+  const nextLiked = !previousLiked;
+  post.liked = nextLiked;
+  post.likeCount = Math.max(0, previousCount + (nextLiked ? 1 : -1));
+  updateCommunityPostLikeButton(button, post);
+  button.dataset.pending = "true";
   try {
+    const workerUrl = await getWorkerBaseUrl();
     const response = await fetch(`${workerUrl}/community-posts/${encodeURIComponent(post.id)}/like`, {
-      method: post.liked ? "DELETE" : "PUT",
+      method: previousLiked ? "DELETE" : "PUT",
       headers: { Authorization: `Bearer ${communityAccount.token}` },
     });
     const data = await response.json().catch(() => ({}));
@@ -8113,11 +8126,23 @@ async function toggleCommunityPostLike(post, button) {
     }
     post.liked = Boolean(data.liked);
     post.likeCount = Number(data.likeCount || 0);
-    renderCommunityPostDetail(post, getActiveCommunityPostPlaceName());
+    updateCommunityPostLikeButton(button, post);
   } catch (error) {
+    post.liked = previousLiked;
+    post.likeCount = previousCount;
+    updateCommunityPostLikeButton(button, post);
     window.alert(error?.message || "いいねを更新できませんでした。");
-    button.disabled = false;
+  } finally {
+    delete button.dataset.pending;
   }
+}
+
+function updateCommunityPostLikeButton(button, post) {
+  if (!button?.isConnected) {
+    return;
+  }
+  button.classList.toggle("is-liked", Boolean(post.liked));
+  button.innerHTML = `${post.liked ? "♥" : "♡"}<span>${Number(post.likeCount || 0).toLocaleString("ja-JP")}</span>`;
 }
 
 async function toggleCommunityAuthorFollow(post, button) {
@@ -8128,11 +8153,29 @@ async function toggleCommunityAuthorFollow(post, button) {
   if (!post.accountId || post.accountId === communityAccount.id) {
     return;
   }
-  const workerUrl = await getWorkerBaseUrl();
-  button.disabled = true;
+  if (button.dataset.pending === "true") {
+    return;
+  }
+  const previousFollowing = Boolean(post.following);
+  const nextFollowing = !previousFollowing;
+  const previousFollowingCount = Number(communityAccount.followingCount || 0);
+  const affectedPosts = communityPosts
+    .filter((item) => item.accountId === post.accountId)
+    .map((item) => [item, Boolean(item.following)]);
+  affectedPosts.forEach(([item]) => {
+    item.following = nextFollowing;
+  });
+  post.following = nextFollowing;
+  updateCommunityPostFollowButton(button, nextFollowing);
+  saveCommunityAccount({
+    ...communityAccount,
+    followingCount: Math.max(0, previousFollowingCount + (nextFollowing ? 1 : -1)),
+  });
+  button.dataset.pending = "true";
   try {
+    const workerUrl = await getWorkerBaseUrl();
     const response = await fetch(`${workerUrl}/community-accounts/${encodeURIComponent(post.accountId)}/follow`, {
-      method: post.following ? "DELETE" : "PUT",
+      method: previousFollowing ? "DELETE" : "PUT",
       headers: { Authorization: `Bearer ${communityAccount.token}` },
     });
     const data = await response.json().catch(() => ({}));
@@ -8145,15 +8188,33 @@ async function toggleCommunityAuthorFollow(post, button) {
       }
     });
     post.following = Boolean(data.following);
+    updateCommunityPostFollowButton(button, post.following);
     saveCommunityAccount({
       ...communityAccount,
       followingCount: Number(data.followingCount || 0),
     });
-    renderCommunityPostDetail(post, getActiveCommunityPostPlaceName());
   } catch (error) {
+    affectedPosts.forEach(([item, following]) => {
+      item.following = following;
+    });
+    post.following = previousFollowing;
+    updateCommunityPostFollowButton(button, previousFollowing);
+    saveCommunityAccount({
+      ...communityAccount,
+      followingCount: previousFollowingCount,
+    });
     window.alert(error?.message || "フォロー状態を更新できませんでした。");
-    button.disabled = false;
+  } finally {
+    delete button.dataset.pending;
   }
+}
+
+function updateCommunityPostFollowButton(button, following) {
+  if (!button?.isConnected) {
+    return;
+  }
+  button.classList.toggle("is-following", Boolean(following));
+  button.textContent = following ? "フォロー中" : "フォロー";
 }
 
 function getActiveCommunityPostPlaceName() {
@@ -8226,9 +8287,6 @@ async function updateCommunityPostLocationStatus() {
   const dot = ui.locationPreview?.querySelector(".community-post-location-dot");
   const requestId = ++communityPostLocationResolveRequestId;
   if (!communityPostLocation) {
-    if (ui.locationStatus) {
-      ui.locationStatus.textContent = "場所を選択してください";
-    }
     if (text) {
       text.textContent = "場所を選択してください";
     }
@@ -8236,19 +8294,9 @@ async function updateCommunityPostLocationStatus() {
     updateCommunityPostSubmitState();
     return;
   }
-  const labels = {
-    current: "現在地",
-    vague: "曖昧な現在地",
-    map: "マップ指定",
-  };
   const location = communityPostLocation;
-  const label = labels[location.mode] || "投稿場所";
-  const locationText = `${label}を設定済み`;
-  if (ui.locationStatus) {
-    ui.locationStatus.textContent = `${locationText}（場所を確認中...）`;
-  }
   if (text) {
-    text.textContent = locationText;
+    text.textContent = "場所を確認中...";
   }
   dot?.classList.add("is-set");
   dot?.classList.toggle("is-vague", location.mode === "vague");
@@ -8258,12 +8306,12 @@ async function updateCommunityPostLocationStatus() {
   if (requestId !== communityPostLocationResolveRequestId || communityPostLocation !== location) {
     return;
   }
-  if (ui.locationStatus) {
-    const resolvedPlaceName = placeName && placeName !== "-"
-      ? `${placeName}${location.mode === "vague" ? "内" : ""}`
-      : "所在地を特定できません";
-    location.placeName = placeName && placeName !== "-" ? resolvedPlaceName : "";
-    ui.locationStatus.textContent = `${locationText}（${resolvedPlaceName}）`;
+  const resolvedPlaceName = placeName && placeName !== "-"
+    ? `${placeName}${location.mode === "vague" ? "内" : ""}`
+    : "所在地を特定できません";
+  location.placeName = placeName && placeName !== "-" ? resolvedPlaceName : "";
+  if (text) {
+    text.textContent = resolvedPlaceName;
   }
 }
 
@@ -10328,7 +10376,7 @@ async function renderNotificationHistory(overlay) {
   const canManage = canManageNotificationHistory();
   list.replaceChildren();
   status.classList.remove("is-empty");
-  status.textContent = "読み込み中...";
+  status.textContent = "";
 
   try {
     const history = await readNotificationHistory();
@@ -21221,17 +21269,28 @@ async function logoutCommunityAccount() {
 }
 
 async function deleteCommunityAccountWithConfirm() {
-  if (!window.confirm("アカウントを削除しますか？投稿内容は削除されません。投稿マップから事前に削除してください")) {
+  if (!window.confirm("アカウントを削除しますか？過去の投稿も削除されます。")) {
     return;
   }
-  const workerUrl = await getWorkerBaseUrl();
-  if (workerUrl && communityAccount?.token) {
-    await fetch(`${workerUrl}/community-account`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${communityAccount.token}` },
-    }).catch(() => {});
+  try {
+    const workerUrl = await getWorkerBaseUrl();
+    if (workerUrl && communityAccount?.token) {
+      const response = await fetch(`${workerUrl}/community-account`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${communityAccount.token}` },
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body?.error || "アカウントを削除できませんでした。");
+      }
+    }
+    communityPosts = [];
+    renderCommunityPostMarkers();
+    closeCommunityPostDetail();
+    saveCommunityAccount(null);
+  } catch (error) {
+    window.alert(error?.message || "アカウントを削除できませんでした。");
   }
-  saveCommunityAccount(null);
 }
 
 async function loadCommunityAccountList(screen) {
