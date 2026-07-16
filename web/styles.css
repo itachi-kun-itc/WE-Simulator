@@ -21734,6 +21734,24 @@ html[data-resolved-theme="dark"] #learning-full-panel .learning-hero {
   flex: 0 0 auto !important;
 }
 
+.weather-quiz-card-title {
+  display: grid !important;
+  gap: 3px !important;
+  min-width: 0 !important;
+}
+
+.weather-quiz-question-id {
+  color: rgba(255, 255, 255, 0.38) !important;
+  font-size: 0.64rem !important;
+  font-weight: 750 !important;
+  line-height: 1.2 !important;
+  letter-spacing: 0.04em !important;
+}
+
+html[data-resolved-theme="light"] .weather-quiz-question-id {
+  color: rgba(15, 23, 42, 0.46) !important;
+}
+
 .weather-quiz-card-head .weather-quiz-quality-actions {
   display: flex !important;
   grid-template-columns: none !important;
