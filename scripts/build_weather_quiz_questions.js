@@ -839,19 +839,23 @@ const output = sourceItems.map((sourceItem, index) => {
     };
   }
 
+  const sequence = String(index + 1).padStart(3, "0");
   return {
-    id: `weather-${String(index + 1).padStart(3, "0")}`,
     exam: sourceItem.exam || "第65回",
     year: sourceItem.year || "令和7年度第2回",
     category: sourceItem.category,
     sourceQuestion: Number(sourceItem.sourceQuestion) || (index % 15) + 1,
     trueFalse: {
+      id: `1-${sequence}`,
       statement,
       correct: useCorrectStatement,
       correctStatement: correctAssertion,
       explanation,
     },
-    multipleChoice,
+    multipleChoice: {
+      id: `2-${sequence}`,
+      ...multipleChoice,
+    },
   };
 });
 
@@ -860,6 +864,14 @@ for (const item of output) {
   const key = `${item.exam}|${item.category}|${item.sourceQuestion}`;
   if (keys.has(key)) failures.push(`重複: ${key}`);
   keys.add(key);
+}
+
+const questionIds = new Set();
+for (const item of output) {
+  for (const questionId of [item.trueFalse.id, item.multipleChoice.id]) {
+    if (questionIds.has(questionId)) failures.push(`問題ID重複: ${questionId}`);
+    questionIds.add(questionId);
+  }
 }
 
 if (output.length !== 300) failures.push(`論点数が300ではありません: ${output.length}`);

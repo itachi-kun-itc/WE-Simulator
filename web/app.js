@@ -1832,13 +1832,15 @@ function setupTabs() {
           }
           weatherForecasterQuizItems = items.filter((item) => {
             const hasTrueFalse = Boolean(
-              item?.trueFalse?.statement
+              item?.trueFalse?.id
+              && item?.trueFalse?.statement
               && typeof item?.trueFalse?.correct === "boolean"
               && item?.trueFalse?.correctStatement
               && item?.trueFalse?.explanation
             );
             const hasMultipleChoice = Boolean(
-              item?.multipleChoice?.question
+              item?.multipleChoice?.id
+              && item?.multipleChoice?.question
               && Array.isArray(item?.multipleChoice?.choices)
               && item.multipleChoice.choices.length === 4
               && Number.isInteger(item?.multipleChoice?.correctIndex)
@@ -1847,8 +1849,7 @@ function setupTabs() {
               && item?.multipleChoice?.explanation
             );
             return Boolean(
-              item?.id
-              && item?.category
+              item?.category
               && item?.exam
               && item?.year
               && (hasTrueFalse || hasMultipleChoice)
@@ -2046,8 +2047,11 @@ function setupTabs() {
   };
 
   const getWeatherQuizQuestionKey = (item, mode) => {
-    const itemKey = item?.id || `${item?.exam || ""}|${item?.category || ""}|${item?.sourceQuestion || ""}`;
-    return `${mode === "fill" ? "fill" : "truefalse"}:${itemKey}`;
+    const itemKey = mode === "fill"
+      ? item?.multipleChoice?.id
+      : item?.trueFalse?.id;
+    const fallbackKey = `${item?.exam || ""}|${item?.category || ""}|${item?.sourceQuestion || ""}`;
+    return String(itemKey || fallbackKey);
   };
 
   const isGoodWeatherQuizQuestion = (item, mode) => (
@@ -2079,7 +2083,11 @@ function setupTabs() {
       choices.push("");
     }
     return {
-      questionType: isFillQuestion ? "4択問題" : "◯✕問題",
+      questionId: String(
+        item?.questionId
+        || (isFillQuestion ? item?.multipleChoice?.id : item?.trueFalse?.id)
+        || "",
+      ),
       question: String(isFillQuestion ? item?.question : item?.statement || "").trim(),
       choices: choices.map((choice) => String(choice || "")),
       choice1: String(choices[0] || ""),
@@ -2209,6 +2217,7 @@ function setupTabs() {
     if (item?.multipleChoice?.choices?.length === 4) {
       return {
         ...item,
+        questionId: item.multipleChoice.id,
         quizMode: "fill",
         question: item.multipleChoice.question,
         correctTerm: item.multipleChoice.choices[item.multipleChoice.correctIndex],
@@ -2231,7 +2240,7 @@ function setupTabs() {
   };
 
   const getUniqueWeatherQuizItems = (items) => [...new Map((items || []).map((item) => [
-    item.id || `${item.exam}|${item.category}|${item.sourceQuestion}|${item.originalQuestion || item.question}`,
+    item.questionId || `${item.exam}|${item.category}|${item.sourceQuestion}|${item.originalQuestion || item.question}`,
     item,
   ])).values()];
 
@@ -2329,6 +2338,7 @@ function setupTabs() {
         : suppliedExplanation;
       return {
         ...item,
+        questionId: item.trueFalse.id,
         explanation: pairedExplanation,
         correctStatement,
         trueFalseVariants: [{
