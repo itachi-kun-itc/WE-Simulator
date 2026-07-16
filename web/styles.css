@@ -17886,6 +17886,11 @@ body.tool-source-search-mode #history-full-panel .history-stats-list {
   margin-top: 12px !important;
 }
 
+/* Pull the three tsunami alert cards slightly closer to their introduction. */
+.learning-tsunami-card > .learning-alert-grid {
+  margin-top: 7px !important;
+}
+
 .learning-alert-item {
   display: grid !important;
   gap: 5px !important;
@@ -22106,4 +22111,319 @@ html[data-resolved-theme="dark"] #settings-location-status[data-state="off"] {
 
 #settings-push-history-panel .push-history-status:empty {
   display: none !important;
+}
+
+/* The source-search empty prompt should sit directly on the light panel. */
+html[data-resolved-theme="light"] body.tool-source-search-mode
+  #history-full-panel .history-stats-list {
+  background: transparent !important;
+}
+
+/* Settings information menu order and acknowledgements page. */
+#settings-feedback-button {
+  order: 5 !important;
+  margin-top: 10px !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.16) !important;
+}
+
+#settings-source-button {
+  order: 6 !important;
+  margin-top: 0 !important;
+  border-top: 0 !important;
+}
+
+#settings-privacy-button { order: 7 !important; }
+#settings-acknowledgements-button { order: 8 !important; }
+#settings-admin-button { order: 9 !important; }
+#settings-feedback-panel { order: 14 !important; }
+#settings-source-panel { order: 15 !important; }
+#settings-privacy-panel { order: 16 !important; }
+#settings-acknowledgements-panel { order: 17 !important; }
+#settings-admin-panel { order: 18 !important; }
+
+.settings-menu-sheet.settings-detail-open
+  #settings-acknowledgements-panel .settings-acknowledgements-content {
+  width: calc(100% - 32px) !important;
+  max-width: none !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  box-sizing: border-box !important;
+  transform: translateX(3px) !important;
+}
+
+.acknowledgements-sections .source-info-section p {
+  line-height: 1.8 !important;
+}
+
+.acknowledgements-brand {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 18px 0 calc(10px + env(safe-area-inset-bottom));
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.acknowledgements-brand img {
+  display: block;
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  object-fit: cover;
+}
+
+html[data-resolved-theme="light"] .acknowledgements-brand {
+  color: rgba(23, 32, 51, 0.56);
+}
+
+html[data-resolved-theme="light"] #settings-acknowledgements-panel .source-info-section {
+  border: 1px solid #d3dce6 !important;
+  background: #ffffff !important;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.045) !important;
+}
+
+html[data-resolved-theme="light"] #settings-feedback-button {
+  border-top-color: rgba(51, 65, 85, 0.16) !important;
+}
+
+/* Light tool pages need a visible divider below the back/title header. */
+html[data-resolved-theme="light"] body.tool-source-search-mode
+  #history-full-panel .tool-page-head,
+html[data-resolved-theme="light"] body.tool-station-search-mode
+  #info-full-panel .tool-page-head,
+html[data-resolved-theme="light"] body.tool-weather-quiz-mode
+  #info-full-panel .tool-page-head {
+  border-bottom: 1px solid #cbd5e1 !important;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.72) !important;
+}
+
+.settings-admin-embedded .admin-account-info-button {
+  border-color: rgba(56, 189, 248, 0.62) !important;
+  background: rgba(14, 116, 144, 0.34) !important;
+  color: #b6f0ff !important;
+}
+
+html[data-resolved-theme="light"] .settings-admin-embedded .admin-account-info-button {
+  border-color: #38a3d1 !important;
+  background: #dff3fb !important;
+  color: #075985 !important;
+}
+
+.settings-admin-embedded .admin-section-menu {
+  display: grid !important;
+  gap: 0 !important;
+  width: calc(100% + 32px) !important;
+  max-width: none !important;
+  margin-right: -16px !important;
+  margin-left: -16px !important;
+  padding-top: 0 !important;
+  border-top: 0 !important;
+}
+
+.settings-admin-embedded .admin-section-menu.hidden,
+.settings-admin-embedded .admin-section-page.hidden {
+  display: none !important;
+}
+
+.settings-admin-embedded .admin-section-menu > button {
+  margin: 0 !important;
+  order: initial !important;
+}
+
+/* Nested admin rows remain visible while the outer settings rows slide away. */
+.settings-menu-sheet.settings-detail-open
+  .settings-admin-embedded .admin-section-menu > .settings-menu-row {
+  display: grid !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transform: none !important;
+  transition: none !important;
+}
+
+.settings-admin-embedded .admin-section-menu > button span:last-child {
+  opacity: inherit !important;
+}
+
+#settings-admin-panel.admin-subpage-open > .settings-detail-head {
+  display: none !important;
+}
+
+.settings-admin-embedded .admin-section-page {
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr) !important;
+  min-height: 0 !important;
+  width: 100% !important;
+}
+
+.settings-admin-embedded .admin-section-head {
+  display: grid !important;
+  grid-template-columns: 46px minmax(0, 1fr) 46px !important;
+  align-items: center !important;
+  min-height: 48px !important;
+  height: 48px !important;
+  padding: 3px 8px 5px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+.settings-admin-embedded .admin-section-head h3 {
+  margin: 0 !important;
+  font-size: 1rem !important;
+  font-weight: 950 !important;
+  text-align: center !important;
+}
+
+.settings-admin-embedded .admin-section-back {
+  display: grid !important;
+  place-items: center !important;
+  width: 34px !important;
+  height: 34px !important;
+  border: 0 !important;
+  padding: 0 0 3px !important;
+  background: transparent !important;
+  color: inherit !important;
+  font-size: 2rem !important;
+  line-height: 1 !important;
+}
+
+.settings-menu-sheet.community-account-screen-open
+  .community-account-screen-head {
+  grid-template-columns: 46px minmax(0, 1fr) 46px !important;
+  min-height: 48px !important;
+  height: 48px !important;
+  padding: 3px 8px 5px !important;
+}
+
+.settings-menu-sheet.community-account-screen-open
+  .community-account-screen-back {
+  width: 34px !important;
+  height: 34px !important;
+}
+
+/* Account information uses an absolute overlay. Keep it inside the same
+   top inset as the regular administrator panel so switching pages does not
+   make the 48px header jump vertically. */
+.settings-menu-sheet.community-account-screen-open
+  .community-account-screen {
+  top: max(8px, env(safe-area-inset-top)) !important;
+  bottom: 0 !important;
+  height: auto !important;
+}
+
+/* Notification and maintenance are nested in the administrator panel. Their
+   container normally keeps a 16px menu gap; remove it on subpages so every
+   48px title header starts at the same vertical position. */
+.settings-menu-sheet.settings-detail-open
+  #settings-admin-panel.admin-subpage-open .settings-admin-embedded {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+/* Account information is presented as a settings page, so its canvas follows
+   the same theme surface instead of the legacy profile-overlay black. */
+html[data-resolved-theme="dark"]
+  .settings-menu-sheet.community-account-screen-open .community-account-screen {
+  background: #0a0e16 !important;
+}
+
+html[data-resolved-theme="light"]
+  .settings-menu-sheet.community-account-screen-open .community-account-screen {
+  background: #f4f7fa !important;
+}
+
+html[data-resolved-theme="dark"]
+  #settings-admin-panel.admin-subpage-open,
+html[data-resolved-theme="dark"]
+  #settings-admin-panel.admin-subpage-open .settings-admin-embedded,
+html[data-resolved-theme="dark"]
+  #settings-admin-panel.admin-subpage-open .admin-section-page,
+html[data-resolved-theme="dark"]
+  #settings-admin-panel.admin-subpage-open .admin-section-body,
+html[data-resolved-theme="dark"]
+  #settings-admin-panel.admin-subpage-open .admin-mode-dialog {
+  background: #0a0e16 !important;
+}
+
+html[data-resolved-theme="light"]
+  #settings-admin-panel.admin-subpage-open,
+html[data-resolved-theme="light"]
+  #settings-admin-panel.admin-subpage-open .settings-admin-embedded,
+html[data-resolved-theme="light"]
+  #settings-admin-panel.admin-subpage-open .admin-section-page,
+html[data-resolved-theme="light"]
+  #settings-admin-panel.admin-subpage-open .admin-section-body,
+html[data-resolved-theme="light"]
+  #settings-admin-panel.admin-subpage-open .admin-mode-dialog {
+  background: #f4f7fa !important;
+}
+
+.settings-admin-embedded .admin-section-body {
+  min-height: 0 !important;
+  padding-top: 14px !important;
+}
+
+.settings-admin-embedded .admin-maintenance-reason-field {
+  display: grid !important;
+  gap: 7px !important;
+  margin-bottom: 14px !important;
+}
+
+.settings-admin-embedded .admin-maintenance-reason-field span {
+  font-size: 0.82rem !important;
+  font-weight: 900 !important;
+}
+
+.settings-admin-embedded .admin-maintenance-reason-field textarea {
+  width: 100% !important;
+  min-height: 96px !important;
+  resize: vertical !important;
+}
+
+.settings-admin-embedded .admin-section-page .admin-notification-panel {
+  border-top: 0 !important;
+  padding-top: 0 !important;
+}
+
+html[data-resolved-theme="light"] .settings-admin-embedded .admin-section-menu > button {
+  color: inherit !important;
+}
+
+html[data-resolved-theme="light"] .settings-admin-embedded .admin-section-head {
+  border-bottom-color: #cbd5e1 !important;
+}
+
+/* Keep the nested administrator pages on the exact same header grid as the
+   administrator menu, and let the menu rows meet both panel edges. */
+#settings-admin-panel > .settings-detail-head,
+.settings-admin-embedded .admin-section-head,
+.settings-menu-sheet.community-account-screen-open .community-account-screen-head {
+  box-sizing: border-box !important;
+  min-height: 48px !important;
+  height: 48px !important;
+  max-height: 48px !important;
+  grid-template-columns: 46px minmax(0, 1fr) 46px !important;
+  padding: 3px 8px 5px !important;
+}
+
+.settings-menu-sheet.settings-detail-open
+  #settings-admin-panel .settings-admin-embedded {
+  width: 100% !important;
+  max-width: none !important;
+  margin-right: 0 !important;
+  margin-left: 0 !important;
+  transform: none !important;
+}
+
+#settings-admin-panel .admin-mode-dialog,
+#settings-admin-panel .admin-section-menu {
+  width: 100% !important;
+  max-width: none !important;
+  margin-right: 0 !important;
+  margin-left: 0 !important;
+}
+
+#settings-admin-panel .admin-section-body {
+  padding: 14px 16px 0 !important;
 }
