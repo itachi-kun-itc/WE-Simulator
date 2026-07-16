@@ -21628,6 +21628,16 @@ html[data-resolved-theme="light"] #settings-privacy-panel .source-link-card {
   background: #f8fafc !important;
 }
 
+html[data-resolved-theme="light"] #settings-source-panel .source-info-section a,
+html[data-resolved-theme="light"] #settings-source-panel .source-info-section a:visited {
+  color: #2563eb !important;
+}
+
+html[data-resolved-theme="light"] #settings-source-panel .source-info-section a:hover,
+html[data-resolved-theme="light"] #settings-source-panel .source-info-section a:focus-visible {
+  color: #1d4ed8 !important;
+}
+
 /* The statistics action stays legible while it is waiting for a region. */
 html[data-resolved-theme="light"] #history-statistics-load {
   border-color: #aebac7 !important;
