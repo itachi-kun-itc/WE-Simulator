@@ -179,14 +179,15 @@ const WAVE_RENDER_RADIUS_STEP_KM = 1.5;
 const WAVE_CIRCLE_STEPS = 160;
 const RESET_VIEW_ANIMATION_MS = 1200;
 const LIGHT_DEFERRED_DATA_DELAY_MS = 700;
-const SIMULATION_DEFERRED_DATA_DELAY_MS = 2400;
+const SIMULATION_DEFERRED_DATA_DELAY_MS = 0;
 const STATION_DEFERRED_DATA_DELAY_MS = 3200;
 const PRESET_DEFERRED_DATA_DELAY_MS = 3800;
-const HEAVY_DEFERRED_DATA_DELAY_MS = 9000;
 const PLATE_BOUNDARY_DEFERRED_DATA_DELAY_MS = 11000;
 const EARTHQUAKE_PRESETS = [];
 
 const INTENSITY_INFORMATION_GRAY = "#d9dee5";
+const INTENSITY_BOUNDARY_LIGHT = "#cbd2da";
+const INTENSITY_BOUNDARY_DARK = "#37424d";
 const INTENSITY_WHITE_TEXT_LABELS = new Set(["3", "6-", "6+", "7"]);
 const INTENSITY_CLASSES = [
   { label: "0", shortLabel: "0", min: 0, color: INTENSITY_INFORMATION_GRAY, textColor: "#1f2937", rank: 0 },
@@ -400,6 +401,16 @@ function getIntensitySchemeTextColor(scheme, key) {
     : scheme?.textColors?.[key] ?? "#111827";
 }
 
+function getIntensityBoundaryColor(intensityClass) {
+  return getStationBoundaryColor({ intensityTextColor: intensityClass?.textColor });
+}
+
+function getStationBoundaryColor(properties) {
+  return String(properties?.intensityTextColor ?? "").toLowerCase() === "#ffffff"
+    ? INTENSITY_BOUNDARY_LIGHT
+    : INTENSITY_BOUNDARY_DARK;
+}
+
 function getStoredIntensityColorScheme() {
   try {
     const value = localStorage.getItem(INTENSITY_COLOR_SCHEME_KEY);
@@ -424,7 +435,7 @@ const state = {
   epicenterEditEnabled: false,
   showStationLayer: false,
   showSubmarineStationLayer: false,
-  showRegionLayer: false,
+  showRegionLayer: true,
   showEewWarningLayer: false,
   showPlateBoundaryLayer: false,
   showFaultLayer: false,
@@ -957,9 +968,9 @@ function setInitialSimulationStartLoadingState() {
     return;
   }
 
-  els.simulationStart.disabled = true;
-  els.simulationStart.textContent = "メンテナンス確認中...";
-  els.simulationStart.title = "メンテナンスモードの状態を確認しています";
+  els.simulationStart.disabled = false;
+  els.simulationStart.textContent = "開始";
+  els.simulationStart.title = "";
 }
 
 function setupTabs() {
@@ -4055,6 +4066,10 @@ function setupTabs() {
         return;
       }
 
+      if (tab.id === "earthquake-tab") {
+        closeMapLayerControlPanel();
+      }
+
       document.querySelectorAll(".tab").forEach((item) => item.classList.remove("active"));
       document.querySelectorAll(".panel").forEach((panel) => panel.classList.remove("panel-active"));
 
@@ -5316,6 +5331,9 @@ function setHistoryMapModeActive(active) {
     updateLayerVisibility("history-epicenter-area-fill", Boolean(epicenterAreaData?.features?.length));
     updateLayerVisibility("jma-intensity-fill", false);
     updateLayerVisibility("eew-warning-fill", false);
+    updateLayerVisibility("jma-intensity-area-boundaries", false);
+    updateLayerVisibility("jma-intensity-area-boundaries-light", false);
+    updateLayerVisibility("jma-eew-warning-boundaries", false);
     updateHistoryMapIsolation();
     bindHistoryMapEvents();
     return;
@@ -5550,6 +5568,9 @@ function setCommunityMapModeActive(active) {
     "history-epicenter-area-fill",
     "eew-warning-fill",
     "jma-local-area-boundaries",
+    "jma-intensity-area-boundaries",
+    "jma-intensity-area-boundaries-light",
+    "jma-eew-warning-boundaries",
     "submarine-observation-fill",
     "shindo-station-points",
     "plate-boundaries",
@@ -5606,6 +5627,9 @@ function restoreSimulationMapLayersAfterCommunityMode() {
     "japan-land-fill",
     "japan-land-gap-fill",
     "jma-local-area-boundaries",
+    "jma-intensity-area-boundaries",
+    "jma-intensity-area-boundaries-light",
+    "jma-eew-warning-boundaries",
   ].forEach((layerId) => updateLayerVisibility(layerId, true));
   updateLayerVisibility("community-light-map", false);
   updateLayerVisibility("community-dark-map", false);
@@ -8500,7 +8524,7 @@ function resetCheckboxesToDefaults() {
   state.epicenterEditEnabled = false;
   state.showStationLayer = false;
   state.showSubmarineStationLayer = false;
-  state.showRegionLayer = false;
+  state.showRegionLayer = true;
   state.showEewWarningLayer = false;
   state.showPlateBoundaryLayer = false;
   state.showFaultLayer = false;
@@ -8514,7 +8538,7 @@ function resetCheckboxesToDefaults() {
     els.submarineStationLayerToggle.checked = false;
   }
   if (els.regionLayerToggle) {
-    els.regionLayerToggle.checked = false;
+    els.regionLayerToggle.checked = true;
   }
   if (els.eewWarningToggle) {
     els.eewWarningToggle.checked = false;
@@ -8532,7 +8556,7 @@ function resetCheckboxesToDefaults() {
     els.simulationSubmarineStationLayerToggle.checked = false;
   }
   if (els.simulationRegionLayerToggle) {
-    els.simulationRegionLayerToggle.checked = false;
+    els.simulationRegionLayerToggle.checked = true;
   }
   if (els.simulationEewWarningToggle) {
     els.simulationEewWarningToggle.checked = false;
@@ -8564,11 +8588,11 @@ function resetSimulationLayersToDefaults() {
     els.simulationFaultLayerToggle,
   ].forEach((toggle) => {
     if (toggle) {
-      toggle.checked = false;
+      toggle.checked = toggle === els.regionLayerToggle || toggle === els.simulationRegionLayerToggle;
     }
   });
   els.mapLayerControlPanel?.querySelectorAll("[data-map-layer-target]").forEach((toggle) => {
-    toggle.checked = false;
+    toggle.checked = toggle.dataset.mapLayerTarget === "region-layer-toggle";
   });
   els.mapLayerControlPanel?.classList.add("hidden");
   els.mapLayerControlButton?.setAttribute("aria-expanded", "false");
@@ -9471,6 +9495,7 @@ async function initEarthquakeMap() {
   map.scrollZoom.setZoomRate?.(1 / 90);
   map.keyboard?.disableRotation?.();
   setStartupInteractionLocked(true);
+  prefetchSimulationMapData();
   updateMapPanConstraints();
   scheduleMapResize();
 
@@ -12707,24 +12732,24 @@ function scheduleStartupBackgroundData() {
     LIGHT_DEFERRED_DATA_DELAY_MS,
     3000,
   ).catch((error) => console.warn(error));
-  scheduleDeferredTask(
-    hydrateDeferredSimulationMapData,
-    SIMULATION_DEFERRED_DATA_DELAY_MS,
-    8000,
-  ).catch((error) => console.warn(error));
+  window.setTimeout(() => {
+    hydrateDeferredSimulationMapData().catch((error) => console.warn(error));
+  }, SIMULATION_DEFERRED_DATA_DELAY_MS);
   scheduleDeferredTask(() => scheduleLocationResolve(), 1200, 3200);
   updateSimulationAvailability();
   schedulePostMunicipalityDataHydration();
 }
 
+function prefetchSimulationMapData() {
+  loadLocalAreas().catch((error) => console.warn("JMA local area prefetch unavailable", error));
+  loadShindoStations().catch((error) => console.warn("JMA shindo station prefetch unavailable", error));
+  loadEewForecastAreas().catch((error) => console.warn("JMA EEW area prefetch unavailable", error));
+  loadGroundModel().catch((error) => console.warn("J-SHIS ground model prefetch unavailable", error));
+}
+
 async function hydrateStartupLocalAreaBoundaries() {
   const localAreas = await loadOptionalGeoJsonData(loadLocalAreas, "JMA local area GeoJSON");
   localAreaData = localAreas;
-  ensureStaticIntensityAreaSource();
-  if (shouldSyncAreaSourceData()) {
-    syncVisibleAreaSourceData(Infinity);
-  }
-  keepWaveAndStationLayerOrder();
 }
 
 function watchJapanPmtilesStartup() {
@@ -12847,28 +12872,32 @@ async function hydrateDeferredSupplementaryMapData() {
 }
 
 async function hydrateDeferredSimulationMapData() {
-  const [localAreas, shindoStations, eewForecastAreas] = await Promise.all([
+  const [localAreas, shindoStations, eewForecastAreas, loadedGroundModel] = await Promise.all([
     loadOptionalGeoJsonData(loadLocalAreas, "JMA local area GeoJSON"),
     loadOptionalStationData(loadShindoStations, "JMA shindo stations"),
     loadEewForecastAreas().catch((error) => {
       console.warn("JMA EEW forecast area mapping unavailable; falling back to local rules", error);
       return null;
     }),
+    loadGroundModel().catch((error) => {
+      console.warn("J-SHIS ground model unavailable; falling back to the base intensity estimate", error);
+      return null;
+    }),
   ]);
   const hasShindoStationData = Array.isArray(shindoStations?.stations) && shindoStations.stations.length > 0;
 
   localAreaData = localAreas;
-  ensureStaticIntensityAreaSource();
-  if (shouldSyncAreaSourceData()) {
-    syncVisibleAreaSourceData(Infinity);
-  }
-  await waitForStartupMapSourcePaint("jma-intensity-areas");
-  await yieldStartupHydrationFrame();
-
   shindoStationData = hasShindoStationData ? shindoStations : null;
   eewForecastAreaData = eewForecastAreas;
+  groundModelData = loadedGroundModel;
   eewForecastAreaNameCache.clear();
   invalidateIntensityEstimateCache();
+  if (shouldSyncAreaSourceData() && hasShindoStationData) {
+    const finalizedAreaData = buildIntensityAreaData(localAreaData, Infinity);
+    ensureStaticIntensityAreaSource(finalizedAreaData);
+    visibleAreaDataSyncBucket = toSimulationBucket(Infinity);
+  }
+  await waitForStartupMapSourcePaint("jma-intensity-areas");
   await yieldStartupHydrationFrame();
 
   if (state.showStationLayer) {
@@ -12974,7 +13003,6 @@ function schedulePostMunicipalityDataHydration() {
   scheduleDeferredTask(loadSecondaryMapData, LIGHT_DEFERRED_DATA_DELAY_MS, 3000);
   scheduleDeferredTask(loadStationMapData, STATION_DEFERRED_DATA_DELAY_MS, 3500);
   scheduleDeferredTask(loadEarthquakePresets, PRESET_DEFERRED_DATA_DELAY_MS, 4500);
-  scheduleDeferredTask(loadHeavyGroundModelData, HEAVY_DEFERRED_DATA_DELAY_MS, 8000);
   scheduleDeferredTask(loadPlateBoundaryMapData, PLATE_BOUNDARY_DEFERRED_DATA_DELAY_MS, 9000);
 }
 
@@ -13030,15 +13058,6 @@ function loadStationMapData() {
     })
     .catch((error) => console.warn(error))
     .finally(() => updateSimulationAvailability());
-}
-
-function loadHeavyGroundModelData() {
-  loadGroundModel()
-    .then(() => {
-      invalidateIntensityEstimateCache();
-      updateIntensityLayer();
-    })
-    .catch((error) => console.warn(error));
 }
 
 function filterSurroundingLandForDisplay(geojson) {
@@ -13234,32 +13253,44 @@ function getIntensityAreaFeatureId(feature, index) {
   return index;
 }
 
-function ensureStaticIntensityAreaSource() {
+function ensureStaticIntensityAreaSource(initialAreaData = localAreaData) {
   if (!map?.getSource("jma-intensity-areas") || !localAreaData?.features?.length || staticIntensityAreaDataRef === localAreaData) {
     return;
   }
+  const sourceAreaData = initialAreaData?.features?.length ? initialAreaData : localAreaData;
   const data = {
     type: "FeatureCollection",
-    features: localAreaData.features.map((feature, index) => ({
+    features: sourceAreaData.features.map((feature, index) => ({
       ...feature,
       id: getIntensityAreaFeatureId(feature, index),
     })),
   };
+  pendingIntensityAreaFeatureStateData = sourceAreaData;
   setGeoJsonSourceData("jma-intensity-areas", data);
   staticIntensityAreaDataRef = localAreaData;
   intensityAreaFeatureStateSignatures.clear();
+  let featureStatesApplied = false;
   const reapplyFeatureStates = () => {
-    if (!pendingIntensityAreaFeatureStateData) {
+    if (featureStatesApplied || !pendingIntensityAreaFeatureStateData) {
       return;
     }
+    try {
+      if (!map.isSourceLoaded?.("jma-intensity-areas")) {
+        return;
+      }
+    } catch (_error) {
+      return;
+    }
+    featureStatesApplied = true;
+    map.off("sourcedata", reapplyWhenSourceReady);
     intensityAreaFeatureStateSignatures.clear();
     applyIntensityAreaFeatureStates(pendingIntensityAreaFeatureStateData, { force: true });
+    updateEewReplacementMode();
   };
   const reapplyWhenSourceReady = (event) => {
     if (event.sourceId !== "jma-intensity-areas" || !event.isSourceLoaded) {
       return;
     }
-    map.off("sourcedata", reapplyWhenSourceReady);
     reapplyFeatureStates();
   };
   map.on("sourcedata", reapplyWhenSourceReady);
@@ -13279,11 +13310,12 @@ function applyIntensityAreaFeatureStates(data, options = {}) {
     const id = getIntensityAreaFeatureId(feature, index);
     const featureState = {
       intensityColor: properties.intensityColor ?? "rgba(255, 255, 255, 0)",
+      intensityBoundaryColor: properties.intensityBoundaryColor ?? INTENSITY_BOUNDARY_DARK,
       intensityRank: Number(properties.intensityRank ?? 0),
       eewWarning: properties.eewWarning === true,
       eewBlinkOff: properties.eewBlinkOff === true,
     };
-    const signature = `${featureState.intensityColor}|${featureState.intensityRank}|${featureState.eewWarning ? 1 : 0}|${featureState.eewBlinkOff ? 1 : 0}`;
+    const signature = `${featureState.intensityColor}|${featureState.intensityBoundaryColor}|${featureState.intensityRank}|${featureState.eewWarning ? 1 : 0}|${featureState.eewBlinkOff ? 1 : 0}`;
     if (!options.force && intensityAreaFeatureStateSignatures.get(id) === signature) {
       return;
     }
@@ -13409,16 +13441,31 @@ function addMapLayers() {
     type: "fill",
     source: "jma-intensity-areas",
     paint: {
-      "fill-color": ["coalesce", ["feature-state", "intensityColor"], "rgba(255, 255, 255, 0)"],
+      "fill-color": [
+        "coalesce",
+        ["feature-state", "intensityColor"],
+        ["get", "intensityColor"],
+        "rgba(255, 255, 255, 0)",
+      ],
       "fill-color-transition": {
         duration: 0,
         delay: 0,
       },
       "fill-opacity": [
         "case",
-        ["<=", ["coalesce", ["feature-state", "intensityRank"], 0], 0],
+        ["<=", ["coalesce", ["feature-state", "intensityRank"], ["get", "intensityRank"], 0], 0],
         0,
-        ["interpolate", ["linear"], ["feature-state", "intensityRank"], 1, 0.54, 2, 0.72, 9, 0.94],
+        [
+          "interpolate",
+          ["linear"],
+          ["coalesce", ["feature-state", "intensityRank"], ["get", "intensityRank"], 0],
+          1,
+          0.54,
+          2,
+          0.72,
+          9,
+          0.94,
+        ],
       ],
       "fill-opacity-transition": {
         duration: 0,
@@ -13467,12 +13514,17 @@ function addMapLayers() {
     type: "fill",
     source: "jma-intensity-areas",
     paint: {
-      "fill-color": ["case", ["==", ["feature-state", "eewBlinkOff"], true], "#eef1f4", "#e60012"],
+      "fill-color": [
+        "case",
+        ["==", ["coalesce", ["feature-state", "eewBlinkOff"], ["get", "eewBlinkOff"], false], true],
+        "#eef1f4",
+        "#e60012",
+      ],
       "fill-opacity": [
         "case",
-        ["!=", ["feature-state", "eewWarning"], true],
+        ["!=", ["coalesce", ["feature-state", "eewWarning"], ["get", "eewWarning"], false], true],
         0,
-        ["==", ["feature-state", "eewBlinkOff"], true],
+        ["==", ["coalesce", ["feature-state", "eewBlinkOff"], ["get", "eewBlinkOff"], false], true],
         1,
         0.94,
       ],
@@ -13494,6 +13546,115 @@ function addMapLayers() {
       "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.52, 7, 0.68, 10, 0.8],
     },
   });
+
+  addLayerIfMissing({
+    id: "jma-intensity-area-boundaries",
+    type: "line",
+    source: "jma-intensity-areas",
+    layout: {
+      "line-cap": "round",
+      "line-join": "round",
+    },
+    paint: {
+      "line-color": INTENSITY_BOUNDARY_DARK,
+      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.72, 7, 1.02, 10, 1.28],
+      "line-opacity": [
+        "case",
+        [
+          "all",
+          [
+            ">",
+            ["coalesce", ["feature-state", "intensityRank"], ["get", "intensityRank"], 0],
+            0,
+          ],
+          [
+            "==",
+            [
+              "coalesce",
+              ["feature-state", "intensityBoundaryColor"],
+              ["get", "intensityBoundaryColor"],
+              INTENSITY_BOUNDARY_DARK,
+            ],
+            INTENSITY_BOUNDARY_DARK,
+          ],
+        ],
+        0.94,
+        0,
+      ],
+    },
+  });
+  updateLayerVisibility("jma-intensity-area-boundaries", state.showRegionLayer);
+
+  addLayerIfMissing({
+    id: "jma-intensity-area-boundaries-light",
+    type: "line",
+    source: "jma-intensity-areas",
+    layout: {
+      "line-cap": "round",
+      "line-join": "round",
+    },
+    paint: {
+      "line-color": INTENSITY_BOUNDARY_LIGHT,
+      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.72, 7, 1.02, 10, 1.28],
+      "line-opacity": [
+        "case",
+        [
+          "all",
+          [
+            ">",
+            ["coalesce", ["feature-state", "intensityRank"], ["get", "intensityRank"], 0],
+            0,
+          ],
+          [
+            "==",
+            [
+              "coalesce",
+              ["feature-state", "intensityBoundaryColor"],
+              ["get", "intensityBoundaryColor"],
+              INTENSITY_BOUNDARY_DARK,
+            ],
+            INTENSITY_BOUNDARY_LIGHT,
+          ],
+        ],
+        0.94,
+        0,
+      ],
+    },
+  });
+  updateLayerVisibility("jma-intensity-area-boundaries-light", state.showRegionLayer);
+
+  addLayerIfMissing({
+    id: "jma-eew-warning-boundaries",
+    type: "line",
+    source: "jma-intensity-areas",
+    layout: {
+      "line-cap": "round",
+      "line-join": "round",
+    },
+    paint: {
+      "line-color": "#ffffff",
+      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.78, 7, 1.08, 10, 1.34],
+      "line-opacity": [
+        "case",
+        [
+          "all",
+          [
+            "==",
+            ["coalesce", ["feature-state", "eewWarning"], ["get", "eewWarning"], false],
+            true,
+          ],
+          [
+            "!=",
+            ["coalesce", ["feature-state", "eewBlinkOff"], ["get", "eewBlinkOff"], false],
+            true,
+          ],
+        ],
+        1,
+        0,
+      ],
+    },
+  });
+  updateLayerVisibility("jma-eew-warning-boundaries", state.showEewWarningLayer);
 
   addLayerIfMissing({
     id: "submarine-observation-fill",
@@ -13520,13 +13681,45 @@ function addMapLayers() {
       "circle-color": ["coalesce", ["get", "intensityColor"], INTENSITY_INFORMATION_GRAY],
       "circle-opacity": 1,
       "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 4, 0.8, 8, 1.2],
-      "circle-stroke-color": "rgba(15, 23, 42, 0.55)",
+      "circle-stroke-color": [
+        "case",
+        ["==", ["get", "intensityTextColor"], "#ffffff"],
+        INTENSITY_BOUNDARY_LIGHT,
+        INTENSITY_BOUNDARY_DARK,
+      ],
       "circle-stroke-opacity": 1,
       "circle-color-transition": { duration: 0, delay: 0 },
       "circle-radius-transition": { duration: 0, delay: 0 },
     },
   });
   updateLayerVisibility("shindo-station-points", state.showStationLayer);
+
+  addLayerIfMissing({
+    id: "shindo-station-points-light-outline",
+    type: "circle",
+    source: "shindo-stations",
+    layout: {
+      "circle-sort-key": ["get", "stationDisplaySortKey"],
+    },
+    paint: {
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 4.6, 6, 5.8, 8, 7.2],
+      "circle-color": "rgba(255, 255, 255, 0)",
+      "circle-opacity": 0,
+      "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 4, 0.8, 8, 1.2],
+      "circle-stroke-color": INTENSITY_BOUNDARY_LIGHT,
+      "circle-stroke-opacity": [
+        "case",
+        [
+          "all",
+          [">", ["coalesce", ["get", "intensityRank"], 0], 0],
+          ["==", ["get", "intensityTextColor"], "#ffffff"],
+        ],
+        1,
+        0,
+      ],
+    },
+  });
+  updateLayerVisibility("shindo-station-points-light-outline", state.showStationLayer);
 
   addLayerIfMissing({
     id: "shindo-station-labels",
@@ -13668,11 +13861,15 @@ function moveLayerToTop(layerId) {
 
 function keepWaveAndStationLayerOrder() {
   moveLayerToTop("jma-local-area-boundaries");
+  moveLayerToTop("jma-intensity-area-boundaries");
+  moveLayerToTop("jma-intensity-area-boundaries-light");
+  moveLayerToTop("jma-eew-warning-boundaries");
   moveLayerToTop("active-fault-lines");
   moveLayerToTop("p-wave-fill");
   moveLayerToTop("s-wave-fill");
   moveLayerToTop("submarine-observation-fill");
   moveLayerToTop("shindo-station-points");
+  moveLayerToTop("shindo-station-points-light-outline");
   moveLayerToTop("shindo-station-labels");
   moveLayerToTop("p-wave-line");
   moveLayerToTop("s-wave-line");
@@ -13684,6 +13881,9 @@ function updateLayerVisibility(layerId, visible) {
   }
   if (layerId === "shindo-station-points" && map?.getLayer("shindo-station-labels")) {
     map.setLayoutProperty("shindo-station-labels", "visibility", visible ? "visible" : "none");
+  }
+  if (layerId === "shindo-station-points" && map?.getLayer("shindo-station-points-light-outline")) {
+    map.setLayoutProperty("shindo-station-points-light-outline", "visibility", visible ? "visible" : "none");
   }
   if (layerId === "shindo-station-points" || layerId === "submarine-observation-fill") {
     scheduleStationCanvasRender();
@@ -13749,7 +13949,12 @@ function applySimulationWhiteMapStyle(enabled) {
   setPaint(
     "eew-warning-fill",
     "fill-color",
-    ["case", ["==", ["feature-state", "eewBlinkOff"], true], whiteMap ? "#eef1f4" : "#151b23", "#e60012"],
+    [
+      "case",
+      ["==", ["coalesce", ["feature-state", "eewBlinkOff"], ["get", "eewBlinkOff"], false], true],
+      whiteMap ? "#eef1f4" : "#151b23",
+      "#e60012",
+    ],
   );
 }
 
@@ -13847,8 +14052,13 @@ function renderStationCanvasOverlay() {
     const labelAlpha = smoothStep(clamp((zoom - labelFadeStartZoom) / 0.18, 0, 1));
     const padding = radius + 6;
 
-    if (state.showSubmarineStationLayer) {
-      submarineFeatures.forEach((feature) => {
+    [...submarineFeatures]
+      .sort((left, right) => (
+        getStationBoundaryColor(left.properties) === INTENSITY_BOUNDARY_LIGHT ? 1 : 0
+      ) - (
+        getStationBoundaryColor(right.properties) === INTENSITY_BOUNDARY_LIGHT ? 1 : 0
+      ))
+      .forEach((feature) => {
         const coordinates = feature.geometry?.coordinates;
         if (!Array.isArray(coordinates)) {
           return;
@@ -13862,7 +14072,6 @@ function renderStationCanvasOverlay() {
         const properties = feature.properties ?? {};
         drawSubmarineStationCanvasMarker(context, point.x, point.y, radius, fontSize, labelAlpha, properties);
       });
-    }
 
   }
 
@@ -13940,7 +14149,9 @@ function drawSubmarineStationCanvasMarker(context, x, y, radius, fontSize, label
   context.shadowColor = "transparent";
   context.lineWidth = hasRecordedIntensity ? 1.6 : 1.7;
   context.setLineDash(hasRecordedIntensity ? [2.8, 2.2] : [2.5, 3.2]);
-  context.strokeStyle = hasRecordedIntensity ? "rgba(0, 0, 0, 0.32)" : "rgba(0, 0, 0, 0.28)";
+  context.strokeStyle = hasRecordedIntensity
+    ? getStationBoundaryColor(properties)
+    : "rgba(0, 0, 0, 0.28)";
   context.stroke();
   context.setLineDash([]);
   context.restore();
@@ -14257,7 +14468,8 @@ function updateDisplayMode() {
   state.showRegionLayer = els.regionLayerToggle.checked;
   state.showEewWarningLayer = els.eewWarningToggle.checked;
   state.showPlateBoundaryLayer = Boolean(els.plateBoundaryLayerToggle?.checked);
-  state.showFaultLayer = Boolean(els.faultLayerToggle?.checked);
+  state.showFaultLayer = false;
+  updateFaultLayerToggleAvailability();
   els.simulationStationLayerToggle.checked = state.showStationLayer;
   if (els.simulationSubmarineStationLayerToggle) {
     els.simulationSubmarineStationLayerToggle.checked = state.showSubmarineStationLayer;
@@ -14270,16 +14482,19 @@ function updateDisplayMode() {
   if (els.simulationFaultLayerToggle) {
     els.simulationFaultLayerToggle.checked = state.showFaultLayer;
   }
-  updateLayerVisibility("shindo-station-points", state.showStationLayer);
-  updateSubmarineObservationLayerVisibility();
-  updateLayerVisibility("jma-intensity-fill", state.showRegionLayer);
-  updateLayerVisibility("eew-warning-fill", state.showEewWarningLayer);
-  updatePlateBoundaryLayerVisibility();
-  updateFaultLayerVisibility();
   if (shouldSyncAreaSourceData()) {
     visibleAreaDataSyncBucket = null;
     syncVisibleAreaSourceData(getSimulationStationElapsedSec());
   }
+  updateLayerVisibility("shindo-station-points", state.showStationLayer);
+  updateSubmarineObservationLayerVisibility();
+  updateLayerVisibility("jma-intensity-fill", state.showRegionLayer);
+  updateLayerVisibility("jma-intensity-area-boundaries", state.showRegionLayer);
+  updateLayerVisibility("jma-intensity-area-boundaries-light", state.showRegionLayer);
+  updateLayerVisibility("eew-warning-fill", state.showEewWarningLayer);
+  updateLayerVisibility("jma-eew-warning-boundaries", state.showEewWarningLayer);
+  updatePlateBoundaryLayerVisibility();
+  updateFaultLayerVisibility();
   if (state.showStationLayer && map?.getSource("shindo-stations")) {
     setGeoJsonSourceData("shindo-stations", getStationIntensityDataForElapsed(getSimulationStationElapsedSec()));
     keepWaveAndStationLayerOrder();
@@ -14371,31 +14586,26 @@ function isSubmarineFeatureId(featureId) {
 }
 
 function updateFaultLayerVisibility() {
-  updateLayerVisibility("active-fault-lines", state.showFaultLayer);
-  if (!state.showFaultLayer || !map?.getSource("active-faults")) {
-    return;
-  }
+  updateFaultLayerToggleAvailability();
+}
 
-  loadActiveFaultSegments()
-    .then((faults) => {
-      if (!state.showFaultLayer || !map?.getSource("active-faults")) {
-        return;
-      }
-      setGeoJsonSourceData("active-faults", faults);
-      updateLayerVisibility("active-fault-lines", true);
-      keepWaveAndStationLayerOrder();
-    })
-    .catch((error) => {
-      console.warn(error);
-      state.showFaultLayer = false;
-      if (els.faultLayerToggle) {
-        els.faultLayerToggle.checked = false;
-      }
-      if (els.simulationFaultLayerToggle) {
-        els.simulationFaultLayerToggle.checked = false;
-      }
-      updateLayerVisibility("active-fault-lines", false);
-    });
+function updateFaultLayerToggleAvailability() {
+  state.showFaultLayer = false;
+  [els.faultLayerToggle, els.simulationFaultLayerToggle].forEach((toggle) => {
+    if (!toggle) {
+      return;
+    }
+    toggle.checked = false;
+    toggle.disabled = true;
+    toggle.closest(".toggle-row")?.classList.add("is-disabled");
+  });
+  const proxyToggle = els.mapLayerControlPanel?.querySelector('[data-map-layer-target="fault-layer-toggle"]');
+  if (proxyToggle instanceof HTMLInputElement) {
+    proxyToggle.checked = false;
+    proxyToggle.disabled = true;
+    proxyToggle.closest("label")?.classList.add("is-disabled");
+  }
+  updateLayerVisibility("active-fault-lines", false);
 }
 
 function updatePlateBoundaryLayerVisibility() {
@@ -14408,7 +14618,7 @@ function syncSimulationLayerToggles() {
   state.showRegionLayer = els.simulationRegionLayerToggle.checked;
   state.showEewWarningLayer = els.simulationEewWarningToggle.checked;
   state.showPlateBoundaryLayer = Boolean(els.simulationPlateBoundaryLayerToggle?.checked);
-  state.showFaultLayer = Boolean(els.simulationFaultLayerToggle?.checked);
+  state.showFaultLayer = false;
   els.stationLayerToggle.checked = state.showStationLayer;
   if (els.submarineStationLayerToggle) {
     els.submarineStationLayerToggle.checked = state.showSubmarineStationLayer;
@@ -15185,6 +15395,9 @@ async function startSimulation() {
   if (els.simulationStart.disabled) {
     return;
   }
+  if (!maintenanceStatusReady || isSimulationMapDataLoading()) {
+    return;
+  }
 
   resetViewAnimating = true;
   updateSimulationAvailability();
@@ -15940,21 +16153,40 @@ function addExpectedSimulationIntensityTimelineEvents() {
   const eventRanks = predictedMaxRank >= 5
     ? Array.from({ length: predictedMaxRank - 4 }, (_, index) => index + 5)
     : [predictedMaxRank];
+  const preset = getSelectedPreset();
+  const usesOldJmaScale = isOldJmaScaleSyntheticPreset(preset);
+  const predictedMaxClass = INTENSITY_CLASSES.find((entry) => entry.rank === predictedMaxRank);
+  const predictedDisplayClass = predictedMaxClass
+    ? getPresetDisplayIntensityClass(predictedMaxClass, predictedMaxClass.min, preset)
+    : null;
+  const representativeEventsByTime = new Map();
   eventRanks.forEach((rank) => {
+    const intensityClass = INTENSITY_CLASSES.find((entry) => entry.rank === rank);
     const observedSec = getFirstPredictedIntensityObservationSec(predictedStations, rank);
     const elapsedSec = Number.isFinite(observedSec)
       ? Math.ceil(observedSec * SIMULATION_DATA_UPDATE_HZ) / SIMULATION_DATA_UPDATE_HZ
       : Infinity;
-    const intensityClass = INTENSITY_CLASSES.find((entry) => entry.rank === rank);
     if (!intensityClass || !Number.isFinite(elapsedSec)) return;
-    const isFinalMaximum = rank === predictedMaxRank;
-    addSimulationTimelineEvent(
-      `intensity-${rank}`,
-      elapsedSec + SIMULATION_ORIGIN_OFFSET_SEC,
-      `${isFinalMaximum ? "最大震度" : "震度"}${intensityClass.label}を観測`,
-      "intensity-planned",
-    );
+    representativeEventsByTime.set(elapsedSec, { rank, elapsedSec, intensityClass });
   });
+
+  const emittedOldScaleLabels = new Set();
+  [...representativeEventsByTime.values()]
+    .sort((left, right) => left.elapsedSec - right.elapsedSec)
+    .forEach(({ rank, elapsedSec, intensityClass }) => {
+      const displayClass = getPresetDisplayIntensityClass(intensityClass, intensityClass.min, preset);
+      if (usesOldJmaScale && emittedOldScaleLabels.has(displayClass.label)) return;
+      if (usesOldJmaScale) emittedOldScaleLabels.add(displayClass.label);
+      const isFinalMaximum = usesOldJmaScale
+        ? displayClass.label === predictedDisplayClass?.label
+        : rank === predictedMaxRank;
+      addSimulationTimelineEvent(
+        `intensity-${rank}`,
+        elapsedSec + SIMULATION_ORIGIN_OFFSET_SEC,
+        `${isFinalMaximum ? "最大震度" : "震度"}${displayClass.label}を観測`,
+        "intensity-planned",
+      );
+    });
 }
 
 function getFirstPredictedIntensityObservationSec(stationFeatures, targetRank) {
@@ -16180,6 +16412,12 @@ function syncSimulationTimelineEventStates() {
 
 function recordSimulationMaxIntensityEvent(elapsedSec, maxRank, label) {
   const predictedMaxRank = Number(getPredictedMaximumIntensity()?.rank) || 0;
+  const preset = getSelectedPreset();
+  const usesOldJmaScale = isOldJmaScaleSyntheticPreset(preset);
+  const predictedMaxClass = INTENSITY_CLASSES.find((entry) => entry.rank === predictedMaxRank);
+  const predictedDisplayClass = predictedMaxClass
+    ? getPresetDisplayIntensityClass(predictedMaxClass, predictedMaxClass.min, preset)
+    : null;
   if (
     !document.body.classList.contains("simulation-session-active")
     || !Number.isFinite(elapsedSec)
@@ -16195,16 +16433,29 @@ function recordSimulationMaxIntensityEvent(elapsedSec, maxRank, label) {
   if (firstRank > lastRank) {
     return;
   }
-  for (let rank = firstRank; rank <= lastRank; rank += 1) {
-    const intensityClass = INTENSITY_CLASSES.find((entry) => entry.rank === rank);
-    if (!intensityClass) continue;
-    const isFinalMaximum = rank === predictedMaxRank;
-    addSimulationTimelineEvent(
-      `intensity-${rank}`,
-      elapsedSec + SIMULATION_ORIGIN_OFFSET_SEC,
-      `${isFinalMaximum ? "最大震度" : "震度"}${isFinalMaximum ? label : intensityClass.label}を観測`,
-      "intensity",
-    );
+  const intensityClass = INTENSITY_CLASSES.find((entry) => entry.rank === lastRank);
+  if (intensityClass) {
+    const displayClass = getPresetDisplayIntensityClass(intensityClass, intensityClass.min, preset);
+    const previousClass = INTENSITY_CLASSES.find((entry) => entry.rank === simulationTimelineMaxRank);
+    const previousDisplayClass = previousClass
+      ? getPresetDisplayIntensityClass(previousClass, previousClass.min, preset)
+      : null;
+    const isDuplicateOldScaleLevel = usesOldJmaScale
+      && previousDisplayClass?.label === displayClass.label;
+    if (!isDuplicateOldScaleLevel) {
+      const isFinalMaximum = usesOldJmaScale
+        ? displayClass.label === predictedDisplayClass?.label
+        : lastRank === predictedMaxRank;
+      const eventLabel = usesOldJmaScale
+        ? displayClass.label
+        : (isFinalMaximum ? label : intensityClass.label);
+      addSimulationTimelineEvent(
+        `intensity-${lastRank}`,
+        elapsedSec + SIMULATION_ORIGIN_OFFSET_SEC,
+        `${isFinalMaximum ? "最大震度" : "震度"}${eventLabel}を観測`,
+        "intensity",
+      );
+    }
   }
   simulationTimelineMaxRank = lastRank;
 }
@@ -16237,16 +16488,21 @@ function updateSimulationSummary(elapsedSec = getSimulationStationElapsedSec()) 
     ? simulationObservedMaxRank
     : currentMaxRank;
   const maxClass = INTENSITY_CLASSES.find((item) => item.rank === maxRank) ?? INTENSITY_CLASSES[0];
+  const displayMaxClass = getPresetDisplayIntensityClass(
+    maxClass,
+    maxClass.min,
+    getSelectedPreset(),
+  );
   const hasObservedIntensity = stationFeatures.length > 0;
-  recordSimulationMaxIntensityEvent(elapsedSec, maxRank, maxClass.label);
+  recordSimulationMaxIntensityEvent(elapsedSec, maxRank, displayMaxClass.label);
 
   setTextContentIfChanged(
     els.simulationMaxIntensity,
-    state.simulationRunning && Number.isFinite(elapsedSec) && !hasObservedIntensity ? "-" : maxClass.label,
+    state.simulationRunning && Number.isFinite(elapsedSec) && !hasObservedIntensity ? "-" : displayMaxClass.label,
   );
   applySimulationIntensityCard(
     els.simulationMaxIntensity,
-    state.simulationRunning && Number.isFinite(elapsedSec) && !hasObservedIntensity ? null : maxClass,
+    state.simulationRunning && Number.isFinite(elapsedSec) && !hasObservedIntensity ? null : displayMaxClass,
   );
   setTextContentIfChanged(els.simulationMagnitude, getSimulationTicketMagnitude().toFixed(1));
   setTextContentIfChanged(els.simulationEpicenter, `${state.latitude.toFixed(3)}, ${state.longitude.toFixed(3)}`);
@@ -17227,9 +17483,16 @@ function updateSimulationAvailability() {
   }
 
   if (!maintenanceStatusReady) {
-    els.simulationStart.disabled = true;
-    els.simulationStart.textContent = "メンテナンス確認中...";
-    els.simulationStart.title = "メンテナンスモードの状態を確認しています";
+    els.simulationStart.disabled = false;
+    els.simulationStart.textContent = "開始";
+    els.simulationStart.title = "";
+    return;
+  }
+
+  if (isSimulationMapDataLoading()) {
+    els.simulationStart.disabled = false;
+    els.simulationStart.textContent = "開始";
+    els.simulationStart.title = "";
     return;
   }
 
@@ -17897,6 +18160,7 @@ function buildIntensityAreaData(geojson, elapsedSec = Infinity) {
         intensityLabel: displayedIntensityClass.label,
         intensityRank: displayedIntensityClass.rank,
         intensityColor: displayedIntensityClass.color,
+        intensityBoundaryColor: getIntensityBoundaryColor(displayedIntensityClass),
         predictedIntensityValue: Number(predictedIntensityValue.toFixed(2)),
         predictedIntensityRank: displayedPredictedIntensityClass.rank,
         epicentralDistanceKm,

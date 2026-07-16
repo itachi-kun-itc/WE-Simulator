@@ -48,13 +48,13 @@
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta name="twitter:image" content="https://itachi-kun-itc.github.io/WE-Simulator/og-image.png" />
-    <link rel="manifest" href="./manifest.webmanifest?v=f163365370e0" />
-    <link rel="icon" type="image/png" sizes="32x32" href="./favicon.png?v=f163365370e0" />
-    <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=f163365370e0" />
+    <link rel="manifest" href="./manifest.webmanifest?v=0.1.31" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./favicon.png?v=0.1.31" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=0.1.31" />
     <link rel="preconnect" href="https://we-simulator-push.h6fgpg2zht.workers.dev" crossorigin />
     <link rel="preconnect" href="https://unpkg.com" crossorigin />
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.css" />
-    <link rel="stylesheet" href="./styles.css?v=f163365370e0" />
+    <link rel="stylesheet" href="./styles.css?v=0.1.31" />
   </head>
   <body>
     <main class="app-shell">
@@ -85,10 +85,10 @@
             <strong>レイヤー表示</strong>
             <label><input type="checkbox" data-map-layer-target="station-layer-toggle" />観測点</label>
             <label><input type="checkbox" data-map-layer-target="submarine-station-layer-toggle" />観測点（海底）</label>
-            <label><input type="checkbox" data-map-layer-target="region-layer-toggle" />細分区域</label>
+            <label><input type="checkbox" data-map-layer-target="region-layer-toggle" checked />細分区域</label>
             <label><input type="checkbox" data-map-layer-target="eew-warning-toggle" />緊急地震速報（警報）</label>
             <label><input type="checkbox" data-map-layer-target="plate-boundary-layer-toggle" />プレート境界</label>
-            <label><input type="checkbox" data-map-layer-target="fault-layer-toggle" />断層</label>
+            <label><input type="checkbox" data-map-layer-target="fault-layer-toggle" disabled />断層（一時無効化中）</label>
           </section>
 
           <section class="sim-panel setup-menu-closed" id="setup-panel" data-sheet-state="collapsed" aria-label="震源設定">
@@ -141,7 +141,7 @@
                 <span>観測点（海底）</span>
               </label>
               <label class="toggle-row layer-toggle-full">
-                <input id="region-layer-toggle" type="checkbox" />
+                <input id="region-layer-toggle" type="checkbox" checked />
                 <span>細分区域</span>
               </label>
               <label class="toggle-row layer-toggle-full">
@@ -153,8 +153,8 @@
                 <span>プレート境界</span>
               </label>
               <label class="toggle-row">
-                <input id="fault-layer-toggle" type="checkbox" />
-                <span>断層</span>
+                <input id="fault-layer-toggle" type="checkbox" disabled />
+                <span>断層（一時無効化中）</span>
               </label>
             </div>
             <label class="field intensity-color-scheme-native">
@@ -282,7 +282,7 @@
                 <span>観測点（海底）</span>
               </label>
               <label class="toggle-row layer-toggle-full">
-                <input id="simulation-region-layer-toggle" type="checkbox" />
+                <input id="simulation-region-layer-toggle" type="checkbox" checked />
                 <span>細分区域</span>
               </label>
               <label class="toggle-row layer-toggle-full">
@@ -294,8 +294,8 @@
                 <span>プレート境界</span>
               </label>
               <label class="toggle-row">
-                <input id="simulation-fault-layer-toggle" type="checkbox" />
-                <span>断層</span>
+                <input id="simulation-fault-layer-toggle" type="checkbox" disabled />
+                <span>断層（一時無効化中）</span>
               </label>
             </div>
 
@@ -480,6 +480,6 @@
     </script>
     <script src="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.js"></script>
     <script src="./vendor/pmtiles.js?v=0.1.1"></script>
-    <script src="./app.js?v=f163365370e0"></script>
+    <script src="./app.js?v=0.1.31"></script>
   </body>
 </html>
