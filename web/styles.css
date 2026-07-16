@@ -16532,6 +16532,10 @@ body.simulation-session-complete .simulation-runtime-hud .simulation-timeline-co
   white-space: nowrap;
 }
 
+.simulation-runtime-hud .simulation-progress-guides > span::after {
+  top: 74px;
+}
+
 /* Give source setup the same bottom-sheet shell as the runtime HUD. */
 #setup-panel.sim-panel {
   left: 50% !important;
@@ -18827,11 +18831,11 @@ body[data-active-bottom-tab="earthquake-tab"] .eew-forecast-panel {
 }
 
 .map-layer-control-button {
-  z-index: 14020 !important;
+  z-index: 14610 !important;
 }
 
 .map-layer-control-panel {
-  z-index: 14030 !important;
+  z-index: 14620 !important;
 }
 
 /* Running controls: black pause and red cancel, split into equal halves. */
@@ -19058,8 +19062,9 @@ body.simulation-session-active.simulation-result-report-visible #setup-panel {
   gap: 12px;
 }
 
-/* Use the actual live HUD ticket without rebuilding its layout. */
-.simulation-result-report-summary-host .simulation-result-report-runtime-hud {
+/* Use the actual live HUD ticket without keeping its map-fixed positioning. */
+body.simulation-session-active #setup-panel.simulation-result-report-open
+  .simulation-result-report-summary-host .simulation-result-report-runtime-hud {
   position: static !important;
   inset: auto !important;
   display: block !important;
@@ -19073,6 +19078,7 @@ body.simulation-session-active.simulation-result-report-visible #setup-panel {
   transition: none !important;
   background: transparent !important;
   box-shadow: none !important;
+  pointer-events: auto !important;
 }
 
 .simulation-result-report-summary-host .simulation-summary {
@@ -19720,6 +19726,13 @@ body.simulation-session-active #setup-panel.simulation-result-report-open
   color: var(--simulation-ticket-intensity-text, #1f2937) !important;
 }
 
+/* Remove the bright seam above the information ticket in every theme and context. */
+.simulation-runtime-hud .simulation-summary,
+.simulation-result-report-summary-host .simulation-summary {
+  border-top-width: 0 !important;
+  box-shadow: none !important;
+}
+
 .simulation-runtime-hud .simulation-summary.has-observed-intensity dt,
 .simulation-runtime-hud .simulation-summary.has-observed-intensity dd,
 .simulation-runtime-hud .simulation-summary.has-observed-intensity #simulation-region-name,
@@ -19795,16 +19808,35 @@ body.simulation-session-complete .simulation-runtime-hud #simulation-pause {
 @media (max-width: 767px) {
   body[data-active-bottom-tab="earthquake-tab"] .intensity-legend.is-old-jma-scale {
     justify-content: flex-end !important;
+    width: min(242px, calc(100vw - 66px)) !important;
+    max-width: calc(100vw - 66px) !important;
     padding: 0 !important;
   }
 
   body[data-active-bottom-tab="earthquake-tab"]
     .intensity-legend.is-old-jma-scale .intensity-scale {
     grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
-    width: calc(100% * 7 / 9) !important;
+    width: 100% !important;
     margin-right: 0 !important;
-    margin-left: auto !important;
+    margin-left: 0 !important;
     padding: 0 !important;
+  }
+}
+
+@media (min-width: 768px) {
+  body[data-active-bottom-tab="earthquake-tab"] .intensity-legend {
+    width: 28px !important;
+    min-width: 28px !important;
+    max-width: 28px !important;
+    flex-basis: 28px !important;
+  }
+
+  body[data-active-bottom-tab="earthquake-tab"] .intensity-scale,
+  body[data-active-bottom-tab="earthquake-tab"] .intensity-scale span {
+    width: 26px !important;
+    min-width: 26px !important;
+    max-width: 26px !important;
+    flex-basis: 26px !important;
   }
 }
 
@@ -20686,6 +20718,40 @@ html[data-resolved-theme="light"] body[data-active-bottom-tab="earthquake-tab"] 
 html[data-resolved-theme="light"] body[data-active-bottom-tab="earthquake-tab"] #map-layer-control-button[aria-expanded="true"] {
   border-color: #0f766e !important;
   color: #0f766e !important;
+}
+
+/* Disabled map layers use one deliberate inactive treatment in both appearances. */
+.toggle-row.is-disabled,
+.setup-layer-state-storage .toggle-row:has(input:disabled),
+.simulation-layer-toggles .toggle-row:has(input:disabled),
+.map-layer-control-panel > label.is-disabled,
+.map-layer-control-panel > label:has(input:disabled) {
+  border-color: rgba(148, 163, 184, 0.16) !important;
+  background: rgba(100, 116, 139, 0.12) !important;
+  color: #7f8b9b !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+  cursor: not-allowed !important;
+}
+
+.toggle-row.is-disabled input,
+.setup-layer-state-storage .toggle-row:has(input:disabled) input,
+.simulation-layer-toggles .toggle-row:has(input:disabled) input,
+.map-layer-control-panel > label:has(input:disabled) input {
+  accent-color: #64748b !important;
+  filter: grayscale(1) !important;
+  opacity: 0.48 !important;
+  cursor: not-allowed !important;
+}
+
+html[data-resolved-theme="light"] .toggle-row.is-disabled,
+html[data-resolved-theme="light"] .setup-layer-state-storage .toggle-row:has(input:disabled),
+html[data-resolved-theme="light"] .simulation-layer-toggles .toggle-row:has(input:disabled),
+html[data-resolved-theme="light"] .map-layer-control-panel > label.is-disabled,
+html[data-resolved-theme="light"] .map-layer-control-panel > label:has(input:disabled) {
+  border-color: #cbd5e1 !important;
+  background: #e8edf2 !important;
+  color: #64748b !important;
 }
 
 /* Final light-theme readability for destructive actions, dialogs and posting UI. */
@@ -21602,4 +21668,41 @@ html[data-resolved-theme="light"] #history-statistics-load[aria-disabled="true"]
 #settings-feedback-panel .feedback-submit {
   grid-row: 4 !important;
   align-self: end !important;
+}
+
+/* Final profile palette: cyan actions in light mode, red destructive actions in both themes. */
+html[data-resolved-theme="light"] .community-account-button-row > button:not(:disabled),
+html[data-resolved-theme="light"] .community-account-panel .community-account-wide-button:not(:disabled),
+html[data-resolved-theme="light"] .community-account-screen-form button[type="submit"]:not(:disabled) {
+  border-color: #0284c7 !important;
+  background: #38bdf8 !important;
+  color: #082f49 !important;
+  box-shadow: 0 6px 16px rgba(2, 132, 199, 0.2) !important;
+}
+
+html[data-resolved-theme="light"] .community-account-wide-button::after {
+  color: #0c4a6e !important;
+}
+
+.community-account-danger-actions button:not(:disabled),
+html[data-resolved-theme="dark"] .community-account-danger-actions button:not(:disabled) {
+  border-color: rgba(251, 113, 133, 0.68) !important;
+  background: #b91c32 !important;
+  color: #ffffff !important;
+  box-shadow: 0 6px 16px rgba(127, 29, 29, 0.24) !important;
+}
+
+html[data-resolved-theme="light"] .community-account-danger-actions button:not(:disabled) {
+  border-color: #b91c1c !important;
+  background: #dc2626 !important;
+  color: #ffffff !important;
+  box-shadow: 0 6px 16px rgba(185, 28, 28, 0.18) !important;
+}
+
+/* EEW area chips keep the red warning treatment on the light map too. */
+html[data-resolved-theme="light"] .eew-forecast-panel li {
+  border-color: rgba(255, 255, 255, 0.72) !important;
+  background: #e60012 !important;
+  color: #ffffff !important;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.22) !important;
 }

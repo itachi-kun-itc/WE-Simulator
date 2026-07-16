@@ -85,10 +85,10 @@
             <strong>レイヤー表示</strong>
             <label><input type="checkbox" data-map-layer-target="station-layer-toggle" />観測点</label>
             <label><input type="checkbox" data-map-layer-target="submarine-station-layer-toggle" />観測点（海底）</label>
-            <label><input type="checkbox" data-map-layer-target="region-layer-toggle" />細分区域</label>
+            <label><input type="checkbox" data-map-layer-target="region-layer-toggle" checked />細分区域</label>
             <label><input type="checkbox" data-map-layer-target="eew-warning-toggle" />緊急地震速報（警報）</label>
             <label><input type="checkbox" data-map-layer-target="plate-boundary-layer-toggle" />プレート境界</label>
-            <label><input type="checkbox" data-map-layer-target="fault-layer-toggle" />断層</label>
+            <label><input type="checkbox" data-map-layer-target="fault-layer-toggle" disabled />断層（一時無効化中）</label>
           </section>
 
           <section class="sim-panel setup-menu-closed" id="setup-panel" data-sheet-state="collapsed" aria-label="震源設定">
@@ -141,7 +141,7 @@
                 <span>観測点（海底）</span>
               </label>
               <label class="toggle-row layer-toggle-full">
-                <input id="region-layer-toggle" type="checkbox" />
+                <input id="region-layer-toggle" type="checkbox" checked />
                 <span>細分区域</span>
               </label>
               <label class="toggle-row layer-toggle-full">
@@ -153,8 +153,8 @@
                 <span>プレート境界</span>
               </label>
               <label class="toggle-row">
-                <input id="fault-layer-toggle" type="checkbox" />
-                <span>断層</span>
+                <input id="fault-layer-toggle" type="checkbox" disabled />
+                <span>断層（一時無効化中）</span>
               </label>
             </div>
             <label class="field intensity-color-scheme-native">
@@ -282,7 +282,7 @@
                 <span>観測点（海底）</span>
               </label>
               <label class="toggle-row layer-toggle-full">
-                <input id="simulation-region-layer-toggle" type="checkbox" />
+                <input id="simulation-region-layer-toggle" type="checkbox" checked />
                 <span>細分区域</span>
               </label>
               <label class="toggle-row layer-toggle-full">
@@ -294,8 +294,8 @@
                 <span>プレート境界</span>
               </label>
               <label class="toggle-row">
-                <input id="simulation-fault-layer-toggle" type="checkbox" />
-                <span>断層</span>
+                <input id="simulation-fault-layer-toggle" type="checkbox" disabled />
+                <span>断層（一時無効化中）</span>
               </label>
             </div>
 

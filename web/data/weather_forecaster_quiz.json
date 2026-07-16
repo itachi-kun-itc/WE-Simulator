@@ -6,8 +6,8 @@
   },
   {
     "category": "一般知識",
-    "question": "平均気圧500hPa、平均気温-23℃の乾燥空気層で、高度差100mに対応する気圧差は約何hPaですか。",
-    "answer": "約7.0hPaです。"
+    "question": "静力学平衡を仮定します。平均気圧500hPa、平均気温−23℃の乾燥空気層で、高度差100mに対応する気圧差の大きさは約何hPaですか。重力加速度を9.8m/s²、乾燥空気の気体定数を287J/(kg・K)とします。",
+    "answer": "約6.8hPaです。"
   },
   {
     "category": "一般知識",
@@ -340,7 +340,7 @@
   { "exam": "第59回", "year": "令和4年度第2回", "category": "一般知識", "sourceQuestion": 9, "question": "ガストフロント通過時、一般に地上気圧は上昇しますか。", "answer": "上昇します。", "wrongAnswer": "低下します。" },
   { "exam": "第59回", "year": "令和4年度第2回", "category": "一般知識", "sourceQuestion": 10, "question": "夏の成層圏では、夏半球で東風が卓越しますか。", "answer": "卓越します。", "wrongAnswer": "夏半球でも全層で西風です。" },
   { "exam": "第59回", "year": "令和4年度第2回", "category": "一般知識", "sourceQuestion": 11, "question": "エルニーニョ時、太平洋赤道域の東風は平年より弱まりますか。", "answer": "弱まります。", "wrongAnswer": "強まります。" },
-  { "exam": "第59回", "year": "令和4年度第2回", "category": "一般知識", "sourceQuestion": 12, "question": "予報業務の許可要件には、資料収集だけでなく解析の施設・要員も含まれますか。", "answer": "含まれます。", "wrongAnswer": "資料収集だけで、解析体制は含まれません。" },
+  { "exam": "第59回", "year": "令和4年度第2回", "category": "一般知識", "sourceQuestion": 12, "question": "予報業務の許可審査では、資料の収集・解析に加え、関連する警報事項を迅速に受けるための施設・要員も確認されますか。", "answer": "確認されます。", "wrongAnswer": "資料を収集する施設だけが確認され、解析や警報事項の受信体制は確認されません。" },
   { "exam": "第59回", "year": "令和4年度第2回", "category": "一般知識", "sourceQuestion": 13, "question": "気象予報士になるには、試験合格後に気象庁長官の登録を受けますか。", "answer": "受けます。", "wrongAnswer": "試験合格だけで自動登録されます。" },
   { "exam": "第59回", "year": "令和4年度第2回", "category": "一般知識", "sourceQuestion": 14, "question": "日本放送協会は、通知された警報事項を直ちに放送する義務がありますか。", "answer": "あります。", "wrongAnswer": "放送するかは任意です。" },
   { "exam": "第59回", "year": "令和4年度第2回", "category": "一般知識", "sourceQuestion": 15, "question": "異常現象の発見者は、市町村長または警察官などへ通報しますか。", "answer": "通報します。", "wrongAnswer": "気象台長にしか通報できません。" },

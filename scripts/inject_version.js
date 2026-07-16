@@ -31,7 +31,8 @@ const version = process.env.GITHUB_SHA
   ? process.env.GITHUB_SHA.slice(0, 12)
   : pkg.version || String(Date.now());
 
-let html = fs.readFileSync(indexPath, 'utf8');
+const originalHtml = fs.readFileSync(indexPath, 'utf8');
+let html = originalHtml;
 
 // Replace known local asset references to add ?v=version
 html = html.replace(/\.\/styles\.css(?:\?v=[^"']*)?/g, './styles.css?v=' + version);
@@ -40,9 +41,12 @@ html = html.replace(/\.\/manifest\.webmanifest(?:\?v=[^"']*)?/g, './manifest.web
 html = html.replace(/\.\/favicon\.png(?:\?v=[^"']*)?/g, './favicon.png?v=' + version);
 html = html.replace(/\.\/apple-touch-icon\.png(?:\?v=[^"']*)?/g, './apple-touch-icon.png?v=' + version);
 
-fs.writeFileSync(indexPath, html, 'utf8');
+if (html !== originalHtml) {
+  fs.writeFileSync(indexPath, html, 'utf8');
+}
 
-const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+const originalManifestText = fs.readFileSync(manifestPath, 'utf8');
+const manifest = JSON.parse(originalManifestText);
 if (Array.isArray(manifest.icons)) {
   manifest.icons = manifest.icons.map((icon) => {
     if (!icon || typeof icon.src !== 'string') {
@@ -56,5 +60,8 @@ if (Array.isArray(manifest.icons)) {
   });
 }
 
-fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
+const manifestText = JSON.stringify(manifest, null, 2) + '\n';
+if (manifestText !== originalManifestText) {
+  fs.writeFileSync(manifestPath, manifestText, 'utf8');
+}
 console.log('Injected version', version, 'into web/index.html and web/manifest.webmanifest');
