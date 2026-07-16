@@ -1060,9 +1060,9 @@ function setupTabs() {
       <section class="settings-appearance-section">
         <h4>表示テーマ</h4>
         <div class="settings-theme-options" role="radiogroup" aria-label="表示テーマ">
-          <label><input type="radio" name="appearance-theme" value="light" /> <span>ホワイト</span></label>
-          <label><input type="radio" name="appearance-theme" value="dark" /> <span>ダーク</span></label>
-          <label><input type="radio" name="appearance-theme" value="system" /> <span>システムに従う</span></label>
+          <label class="settings-theme-choice"><input type="radio" name="appearance-theme" value="light" /> <span>ホワイト</span></label>
+          <label class="settings-theme-choice"><input type="radio" name="appearance-theme" value="dark" /> <span>ダーク</span></label>
+          <label class="settings-theme-choice"><input type="radio" name="appearance-theme" value="system" /> <span>システムに従う</span></label>
         </div>
       </section>
       <section class="settings-appearance-section settings-appearance-color-section">
@@ -13783,12 +13783,7 @@ function addMapLayers() {
       "circle-color": ["coalesce", ["get", "intensityColor"], INTENSITY_INFORMATION_GRAY],
       "circle-opacity": 1,
       "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 4, 0.8, 8, 1.2],
-      "circle-stroke-color": [
-        "case",
-        ["==", ["get", "intensityTextColor"], "#ffffff"],
-        INTENSITY_BOUNDARY_LIGHT,
-        INTENSITY_BOUNDARY_DARK,
-      ],
+      "circle-stroke-color": "#000000",
       "circle-stroke-opacity": 1,
       "circle-color-transition": { duration: 0, delay: 0 },
       "circle-radius-transition": { duration: 0, delay: 0 },
@@ -13809,16 +13804,7 @@ function addMapLayers() {
       "circle-opacity": 0,
       "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 4, 0.8, 8, 1.2],
       "circle-stroke-color": INTENSITY_BOUNDARY_LIGHT,
-      "circle-stroke-opacity": [
-        "case",
-        [
-          "all",
-          [">", ["coalesce", ["get", "intensityRank"], 0], 0],
-          ["==", ["get", "intensityTextColor"], "#ffffff"],
-        ],
-        1,
-        0,
-      ],
+      "circle-stroke-opacity": 0,
     },
   });
   updateLayerVisibility("shindo-station-points-light-outline", state.showStationLayer);
@@ -14251,9 +14237,7 @@ function drawSubmarineStationCanvasMarker(context, x, y, radius, fontSize, label
   context.shadowColor = "transparent";
   context.lineWidth = hasRecordedIntensity ? 1.6 : 1.7;
   context.setLineDash(hasRecordedIntensity ? [2.8, 2.2] : [2.5, 3.2]);
-  context.strokeStyle = hasRecordedIntensity
-    ? getStationBoundaryColor(properties)
-    : "rgba(0, 0, 0, 0.28)";
+  context.strokeStyle = "#000000";
   context.stroke();
   context.setLineDash([]);
   context.restore();
@@ -20882,10 +20866,17 @@ function openCommunityAccountScreen(type) {
     sheet.append(screen);
   }
   const content = getCommunityAccountScreenHtml(type);
+  const title = getCommunityAccountScreenTitle(type);
   screen.innerHTML = `
-    <button class="community-account-screen-back" type="button" aria-label="戻る">‹</button>
-    ${content}
-    <p class="community-account-screen-status" aria-live="polite"></p>
+    <header class="settings-detail-head community-account-screen-head">
+      <button class="settings-detail-back community-account-screen-back" type="button" aria-label="戻る">‹</button>
+      <h2>${escapeHtml(title)}</h2>
+      <span aria-hidden="true"></span>
+    </header>
+    <div class="community-account-screen-content">
+      ${content}
+      <p class="community-account-screen-status" aria-live="polite"></p>
+    </div>
   `;
   sheet.classList.add("community-account-screen-open");
   screen.classList.remove("hidden");
@@ -20905,10 +20896,21 @@ function closeCommunityAccountScreen() {
   els.settingsMenuSheet?.querySelector("#community-account-screen")?.classList.add("hidden");
 }
 
+function getCommunityAccountScreenTitle(type) {
+  return {
+    login: "ログイン",
+    create: "アカウント作成",
+    name: "名前を編集",
+    icon: "アイコンを編集",
+    following: "フォロー",
+    followers: "フォロワー",
+    accounts: "アカウント情報",
+  }[type] || "アカウント情報";
+}
+
 function getCommunityAccountScreenHtml(type) {
   if (type === "login") {
     return `
-      <h2>ログイン</h2>
       <form class="community-account-screen-form" data-community-account-form="login">
         <label>名前<input name="name" type="text" maxlength="32" autocomplete="username" required /></label>
         <label>パスワード<input name="password" type="password" autocomplete="current-password" required /></label>
@@ -20918,7 +20920,6 @@ function getCommunityAccountScreenHtml(type) {
   }
   if (type === "create") {
     return `
-      <h2>アカウント作成</h2>
       <p class="community-account-note">アカウント名は投稿時にほかの人からも見えます。パスワードは英大文字・小文字・数字のみ使用できます。パスワードは絶対に忘れないでください。</p>
       <form class="community-account-screen-form" data-community-account-form="create">
         <label>名前<input name="name" type="text" maxlength="32" autocomplete="username" required /></label>
@@ -20930,8 +20931,7 @@ function getCommunityAccountScreenHtml(type) {
   }
   if (type === "name") {
     return `
-      <h2>名前を編集</h2>
-      <p class="community-account-note">名前は投稿時にほかの人からも見えます。</p>
+      <p class="community-account-note">設定した名前は、投稿者名としてほかのユーザーに公開されます。</p>
       <form class="community-account-screen-form" data-community-account-form="name">
         <label>名前<input name="name" type="text" maxlength="32" value="${escapeHtml(communityAccount?.name || "")}" required /></label>
         <button type="submit">保存</button>
@@ -20940,7 +20940,6 @@ function getCommunityAccountScreenHtml(type) {
   }
   if (type === "icon") {
     return `
-      <h2>アイコンを編集</h2>
       <form class="community-account-screen-form" data-community-account-form="icon">
         <label class="community-icon-picker">PNG / JPEGを選択<input name="icon" type="file" accept="image/png,image/jpeg" required /></label>
         <div class="community-icon-preview" id="community-icon-preview">${communityAccount?.icon ? `<img src="${escapeHtml(communityAccount.icon)}" alt="アイコンプレビュー" />` : "プレビュー"}</div>
@@ -20950,12 +20949,10 @@ function getCommunityAccountScreenHtml(type) {
   }
   if (type === "following" || type === "followers") {
     return `
-      <h2>${type === "following" ? "フォロー" : "フォロワー"}</h2>
       <div class="community-connection-list" id="community-connection-list" data-community-connection-kind="${type}">読み込み中...</div>
     `;
   }
   return `
-    <h2>アカウント情報</h2>
     <div class="community-account-list" id="community-account-list">読み込み中...</div>
   `;
 }
@@ -21224,7 +21221,7 @@ async function logoutCommunityAccount() {
 }
 
 async function deleteCommunityAccountWithConfirm() {
-  if (!window.confirm("アカウントを削除しますか？投稿内容は削除されません。")) {
+  if (!window.confirm("アカウントを削除しますか？投稿内容は削除されません。投稿マップから事前に削除してください")) {
     return;
   }
   const workerUrl = await getWorkerBaseUrl();
