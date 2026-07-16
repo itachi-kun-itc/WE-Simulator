@@ -3583,19 +3583,34 @@ function setupTabs() {
       els.settingsPrivacyPanel.setAttribute("aria-label", "プライバシーポリシー");
       els.settingsSourcePanel.insertAdjacentElement("afterend", els.settingsPrivacyPanel);
     }
+    if (!els.settingsAcknowledgementsButton && els.settingsPrivacyButton) {
+      els.settingsAcknowledgementsButton = document.createElement("button");
+      els.settingsAcknowledgementsButton.className = "settings-menu-row";
+      els.settingsAcknowledgementsButton.id = "settings-acknowledgements-button";
+      els.settingsAcknowledgementsButton.type = "button";
+      els.settingsAcknowledgementsButton.innerHTML = `<span>謝辞</span><span aria-hidden="true">›</span>`;
+      els.settingsPrivacyButton.insertAdjacentElement("afterend", els.settingsAcknowledgementsButton);
+    }
+    if (!els.settingsAcknowledgementsPanel && els.settingsPrivacyPanel) {
+      els.settingsAcknowledgementsPanel = document.createElement("section");
+      els.settingsAcknowledgementsPanel.className = "settings-inline-panel hidden";
+      els.settingsAcknowledgementsPanel.id = "settings-acknowledgements-panel";
+      els.settingsAcknowledgementsPanel.setAttribute("aria-label", "謝辞");
+      els.settingsPrivacyPanel.insertAdjacentElement("afterend", els.settingsAcknowledgementsPanel);
+    }
     if (!els.settingsAdminButton && els.settingsFeedbackButton) {
       els.settingsAdminButton = document.createElement("button");
       els.settingsAdminButton.className = "settings-menu-row";
       els.settingsAdminButton.id = "settings-admin-button";
       els.settingsAdminButton.type = "button";
-      els.settingsAdminButton.innerHTML = `<span>管理者用設定</span><span aria-hidden="true">›</span>`;
+      els.settingsAdminButton.innerHTML = `<span>管理者メニュー</span><span aria-hidden="true">›</span>`;
       els.settingsFeedbackButton.insertAdjacentElement("afterend", els.settingsAdminButton);
     }
     if (!els.settingsAdminPanel && els.settingsFeedbackPanel) {
       els.settingsAdminPanel = document.createElement("section");
       els.settingsAdminPanel.className = "settings-inline-panel hidden";
       els.settingsAdminPanel.id = "settings-admin-panel";
-      els.settingsAdminPanel.setAttribute("aria-label", "管理者用設定");
+      els.settingsAdminPanel.setAttribute("aria-label", "管理者メニュー");
       els.settingsFeedbackPanel.insertAdjacentElement("afterend", els.settingsAdminPanel);
     }
     if (els.settingsSourceButton?.firstElementChild) {
@@ -3611,7 +3626,7 @@ function setupTabs() {
       els.settingsPrivacyButton.setAttribute("aria-expanded", "false");
     }
     if (els.settingsAdminButton?.firstElementChild) {
-      els.settingsAdminButton.firstElementChild.textContent = "管理者用設定";
+      els.settingsAdminButton.firstElementChild.textContent = "管理者メニュー";
       els.settingsAdminButton.lastElementChild.textContent = "›";
       els.settingsAdminButton.setAttribute("aria-controls", "settings-admin-panel");
       els.settingsAdminButton.setAttribute("aria-expanded", "false");
@@ -3621,6 +3636,12 @@ function setupTabs() {
       els.settingsFeedbackButton.lastElementChild.textContent = "›";
       els.settingsFeedbackButton.setAttribute("aria-controls", "settings-feedback-panel");
       els.settingsFeedbackButton.setAttribute("aria-expanded", "false");
+    }
+    if (els.settingsAcknowledgementsButton?.firstElementChild) {
+      els.settingsAcknowledgementsButton.firstElementChild.textContent = "謝辞";
+      els.settingsAcknowledgementsButton.lastElementChild.textContent = "›";
+      els.settingsAcknowledgementsButton.setAttribute("aria-controls", "settings-acknowledgements-panel");
+      els.settingsAcknowledgementsButton.setAttribute("aria-expanded", "false");
     }
     if (els.settingsPushButton?.firstElementChild) {
       els.settingsPushButton.firstElementChild.textContent = "通知の設定";
@@ -3636,6 +3657,14 @@ function setupTabs() {
       els.settingsPushHistoryButton.firstElementChild.textContent = "通知履歴";
       els.settingsPushHistoryButton.lastElementChild.textContent = "›";
     }
+    const menuList = els.settingsMenuSheet?.querySelector(".settings-menu-list");
+    [
+      els.settingsFeedbackButton,
+      els.settingsSourceButton,
+      els.settingsPrivacyButton,
+      els.settingsAcknowledgementsButton,
+      els.settingsAdminButton,
+    ].forEach((button) => button && menuList?.append(button));
   };
 
   const closeSettingsInlinePanels = (exceptPanel = null) => {
@@ -3643,6 +3672,7 @@ function setupTabs() {
       [els.settingsSourceButton, els.settingsSourcePanel],
       [els.settingsPrivacyButton, els.settingsPrivacyPanel],
       [els.settingsFeedbackButton, els.settingsFeedbackPanel],
+      [els.settingsAcknowledgementsButton, els.settingsAcknowledgementsPanel],
       [els.settingsAdminButton, els.settingsAdminPanel],
       [els.settingsPushButton, els.settingsPushPanel],
       [els.settingsAppearanceButton, els.settingsAppearancePanel],
@@ -3841,17 +3871,110 @@ function setupTabs() {
     els.settingsFeedbackPanel.dataset.ready = "true";
   };
 
+  const ensureSettingsAcknowledgementsPanel = () => {
+    if (!els.settingsAcknowledgementsPanel || els.settingsAcknowledgementsPanel.dataset.ready === "true") {
+      return;
+    }
+    els.settingsAcknowledgementsPanel.innerHTML = `
+      <div class="source-info-overlay-content settings-acknowledgements-content">
+        ${buildAcknowledgementsHtml()}
+      </div>
+    `;
+    els.settingsAcknowledgementsPanel.dataset.ready = "true";
+  };
+
   const ensureSettingsAdminPanel = () => {
-    if (!els.settingsAdminPanel || els.settingsAdminPanel.dataset.ready === "true") {
+    if (!els.settingsAdminPanel) {
+      return;
+    }
+    if (els.settingsAdminPanel.dataset.ready === "true") {
+      els.settingsAdminPanel.querySelector(".settings-admin-embedded")
+        ?.dispatchEvent(new CustomEvent("admin-menu-reset"));
       return;
     }
     const adminPanel = createAdminModeOverlay();
     adminPanel.classList.remove("hidden");
     adminPanel.classList.add("settings-admin-embedded");
     adminPanel.querySelector(".source-info-close")?.remove();
+    setupSettingsAdminMenu(adminPanel);
     els.settingsAdminPanel.replaceChildren(adminPanel);
     els.settingsAdminPanel.dataset.ready = "true";
     updateAdminModeControls(adminPanel);
+  };
+
+  const setupSettingsAdminMenu = (adminPanel) => {
+    const dialog = adminPanel.querySelector(".admin-mode-dialog");
+    const maintenanceActions = adminPanel.querySelector(".admin-mode-actions");
+    const maintenanceStatus = adminPanel.querySelector(".admin-mode-status");
+    const notificationPanel = adminPanel.querySelector(".admin-notification-panel");
+    if (!dialog || !maintenanceActions || !notificationPanel) {
+      return;
+    }
+
+    const menu = document.createElement("div");
+    menu.className = "admin-section-menu settings-admin-menu-list";
+    menu.innerHTML = `
+      <button class="settings-menu-row" type="button" data-admin-section="accounts"><span>アカウント情報</span><span aria-hidden="true">›</span></button>
+      <button class="settings-menu-row" type="button" data-admin-section="notification"><span>通知</span><span aria-hidden="true">›</span></button>
+      <button class="settings-menu-row" type="button" data-admin-section="maintenance"><span>メンテナンス</span><span aria-hidden="true">›</span></button>
+    `;
+
+    const createPage = (id, title) => {
+      const page = document.createElement("section");
+      page.className = "admin-section-page hidden";
+      page.dataset.adminSectionPage = id;
+      page.innerHTML = `
+        <header class="admin-section-head">
+          <button class="admin-section-back" type="button" aria-label="管理者メニューへ戻る">‹</button>
+          <h3>${escapeHtml(title)}</h3>
+          <span aria-hidden="true"></span>
+        </header>
+        <div class="admin-section-body"></div>
+      `;
+      return page;
+    };
+
+    const notificationPage = createPage("notification", "通知");
+    const maintenancePage = createPage("maintenance", "メンテナンス");
+    notificationPage.querySelector(".admin-section-body")?.append(notificationPanel);
+    const maintenanceReasonField = document.createElement("label");
+    maintenanceReasonField.className = "admin-mode-field admin-maintenance-reason-field";
+    maintenanceReasonField.innerHTML = `
+      <span>メンテナンス理由</span>
+      <textarea id="admin-maintenance-reason" rows="4" maxlength="500" placeholder="利用者に表示する理由を入力（任意）"></textarea>
+    `;
+    maintenancePage.querySelector(".admin-section-body")?.append(
+      maintenanceReasonField,
+      maintenanceActions,
+      maintenanceStatus,
+    );
+    dialog.replaceChildren(menu, notificationPage, maintenancePage);
+
+    const showMenu = () => {
+      els.settingsAdminPanel?.classList.remove("admin-subpage-open");
+      menu.classList.remove("hidden");
+      adminPanel.querySelectorAll("[data-admin-section-page]").forEach((page) => page.classList.add("hidden"));
+      adminPanel.scrollTop = 0;
+    };
+    const showPage = (id) => {
+      els.settingsAdminPanel?.classList.add("admin-subpage-open");
+      menu.classList.add("hidden");
+      adminPanel.querySelectorAll("[data-admin-section-page]").forEach((page) => {
+        page.classList.toggle("hidden", page.dataset.adminSectionPage !== id);
+      });
+      adminPanel.scrollTop = 0;
+    };
+
+    menu.querySelector('[data-admin-section="accounts"]')?.addEventListener("click", () => {
+      showMenu();
+      els.settingsAdminPanel?.classList.add("admin-subpage-open");
+      openCommunityAccountScreen("accounts");
+    });
+    menu.querySelector('[data-admin-section="notification"]')?.addEventListener("click", () => showPage("notification"));
+    menu.querySelector('[data-admin-section="maintenance"]')?.addEventListener("click", () => showPage("maintenance"));
+    adminPanel.querySelectorAll(".admin-section-back").forEach((button) => button.addEventListener("click", showMenu));
+    adminPanel.addEventListener("admin-menu-reset", showMenu);
+    showMenu();
   };
 
   ensureSettingsStatusCards();
@@ -3893,6 +4016,7 @@ function setupTabs() {
       els.settingsSourceButton,
       els.settingsPrivacyButton,
       els.settingsFeedbackButton,
+      els.settingsAcknowledgementsButton,
       els.settingsAdminButton,
       els.settingsPushButton,
       els.settingsAppearanceButton,
@@ -3999,7 +4123,7 @@ function setupTabs() {
     els.settingsAppearanceButton.firstElementChild.textContent = "外観";
   }
   if (els.settingsAdminButton?.firstElementChild) {
-    els.settingsAdminButton.firstElementChild.textContent = "管理者用設定";
+    els.settingsAdminButton.firstElementChild.textContent = "管理者メニュー";
   }
 
   const isWeatherQuizInProgress = () => Boolean(
@@ -4230,7 +4354,8 @@ function setupTabs() {
       "settings-source-button": [els.settingsSourceButton, els.settingsSourcePanel, ensureSettingsSourcePanel, "出典"],
       "settings-privacy-button": [els.settingsPrivacyButton, els.settingsPrivacyPanel, ensureSettingsPrivacyPanel, "プライバシーポリシー"],
       "settings-feedback-button": [els.settingsFeedbackButton, els.settingsFeedbackPanel, ensureSettingsFeedbackPanel, "フィードバック"],
-      "settings-admin-button": [els.settingsAdminButton, els.settingsAdminPanel, ensureSettingsAdminPanel, "管理者用設定"],
+      "settings-acknowledgements-button": [els.settingsAcknowledgementsButton, els.settingsAcknowledgementsPanel, ensureSettingsAcknowledgementsPanel, "謝辞"],
+      "settings-admin-button": [els.settingsAdminButton, els.settingsAdminPanel, ensureSettingsAdminPanel, "管理者メニュー"],
       "settings-push-button": [els.settingsPushButton, els.settingsPushPanel, ensureSettingsPushPanel, "通知設定"],
       "settings-appearance-button": [els.settingsAppearanceButton, els.settingsAppearancePanel, ensureSettingsAppearancePanel, "外観"],
       "settings-push-history-button": [els.settingsPushHistoryButton, els.settingsPushHistoryPanel, ensureSettingsPushHistoryPanel, "通知履歴"],
@@ -4269,8 +4394,11 @@ function setupTabs() {
   els.settingsFeedbackButton?.addEventListener("click", () => {
     openSettingsDetailPanel(els.settingsFeedbackButton, els.settingsFeedbackPanel, ensureSettingsFeedbackPanel, "フィードバック");
   });
+  els.settingsAcknowledgementsButton?.addEventListener("click", () => {
+    openSettingsDetailPanel(els.settingsAcknowledgementsButton, els.settingsAcknowledgementsPanel, ensureSettingsAcknowledgementsPanel, "謝辞");
+  });
   els.settingsAdminButton?.addEventListener("click", () => {
-    openSettingsDetailPanel(els.settingsAdminButton, els.settingsAdminPanel, ensureSettingsAdminPanel, "管理者用設定");
+    openSettingsDetailPanel(els.settingsAdminButton, els.settingsAdminPanel, ensureSettingsAdminPanel, "管理者メニュー");
   });
   els.settingsPushButton?.addEventListener("click", () => {
     openSettingsDetailPanel(els.settingsPushButton, els.settingsPushPanel, ensureSettingsPushPanel, "通知設定");
@@ -11920,7 +12048,12 @@ function createAdminModeOverlay() {
     }
     const current = await fetchMaintenanceStatus();
     const nextMaintenance = !Boolean(current.maintenance);
-    const maintenanceReason = nextMaintenance ? await openMaintenanceReasonOverlay() : "";
+    const embeddedReasonInput = overlay.querySelector("#admin-maintenance-reason");
+    const maintenanceReason = nextMaintenance
+      ? embeddedReasonInput
+        ? normalizeMaintenanceReason(embeddedReasonInput.value)
+        : await openMaintenanceReasonOverlay()
+      : "";
     if (maintenanceReason === null) {
       setAdminMaintenanceActionPending(overlay, false);
       updateAdminModeControls(overlay, current);
@@ -12826,6 +12959,73 @@ function buildPrivacyPolicyHtml() {
         <h3>問い合わせ</h3>
         <p>本サイトに関する問い合わせは、<br /><a href="mailto:akurah3000@icloud.com">akurah3000@icloud.com</a> または <a href="#settings-feedback-panel" data-feedback-link>フィードバック</a> までご連絡ください。</p>
       </section>
+    </div>
+  `;
+}
+
+function buildAcknowledgementsHtml() {
+  return `
+    <div class="source-info-sections acknowledgements-sections">
+      <section class="source-info-section acknowledgements-intro">
+        <h3>WE-Simulatorを支えてくださる皆さまへ</h3>
+        <p>WE-Simulatorは、多くの公的機関、研究機関、オープンデータ提供者、オープンソース開発者、そして利用者の皆さまが公開・提供してくださった知見と技術によって成り立っています。ここに深い感謝を表します。</p>
+      </section>
+      <section class="source-info-section">
+        <h3>気象・地震情報</h3>
+        <p>地震情報、震度階級、震央地名、緊急地震速報、警報・注意報、津波情報、予報区・細分区域、震度観測点などの基礎資料を公開している気象庁に感謝いたします。防災情報を分かりやすく、継続的に公開されていることが、本シミュレーターの表示と学習機能の土台となっています。</p>
+      </section>
+      <section class="source-info-section">
+        <h3>気象予報士試験資料</h3>
+        <p>気象予報士試験の問題・解答例などを公開している気象業務支援センターに感謝いたします。学習機能では公開資料の出題分野を参考にしながら、独自に再構成した練習問題を提供しています。</p>
+      </section>
+      <section class="source-info-section">
+        <h3>地理・行政区域データ</h3>
+        <p>国土数値情報を整備・公開している国土交通省をはじめ、行政区域や地理情報の維持に携わる皆さまに感謝いたします。地図上の地域表示、検索、集計機能の実現に欠かせない資料として活用しています。</p>
+      </section>
+      <section class="source-info-section">
+        <h3>地盤・観測網・防災研究</h3>
+        <p>J-SHIS、S-netをはじめとする地震防災関連の研究成果・観測情報を公開している防災科学技術研究所および関係機関の皆さまに感謝いたします。地盤特性、揺れやすさ、海底観測点の理解と表現において重要な知見をいただいています。</p>
+      </section>
+      <section class="source-info-section">
+        <h3>世界地図・背景地図</h3>
+        <p>Natural Earthの貢献者、OpenStreetMapのマッパーとコミュニティ、CARTOおよび地図タイルの提供に関わる皆さまに感謝いたします。世界中の継続的な編集・整備活動によって、地域の位置関係を直感的に把握できる地図表示が可能になっています。</p>
+      </section>
+      <section class="source-info-section">
+        <h3>プレート境界資料</h3>
+        <p>PB2002 Plate Boundariesデータを公開したPeter Bird氏、データを利用しやすい形で提供するfraxen/tectonicplatesの貢献者の皆さまに感謝いたします。日本周辺のプレート境界を学ぶための重要な資料として利用しています。</p>
+      </section>
+      <section class="source-info-section">
+        <h3>地図描画とデータ配信技術</h3>
+        <p>MapLibre GL JS、PMTilesおよび関連するオープンソースプロジェクトの開発者・コントリビューターの皆さまに感謝いたします。滑らかな地図操作、大規模な地理データの配信、複数レイヤーの表現は、これらの技術と継続的な改善によって支えられています。</p>
+      </section>
+      <section class="source-info-section">
+        <h3>Web基盤と公開環境</h3>
+        <p>GitHubおよびGitHub Pages、Cloudflare Workers・D1・KV・R2、Google Apps Scriptなど、開発・公開・データ保存・通知・フィードバック受付を支えるサービスと、その運用に携わる皆さまに感謝いたします。</p>
+      </section>
+      <section class="source-info-section">
+        <h3>オープンソースコミュニティ</h3>
+        <p>JavaScript、Web API、ブラウザ、地理情報処理、アクセシビリティ、PWAなどの技術を育ててきた世界中の開発者と標準化活動に感謝いたします。公開されたドキュメント、実装例、問題報告、修正の積み重ねが本アプリの開発を可能にしています。</p>
+      </section>
+      <section class="source-info-section">
+        <h3>表示・操作設計への示唆</h3>
+        <p>MeteoScopeをはじめ、気象・地震情報を見やすく伝えるための公開プロジェクトや先行事例に感謝いたします。情報の優先順位、地図レイヤー、配色、モバイルでの操作性を考えるうえで多くの示唆をいただきました。</p>
+      </section>
+      <section class="source-info-section">
+        <h3>テストと改善への協力</h3>
+        <p>日々アプリを利用し、表示の違和感、不具合、分かりにくい表現、端末ごとの差異を知らせてくださる皆さまに心より感謝いたします。一つひとつの報告と提案が、ライト・ダーク両外観、スマートフォン、タブレット、パソコンでの継続的な改善につながっています。</p>
+      </section>
+      <section class="source-info-section">
+        <h3>防災に携わるすべての方へ</h3>
+        <p>観測、研究、予報、報道、自治体対応、教育、地域防災、設備保守など、災害から命と暮らしを守る活動に携わるすべての方へ敬意と感謝を表します。本アプリが、地震や気象を学び、備えを考える小さなきっかけとなることを願っています。</p>
+      </section>
+      <section class="source-info-section">
+        <h3>利用者の皆さまへ</h3>
+        <p>WE-Simulatorを見つけ、触れ、学習や確認に使ってくださる皆さま、本当にありがとうございます。これからも正確さ、分かりやすさ、使いやすさを大切にしながら改善を続けていきます。</p>
+      </section>
+    </div>
+    <div class="acknowledgements-brand" aria-label="WE-Simulator">
+      <img src="./icon-192.png" alt="WE-Simulator アイコン" />
+      <span>WE-Simulator</span>
     </div>
   `;
 }
@@ -20825,7 +21025,6 @@ function updateCommunityAccountSettingsCard() {
         <button type="button" data-community-account-screen="name">名前を編集</button>
         <button type="button" data-community-account-screen="icon">アイコンを編集</button>
       </div>
-      ${communityAccount.isAdmin ? `<button class="community-account-wide-button" type="button" data-community-account-screen="accounts">アカウント情報</button>` : ""}
       <div class="community-account-danger-actions">
         <button type="button" data-community-account-action="logout">ログアウト</button>
         <button type="button" data-community-account-action="delete">アカウント削除</button>
@@ -20875,10 +21074,6 @@ function updateCommunityAccountSettingsCard() {
       if (communityAccount.localOnly) {
         iconButton.title = "Localアカウントではアイコンを変更できません";
       }
-    }
-    const accountsButton = communityAccountPanel.querySelector('[data-community-account-screen="accounts"]');
-    if (accountsButton) {
-      accountsButton.textContent = "アカウント情報";
     }
     if (logoutButton) {
       logoutButton.textContent = "ログアウト";
@@ -20947,6 +21142,7 @@ function openCommunityAccountScreen(type) {
 function closeCommunityAccountScreen() {
   els.settingsMenuSheet?.classList.remove("community-account-screen-open");
   els.settingsMenuSheet?.querySelector("#community-account-screen")?.classList.add("hidden");
+  els.settingsAdminPanel?.classList.remove("admin-subpage-open");
 }
 
 function getCommunityAccountScreenTitle(type) {
