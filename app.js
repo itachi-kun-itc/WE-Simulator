@@ -2672,7 +2672,10 @@ function setupTabs() {
       <div class="weather-quiz-meta"><span>${isFillQuestion ? "4択問題" : "○×問題"}</span><span>${escapeHtml(item.category)}</span><span>${escapeHtml(item.year)}</span><span>${escapeHtml(item.exam)}</span></div>
       <article class="weather-quiz-card">
         <div class="weather-quiz-card-head">
-          <span class="weather-quiz-label">問題</span>
+          <div class="weather-quiz-card-title">
+            <span class="weather-quiz-label">問題</span>
+            <span class="weather-quiz-question-id">${escapeHtml(item.questionId || "")}</span>
+          </div>
           <div class="weather-quiz-quality-actions" aria-label="問題の評価">
             <button class="weather-quiz-good-button ${isGoodQuestion ? "is-selected" : ""}" type="button" data-weather-quiz-good aria-pressed="${isGoodQuestion}">
               <span aria-hidden="true">${isGoodQuestion ? "★" : "☆"}</span> 良問
