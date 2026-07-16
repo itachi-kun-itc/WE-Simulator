@@ -16309,8 +16309,8 @@ body[data-active-bottom-tab="earthquake-tab"] .intensity-scale span {
 .simulation-runtime-hud .simulation-progress-now {
   position: absolute !important;
   z-index: 8 !important;
-  top: 22px !important;
-  bottom: 4px !important;
+  top: var(--simulation-progress-now-top, 22px) !important;
+  bottom: var(--simulation-progress-now-bottom, 0px) !important;
   left: 64px !important;
   transform: none !important;
   transition: none !important;
@@ -19266,6 +19266,8 @@ body.simulation-session-active #setup-panel.simulation-result-report-open
 
 .simulation-result-report-actions {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .simulation-result-report-actions button {
@@ -20323,12 +20325,6 @@ html[data-resolved-theme="light"] .community-account-panel button.is-disabled {
   background: #e8edf2 !important;
   color: #64748b !important;
   opacity: 1 !important;
-}
-
-html[data-resolved-theme="light"] .community-account-danger-actions button:last-child:not(:disabled) {
-  border-color: rgba(190, 24, 93, 0.3) !important;
-  background: #fff1f2 !important;
-  color: #be123c !important;
 }
 
 html[data-resolved-theme="light"] .settings-status-card .settings-notification-row span {
@@ -21705,4 +21701,39 @@ html[data-resolved-theme="light"] .eew-forecast-panel li {
   background: #e60012 !important;
   color: #ffffff !important;
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.22) !important;
+}
+
+/* Keep future timeline markers continuously composited while the track scrolls. */
+.simulation-timeline-event.is-intensity-planned,
+.simulation-runtime-hud .simulation-timeline-event.is-intensity-planned {
+  --simulation-planned-line-color: #f97316;
+}
+
+.simulation-timeline-event.is-eew-planned,
+.simulation-runtime-hud .simulation-timeline-event.is-eew-planned {
+  --simulation-planned-line-color: #ef4444;
+}
+
+.simulation-timeline-event.is-magnitude-planned,
+.simulation-runtime-hud .simulation-timeline-event.is-magnitude-planned {
+  --simulation-planned-line-color: #64748b;
+}
+
+.simulation-timeline-event.is-intensity-planned,
+.simulation-runtime-hud .simulation-timeline-event.is-intensity-planned,
+.simulation-timeline-event.is-eew-planned,
+.simulation-runtime-hud .simulation-timeline-event.is-eew-planned,
+.simulation-timeline-event.is-magnitude-planned,
+.simulation-runtime-hud .simulation-timeline-event.is-magnitude-planned {
+  border-left: 0 !important;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    var(--simulation-planned-line-color) 0 6px,
+    transparent 6px 11px
+  ) !important;
+  background-position: left top !important;
+  background-repeat: no-repeat !important;
+  background-size: 2px 100% !important;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
