@@ -1008,6 +1008,7 @@ function getAppDb(env) {
 async function listCommunityPosts(env, request) {
   const db = getAppDb(env);
   await ensureCommunitySchema(db);
+  await purgeExpiredCommunityPosts(db, env);
   const viewer = await readOptionalCommunityAccount(request, env);
   const viewerId = viewer?.id || "";
   const url = new URL(request.url);
@@ -1027,6 +1028,7 @@ async function listCommunityPosts(env, request) {
         p.media_name AS mediaName,
         p.account_id AS accountId,
         p.created_at AS createdAt,
+        p.expires_at AS expiresAt,
         COALESCE(a.name, p.author_name, '') AS authorName,
         COALESCE(a.icon, p.author_icon, '') AS authorIcon,
         (SELECT COUNT(*) FROM community_post_likes l WHERE l.post_id = p.id) AS likeCount,
@@ -1040,10 +1042,11 @@ async function listCommunityPosts(env, request) {
         ) AS following
       FROM community_posts p
       LEFT JOIN community_accounts a ON a.id = p.account_id
+      WHERE p.expires_at IS NULL OR p.expires_at > ?
       ORDER BY p.created_at DESC
       LIMIT ?`,
     )
-    .bind(viewerId, viewerId, limit)
+    .bind(viewerId, viewerId, new Date().toISOString(), limit)
     .all();
 
   return (result.results || []).map((row) => normalizeCommunityPostRow(row, request.url));
@@ -1063,6 +1066,9 @@ async function createCommunityPost(request, env, context) {
   const placeName = String(formData.get("placeName") || "").trim().slice(0, 120);
   const tags = normalizeCommunityPostTags(formData.getAll("tags"));
   const text = String(formData.get("text") || "").trim().slice(0, 1200);
+  const retention = ["24h", "7d", "forever"].includes(String(formData.get("retention")))
+    ? String(formData.get("retention"))
+    : "24h";
   const media = formData.get("media");
 
   if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
@@ -1107,6 +1113,9 @@ async function createCommunityPost(request, env, context) {
   }
 
   const createdAt = new Date().toISOString();
+  const expiresAt = retention === "forever"
+    ? null
+    : new Date(Date.parse(createdAt) + (retention === "7d" ? 7 * 24 : 24) * 60 * 60 * 1000).toISOString();
   await db
     .prepare(
       `INSERT INTO community_posts (
@@ -1124,8 +1133,9 @@ async function createCommunityPost(request, env, context) {
         author_name,
         author_icon,
         created_at,
+        expires_at,
         updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       id,
@@ -1142,6 +1152,7 @@ async function createCommunityPost(request, env, context) {
       account.name,
       account.icon,
       createdAt,
+      expiresAt,
       createdAt,
     )
     .run();
@@ -1170,6 +1181,7 @@ async function createCommunityPost(request, env, context) {
     authorName: account.name,
     authorIcon: account.icon,
     createdAt,
+    expiresAt,
     likeCount: 0,
     liked: 0,
     following: 0,
@@ -1337,10 +1349,52 @@ async function deleteCommunityAccount(request, env) {
   const db = getAppDb(env);
   await ensureCommunitySchema(db);
   const account = await requireCommunityAccount(request, env);
-  await db.prepare("DELETE FROM community_sessions WHERE account_id = ?").bind(account.id).run();
-  await db.prepare("DELETE FROM community_follows WHERE follower_id = ? OR followed_id = ?").bind(account.id, account.id).run();
-  await db.prepare("DELETE FROM community_post_likes WHERE account_id = ?").bind(account.id).run();
-  await db.prepare("DELETE FROM community_accounts WHERE id = ?").bind(account.id).run();
+  const posts = await db.prepare("SELECT id, media_key AS mediaKey FROM community_posts WHERE account_id = ?")
+    .bind(account.id)
+    .all();
+  await db.batch([
+    db.prepare("DELETE FROM community_post_likes WHERE post_id IN (SELECT id FROM community_posts WHERE account_id = ?)").bind(account.id),
+    db.prepare("DELETE FROM community_post_likes WHERE account_id = ?").bind(account.id),
+    db.prepare("DELETE FROM community_posts WHERE account_id = ?").bind(account.id),
+    db.prepare("DELETE FROM community_follows WHERE follower_id = ? OR followed_id = ?").bind(account.id, account.id),
+    db.prepare("DELETE FROM community_sessions WHERE account_id = ?").bind(account.id),
+    db.prepare("DELETE FROM community_accounts WHERE id = ?").bind(account.id),
+  ]);
+  if (env.WE_SIMULATOR_DATA) {
+    await Promise.all((posts.results || [])
+      .map((post) => String(post.mediaKey || ""))
+      .filter(Boolean)
+      .map((key) => env.WE_SIMULATOR_DATA.delete(key).catch(() => {})));
+  }
+  if (env.PUSH_SUBSCRIPTIONS) {
+    const subscriptions = await listSubscriptions(env);
+    await Promise.all(subscriptions
+      .filter(({ subscription }) => String(subscription.accountId || "") === account.id)
+      .flatMap(({ key, subscriptionKey: targetKey }) => [
+        env.PUSH_SUBSCRIPTIONS.delete(key),
+        deleteTargetedNotification(env, targetKey),
+      ]));
+  }
+}
+
+async function purgeExpiredCommunityPosts(db, env) {
+  const now = new Date().toISOString();
+  const expired = await db.prepare(
+    "SELECT id, media_key AS mediaKey FROM community_posts WHERE expires_at IS NOT NULL AND expires_at <= ?",
+  ).bind(now).all();
+  if (!(expired.results || []).length) {
+    return;
+  }
+  await db.batch([
+    db.prepare("DELETE FROM community_post_likes WHERE post_id IN (SELECT id FROM community_posts WHERE expires_at IS NOT NULL AND expires_at <= ?)").bind(now),
+    db.prepare("DELETE FROM community_posts WHERE expires_at IS NOT NULL AND expires_at <= ?").bind(now),
+  ]);
+  if (env.WE_SIMULATOR_DATA) {
+    await Promise.all((expired.results || [])
+      .map((post) => String(post.mediaKey || ""))
+      .filter(Boolean)
+      .map((key) => env.WE_SIMULATOR_DATA.delete(key).catch(() => {})));
+  }
 }
 
 async function withCommunityAccountCounts(db, account) {
@@ -1700,6 +1754,7 @@ function normalizeCommunityPostRow(row, requestUrl) {
     authorName: String(row.authorName || ""),
     authorIcon: String(row.authorIcon || ""),
     createdAt: String(row.createdAt || ""),
+    expiresAt: String(row.expiresAt || ""),
     likeCount: Number(row.likeCount || 0),
     liked: Boolean(row.liked),
     following: Boolean(row.following),
@@ -1824,6 +1879,7 @@ async function ensureCommunityPostsSchema(db) {
         author_name TEXT,
         author_icon TEXT,
         created_at TEXT NOT NULL,
+        expires_at TEXT,
         updated_at TEXT NOT NULL
       )`,
     )
@@ -1832,11 +1888,15 @@ async function ensureCommunityPostsSchema(db) {
   await ensureColumn(db, "community_posts", "author_name", "TEXT");
   await ensureColumn(db, "community_posts", "author_icon", "TEXT");
   await ensureColumn(db, "community_posts", "place_name", "TEXT NOT NULL DEFAULT ''");
+  await ensureColumn(db, "community_posts", "expires_at", "TEXT");
   await db
     .prepare("CREATE INDEX IF NOT EXISTS idx_community_posts_created_at ON community_posts(created_at DESC)")
     .run();
   await db
     .prepare("CREATE INDEX IF NOT EXISTS idx_community_posts_account_id ON community_posts(account_id)")
+    .run();
+  await db
+    .prepare("CREATE INDEX IF NOT EXISTS idx_community_posts_expires_at ON community_posts(expires_at)")
     .run();
 }
 
