@@ -12935,9 +12935,7 @@ body.community-post-detail-open .community-post-button {
   font-size: 12px;
   font-weight: 800;
   text-align: left;
-  text-decoration: underline;
-  text-decoration-color: rgba(143, 246, 255, 0.42);
-  text-underline-offset: 3px;
+  text-decoration: none;
 }
 
 .community-profile-follow-counts b {
@@ -13047,15 +13045,16 @@ body.community-post-detail-open .community-post-button {
   position: absolute;
   inset: 0;
   z-index: 80;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   box-sizing: border-box;
   width: 100%;
   height: 100%;
-  overflow-y: auto;
-  padding: 86px 18px calc(18px + env(safe-area-inset-bottom));
+  overflow: hidden;
+  padding: 0;
   background: #050607;
   color: #fff;
   overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
 }
 
 .community-account-screen.hidden {
@@ -13063,9 +13062,7 @@ body.community-post-detail-open .community-post-button {
 }
 
 .community-account-screen-back {
-  position: absolute;
-  left: 18px;
-  top: 22px;
+  position: static;
   width: 42px;
   height: 42px;
   border: 0;
@@ -13075,10 +13072,21 @@ body.community-post-detail-open .community-post-button {
   font: 900 32px/1 system-ui, sans-serif;
 }
 
-.community-account-screen h2 {
-  margin: 0 0 18px;
+.community-account-screen-head h2 {
+  margin: 0;
+  color: inherit;
   text-align: center;
-  font-size: 22px;
+  font-size: 1.02rem;
+  font-weight: 900;
+}
+
+.community-account-screen-content {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 18px 18px calc(18px + env(safe-area-inset-bottom));
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .settings-menu-sheet.community-account-screen-open .settings-menu-list > :not(#community-account-screen) {
@@ -13952,6 +13960,9 @@ body.community-pick-mode .community-post-button {
 .community-post-section {
   display: grid;
   gap: 10px;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 .community-post-section h3 {
@@ -16949,13 +16960,15 @@ body:not([data-active-bottom-tab="earthquake-tab"]) .map-layer-control-panel {
 
 #setup-panel.sim-panel[data-sheet-state="open"] .simulation-quick-actions {
   flex: 0 0 auto !important;
-  margin: 2px 0 8px !important;
+  gap: 12px !important;
+  margin: auto 0 0 !important;
+  padding-top: 10px !important;
 }
 
 #setup-panel.sim-panel[data-sheet-state="open"] .simulation-start-sheet-host {
   flex: 0 0 auto !important;
-  margin-top: auto !important;
-  padding-top: 8px !important;
+  margin-top: 7px !important;
+  padding-top: 0 !important;
   padding-bottom: 0 !important;
 }
 
@@ -20416,6 +20429,12 @@ html[data-resolved-theme="light"] .preset-picker-table td {
   color: #334155 !important;
 }
 
+html[data-resolved-theme="light"] .preset-picker-table td:nth-child(2),
+html[data-resolved-theme="light"] .preset-picker-table td:nth-child(3) {
+  color: #172033 !important;
+  font-weight: 650 !important;
+}
+
 /* Fixed map HUDs that otherwise retained their dark glass shell in light mode. */
 html[data-resolved-theme="light"] .eew-forecast-panel {
   border-color: rgba(51, 65, 85, 0.18) !important;
@@ -20805,10 +20824,144 @@ html[data-resolved-theme="light"] .community-post-head {
   color: #172033 !important;
 }
 
-html[data-resolved-theme="light"] .community-post-close {
-  border-color: rgba(71, 85, 105, 0.24) !important;
+html[data-resolved-theme="light"] .community-post-close,
+html[data-resolved-theme="light"] .community-post-detail-close {
+  border: 0 !important;
+  background: transparent !important;
+  color: #111827 !important;
+  box-shadow: none !important;
+}
+
+html[data-resolved-theme="light"] .community-post-detail-body {
+  border: 1px solid #94a3b8 !important;
+  border-radius: 18px !important;
+  padding: 14px !important;
+  background: rgba(255, 255, 255, 0.5) !important;
+}
+
+html[data-resolved-theme="light"] .community-post-detail-meta div {
+  border: 1px solid #b8c3ce !important;
+  background: #eef2f6 !important;
+}
+
+html[data-resolved-theme="light"] .community-post-detail-meta dt {
+  color: #475569 !important;
+}
+
+html[data-resolved-theme="light"] .community-post-detail-meta dd {
+  color: #172033 !important;
+}
+
+html[data-resolved-theme="light"] .community-post-section {
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 16px !important;
+  padding: 12px !important;
+  background: rgba(255, 255, 255, 0.72) !important;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.05) !important;
+}
+
+html[data-resolved-theme="dark"] .community-post-section {
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 16px !important;
+  padding: 12px !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.04) !important;
+}
+
+html[data-resolved-theme="light"] .community-post-tags label:has(input:checked) {
+  border-color: #94a3b8 !important;
+  color: #ffffff !important;
+}
+
+html[data-resolved-theme="dark"] .community-post-tags label:has(input:checked) {
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  color: #ffffff !important;
+}
+
+html[data-resolved-theme="light"] .community-post-tags input + span::before {
+  background: #64748b !important;
+}
+
+html[data-resolved-theme="dark"] .community-post-tags input + span::before {
+  background: rgba(255, 255, 255, 0.42) !important;
+}
+
+/* Selected post tags use one palette in both appearance themes. */
+.community-post-tags label:has(input[value="weather"]:checked) {
+  border-color: rgba(70, 190, 255, 0.82) !important;
+  background: rgba(12, 94, 139, 0.72) !important;
+}
+
+.community-post-tags label:has(input[value="disaster"]:checked) {
+  border-color: rgba(255, 86, 98, 0.82) !important;
+  background: rgba(126, 25, 32, 0.72) !important;
+}
+
+.community-post-tags label:has(input[value="earthquake"]:checked) {
+  border-color: rgba(86, 230, 142, 0.82) !important;
+  background: rgba(24, 109, 57, 0.72) !important;
+}
+
+.community-post-tags label:has(input[value="safety"]:checked) {
+  border-color: rgba(255, 222, 80, 0.86) !important;
+  background: rgba(128, 101, 18, 0.72) !important;
+}
+
+.community-post-optional-tags label:has(input:checked) {
+  border-color: rgba(255, 169, 64, 0.88) !important;
+  background: rgba(168, 92, 18, 0.72) !important;
+}
+
+.community-post-tags label:has(input:checked) {
+  color: #ffffff !important;
+}
+
+.community-post-tags input:checked + span::before {
   background: #ffffff !important;
-  color: #334155 !important;
+}
+
+html[data-resolved-theme="light"] .community-post-detail-tags span,
+html[data-resolved-theme="light"] .community-post-popup-tags span {
+  background: #0891b2 !important;
+  color: #ffffff !important;
+}
+
+html[data-resolved-theme="light"] .community-post-detail-tags span[data-community-tag-pill="optional"],
+html[data-resolved-theme="light"] .community-post-popup-tags span[data-community-tag-pill="optional"] {
+  background: #d97706 !important;
+  color: #ffffff !important;
+}
+
+html[data-resolved-theme="light"] .community-post-like-button {
+  border-color: #fda4af !important;
+  background: #fff1f2 !important;
+  color: #be123c !important;
+}
+
+html[data-resolved-theme="light"] .community-post-like-button span {
+  color: #881337 !important;
+}
+
+html[data-resolved-theme="light"] .community-post-like-button.is-liked {
+  border-color: #e11d48 !important;
+  background: #fecdd3 !important;
+  color: #be123c !important;
+}
+
+html[data-resolved-theme="light"] .community-post-follow-button {
+  border-color: #0891b2 !important;
+  background: #e0f2fe !important;
+  color: #075985 !important;
+}
+
+html[data-resolved-theme="light"] .community-post-follow-button.is-following {
+  background: #bae6fd !important;
+}
+
+html[data-resolved-theme="light"] .community-post-delete-button:not(:disabled) {
+  border-color: #b91c1c !important;
+  background: #dc2626 !important;
+  color: #ffffff !important;
 }
 
 html[data-resolved-theme="light"] .community-post-section h3,
@@ -20822,19 +20975,13 @@ html[data-resolved-theme="light"] .community-post-location-actions button,
 html[data-resolved-theme="light"] .community-post-tags label,
 html[data-resolved-theme="light"] .community-media-picker,
 html[data-resolved-theme="light"] .community-media-remove {
-  border-color: #b8c3ce !important;
-  background: #ffffff !important;
+  border-color: #94a3b8 !important;
+  background: #e8eef4 !important;
   color: #334155 !important;
 }
 
 html[data-resolved-theme="light"] .community-media-picker {
   border-color: #94a3b8 !important;
-}
-
-html[data-resolved-theme="light"] .community-post-tags label:has(input:checked) {
-  border-color: #0f766e !important;
-  background: #e6f4f1 !important;
-  color: #134e4a !important;
 }
 
 html[data-resolved-theme="light"] .community-post-submit {
@@ -21001,6 +21148,20 @@ html[data-resolved-theme="light"] #settings-admin-button span:first-child::after
   box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.1) !important;
 }
 
+.settings-theme-choice {
+  cursor: pointer !important;
+}
+
+.settings-theme-choice:has(input:checked) {
+  border-color: rgba(56, 189, 248, 0.68) !important;
+  background: rgba(14, 165, 233, 0.14) !important;
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.1) !important;
+}
+
+.settings-theme-choice input {
+  accent-color: #0ea5e9 !important;
+}
+
 .settings-color-scheme-choice input {
   grid-area: radio !important;
   margin: 0 !important;
@@ -21051,7 +21212,14 @@ html[data-resolved-theme="light"] .settings-color-scheme-choice:has(input:checke
   box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.1) !important;
 }
 
-html[data-resolved-theme="light"] .settings-color-scheme-choice input {
+html[data-resolved-theme="light"] .settings-theme-choice:has(input:checked) {
+  border-color: #0f766e !important;
+  background: #e6f4f1 !important;
+  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.1) !important;
+}
+
+html[data-resolved-theme="light"] .settings-color-scheme-choice input,
+html[data-resolved-theme="light"] .settings-theme-choice input {
   accent-color: #0f766e !important;
 }
 
@@ -21559,6 +21727,25 @@ html[data-resolved-theme="light"] .community-account-screen-status {
   color: #172033 !important;
 }
 
+html[data-resolved-theme="light"] .community-account-list-item {
+  border-color: #d8e0e8 !important;
+  background: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.055) !important;
+}
+
+html[data-resolved-theme="light"] .community-account-list-item span {
+  color: #526176 !important;
+}
+
+html[data-resolved-theme="light"] .community-account-list-item em {
+  color: #075985 !important;
+}
+
+html[data-resolved-theme="light"] .preset-intensity-badge {
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
 html[data-resolved-theme="light"] .community-connection-list {
   color: #334155 !important;
 }
@@ -21676,14 +21863,14 @@ html[data-resolved-theme="light"] #history-statistics-load[aria-disabled="true"]
   align-self: end !important;
 }
 
-/* Final profile palette: cyan actions in light mode, red destructive actions in both themes. */
+/* Final profile palette: soft actions in light mode, red destructive actions in both themes. */
 html[data-resolved-theme="light"] .community-account-button-row > button:not(:disabled),
 html[data-resolved-theme="light"] .community-account-panel .community-account-wide-button:not(:disabled),
 html[data-resolved-theme="light"] .community-account-screen-form button[type="submit"]:not(:disabled) {
-  border-color: #0284c7 !important;
-  background: #38bdf8 !important;
-  color: #082f49 !important;
-  box-shadow: 0 6px 16px rgba(2, 132, 199, 0.2) !important;
+  border-color: #7dd3fc !important;
+  background: #bae6fd !important;
+  color: #0c4a6e !important;
+  box-shadow: 0 4px 12px rgba(14, 116, 144, 0.1) !important;
 }
 
 html[data-resolved-theme="light"] .community-account-wide-button::after {
@@ -21699,10 +21886,10 @@ html[data-resolved-theme="dark"] .community-account-danger-actions button:not(:d
 }
 
 html[data-resolved-theme="light"] .community-account-danger-actions button:not(:disabled) {
-  border-color: #b91c1c !important;
-  background: #dc2626 !important;
-  color: #ffffff !important;
-  box-shadow: 0 6px 16px rgba(185, 28, 28, 0.18) !important;
+  border-color: #fca5a5 !important;
+  background: #fecaca !important;
+  color: #991b1b !important;
+  box-shadow: 0 4px 12px rgba(185, 28, 28, 0.08) !important;
 }
 
 /* EEW area chips keep the red warning treatment on the light map too. */
