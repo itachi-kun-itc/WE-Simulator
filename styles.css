@@ -20793,7 +20793,7 @@ html[data-resolved-theme="light"] .simulation-timeline-event small {
 
 html[data-resolved-theme="light"] .simulation-progress-now,
 html[data-resolved-theme="light"] .simulation-runtime-hud .simulation-progress-now {
-  width: 1px !important;
+  width: 3px !important;
   background: #111827 !important;
   box-shadow: 0 0 3px rgba(17, 24, 39, 0.28) !important;
 }
@@ -20816,6 +20816,27 @@ html[data-resolved-theme="light"] .simulation-runtime-hud .simulation-progress-n
 .simulation-progress-guides > span {
   top: 0 !important;
   bottom: 0 !important;
+}
+
+/* The completion marker reaches both edges of the timeline track. */
+.simulation-timeline-event.is-complete,
+.simulation-runtime-hud .simulation-timeline-event.is-complete {
+  top: 0 !important;
+  bottom: auto !important;
+  height: var(--timeline-track-height) !important;
+}
+
+/* Lower only the four information-ticket values without moving their rows. */
+.simulation-runtime-hud .simulation-summary #simulation-region-name,
+.simulation-runtime-hud .simulation-summary #simulation-depth,
+.simulation-runtime-hud .simulation-summary .magnitude-card strong,
+.simulation-runtime-hud .simulation-summary .simulation-origin-time-card strong,
+.simulation-result-report-summary-host .simulation-summary #simulation-region-name,
+.simulation-result-report-summary-host .simulation-summary #simulation-depth,
+.simulation-result-report-summary-host .simulation-summary .magnitude-card strong,
+.simulation-result-report-summary-host .simulation-summary .simulation-origin-time-card strong {
+  position: relative !important;
+  top: 1.5px !important;
 }
 
 /* The simulation layer control remains a white control in the light map. */
@@ -22042,7 +22063,7 @@ html[data-resolved-theme="light"] .eew-forecast-panel li {
 .simulation-runtime-hud .simulation-timeline-event.is-eew-planned,
 .simulation-timeline-event.is-magnitude-planned,
 .simulation-runtime-hud .simulation-timeline-event.is-magnitude-planned {
-  border-left: 0 !important;
+  border-left: 1px solid transparent !important;
   background-image: repeating-linear-gradient(
     to bottom,
     var(--simulation-planned-line-color) 0 6px,

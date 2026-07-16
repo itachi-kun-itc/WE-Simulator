@@ -274,7 +274,7 @@
   { "exam": "第57回", "year": "令和3年度第2回", "category": "一般知識", "sourceQuestion": 3, "question": "気温減率が乾燥断熱減率と湿潤断熱減率の間にある大気を何といいますか。", "answer": "条件付き不安定な大気です。", "wrongAnswer": "絶対安定な大気です。" },
   { "exam": "第57回", "year": "令和3年度第2回", "category": "一般知識", "sourceQuestion": 4, "question": "飽和空気塊が断熱上昇するとき、相当温位は保存されますか。", "answer": "湿潤断熱過程ではほぼ保存されます。", "wrongAnswer": "凝結のたびに必ず大きく低下します。" },
   { "exam": "第57回", "year": "令和3年度第2回", "category": "一般知識", "sourceQuestion": 5, "question": "水溶性エーロゾルを核とする雲粒は、相対湿度100％未満でも存在することがありますか。", "answer": "あります。", "wrongAnswer": "100％未満では存在できません。" },
-  { "exam": "第57回", "year": "令和3年度第2回", "category": "一般知識", "sourceQuestion": 6, "question": "緯度による日射量の違いは、ハドレー循環などの大規模循環の駆動源になりますか。", "answer": "なります。", "wrongAnswer": "大規模循環には影響しません。" },
+  { "exam": "第57回", "year": "令和3年度第2回", "category": "一般知識", "sourceQuestion": 6, "question": "緯度による日射量の違いは、ハドレー循環などの大規模循環の駆動源になりますか。", "answer": "なります。", "wrongAnswer": "緯度による日射量の違いは、ハドレー循環などの大規模循環には影響しません。" },
   { "exam": "第57回", "year": "令和3年度第2回", "category": "一般知識", "sourceQuestion": 7, "question": "大気の直方体へ水平に流入する量が流出する量より多い場合、上面にはどちら向きの流れが必要ですか。", "answer": "上向きの流れです。", "wrongAnswer": "下向きの流れです。" },
   { "exam": "第57回", "year": "令和3年度第2回", "category": "一般知識", "sourceQuestion": 8, "question": "気圧とコリオリパラメータの次元を答えてください。", "answer": "気圧はML⁻¹T⁻²、コリオリパラメータはT⁻¹です。", "wrongAnswer": "気圧はMLT⁻¹、コリオリパラメータはT⁻²です。" },
   { "exam": "第57回", "year": "令和3年度第2回", "category": "一般知識", "sourceQuestion": 9, "question": "亜熱帯高圧帯では、年降水量と年蒸発量のどちらが多くなりやすいですか。", "answer": "年蒸発量です。", "wrongAnswer": "年降水量です。" },
