@@ -1410,9 +1410,28 @@ function setupTabs() {
     const originTime = resultSection.querySelector(".simulation-origin-time-card");
     if (summary && originTime && !summary.contains(originTime)) summary.append(originTime);
     const progressPanel = resultSection.querySelector(".simulation-progress-panel");
+    const progressTrack = resultSection.querySelector(".simulation-progress-track");
     const progressNow = resultSection.querySelector("#simulation-progress-now");
     if (progressPanel && progressNow && progressNow.parentElement !== progressPanel) {
       progressPanel.append(progressNow);
+    }
+    if (progressPanel && progressTrack && progressNow && progressPanel.dataset.cursorBoundsReady !== "true") {
+      progressPanel.dataset.cursorBoundsReady = "true";
+      const syncProgressCursorBounds = () => {
+        const top = progressTrack.offsetTop;
+        const bottom = Math.max(progressPanel.clientHeight - top - progressTrack.offsetHeight, 0);
+        progressPanel.style.setProperty("--simulation-progress-now-top", `${top}px`);
+        progressPanel.style.setProperty("--simulation-progress-now-bottom", `${bottom}px`);
+      };
+      syncProgressCursorBounds();
+      window.requestAnimationFrame(syncProgressCursorBounds);
+      if (typeof ResizeObserver === "function") {
+        const cursorBoundsObserver = new ResizeObserver(syncProgressCursorBounds);
+        cursorBoundsObserver.observe(progressPanel);
+        cursorBoundsObserver.observe(progressTrack);
+      } else {
+        window.addEventListener("resize", syncProgressCursorBounds, { passive: true });
+      }
     }
   };
 
@@ -6171,6 +6190,7 @@ function ensureSimulationResultReportPage() {
     <div class="simulation-result-report-content"></div>
     <div class="simulation-result-report-actions">
       <button type="button" data-simulation-result-pdf>PDF出力</button>
+      <button type="button" data-simulation-result-csv>CSV出力</button>
     </div>
   `;
   page.querySelector("[data-simulation-result-back]")?.addEventListener("click", () => {
@@ -6178,6 +6198,9 @@ function ensureSimulationResultReportPage() {
   });
   page.querySelector("[data-simulation-result-pdf]")?.addEventListener("click", () => {
     downloadSimulationResultPdf();
+  });
+  page.querySelector("[data-simulation-result-csv]")?.addEventListener("click", () => {
+    downloadSimulationResultCsv();
   });
   scrollHost.append(page);
   return page;
@@ -6309,7 +6332,18 @@ function showSimulationResultReport() {
   els.setupPanel.classList.add("simulation-result-report-open");
   page.classList.remove("hidden");
   setSetupMenuOpen(true);
-  page.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+  const scrollHost = els.setupPanel.querySelector(".sim-panel-scroll");
+  const scrollResultToTop = () => {
+    scrollHost?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+    if (scrollHost) {
+      scrollHost.scrollTop = 0;
+      scrollHost.scrollLeft = 0;
+    }
+    page.scrollTop = 0;
+    page.scrollLeft = 0;
+  };
+  scrollResultToTop();
+  window.requestAnimationFrame(scrollResultToTop);
 }
 
 function closeSimulationResultReport(options = {}) {
@@ -6351,16 +6385,8 @@ function downloadSimulationResultPdf() {
     const blob = new Blob([pdfBytes], { type: "application/pdf" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
-    const now = new Date();
-    const timestamp = [
-      now.getFullYear(),
-      String(now.getMonth() + 1).padStart(2, "0"),
-      String(now.getDate()).padStart(2, "0"),
-      String(now.getHours()).padStart(2, "0"),
-      String(now.getMinutes()).padStart(2, "0"),
-    ].join("");
     anchor.href = url;
-    anchor.download = `WE-Simulator_Result_${timestamp}.pdf`;
+    anchor.download = getSimulationResultExportFilename("pdf");
     document.body.append(anchor);
     anchor.click();
     anchor.remove();
@@ -6373,6 +6399,82 @@ function downloadSimulationResultPdf() {
     button.disabled = false;
   }
   button.textContent = "PDF出力";
+}
+
+function getSimulationResultExportFilename(extension) {
+  const now = new Date();
+  const timestamp = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0"),
+    String(now.getHours()).padStart(2, "0"),
+    String(now.getMinutes()).padStart(2, "0"),
+  ].join("");
+  return `WE-Simulator_Result_${timestamp}.${String(extension || "").replace(/^\./u, "")}`;
+}
+
+function escapeSimulationResultCsvCell(value) {
+  const text = String(value ?? "");
+  return /[",\r\n]/u.test(text) ? `"${text.replace(/"/gu, '""')}"` : text;
+}
+
+function buildSimulationResultCsv(snapshot) {
+  const rows = [
+    ["シミュレーション結果"],
+    ["震央地名", snapshot.epicenter],
+    ["深さ", snapshot.depth],
+    ["マグニチュード", snapshot.magnitude],
+    ["最大震度", snapshot.maxIntensity],
+    ["発生時刻", snapshot.originTime],
+    [],
+    ["マグニチュード履歴"],
+    ["報数", "経過秒", "マグニチュード", "確定"],
+    ...snapshot.magnitudeHistory.map((report) => [
+      report.reportNumber,
+      report.elapsedSec,
+      report.magnitude,
+      report.isFinal ? "確定" : "",
+    ]),
+    [],
+    ["震度別観測点"],
+    ["震度", "観測点名"],
+    ...snapshot.stationGroups.flatMap((group) => (
+      group.names.map((name) => [group.label, name])
+    )),
+  ];
+  return rows
+    .map((row) => row.map(escapeSimulationResultCsvCell).join(","))
+    .join("\r\n");
+}
+
+function downloadSimulationResultCsv() {
+  const page = document.querySelector("#simulation-result-report-page");
+  const button = page?.querySelector("[data-simulation-result-csv]");
+  if (!page || page.classList.contains("hidden") || !simulationResultReportSnapshot || !button) {
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = "CSV生成中...";
+  try {
+    const csv = buildSimulationResultCsv(simulationResultReportSnapshot);
+    const blob = new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = getSimulationResultExportFilename("csv");
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (error) {
+    console.warn("simulation result CSV generation failed", error);
+    button.textContent = "CSV生成失敗・再試行";
+    return;
+  } finally {
+    button.disabled = false;
+  }
+  button.textContent = "CSV出力";
 }
 
 function renderSimulationResultPdfCanvases(snapshot) {
@@ -16359,7 +16461,7 @@ function renderSimulationTimelineEvents() {
     [...els.simulationProgressEvents.children].map((node) => [node.dataset.timelineEventId, node]),
   );
   const activeIds = new Set();
-  const fragment = document.createDocumentFragment();
+  const orderedNodes = [];
   sortedEvents.forEach((item, index) => {
     let event = existingNodes.get(item.id);
     if (!event) {
@@ -16373,14 +16475,19 @@ function renderSimulationTimelineEvents() {
     event.style.left = `${Math.round(SIMULATION_TIMELINE_START_PX + item.elapsedSec * SIMULATION_TIMELINE_PX_PER_SEC)}px`;
     const labelNode = event.querySelector("b") ?? event.appendChild(document.createElement("b"));
     labelNode.textContent = item.label;
-    fragment.append(event);
+    orderedNodes.push(event);
   });
   [...els.simulationProgressEvents.children].forEach((node) => {
     if (!activeIds.has(node.dataset.timelineEventId)) {
       node.remove();
     }
   });
-  els.simulationProgressEvents.append(fragment);
+  orderedNodes.forEach((event, index) => {
+    const nodeAtIndex = els.simulationProgressEvents.children[index] || null;
+    if (nodeAtIndex !== event) {
+      els.simulationProgressEvents.insertBefore(event, nodeAtIndex);
+    }
+  });
 }
 
 function getSimulationTimelineEventRenderType(item) {
