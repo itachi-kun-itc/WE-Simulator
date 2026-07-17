@@ -147,6 +147,11 @@ export default {
         return json({ ok: true, accounts });
       }
 
+      if (request.method === "GET" && url.pathname === "/admin-overview") {
+        const overview = await readAdminOverview(request, env);
+        return json({ ok: true, overview });
+      }
+
       if (request.method === "GET" && url.pathname === "/community-posts") {
         const posts = await listCommunityPosts(env, request);
         return json({ posts });
@@ -1510,7 +1515,12 @@ async function listCommunityAccounts(request, env) {
       a.icon,
       a.is_admin AS isAdmin,
       a.created_at AS createdAt,
-      COUNT(s.id) AS sessionCount
+      a.updated_at AS updatedAt,
+      COUNT(DISTINCT s.id) AS sessionCount,
+      MAX(s.created_at) AS lastLoginAt,
+      (SELECT COUNT(*) FROM community_posts p WHERE p.account_id = a.id) AS postCount,
+      (SELECT COUNT(*) FROM community_follows f WHERE f.follower_id = a.id) AS followingCount,
+      (SELECT COUNT(*) FROM community_follows f WHERE f.followed_id = a.id) AS followerCount
     FROM community_accounts a
     LEFT JOIN community_sessions s ON s.account_id = a.id
     GROUP BY a.id
@@ -1522,8 +1532,57 @@ async function listCommunityAccounts(request, env) {
     icon: String(row.icon || ""),
     isAdmin: Boolean(row.isAdmin),
     createdAt: String(row.createdAt || ""),
+    updatedAt: String(row.updatedAt || ""),
     sessionCount: Number(row.sessionCount || 0),
+    lastLoginAt: String(row.lastLoginAt || ""),
+    postCount: Number(row.postCount || 0),
+    followingCount: Number(row.followingCount || 0),
+    followerCount: Number(row.followerCount || 0),
   }));
+}
+
+async function readAdminOverview(request, env) {
+  const db = getAppDb(env);
+  await ensureCommunitySchema(db);
+  const account = await requireCommunityAccount(request, env);
+  if (!account.isAdmin) {
+    throw httpError("admin account is required", 403);
+  }
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const cutoff24h = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+  const cutoff7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const totals = await db.prepare(`
+    SELECT
+      (SELECT COUNT(*) FROM community_accounts) AS accountCount,
+      (SELECT COUNT(*) FROM community_accounts WHERE is_admin = 1) AS adminCount,
+      (SELECT COUNT(*) FROM community_sessions) AS sessionCount,
+      (SELECT COUNT(*) FROM community_posts) AS postCount,
+      (SELECT COUNT(*) FROM community_posts WHERE created_at >= ?) AS post24hCount,
+      (SELECT COUNT(*) FROM community_posts WHERE created_at >= ?) AS post7dCount,
+      (SELECT COUNT(*) FROM community_posts WHERE expires_at IS NOT NULL AND expires_at > ?) AS expiringPostCount
+  `).bind(cutoff24h, cutoff7d, nowIso).first();
+  const [maintenance, notifications] = await Promise.all([
+    readMaintenanceStatus(env),
+    readNotificationHistory(env),
+  ]);
+  return {
+    accountCount: Number(totals?.accountCount || 0),
+    adminCount: Number(totals?.adminCount || 0),
+    sessionCount: Number(totals?.sessionCount || 0),
+    postCount: Number(totals?.postCount || 0),
+    post24hCount: Number(totals?.post24hCount || 0),
+    post7dCount: Number(totals?.post7dCount || 0),
+    expiringPostCount: Number(totals?.expiringPostCount || 0),
+    notificationCount: notifications.length,
+    latestNotificationAt: String(notifications[0]?.createdAt || ""),
+    maintenance: Boolean(maintenance.maintenance),
+    maintenanceReason: String(maintenance.reason || ""),
+    workerStatus: "ok",
+    databaseStatus: "ok",
+    mediaStorageStatus: env.WE_SIMULATOR_DATA ? "connected" : "unavailable",
+    serverTime: nowIso,
+  };
 }
 
 async function deleteCommunityPost(request, env, postId) {

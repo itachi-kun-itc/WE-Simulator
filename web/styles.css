@@ -23026,3 +23026,192 @@ html[data-resolved-theme="light"] .settings-admin-embedded .admin-section-head {
 #settings-admin-panel .admin-section-body {
   padding: 14px 16px 0 !important;
 }
+
+.settings-admin-embedded .admin-overview {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px 16px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.settings-admin-embedded .admin-overview > header {
+  display: flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-admin-embedded .admin-overview > header strong {
+  min-width: 0;
+  font-size: 0.84rem;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.settings-admin-embedded .admin-overview > header button {
+  min-height: 30px;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 10px;
+  padding: 0 10px;
+  background: rgba(14, 116, 144, 0.18);
+  color: #7dd3fc;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.admin-overview-content {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-overview-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.admin-overview-metrics article {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 12px;
+  padding: 9px 10px;
+  background: rgba(148, 163, 184, 0.07);
+}
+
+.admin-overview-metrics span {
+  color: #94a3b8;
+  font-size: 0.66rem;
+  line-height: 1.3;
+}
+
+.admin-overview-metrics strong {
+  color: #f1f5f9;
+  font-size: 1.05rem;
+  line-height: 1.15;
+}
+
+.admin-overview-system {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.admin-overview-system > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.admin-overview-system > div:last-child {
+  border-bottom: 0;
+}
+
+.admin-overview-system dt,
+.admin-overview-system dd {
+  margin: 0;
+  font-size: 0.68rem;
+}
+
+.admin-overview-system dt {
+  color: #94a3b8;
+}
+
+.admin-overview-system dd {
+  color: #e2e8f0;
+  text-align: right;
+}
+
+.admin-overview-system dd[data-state="ok"] {
+  color: #86efac;
+  font-weight: 900;
+}
+
+.admin-overview-system dd[data-state="warning"] {
+  color: #fbbf24;
+  font-weight: 900;
+}
+
+.admin-overview-maintenance-reason,
+.admin-overview-status {
+  margin: 0;
+  color: #fbbf24;
+  font-size: 0.68rem;
+  line-height: 1.5;
+}
+
+html[data-resolved-theme="light"] .settings-admin-embedded .admin-overview {
+  border-bottom-color: #d8e0e8;
+}
+
+html[data-resolved-theme="light"] .settings-admin-embedded .admin-overview > header button {
+  border-color: #7dd3fc;
+  background: #e0f2fe;
+  color: #075985;
+}
+
+html[data-resolved-theme="light"] .admin-overview-metrics article,
+html[data-resolved-theme="light"] .admin-overview-system {
+  border-color: #d8e0e8;
+  background: #ffffff;
+}
+
+html[data-resolved-theme="light"] .admin-overview-metrics span,
+html[data-resolved-theme="light"] .admin-overview-system dt {
+  color: #526176;
+}
+
+html[data-resolved-theme="light"] .admin-overview-metrics strong,
+html[data-resolved-theme="light"] .admin-overview-system dd {
+  color: #172033;
+}
+
+html[data-resolved-theme="light"] .admin-overview-system > div {
+  border-bottom-color: #e2e8f0;
+}
+
+html[data-resolved-theme="light"] .admin-overview-system dd[data-state="ok"] {
+  color: #15803d;
+}
+
+html[data-resolved-theme="light"] .admin-overview-system dd[data-state="warning"] {
+  color: #a16207;
+}
+
+.community-account-list-stats,
+.community-account-list-dates {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 4px 10px;
+}
+
+.community-account-list-stats {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding-top: 5px;
+}
+
+.community-account-list-dates {
+  padding-top: 5px;
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.community-account-list-stats span,
+.community-account-list-dates span {
+  grid-column: auto;
+  min-width: 0;
+}
+
+.community-account-list-dates span {
+  font-size: 0.68rem;
+}
+
+html[data-resolved-theme="light"] .community-account-list-dates {
+  border-top-color: #e2e8f0;
+}
