@@ -19,6 +19,7 @@
     "build:japan-pmtiles": "node scripts/build_japan_pmtiles.js",
     "upload:japan-pmtiles": "cd workers && npx wrangler r2 object put we-simulator-data/map/japan.pmtiles --file ../web/map/japan.pmtiles --remote",
     "upload:earthquake-presets": "node scripts/upload_earthquake_presets_to_worker.js",
+    "upload:active-faults": "node scripts/upload_active_faults_to_d1.js",
     "check:encoding": "node scripts/check_text_encoding.js",
     "check:app": "npm run check:encoding && node --check web/app.js",
     "web": "node web/dev-server.js",

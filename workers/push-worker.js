@@ -82,6 +82,28 @@ export default {
         return json({ presets });
       }
 
+      if (request.method === "GET" && url.pathname === "/active-faults") {
+        const segments = await listActiveFaultSummaries(env, {
+          search: url.searchParams.get("search"),
+          limit: url.searchParams.get("limit"),
+        });
+        return json({ segments }, 200, {
+          "Cache-Control": "public, max-age=3600, s-maxage=86400",
+        });
+      }
+
+      const activeFaultMatch = url.pathname.match(/^\/active-faults\/([^/]+)$/);
+      if (activeFaultMatch && request.method === "GET") {
+        const id = decodeURIComponent(activeFaultMatch[1]);
+        const segment = await readActiveFaultSegment(env, id);
+        if (!segment) {
+          return json({ error: "not found" }, 404);
+        }
+        return json({ segment }, 200, {
+          "Cache-Control": "public, max-age=86400, s-maxage=604800",
+        });
+      }
+
       if (request.method === "GET" && url.pathname === "/earthquake-statistics") {
         const statistics = await listEarthquakeStatistics(env, {
           startYear: url.searchParams.get("startYear"),
@@ -827,6 +849,70 @@ async function listEarthquakePresetSummaries(env) {
     magnitude: Number(row.magnitude),
     maxIntensity: String(row.maxIntensity || ""),
   }));
+}
+
+async function listActiveFaultSummaries(env, options = {}) {
+  const db = getAppDb(env);
+  const search = String(options.search || "").trim().slice(0, 80);
+  const limit = clampInteger(options.limit, 1, 700, 600);
+  const query = `
+    SELECT
+      segment_id AS id,
+      segment_name AS name,
+      point_count AS pointCount
+    FROM active_fault_segments
+    ${search ? "WHERE segment_name LIKE ?1 OR segment_id LIKE ?1" : ""}
+    ORDER BY segment_name COLLATE NOCASE ASC, segment_id ASC
+    LIMIT ?${search ? 2 : 1}
+  `;
+  const statement = db.prepare(query);
+  const result = search
+    ? await statement.bind(`%${search}%`, limit).all()
+    : await statement.bind(limit).all();
+
+  return (result.results || []).map((row) => ({
+    id: String(row.id || ""),
+    name: String(row.name || row.id || ""),
+    pointCount: Number(row.pointCount) || 0,
+  }));
+}
+
+async function readActiveFaultSegment(env, id) {
+  const segmentId = String(id || "").trim();
+  if (!segmentId || segmentId.length > 80) {
+    throw httpError("invalid active fault id", 400);
+  }
+  const row = await getAppDb(env).prepare(`
+    SELECT
+      segment_id AS id,
+      segment_name AS name,
+      description,
+      source,
+      source_url AS sourceUrl,
+      path_json AS pathJson,
+      point_count AS pointCount
+    FROM active_fault_segments
+    WHERE segment_id = ?1
+  `).bind(segmentId).first();
+  if (!row) {
+    return null;
+  }
+  let path = [];
+  try {
+    const parsed = JSON.parse(row.pathJson || "[]");
+    path = Array.isArray(parsed) ? parsed : [];
+  } catch {
+    path = [];
+  }
+  return {
+    id: String(row.id || ""),
+    name: String(row.name || row.id || ""),
+    description: String(row.description || ""),
+    source: String(row.source || ""),
+    sourceUrl: String(row.sourceUrl || ""),
+    pointCount: Number(row.pointCount) || path.length,
+    path,
+  };
 }
 
 async function listEarthquakeStatistics(env, options = {}) {
@@ -2043,12 +2129,13 @@ async function subscriptionKey(endpoint) {
   return arrayBufferToBase64Url(digest);
 }
 
-function json(body, status = 200) {
+function json(body, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       ...CORS_HEADERS,
       "Content-Type": "application/json; charset=utf-8",
+      ...extraHeaders,
     },
   });
 }

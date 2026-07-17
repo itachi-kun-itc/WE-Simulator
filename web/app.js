@@ -178,6 +178,53 @@ const GEOLOCATION_IPAD_CACHED_MAX_AGE_MS = 300000;
 const WAVE_RENDER_RADIUS_STEP_KM = 1.5;
 const WAVE_CIRCLE_STEPS = 160;
 const RESET_VIEW_ANIMATION_MS = 1200;
+const FAULT_MODE_TRIPLE_TAP_WINDOW_MS = 700;
+const FAULT_MODEL_PRESETS = {
+  "nankai-trough": {
+    name: "南海トラフ巨大地震",
+    magnitude: "Mw9クラス",
+    region: "駿河湾から日向灘まで",
+    modelType: "6セグメント強震断層モデル",
+    segments: ["駿河湾域", "遠州海盆域", "熊野灘海盆域", "室戸舟状海盆域", "土佐海盆域", "日向灘域"],
+    summary: "プレート境界面の深さ10kmより深い強震断層域を6区分し、各セグメントに2か所の強震動生成域（SMGA）を置く最大クラス想定です。",
+    detail: "SMGAの総面積は強震断層域のおおむね10％。2025年報告でも強震断層モデルは2012年モデルと同一とされています。",
+    sourceLabel: "内閣府「南海トラフ巨大地震モデル・被害想定手法検討会」報告",
+    sourceUrl: "https://www.bousai.go.jp/jishin/nankai/kento_wg/pdf/honbun.pdf",
+    magnitudeValue: 9.0,
+    depthKm: 20,
+    path: [[131.7, 32.0], [133.1, 32.5], [134.5, 32.9], [135.8, 33.3], [137.2, 33.8], [138.5, 34.5]],
+  },
+  "kuril-trench": {
+    name: "千島海溝（十勝・根室沖）モデル",
+    magnitude: "Mw9.3",
+    magnitudeNote: "津波断層モデルの規模",
+    region: "襟裳岬より東側の十勝・根室沖",
+    modelType: "最大クラス強震・津波断層モデル",
+    segments: ["十勝沖", "根室沖", "千島海溝沿い"],
+    summary: "津波堆積物を説明する最大クラスの津波断層域に、過去の地震活動を参考に強震動生成域（SMGA）を配置した想定です。",
+    detail: "日本海溝モデルとは別々に発生する前提で設定され、両モデルの同時連動は公式想定に含まれていません。",
+    sourceLabel: "内閣府「日本海溝・千島海溝沿いの巨大地震モデル検討会」最終報告",
+    sourceUrl: "https://www.bousai.go.jp/jishin/nihonkaiko_chishima/model/pdf/hokoku_honbun.pdf",
+    magnitudeValue: 9.3,
+    depthKm: 25,
+    path: [[143.5, 41.7], [144.2, 42.3], [145.0, 42.9], [146.0, 43.5], [147.1, 44.0]],
+  },
+  "japan-trench": {
+    name: "日本海溝（三陸・日高沖）モデル",
+    magnitude: "Mw9.1",
+    magnitudeNote: "津波断層モデルの規模",
+    region: "岩手県沖から北海道日高地方の沖合",
+    modelType: "最大クラス強震・津波断層モデル",
+    segments: ["三陸沖北部", "青森県東方沖", "日高沖"],
+    summary: "津波堆積物を説明する最大クラスの津波断層域に、過去の地震活動を参考に強震動生成域（SMGA）を配置した想定です。",
+    detail: "千島海溝モデルとは別々に発生する前提で設定され、SMGAの応力降下量は30MPaとされています。",
+    sourceLabel: "内閣府「日本海溝・千島海溝沿いの巨大地震モデル検討会」最終報告",
+    sourceUrl: "https://www.bousai.go.jp/jishin/nihonkaiko_chishima/model/pdf/hokoku_honbun.pdf",
+    magnitudeValue: 9.1,
+    depthKm: 25,
+    path: [[143.2, 39.0], [143.5, 39.8], [143.7, 40.6], [143.7, 41.4], [143.3, 42.1]],
+  },
+};
 const LIGHT_DEFERRED_DATA_DELAY_MS = 700;
 const SIMULATION_DEFERRED_DATA_DELAY_MS = 0;
 const STATION_DEFERRED_DATA_DELAY_MS = 3200;
@@ -465,6 +512,9 @@ const state = {
   speechMuted: true,
   pushConfigured: false,
   pushSubscribed: false,
+  sourceModel: "point",
+  faultModelId: "rectangle",
+  activeFaultSegmentId: "",
 };
 
 const els = {
@@ -699,6 +749,16 @@ document.body?.classList.toggle("community-local-account", Boolean(communityAcco
 let communityAccountRequiredPanel = null;
 let communityAccountPanel = null;
 let communityAccountStatsPromise = null;
+let simulationTabTapTimes = [];
+let faultSourceSampleCache = { key: "", samples: [] };
+let activeFaultCatalog = [];
+let selectedActiveFaultPath = [];
+const activeFaultDetailCache = new Map();
+let activeFaultSelectionRequestId = 0;
+let faultEpicenterNameSyncKey = "";
+let faultEpicenterNameRequestId = 0;
+let faultEpicenterNamePendingKey = "";
+let faultEpicenterNameSyncPromise = null;
 
 function updateHistoryStatisticsLoadButtonState() {
   const button = document.querySelector("#history-statistics-load");
@@ -1314,6 +1374,10 @@ function setupTabs() {
     }
     if (!state.simulationRunning) {
       els.simulationStart.textContent = "開始";
+    }
+    if (document.body.classList.contains("fault-simulation-mode")) {
+      els.setupPanel.querySelector("#fault-simulation-menu")?.append(host);
+      updateSimulationFaultSource();
     }
   };
 
@@ -3483,6 +3547,84 @@ function setupTabs() {
   };
 
   document.body.dataset.activeBottomTab = document.querySelector(".tab.active")?.id || "earthquake-tab";
+
+  const setFaultSimulationMenuActive = (active) => {
+    const enabled = Boolean(active);
+    const setupPanel = els.setupPanel;
+    const simulationTab = document.querySelector("#earthquake-tab");
+    const simulationTabLabel = simulationTab?.querySelector("span:last-child");
+    const setupTitle = setupPanel?.querySelector(".setup-panel-title h2");
+    const faultMenu = setupPanel?.querySelector("#fault-simulation-menu");
+
+    document.body.classList.toggle("fault-simulation-mode", enabled);
+    state.sourceModel = enabled ? "fault" : "point";
+    setupPanel?.classList.toggle("fault-simulation-mode", enabled);
+    faultMenu?.classList.toggle("hidden", !enabled);
+    simulationTab?.setAttribute("aria-label", enabled ? "断層シミュレーション" : "シミュレーション");
+    simulationTab?.setAttribute("aria-pressed", enabled ? "true" : "false");
+    simulationTabLabel?.replaceChildren(enabled ? "断層" : "シミュレーション");
+    setupTitle?.replaceChildren(enabled ? "断層設定" : "震源設定");
+    if (enabled) {
+      state.selectedPresetId = "";
+    }
+    invalidateIntensityEstimateCache();
+    updateSimulationFaultSource();
+    void updateEpicenter({ skipIntensityUpdate: false, resolveLocation: !enabled });
+
+    if (enabled) {
+      closeEarthquakePresetPicker({ restoreTab: false, skipFocus: true });
+      document.querySelector("#fault-model-type")?.dispatchEvent(new Event("change"));
+      const startHost = setupPanel?.querySelector(".simulation-start-sheet-host");
+      if (startHost && faultMenu) {
+        faultMenu.append(startHost);
+      }
+    } else {
+      ensureSimulationStartInsideSheet();
+    }
+    activateSettingsTab("primary");
+    setSetupMenuOpen(true);
+    setSheetState(setupPanel, "open");
+    setupPanel?.querySelector(".sim-panel-scroll")?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+    updateSimulationAvailability();
+
+    const existingNotice = document.querySelector(".fault-mode-switch-notice");
+    existingNotice?.remove();
+    const notice = document.createElement("div");
+    notice.className = "fault-mode-switch-notice";
+    notice.setAttribute("role", "status");
+    notice.textContent = enabled
+      ? "断層シミュレーションに切り替えました"
+      : "通常のシミュレーションに戻りました";
+    document.body.append(notice);
+    requestAnimationFrame(() => notice.classList.add("is-visible"));
+    window.setTimeout(() => {
+      notice.classList.remove("is-visible");
+      window.setTimeout(() => notice.remove(), 220);
+    }, 1800);
+  };
+
+  document.querySelector(".bottom-tabs")?.addEventListener("click", (event) => {
+    if (event.target?.closest?.(".tab")?.id !== "earthquake-tab") {
+      simulationTabTapTimes = [];
+    }
+  }, true);
+
+  document.querySelector("#earthquake-tab")?.addEventListener("click", () => {
+    if (state.simulationRunning || state.simulationCompleted) {
+      simulationTabTapTimes = [];
+      return;
+    }
+    const now = performance.now();
+    simulationTabTapTimes = simulationTabTapTimes.filter((time) => now - time <= FAULT_MODE_TRIPLE_TAP_WINDOW_MS);
+    simulationTabTapTimes.push(now);
+    if (simulationTabTapTimes.length < 3) {
+      return;
+    }
+    simulationTabTapTimes = [];
+    window.setTimeout(() => {
+      setFaultSimulationMenuActive(!document.body.classList.contains("fault-simulation-mode"));
+    }, 0);
+  }, true);
 
   const openInfoOverlay = () => {
     const { sourceOverlay } = setupGlobalOverlays();
@@ -6134,6 +6276,282 @@ function prefetchEarthquakePresetDetail(presetId) {
 
 function bindSimulationControls() {
   els.settingsMenuButton?.addEventListener("click", () => toggleSetupMenu());
+
+  const faultModelSelect = document.querySelector("#fault-model-type");
+  const faultModelProfile = document.querySelector("#fault-model-profile");
+  const faultMagnitudeInput = document.querySelector("#fault-magnitude-input");
+  const faultDepthInput = document.querySelector("#fault-depth-input");
+  const activeFaultPicker = document.querySelector("#active-fault-picker");
+  const activeFaultSearch = document.querySelector("#active-fault-search");
+  const activeFaultSelect = document.querySelector("#active-fault-select");
+  const activeFaultPickerStatus = document.querySelector("#active-fault-picker-status");
+  if (faultMagnitudeInput) {
+    const selectedMagnitude = state.magnitude.toFixed(1);
+    const options = Array.from({ length: 100 }, (_, index) => {
+      const value = ((index + 1) / 10).toFixed(1);
+      return new Option(`M${value}`, value, false, value === selectedMagnitude);
+    });
+    faultMagnitudeInput.replaceChildren(...options);
+  }
+  if (faultDepthInput) {
+    const depths = [0, ...Array.from({ length: 691 }, (_, index) => index + 10)];
+    const options = depths.map((depth) => new Option(
+      depth === 0 ? "ごく浅い" : `${depth} km`,
+      String(depth),
+      false,
+      depth === state.depthKm,
+    ));
+    faultDepthInput.replaceChildren(...options);
+  }
+  const applyFaultSourceParameterInputs = () => {
+    state.magnitude = parseClampedInput(faultMagnitudeInput?.value ?? "", state.magnitude, 0.1, 10);
+    state.depthKm = parseClampedInput(faultDepthInput?.value ?? "", state.depthKm, 0, 700);
+    if (faultMagnitudeInput) {
+      faultMagnitudeInput.value = state.magnitude.toFixed(1);
+    }
+    if (faultDepthInput) {
+      faultDepthInput.value = String(Number(state.depthKm.toFixed(1)));
+    }
+    invalidateIntensityEstimateCache();
+    syncInputs();
+    updateSimulationFaultSource();
+    updateIntensityLayer();
+  };
+  const renderActiveFaultOptions = (filterText = "") => {
+    if (!activeFaultSelect) {
+      return;
+    }
+    const normalizedFilter = String(filterText).trim().toLocaleLowerCase("ja");
+    const matches = activeFaultCatalog.filter((entry) => (
+      !normalizedFilter
+      || entry.name.toLocaleLowerCase("ja").includes(normalizedFilter)
+      || entry.id.toLocaleLowerCase("ja").includes(normalizedFilter)
+    ));
+    const options = [new Option("活断層を選択してください", "")];
+    matches.forEach((entry) => options.push(new Option(`${entry.name}（${entry.id}）`, entry.id)));
+    activeFaultSelect.replaceChildren(...options);
+    activeFaultSelect.disabled = false;
+    if (matches.some((entry) => entry.id === state.activeFaultSegmentId)) {
+      activeFaultSelect.value = state.activeFaultSegmentId;
+    }
+    if (activeFaultPickerStatus) {
+      activeFaultPickerStatus.textContent = `${matches.length}件 / 全${activeFaultCatalog.length}件`;
+    }
+  };
+  const applyActiveFaultSelection = async (segmentId) => {
+    const requestId = ++activeFaultSelectionRequestId;
+    const entry = activeFaultCatalog.find((candidate) => candidate.id === segmentId);
+    state.activeFaultSegmentId = entry?.id || "";
+    selectedActiveFaultPath = [];
+    if (entry && !entry.features?.length && !entry.path?.length) {
+      if (activeFaultPickerStatus) {
+        activeFaultPickerStatus.textContent = `${entry.name}の断層座標を読み込んでいます...`;
+      }
+      updateSimulationAvailability();
+      try {
+        let detail = activeFaultDetailCache.get(entry.id);
+        if (!detail) {
+          detail = await fetchActiveFaultDetailFromWorker(entry.id);
+          activeFaultDetailCache.set(entry.id, detail);
+        }
+        if (requestId !== activeFaultSelectionRequestId) {
+          return;
+        }
+        entry.path = detail.path;
+        entry.description ||= detail.description;
+        entry.source ||= detail.source;
+        entry.sourceUrl ||= detail.sourceUrl;
+      } catch (error) {
+        console.warn("Active fault detail unavailable from D1; using local fallback", error);
+        const fallbackEntry = buildActiveFaultCatalog(await loadActiveFaultSegments())
+          .find((candidate) => candidate.id === entry.id);
+        if (requestId !== activeFaultSelectionRequestId) {
+          return;
+        }
+        if (fallbackEntry) {
+          entry.features = fallbackEntry.features;
+          entry.description ||= fallbackEntry.description;
+          entry.source ||= fallbackEntry.source;
+          entry.sourceUrl ||= fallbackEntry.sourceUrl;
+        }
+      }
+    }
+    selectedActiveFaultPath = entry
+      ? (entry.path?.length ? entry.path.map((point) => [...point]) : buildRepresentativeActiveFaultPath(entry))
+      : [];
+    if (!entry || selectedActiveFaultPath.length < 2) {
+      faultModelProfile.innerHTML = `
+        <strong>活断層を選択</strong>
+        <p>産総研 活断層データベースの活動セグメントから、シミュレーションに使う断層を選択してください。</p>
+      `;
+      invalidateIntensityEstimateCache();
+      updateSimulationFaultSource();
+      updateSimulationAvailability();
+      return;
+    }
+
+    if (activeFaultPickerStatus) {
+      activeFaultPickerStatus.textContent = `${activeFaultCatalog.length}件の活断層から選択中`;
+    }
+
+    const centerPoint = selectedActiveFaultPath[Math.floor(selectedActiveFaultPath.length / 2)];
+    state.longitude = centerPoint[0];
+    state.latitude = centerPoint[1];
+    state.epicenterName = `${entry.name}活動セグメント`;
+    const description = entry.description
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .slice(0, 2)
+      .join(" ");
+    faultModelProfile.innerHTML = `
+      <div class="fault-model-profile-head">
+        <div><strong>${escapeHtml(entry.name)}</strong><span>活動セグメント ${escapeHtml(entry.id)}</span></div>
+        <b>活断層</b>
+      </div>
+      <p>${escapeHtml(description || "活断層データベース収録の断層トレースを使用します。")}</p>
+      ${entry.sourceUrl ? `<a href="${escapeHtml(entry.sourceUrl)}" target="_blank" rel="noopener noreferrer">出典：${escapeHtml(entry.source)}</a>` : `<p>出典：${escapeHtml(entry.source)}</p>`}
+    `;
+    invalidateIntensityEstimateCache();
+    syncInputs();
+    epicenterMarker?.setLngLat([state.longitude, state.latitude]);
+    updateSimulationFaultSource();
+    updateIntensityLayer();
+    updateSimulationAvailability();
+  };
+  const ensureActiveFaultPickerData = async () => {
+    if (activeFaultCatalog.length) {
+      renderActiveFaultOptions(activeFaultSearch?.value || "");
+      await applyActiveFaultSelection(state.activeFaultSegmentId);
+      return;
+    }
+    if (activeFaultSelect) {
+      activeFaultSelect.disabled = true;
+      activeFaultSelect.replaceChildren(new Option("データを読み込み中...", ""));
+    }
+    if (activeFaultPickerStatus) {
+      activeFaultPickerStatus.textContent = "活断層データを読み込んでいます...";
+    }
+    try {
+      try {
+        activeFaultCatalog = await fetchActiveFaultCatalogFromWorker();
+      } catch (error) {
+        console.warn("Active fault catalog unavailable from D1; using local fallback", error);
+        activeFaultCatalog = buildActiveFaultCatalog(await loadActiveFaultSegments());
+      }
+      renderActiveFaultOptions(activeFaultSearch?.value || "");
+      await applyActiveFaultSelection(state.activeFaultSegmentId);
+    } catch (error) {
+      console.warn("Active fault catalog unavailable", error);
+      if (activeFaultSelect) {
+        activeFaultSelect.disabled = true;
+        activeFaultSelect.replaceChildren(new Option("読み込みに失敗しました", ""));
+      }
+      if (activeFaultPickerStatus) {
+        activeFaultPickerStatus.textContent = "活断層データを読み込めませんでした。";
+      }
+    }
+  };
+  const syncFaultModelPreset = () => {
+    const preset = FAULT_MODEL_PRESETS[faultModelSelect?.value];
+    const faultMenu = document.querySelector("#fault-simulation-menu");
+    state.faultModelId = faultModelSelect?.value || "rectangle";
+    const selectsExistingFault = state.faultModelId === "active-fault";
+    if (!selectsExistingFault) {
+      activeFaultSelectionRequestId += 1;
+    }
+    faultMenu?.classList.toggle("has-official-fault-preset", Boolean(preset) || selectsExistingFault);
+    activeFaultPicker?.classList.toggle("hidden", !selectsExistingFault);
+    if (!faultModelProfile) {
+      return;
+    }
+    if (selectsExistingFault) {
+      faultModelProfile.innerHTML = `
+        <strong>活断層を選択</strong>
+        <p>産総研 活断層データベースの活動セグメントから選択できます。</p>
+      `;
+      ensureActiveFaultPickerData();
+      invalidateIntensityEstimateCache();
+      updateSimulationFaultSource();
+      updateSimulationAvailability();
+      return;
+    }
+    if (!preset) {
+      if (faultMagnitudeInput) {
+        faultMagnitudeInput.value = state.magnitude.toFixed(1);
+      }
+      if (faultDepthInput) {
+        faultDepthInput.value = String(state.depthKm);
+      }
+      faultModelProfile.innerHTML = `
+        <strong>単一の矩形断層</strong>
+        <p>長さ・幅・走向・傾斜角と破壊の進み方を手動で設定します。</p>
+      `;
+      invalidateIntensityEstimateCache();
+      updateSimulationFaultSource();
+      updateIntensityLayer();
+      return;
+    }
+    state.magnitude = preset.magnitudeValue;
+    state.depthKm = preset.depthKm;
+    if (faultMagnitudeInput) {
+      faultMagnitudeInput.value = state.magnitude.toFixed(1);
+    }
+    if (faultDepthInput) {
+      faultDepthInput.value = String(state.depthKm);
+    }
+    const centerPoint = preset.path[Math.floor(preset.path.length / 2)];
+    state.longitude = centerPoint[0];
+    state.latitude = centerPoint[1];
+    state.epicenterName = preset.name;
+    const magnitudeNote = preset.magnitudeNote ? `<small>${escapeHtml(preset.magnitudeNote)}</small>` : "";
+    faultModelProfile.innerHTML = `
+      <div class="fault-model-profile-head">
+        <div><strong>${escapeHtml(preset.name)}</strong><span>${escapeHtml(preset.modelType)}</span></div>
+        <b>${escapeHtml(preset.magnitude)}</b>
+      </div>
+      ${magnitudeNote}
+      <dl>
+        <div><dt>対象領域</dt><dd>${escapeHtml(preset.region)}</dd></div>
+        <div><dt>構成</dt><dd>${preset.segments.map((segment) => `<span>${escapeHtml(segment)}</span>`).join("")}</dd></div>
+      </dl>
+      <p>${escapeHtml(preset.summary)}</p>
+      <p>${escapeHtml(preset.detail)}</p>
+      <a href="${escapeHtml(preset.sourceUrl)}" target="_blank" rel="noopener noreferrer">出典：${escapeHtml(preset.sourceLabel)}</a>
+    `;
+    invalidateIntensityEstimateCache();
+    syncInputs();
+    if (epicenterMarker) {
+      epicenterMarker.setLngLat([state.longitude, state.latitude]);
+    }
+    updateSimulationFaultSource();
+    updateIntensityLayer();
+  };
+  faultModelSelect?.addEventListener("change", syncFaultModelPreset);
+  activeFaultSearch?.addEventListener("input", () => renderActiveFaultOptions(activeFaultSearch.value));
+  activeFaultSelect?.addEventListener("change", () => {
+    void applyActiveFaultSelection(activeFaultSelect.value);
+  });
+  [faultMagnitudeInput, faultDepthInput].forEach((input) => {
+    input?.addEventListener("change", applyFaultSourceParameterInputs);
+  });
+  document.querySelectorAll("#fault-simulation-menu input, #fault-simulation-menu select").forEach((control) => {
+    if (
+      control === faultModelSelect
+      || control === faultMagnitudeInput
+      || control === faultDepthInput
+      || control === activeFaultSearch
+      || control === activeFaultSelect
+    ) {
+      return;
+    }
+    control.addEventListener("change", () => {
+      invalidateIntensityEstimateCache();
+      updateSimulationFaultSource();
+      updateIntensityLayer();
+    });
+  });
+  syncFaultModelPreset();
 
   document.addEventListener("click", (event) => {
     const button = event.target.closest?.("[data-settings-tab]");
@@ -9837,8 +10255,7 @@ async function initEarthquakeMap() {
     clearSelectedPreset();
     invalidateIntensityEstimateCache();
     syncInputs();
-    syncEpicenterMarkerPosition();
-    updateActiveEpicenterPopups([state.longitude, state.latitude]);
+    updateActiveEpicenterPopups(syncEpicenterMarkerPosition());
     scheduleDeferredEpicenterUpdate({ resolveLocation: true, enforceManagedArea: true });
   });
 
@@ -13068,6 +13485,7 @@ async function showMapLayers() {
   addGeoJsonSource("history-epicenter-areas", emptyFeatureCollection());
   addGeoJsonSource("plate-boundaries", emptyFeatureCollection());
   addGeoJsonSource("active-faults", emptyFeatureCollection());
+  addGeoJsonSource("simulation-fault-source", emptyFeatureCollection());
   addGeoJsonSource("submarine-observation-points", emptyFeatureCollection());
   addGeoJsonSource("shindo-stations", emptyFeatureCollection());
   addGeoJsonSource("p-wave", emptyFeatureCollection());
@@ -13800,6 +14218,55 @@ function addMapLayers() {
   updateLayerVisibility("active-fault-lines", state.showFaultLayer);
 
   addLayerIfMissing({
+    id: "simulation-fault-line-casing",
+    type: "line",
+    source: "simulation-fault-source",
+    filter: ["==", ["geometry-type"], "LineString"],
+    layout: {
+      "line-cap": "round",
+      "line-join": "round",
+    },
+    paint: {
+      "line-color": "#4c0519",
+      "line-opacity": 0.9,
+      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 5.6, 7, 8.2, 10, 10.4],
+    },
+  });
+  updateLayerVisibility("simulation-fault-line-casing", isFaultSimulationActive());
+
+  addLayerIfMissing({
+    id: "simulation-fault-line",
+    type: "line",
+    source: "simulation-fault-source",
+    filter: ["==", ["geometry-type"], "LineString"],
+    layout: {
+      "line-cap": "round",
+      "line-join": "round",
+    },
+    paint: {
+      "line-color": "#ff315c",
+      "line-opacity": 1,
+      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 3.2, 7, 5.4, 10, 7.2],
+    },
+  });
+  updateLayerVisibility("simulation-fault-line", isFaultSimulationActive());
+
+  addLayerIfMissing({
+    id: "simulation-fault-endpoints",
+    type: "circle",
+    source: "simulation-fault-source",
+    filter: ["==", ["get", "kind"], "rupture-end"],
+    paint: {
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 5, 8, 7],
+      "circle-color": "#ffffff",
+      "circle-opacity": 0.96,
+      "circle-stroke-color": "#e11d48",
+      "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 4, 2, 8, 2.8],
+    },
+  });
+  updateLayerVisibility("simulation-fault-endpoints", isFaultSimulationActive());
+
+  addLayerIfMissing({
     id: "jma-intensity-fill",
     type: "fill",
     source: "jma-intensity-areas",
@@ -14216,12 +14683,15 @@ function keepWaveAndStationLayerOrder() {
   moveLayerToTop("active-fault-lines");
   moveLayerToTop("p-wave-fill");
   moveLayerToTop("s-wave-fill");
+  moveLayerToTop("simulation-fault-line-casing");
+  moveLayerToTop("simulation-fault-line");
   moveLayerToTop("submarine-observation-fill");
   moveLayerToTop("shindo-station-points");
   moveLayerToTop("shindo-station-points-light-outline");
   moveLayerToTop("shindo-station-labels");
   moveLayerToTop("p-wave-line");
   moveLayerToTop("s-wave-line");
+  moveLayerToTop("simulation-fault-endpoints");
 }
 
 function updateLayerVisibility(layerId, visible) {
@@ -14706,6 +15176,38 @@ function resetMapViewToInitial() {
 function alignMapToSimulationEpicenter() {
   if (!map) {
     return Promise.resolve();
+  }
+
+  if (isFaultSimulationActive()) {
+    const path = getActiveFaultPath();
+    if (path.length >= 2) {
+      const longitudes = path.map((point) => point[0]);
+      const latitudes = path.map((point) => point[1]);
+      return new Promise((resolve) => {
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timeoutId);
+          map.off("moveend", finish);
+          resolve();
+        };
+        const timeoutId = window.setTimeout(finish, 1200);
+        map.once("moveend", finish);
+        map.fitBounds(
+          [
+            [Math.min(...longitudes), Math.min(...latitudes)],
+            [Math.max(...longitudes), Math.max(...latitudes)],
+          ],
+          {
+            padding: getInitialMapPaddingForViewport(),
+            duration: 650,
+            maxZoom: 6,
+            essential: true,
+          },
+        );
+      });
+    }
   }
 
   return animateMapViewTo({
@@ -15717,22 +16219,28 @@ function getCurrentLocationForecast() {
     state.currentLocation.longitude.toFixed(5),
     state.currentLocation.latitude.toFixed(5),
     state.selectedPresetId,
+    state.sourceModel,
+    state.faultModelId,
   ].join("|");
   if (currentLocationForecastCache?.key === cacheKey) {
     return currentLocationForecastCache.forecast;
   }
 
-  const epicentralDistanceKm = haversineKilometers(
-    [state.longitude, state.latitude],
-    [state.currentLocation.longitude, state.currentLocation.latitude],
-  );
+  const travelMetrics = isFaultSimulationActive()
+    ? getFaultTravelMetrics(state.currentLocation.longitude, state.currentLocation.latitude)
+    : null;
+  const epicentralDistanceKm = travelMetrics?.surfaceDistanceKm ?? haversineKilometers(
+      [state.longitude, state.latitude],
+      [state.currentLocation.longitude, state.currentLocation.latitude],
+    );
   const intensityValue = estimateIntensityAtPoint(
     state.currentLocation.longitude,
     state.currentLocation.latitude,
     epicentralDistanceKm,
   );
   const intensityClass = toJmaIntensityClass(intensityValue);
-  const pWaveArrivalSec = epicentralDistanceKm / EARTHQUAKE_MODEL.pWaveVelocityKmPerSec;
+  const pWaveArrivalSec = travelMetrics?.pArrivalSec
+    ?? epicentralDistanceKm / EARTHQUAKE_MODEL.pWaveVelocityKmPerSec;
 
   const forecast = {
     intensityValue,
@@ -15751,6 +16259,10 @@ async function startSimulation() {
     return;
   }
 
+  if (isFaultSimulationActive()) {
+    await syncFaultEpicenterName();
+  }
+
   resetViewAnimating = true;
   updateSimulationAvailability();
   try {
@@ -15760,7 +16272,7 @@ async function startSimulation() {
   }
 
   simulationPreviousEpicenterEditEnabled = state.epicenterEditEnabled;
-  simulationEpicenter = [state.longitude, state.latitude];
+  simulationEpicenter = getDisplayedEpicenterCoordinates();
   state.eewWarningReportNumber = null;
   state.eewWarningFinalReport = false;
   state.eewReportAreaKeySignature = "";
@@ -16862,7 +17374,8 @@ function updateSimulationSummary(elapsedSec = getSimulationStationElapsedSec()) 
     state.simulationRunning && Number.isFinite(elapsedSec) && !hasObservedIntensity ? null : displayMaxClass,
   );
   setTextContentIfChanged(els.simulationMagnitude, getSimulationTicketMagnitude().toFixed(1));
-  setTextContentIfChanged(els.simulationEpicenter, `${state.latitude.toFixed(3)}, ${state.longitude.toFixed(3)}`);
+  const [displayLongitude, displayLatitude] = getDisplayedEpicenterCoordinates();
+  setTextContentIfChanged(els.simulationEpicenter, `${displayLatitude.toFixed(3)}, ${displayLongitude.toFixed(3)}`);
   setTextContentIfChanged(els.simulationRegionName, state.epicenterName);
   setTextContentIfChanged(els.simulationDepth, formatDepth(state.depthKm));
   setTextContentIfChanged(els.maxIntensityOutput, formatSetupMaxIntensityLabel(state.maxIntensityLabel));
@@ -17238,12 +17751,12 @@ function setWaveRadiusData(pRadiusKm, sRadiusKm) {
   scheduleStationCanvasRender();
 
   if (pSource && nextP !== waveRenderRadiusCache.p) {
-    setGeoJsonSourceData("p-wave", wavePolygonFeatureCollection(nextP));
+    setGeoJsonSourceData("p-wave", wavePolygonFeatureCollection(nextP, EARTHQUAKE_MODEL.pWaveVelocityKmPerSec));
     waveRenderRadiusCache.p = nextP;
   }
 
   if (sSource && nextS !== waveRenderRadiusCache.s) {
-    setGeoJsonSourceData("s-wave", wavePolygonFeatureCollection(nextS));
+    setGeoJsonSourceData("s-wave", wavePolygonFeatureCollection(nextS, EARTHQUAKE_MODEL.sWaveVelocityKmPerSec));
     waveRenderRadiusCache.s = nextS;
   }
 }
@@ -17261,25 +17774,33 @@ function resetWaveRenderCache() {
   waveCanvasRadiusState = { p: 0, s: 0 };
 }
 
-function wavePolygonFeatureCollection(radiusKm) {
+function wavePolygonFeatureCollection(radiusKm, velocityKmPerSec = EARTHQUAKE_MODEL.pWaveVelocityKmPerSec) {
   if (!Number.isFinite(radiusKm) || radiusKm <= 0) {
     return emptyFeatureCollection();
   }
 
+  const elapsedSec = radiusKm / velocityKmPerSec;
+  const faultSamples = isFaultSimulationActive() ? getFaultSourceSamples() : [];
+  const waveSources = faultSamples.length
+    ? faultSamples
+        .map((sample) => ({
+          center: sample.coordinates,
+          radiusKm: Math.max((elapsedSec - sample.ruptureDelaySec) * velocityKmPerSec, 0),
+        }))
+        .filter((source) => source.radiusKm > 0)
+    : [{ center: simulationEpicenter, radiusKm }];
   return {
     type: "FeatureCollection",
-    features: [
-      {
+    features: waveSources.map((source) => ({
         type: "Feature",
         properties: {
-          radiusKm: Number(radiusKm.toFixed(2)),
+          radiusKm: Number(source.radiusKm.toFixed(2)),
         },
         geometry: {
           type: "Polygon",
-          coordinates: [buildGeodesicCircle(simulationEpicenter, radiusKm)],
+          coordinates: [buildGeodesicCircle(source.center, source.radiusKm, 72)],
         },
-      },
-    ],
+      })),
   };
 }
 
@@ -17567,6 +18088,57 @@ async function loadActiveFaultSegments() {
 
   activeFaultData = await activeFaultLoadPromise;
   return activeFaultData;
+}
+
+async function fetchActiveFaultCatalogFromWorker() {
+  const workerUrl = await getWorkerBaseUrl();
+  if (!workerUrl) {
+    throw new Error("Worker URL is not configured");
+  }
+  const response = await fetch(`${workerUrl}/active-faults?limit=700`);
+  if (!response.ok) {
+    throw new Error(`Active fault catalog request failed: ${response.status}`);
+  }
+  const payload = await response.json();
+  const segments = Array.isArray(payload?.segments) ? payload.segments : [];
+  if (!segments.length) {
+    throw new Error("Active fault catalog is empty");
+  }
+  return segments.map((segment) => ({
+    id: String(segment.id || ""),
+    name: String(segment.name || segment.id || ""),
+    description: String(segment.description || ""),
+    source: String(segment.source || ""),
+    sourceUrl: String(segment.sourceUrl || ""),
+    pointCount: Number(segment.pointCount) || 0,
+  })).filter((segment) => segment.id);
+}
+
+async function fetchActiveFaultDetailFromWorker(segmentId) {
+  const workerUrl = await getWorkerBaseUrl();
+  if (!workerUrl) {
+    throw new Error("Worker URL is not configured");
+  }
+  const response = await fetch(`${workerUrl}/active-faults/${encodeURIComponent(segmentId)}`);
+  if (!response.ok) {
+    throw new Error(`Active fault detail request failed: ${response.status}`);
+  }
+  const segment = (await response.json())?.segment;
+  const path = Array.isArray(segment?.path)
+    ? segment.path.map((point) => [Number(point?.[0]), Number(point?.[1])])
+      .filter(([longitude, latitude]) => Number.isFinite(longitude) && Number.isFinite(latitude))
+    : [];
+  if (path.length < 2) {
+    throw new Error("Active fault detail has no usable path");
+  }
+  return {
+    id: String(segment.id || segmentId),
+    name: String(segment.name || segmentId),
+    description: String(segment.description || ""),
+    source: String(segment.source || "産総研 活断層データベース"),
+    sourceUrl: String(segment.sourceUrl || ""),
+    path,
+  };
 }
 
 async function loadSubmarineObservationPoints() {
@@ -17860,6 +18432,17 @@ function updateSimulationAvailability() {
     return;
   }
 
+  if (
+    isFaultSimulationActive()
+    && state.faultModelId === "active-fault"
+    && selectedActiveFaultPath.length < 2
+  ) {
+    els.simulationStart.disabled = true;
+    els.simulationStart.textContent = "活断層を選択してください";
+    els.simulationStart.title = "活動セグメントを選択すると開始できます";
+    return;
+  }
+
   const predictedMaximum = getPredictedMaximumIntensity();
   const canStart =
     Number.isFinite(predictedMaximum.value) && predictedMaximum.rank >= 1;
@@ -17931,7 +18514,7 @@ function schedulePostMapInteractionRender() {
 }
 
 function syncEpicenterMarkerPosition() {
-  const lngLat = [state.longitude, state.latitude];
+  const lngLat = getDisplayedEpicenterCoordinates();
   if (epicenterMarker) {
     epicenterMarker.setLngLat(lngLat);
   }
@@ -17990,7 +18573,7 @@ async function updateEpicenter(options = {}) {
     updateIntensityLayer();
   }
   syncInputs();
-  const lngLat = [state.longitude, state.latitude];
+  const lngLat = getDisplayedEpicenterCoordinates();
 
   if (!epicenterMarker) {
     const markerElement = document.createElement("span");
@@ -18029,7 +18612,7 @@ async function updateEpicenter(options = {}) {
         epicenterHoverPopup.remove();
         return;
       }
-      const popupLngLat = event ? getEpicenterEventLngLat(event) : [state.longitude, state.latitude];
+      const popupLngLat = event ? getEpicenterEventLngLat(event) : getDisplayedEpicenterCoordinates();
       epicenterHoverLngLat = popupLngLat;
       epicenterHoverPopup
         .setLngLat(popupLngLat)
@@ -18105,13 +18688,13 @@ async function updateEpicenter(options = {}) {
 
 function buildEpicenterPopupHtml() {
   return [
-    `<span>震源：${escapeHtml(state.epicenterName)}</span>`,
+    `<span>震央：${escapeHtml(state.epicenterName)}</span>`,
     `<span>マグニチュード：${state.magnitude.toFixed(1)}</span>`,
     `<span>深さ：${escapeHtml(formatDepth(state.depthKm))}</span>`,
   ].join("");
 }
 
-function updateActiveEpicenterPopups(lngLat = [state.longitude, state.latitude]) {
+function updateActiveEpicenterPopups(lngLat = getDisplayedEpicenterCoordinates()) {
   if (state.epicenterEditEnabled) {
     closeEpicenterInfoPopups();
     return;
@@ -18265,6 +18848,9 @@ function getIntensitySourceCacheKey(elapsedSec = Infinity) {
     Number(state.depthKm).toFixed(1),
     Number(state.magnitude).toFixed(1),
     getSelectedPreset()?.id ?? "",
+    state.sourceModel,
+    state.faultModelId,
+    state.activeFaultSegmentId,
   ].join("|");
 }
 
@@ -18345,6 +18931,8 @@ function getSubmarineObservationDataForElapsed(elapsedSec = Infinity, data = sub
     state.latitude.toFixed(4),
     state.depthKm.toFixed(1),
     state.magnitude.toFixed(1),
+    state.sourceModel,
+    state.faultModelId,
   ].join("|");
   if (submarineObservationIntensityCache.key === cacheKey) {
     return {
@@ -19277,14 +19865,6 @@ function updateEewForecastMessage(heading) {
 }
 
 function getEewMessageEpicenterAreaName() {
-  if (localAreaData?.features?.length) {
-    const localArea = findFeatureAtPoint(localAreaData, state.longitude, state.latitude);
-    const localAreaName = cleanDisplayAreaName(localArea?.properties?.name);
-    if (localAreaName) {
-      return localAreaName;
-    }
-  }
-
   return cleanDisplayAreaName(state.epicenterName) || "震央";
 }
 
@@ -19734,13 +20314,19 @@ function buildStationIntensityFeatures(data) {
         ? actualObservation.intensityValue
         : estimateIntensityAtPoint(station.longitude, station.latitude);
       const intensityClass = toJmaIntensityClass(intensityValue);
-      const epicentralDistanceKm = haversineKilometers(
-        [state.longitude, state.latitude],
-        [station.longitude, station.latitude],
-      );
-      const hypocentralDistanceKm = Math.hypot(epicentralDistanceKm, state.depthKm);
-      const pArrivalSec = epicentralDistanceKm / EARTHQUAKE_MODEL.pWaveVelocityKmPerSec;
-      const sArrivalSec = epicentralDistanceKm / EARTHQUAKE_MODEL.sWaveVelocityKmPerSec;
+      const travelMetrics = isFaultSimulationActive()
+        ? getFaultTravelMetrics(station.longitude, station.latitude)
+        : null;
+      const epicentralDistanceKm = travelMetrics?.surfaceDistanceKm ?? haversineKilometers(
+          [state.longitude, state.latitude],
+          [station.longitude, station.latitude],
+        );
+      const hypocentralDistanceKm = travelMetrics?.hypocentralDistanceKm
+        ?? Math.hypot(epicentralDistanceKm, state.depthKm);
+      const pArrivalSec = travelMetrics?.pArrivalSec
+        ?? epicentralDistanceKm / EARTHQUAKE_MODEL.pWaveVelocityKmPerSec;
+      const sArrivalSec = travelMetrics?.sArrivalSec
+        ?? epicentralDistanceKm / EARTHQUAKE_MODEL.sWaveVelocityKmPerSec;
       const groundAmplification =
         ground?.intensityAmplification ?? EARTHQUAKE_MODEL.defaultSiteAmplification;
       const riseProfile = getGroundRiseProfile({
@@ -19842,9 +20428,13 @@ function buildSubmarineObservationIntensityFeatures(data) {
       const id = feature.properties?.code || `${lon.toFixed(4)},${lat.toFixed(4)}`;
       const intensityValue = estimateIntensityAtPoint(lon, lat);
       const intensityClass = toJmaIntensityClass(intensityValue);
-      const epicentralDistanceKm = haversineKilometers([state.longitude, state.latitude], [lon, lat]);
-      const pArrivalSec = epicentralDistanceKm / EARTHQUAKE_MODEL.pWaveVelocityKmPerSec;
-      const sArrivalSec = epicentralDistanceKm / EARTHQUAKE_MODEL.sWaveVelocityKmPerSec;
+      const travelMetrics = isFaultSimulationActive() ? getFaultTravelMetrics(lon, lat) : null;
+      const epicentralDistanceKm = travelMetrics?.surfaceDistanceKm
+        ?? haversineKilometers([state.longitude, state.latitude], [lon, lat]);
+      const pArrivalSec = travelMetrics?.pArrivalSec
+        ?? epicentralDistanceKm / EARTHQUAKE_MODEL.pWaveVelocityKmPerSec;
+      const sArrivalSec = travelMetrics?.sArrivalSec
+        ?? epicentralDistanceKm / EARTHQUAKE_MODEL.sWaveVelocityKmPerSec;
       const waveResponse = getStationWaveResponseProperties(
         `submarine|${id}|${state.longitude.toFixed(2)}|${state.latitude.toFixed(2)}`,
         intensityValue,
@@ -19871,7 +20461,8 @@ function buildSubmarineObservationIntensityFeatures(data) {
           intensityTextColor: intensityClass.textColor,
           groundAmplification: EARTHQUAKE_MODEL.defaultSiteAmplification,
           epicentralDistanceKm: Number(epicentralDistanceKm.toFixed(1)),
-          hypocentralDistanceKm: Number(Math.hypot(epicentralDistanceKm, state.depthKm).toFixed(1)),
+          hypocentralDistanceKm: Number((travelMetrics?.hypocentralDistanceKm
+            ?? Math.hypot(epicentralDistanceKm, state.depthKm)).toFixed(1)),
           pArrivalSec: Number(pArrivalSec.toFixed(2)),
           sArrivalSec: Number(sArrivalSec.toFixed(2)),
           pWaveSiteResponse: waveResponse.pWaveSiteResponse,
@@ -20404,7 +20995,353 @@ function offsetFreeSyntheticStationCoordinate(center, index) {
   ];
 }
 
+function isFaultSimulationActive() {
+  return state.sourceModel === "fault";
+}
+
+function getFaultControlNumber(selector, fallback, minimum, maximum) {
+  const value = Number(document.querySelector(selector)?.value);
+  return Number.isFinite(value) ? clamp(value, minimum, maximum) : fallback;
+}
+
+function destinationPointKilometers(center, distanceKm, bearingDegrees) {
+  const angularDistance = distanceKm / EARTH_RADIUS_KM;
+  const bearing = toRadians(bearingDegrees);
+  const latitude = toRadians(center[1]);
+  const longitude = toRadians(center[0]);
+  const destinationLatitude = Math.asin(
+    Math.sin(latitude) * Math.cos(angularDistance)
+      + Math.cos(latitude) * Math.sin(angularDistance) * Math.cos(bearing),
+  );
+  const destinationLongitude = longitude + Math.atan2(
+    Math.sin(bearing) * Math.sin(angularDistance) * Math.cos(latitude),
+    Math.cos(angularDistance) - Math.sin(latitude) * Math.sin(destinationLatitude),
+  );
+  return [normalizeLongitude(toDegrees(destinationLongitude)), toDegrees(destinationLatitude)];
+}
+
+function buildActiveFaultCatalog(data) {
+  const groups = new Map();
+  (data?.features ?? []).forEach((feature) => {
+    const id = String(feature.properties?.segment_id ?? "").trim();
+    if (!id || feature.geometry?.type !== "LineString") {
+      return;
+    }
+    if (!groups.has(id)) {
+      groups.set(id, {
+        id,
+        name: String(feature.properties?.segment_name || feature.properties?.name || id).trim(),
+        description: String(feature.properties?.description || "").trim(),
+        source: String(feature.properties?.source || "産総研 活断層データベース").trim(),
+        sourceUrl: String(feature.properties?.source_url || "").trim(),
+        features: [],
+      });
+    }
+    groups.get(id).features.push(feature);
+  });
+  return [...groups.values()].sort((left, right) => (
+    left.name.localeCompare(right.name, "ja") || left.id.localeCompare(right.id)
+  ));
+}
+
+function buildRepresentativeActiveFaultPath(entry) {
+  const coordinateMap = new Map();
+  (entry?.features ?? []).forEach((feature) => {
+    (feature.geometry?.coordinates ?? []).forEach((coordinate) => {
+      const longitude = Number(coordinate?.[0]);
+      const latitude = Number(coordinate?.[1]);
+      if (Number.isFinite(longitude) && Number.isFinite(latitude)) {
+        coordinateMap.set(`${longitude.toFixed(5)},${latitude.toFixed(5)}`, [longitude, latitude]);
+      }
+    });
+  });
+  const coordinates = [...coordinateMap.values()];
+  if (coordinates.length < 2) {
+    return coordinates;
+  }
+
+  const meanLongitude = coordinates.reduce((sum, point) => sum + point[0], 0) / coordinates.length;
+  const meanLatitude = coordinates.reduce((sum, point) => sum + point[1], 0) / coordinates.length;
+  const longitudeScale = Math.cos(toRadians(meanLatitude));
+  let covarianceXX = 0;
+  let covarianceXY = 0;
+  let covarianceYY = 0;
+  coordinates.forEach((point) => {
+    const x = (point[0] - meanLongitude) * longitudeScale;
+    const y = point[1] - meanLatitude;
+    covarianceXX += x * x;
+    covarianceXY += x * y;
+    covarianceYY += y * y;
+  });
+  const axisAngle = 0.5 * Math.atan2(2 * covarianceXY, covarianceXX - covarianceYY);
+  const axisX = Math.cos(axisAngle);
+  const axisY = Math.sin(axisAngle);
+  return coordinates.sort((left, right) => {
+    const leftProjection = (left[0] - meanLongitude) * longitudeScale * axisX
+      + (left[1] - meanLatitude) * axisY;
+    const rightProjection = (right[0] - meanLongitude) * longitudeScale * axisX
+      + (right[1] - meanLatitude) * axisY;
+    return leftProjection - rightProjection;
+  });
+}
+
+function getActiveFaultPath() {
+  if (!isFaultSimulationActive()) {
+    return [];
+  }
+  const preset = FAULT_MODEL_PRESETS[state.faultModelId];
+  if (preset?.path?.length >= 2) {
+    return preset.path.map((point) => [...point]);
+  }
+  if (state.faultModelId === "active-fault") {
+    return selectedActiveFaultPath.map((point) => [...point]);
+  }
+  const lengthKm = getFaultControlNumber("#fault-length-input", 30, 1, 520);
+  const strikeDegrees = getFaultControlNumber("#fault-strike-input", 0, 0, 359);
+  const center = [state.longitude, state.latitude];
+  return [
+    destinationPointKilometers(center, lengthKm / 2, strikeDegrees + 180),
+    destinationPointKilometers(center, lengthKm / 2, strikeDegrees),
+  ];
+}
+
+function getFaultSourceSamples() {
+  const path = getActiveFaultPath();
+  if (path.length < 2) {
+    return [];
+  }
+  const ruptureSpeed = getFaultControlNumber("#fault-rupture-speed", 2.8, 0.5, 4);
+  const direction = document.querySelector("#fault-rupture-direction")?.value || "bilateral";
+  const origin = document.querySelector("#fault-rupture-origin")?.value || "center";
+  const cacheKey = `${state.faultModelId}|${path.flat().map((value) => Number(value).toFixed(4)).join(",")}|${ruptureSpeed}|${direction}|${origin}`;
+  if (faultSourceSampleCache.key === cacheKey) {
+    return faultSourceSampleCache.samples;
+  }
+  const segmentLengths = path.slice(1).map((point, index) => haversineKilometers(path[index], point));
+  const totalLengthKm = segmentLengths.reduce((sum, length) => sum + length, 0);
+  const originAlongKm = origin === "start" ? 0 : origin === "end" ? totalLengthKm : totalLengthKm / 2;
+  const spacingKm = Math.max(totalLengthKm / 16, 12);
+  const samples = [{ coordinates: path[0], alongKm: 0 }];
+  let traversedKm = 0;
+  segmentLengths.forEach((segmentLengthKm, index) => {
+    const start = path[index];
+    const end = path[index + 1];
+    const divisions = Math.max(Math.ceil(segmentLengthKm / spacingKm), 1);
+    for (let division = 1; division <= divisions; division += 1) {
+      const ratio = division / divisions;
+      samples.push({
+        coordinates: [
+          start[0] + (end[0] - start[0]) * ratio,
+          start[1] + (end[1] - start[1]) * ratio,
+        ],
+        alongKm: traversedKm + segmentLengthKm * ratio,
+      });
+    }
+    traversedKm += segmentLengthKm;
+  });
+
+  if (!samples.some((sample) => Math.abs(sample.alongKm - originAlongKm) < 0.01)) {
+    samples.push({
+      coordinates: getPointAlongFaultPath(path, segmentLengths, originAlongKm),
+      alongKm: originAlongKm,
+    });
+    samples.sort((left, right) => left.alongKm - right.alongKm);
+  }
+  const resolvedSamples = samples
+    .filter((sample) => (
+      direction === "bilateral"
+      || (direction === "forward" && sample.alongKm >= originAlongKm - 0.01)
+      || (direction === "reverse" && sample.alongKm <= originAlongKm + 0.01)
+    ))
+    .map((sample) => ({
+      ...sample,
+      ruptureDelaySec: Math.abs(sample.alongKm - originAlongKm) / ruptureSpeed,
+    }));
+  faultSourceSampleCache = { key: cacheKey, samples: resolvedSamples };
+  return resolvedSamples;
+}
+
+function getPointAlongFaultPath(path, segmentLengths, targetAlongKm) {
+  const totalLengthKm = segmentLengths.reduce((sum, length) => sum + length, 0);
+  const target = Math.min(Math.max(Number(targetAlongKm) || 0, 0), totalLengthKm);
+  let traversedKm = 0;
+  for (let index = 0; index < segmentLengths.length; index += 1) {
+    const segmentLengthKm = segmentLengths[index];
+    if (target <= traversedKm + segmentLengthKm || index === segmentLengths.length - 1) {
+      const ratio = segmentLengthKm > 0 ? (target - traversedKm) / segmentLengthKm : 0;
+      return [
+        path[index][0] + (path[index + 1][0] - path[index][0]) * ratio,
+        path[index][1] + (path[index + 1][1] - path[index][1]) * ratio,
+      ];
+    }
+    traversedKm += segmentLengthKm;
+  }
+  return [...path[path.length - 1]];
+}
+
+function getFaultRuptureMarkers(path) {
+  const segmentLengths = path.slice(1).map((point, index) => haversineKilometers(path[index], point));
+  const totalLengthKm = segmentLengths.reduce((sum, length) => sum + length, 0);
+  const origin = document.querySelector("#fault-rupture-origin")?.value || "center";
+  const direction = document.querySelector("#fault-rupture-direction")?.value || "bilateral";
+  const originAlongKm = origin === "start" ? 0 : origin === "end" ? totalLengthKm : totalLengthKm / 2;
+  const originCoordinates = getPointAlongFaultPath(path, segmentLengths, originAlongKm);
+  const endCoordinates = [];
+  if ((direction === "bilateral" || direction === "reverse") && originAlongKm > 0.01) {
+    endCoordinates.push([...path[0]]);
+  }
+  if ((direction === "bilateral" || direction === "forward") && originAlongKm < totalLengthKm - 0.01) {
+    endCoordinates.push([...path[path.length - 1]]);
+  }
+  return { originCoordinates, endCoordinates };
+}
+
+function getDisplayedEpicenterCoordinates() {
+  if (isFaultSimulationActive()) {
+    const path = getActiveFaultPath();
+    if (path.length >= 2) {
+      return getFaultRuptureMarkers(path).originCoordinates;
+    }
+  }
+  return [state.longitude, state.latitude];
+}
+
+async function syncFaultEpicenterName() {
+  if (!isFaultSimulationActive()) {
+    faultEpicenterNameSyncKey = "";
+    faultEpicenterNamePendingKey = "";
+    faultEpicenterNameSyncPromise = null;
+    faultEpicenterNameRequestId += 1;
+    return;
+  }
+  const [longitude, latitude] = getDisplayedEpicenterCoordinates();
+  const syncKey = `${state.faultModelId}|${longitude.toFixed(4)}|${latitude.toFixed(4)}`;
+  if (syncKey === faultEpicenterNameSyncKey) {
+    return;
+  }
+  if (syncKey === faultEpicenterNamePendingKey && faultEpicenterNameSyncPromise) {
+    return faultEpicenterNameSyncPromise;
+  }
+  faultEpicenterNamePendingKey = syncKey;
+  const requestId = ++faultEpicenterNameRequestId;
+  faultEpicenterNameSyncPromise = (async () => {
+    try {
+      const areas = await loadEpicenterAreas();
+      const area = findEpicenterAreaAtPoint(areas, longitude, latitude);
+      if (requestId !== faultEpicenterNameRequestId || !isFaultSimulationActive()) {
+        return;
+      }
+      state.epicenterName = area
+        ? cleanDisplayAreaName(area.properties?.name)
+        : "判定できません";
+    } catch (error) {
+      if (requestId !== faultEpicenterNameRequestId || !isFaultSimulationActive()) {
+        return;
+      }
+      state.epicenterName = "判定できません";
+      console.warn("Fault epicenter name unavailable", error);
+    }
+    faultEpicenterNameSyncKey = syncKey;
+    if (els.epicenterRegion) {
+      els.epicenterRegion.value = state.epicenterName;
+    }
+    setTextContentIfChanged(els.simulationRegionName, state.epicenterName);
+    eewForecastPanelRenderSignature = "";
+    updateEewForecastPanel();
+    updateActiveEpicenterPopups([longitude, latitude]);
+  })().finally(() => {
+    if (requestId === faultEpicenterNameRequestId) {
+      faultEpicenterNamePendingKey = "";
+      faultEpicenterNameSyncPromise = null;
+    }
+  });
+  return faultEpicenterNameSyncPromise;
+}
+
+function getFaultTravelMetrics(longitude, latitude) {
+  const samples = getFaultSourceSamples();
+  if (!samples.length) {
+    const surfaceDistanceKm = haversineKilometers([state.longitude, state.latitude], [longitude, latitude]);
+    return {
+      surfaceDistanceKm,
+      hypocentralDistanceKm: Math.hypot(surfaceDistanceKm, state.depthKm),
+      pArrivalSec: surfaceDistanceKm / EARTHQUAKE_MODEL.pWaveVelocityKmPerSec,
+      sArrivalSec: surfaceDistanceKm / EARTHQUAKE_MODEL.sWaveVelocityKmPerSec,
+    };
+  }
+  return samples.reduce((best, sample) => {
+    const surfaceDistanceKm = haversineKilometers(sample.coordinates, [longitude, latitude]);
+    const hypocentralDistanceKm = Math.hypot(surfaceDistanceKm, state.depthKm);
+    return {
+      surfaceDistanceKm: Math.min(best.surfaceDistanceKm, surfaceDistanceKm),
+      hypocentralDistanceKm: Math.min(best.hypocentralDistanceKm, hypocentralDistanceKm),
+      pArrivalSec: Math.min(
+        best.pArrivalSec,
+        sample.ruptureDelaySec + surfaceDistanceKm / EARTHQUAKE_MODEL.pWaveVelocityKmPerSec,
+      ),
+      sArrivalSec: Math.min(
+        best.sArrivalSec,
+        sample.ruptureDelaySec + surfaceDistanceKm / EARTHQUAKE_MODEL.sWaveVelocityKmPerSec,
+      ),
+    };
+  }, {
+    surfaceDistanceKm: Infinity,
+    hypocentralDistanceKm: Infinity,
+    pArrivalSec: Infinity,
+    sArrivalSec: Infinity,
+  });
+}
+
+function buildSimulationFaultGeoJson() {
+  const path = getActiveFaultPath();
+  if (path.length < 2) {
+    return emptyFeatureCollection();
+  }
+  const { endCoordinates } = getFaultRuptureMarkers(path);
+  return {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        properties: { kind: "fault-line", model: state.faultModelId },
+        geometry: { type: "LineString", coordinates: path },
+      },
+      ...endCoordinates.map((coordinates, index) => ({
+        type: "Feature",
+        properties: { kind: "rupture-end", index },
+        geometry: { type: "Point", coordinates },
+      })),
+    ],
+  };
+}
+
+function updateSimulationFaultSource() {
+  void syncFaultEpicenterName();
+  const epicenterCoordinates = getDisplayedEpicenterCoordinates();
+  epicenterMarker?.setLngLat(epicenterCoordinates);
+  updateActiveEpicenterPopups(epicenterCoordinates);
+  if (!map?.getSource("simulation-fault-source")) {
+    return;
+  }
+  setGeoJsonSourceData(
+    "simulation-fault-source",
+    isFaultSimulationActive() ? buildSimulationFaultGeoJson() : emptyFeatureCollection(),
+  );
+  updateLayerVisibility("simulation-fault-line", isFaultSimulationActive());
+  updateLayerVisibility("simulation-fault-line-casing", isFaultSimulationActive());
+  updateLayerVisibility("simulation-fault-endpoints", isFaultSimulationActive());
+  keepWaveAndStationLayerOrder();
+}
+
 function estimateMaxIntensityForFeature(feature) {
+  if (isFaultSimulationActive()) {
+    return Math.max(...getFaultSourceSamples().map((sample) => {
+      const nearestPoint = getNearestPointOnFeature(sample.coordinates, feature, {
+        polygons: getFeatureIntensityDistancePolygons(feature),
+      });
+      return estimateIntensityAtPoint(nearestPoint.point[0], nearestPoint.point[1]);
+    }));
+  }
   const epicenter = [state.longitude, state.latitude];
   const nearestPoint = getNearestPointOnFeature(epicenter, feature, {
     polygons: getFeatureIntensityDistancePolygons(feature),
@@ -20413,6 +21350,15 @@ function estimateMaxIntensityForFeature(feature) {
 }
 
 function estimateIntensityAtPoint(longitude, latitude, knownEpicentralDistanceKm = null) {
+  if (isFaultSimulationActive()) {
+    const metrics = getFaultTravelMetrics(longitude, latitude);
+    const ground = getGroundModelAt(longitude, latitude);
+    return estimateInstrumentalIntensity({
+      magnitude: state.magnitude,
+      hypocentralDistanceKm: metrics.hypocentralDistanceKm,
+      siteAmplification: ground?.intensityAmplification ?? EARTHQUAKE_MODEL.defaultSiteAmplification,
+    });
+  }
   const epicenter = [state.longitude, state.latitude];
   const epicentralDistanceKm =
     knownEpicentralDistanceKm ?? haversineKilometers(epicenter, [longitude, latitude]);
