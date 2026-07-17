@@ -104,6 +104,15 @@
             </div>
 
             <div class="sim-panel-scroll">
+            <section class="source-simulation-menu-intro" id="source-simulation-menu-intro" aria-labelledby="source-simulation-menu-title">
+              <div class="fault-simulation-heading">
+                <div>
+                  <span class="fault-simulation-kicker">Earthquake simulation</span>
+                  <h3 id="source-simulation-menu-title">震源設定</h3>
+                </div>
+              </div>
+              <p class="fault-simulation-description">震源地、深さ、マグニチュードを設定して地震の揺れをシミュレーションします。</p>
+            </section>
             <section class="fault-simulation-menu hidden" id="fault-simulation-menu" aria-labelledby="fault-simulation-title">
               <div class="fault-simulation-heading">
                 <div>
@@ -164,21 +173,21 @@
                 <div class="field-grid">
                   <label class="field">
                     <span>長さ</span>
-                    <div class="fault-input-with-unit"><input id="fault-length-input" type="number" min="1" max="520" step="1" value="30" inputmode="decimal" /><span>km</span></div>
+                    <select id="fault-length-input" aria-label="矩形断層の長さ"><option value="30" selected>30 km</option></select>
                   </label>
                   <label class="field">
                     <span>幅</span>
-                    <div class="fault-input-with-unit"><input id="fault-width-input" type="number" min="1" max="200" step="1" value="15" inputmode="decimal" /><span>km</span></div>
+                    <select id="fault-width-input" aria-label="矩形断層の幅"><option value="15" selected>15 km</option></select>
                   </label>
                 </div>
                 <div class="field-grid">
                   <label class="field">
                     <span>走向</span>
-                    <div class="fault-input-with-unit"><input id="fault-strike-input" type="number" min="0" max="359" step="1" value="0" inputmode="numeric" /><span>°</span></div>
+                    <select id="fault-strike-input" aria-label="矩形断層の走向"><option value="0" selected>0°</option></select>
                   </label>
                   <label class="field">
                     <span>傾斜角</span>
-                    <div class="fault-input-with-unit"><input id="fault-dip-input" type="number" min="1" max="90" step="1" value="45" inputmode="numeric" /><span>°</span></div>
+                    <select id="fault-dip-input" aria-label="矩形断層の傾斜角"><option value="45" selected>45°</option></select>
                   </label>
                 </div>
               </section>
@@ -204,13 +213,16 @@
                   </label>
                   <label class="field">
                     <span>破壊速度</span>
-                    <div class="fault-input-with-unit"><input id="fault-rupture-speed" type="number" min="0.5" max="4" step="0.1" value="2.8" inputmode="decimal" /><span>km/s</span></div>
+                    <select id="fault-rupture-speed" aria-label="破壊速度">
+                      <option value="2.8" selected>2.8 km/s</option>
+                    </select>
                   </label>
                 </div>
+                <p class="fault-rupture-settings-hint" id="fault-rupture-settings-hint"></p>
               </section>
 
-              <p class="fault-simulation-note">公的想定の震源域を代表断層軸へ簡略化した教育用モデルです。実際の地震予測や避難判断には使用できません。</p>
-              <p class="fault-simulation-exit-hint">下部の「断層」ボタンをもう一度トリプルタップすると通常モードへ戻ります。</p>
+              <p class="fault-simulation-note">公的想定の震源域を帯状の領域へ簡略化した教育用モデルです。領域内の色の変化で破壊の進行を示します。実際の地震予測や避難判断には使用できません。</p>
+              <p class="fault-simulation-exit-hint">下部の「断層」ボタンを長押しすると通常モードへ戻ります。</p>
             </section>
             <div class="settings-tabs" role="tablist" aria-label="設定メニュー">
               <button class="settings-tab is-active" type="button" role="tab" aria-selected="true" data-settings-tab="primary">基本</button>

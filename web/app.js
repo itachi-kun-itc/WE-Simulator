@@ -178,7 +178,9 @@ const GEOLOCATION_IPAD_CACHED_MAX_AGE_MS = 300000;
 const WAVE_RENDER_RADIUS_STEP_KM = 1.5;
 const WAVE_CIRCLE_STEPS = 160;
 const RESET_VIEW_ANIMATION_MS = 1200;
-const FAULT_MODE_TRIPLE_TAP_WINDOW_MS = 700;
+const FAULT_MODE_LONG_PRESS_MS = 650;
+const FAULT_MODE_LONG_PRESS_MOVE_TOLERANCE_PX = 12;
+const ACTIVE_FAULT_AREA_WIDTH_KM = 15;
 const FAULT_MODEL_PRESETS = {
   "nankai-trough": {
     name: "南海トラフ巨大地震",
@@ -192,6 +194,7 @@ const FAULT_MODEL_PRESETS = {
     sourceUrl: "https://www.bousai.go.jp/jishin/nankai/kento_wg/pdf/honbun.pdf",
     magnitudeValue: 9.0,
     depthKm: 20,
+    areaWidthKm: 120,
     path: [[131.7, 32.0], [133.1, 32.5], [134.5, 32.9], [135.8, 33.3], [137.2, 33.8], [138.5, 34.5]],
   },
   "kuril-trench": {
@@ -207,6 +210,7 @@ const FAULT_MODEL_PRESETS = {
     sourceUrl: "https://www.bousai.go.jp/jishin/nihonkaiko_chishima/model/pdf/hokoku_honbun.pdf",
     magnitudeValue: 9.3,
     depthKm: 25,
+    areaWidthKm: 150,
     path: [[143.5, 41.7], [144.2, 42.3], [145.0, 42.9], [146.0, 43.5], [147.1, 44.0]],
   },
   "japan-trench": {
@@ -222,6 +226,7 @@ const FAULT_MODEL_PRESETS = {
     sourceUrl: "https://www.bousai.go.jp/jishin/nihonkaiko_chishima/model/pdf/hokoku_honbun.pdf",
     magnitudeValue: 9.1,
     depthKm: 25,
+    areaWidthKm: 130,
     path: [[143.2, 39.0], [143.5, 39.8], [143.7, 40.6], [143.7, 41.4], [143.3, 42.1]],
   },
 };
@@ -749,7 +754,6 @@ document.body?.classList.toggle("community-local-account", Boolean(communityAcco
 let communityAccountRequiredPanel = null;
 let communityAccountPanel = null;
 let communityAccountStatsPromise = null;
-let simulationTabTapTimes = [];
 let faultSourceSampleCache = { key: "", samples: [] };
 let activeFaultCatalog = [];
 let selectedActiveFaultPath = [];
@@ -1361,10 +1365,10 @@ function setupTabs() {
       host = document.createElement("div");
       host.className = "simulation-start-sheet-host";
       scrollHost.append(host);
-    } else if (!scrollHost.contains(host)) {
+    } else if (host.parentElement !== scrollHost) {
       scrollHost.append(host);
     }
-    if (quickHost.nextElementSibling !== host) {
+    if (quickHost.parentElement !== scrollHost || quickHost.nextElementSibling !== host) {
       host.insertAdjacentElement("beforebegin", quickHost);
     }
     if (!host.contains(els.simulationStart)) {
@@ -3560,7 +3564,10 @@ function setupTabs() {
     state.sourceModel = enabled ? "fault" : "point";
     setupPanel?.classList.toggle("fault-simulation-mode", enabled);
     faultMenu?.classList.toggle("hidden", !enabled);
-    simulationTab?.setAttribute("aria-label", enabled ? "断層シミュレーション" : "シミュレーション");
+    simulationTab?.setAttribute(
+      "aria-label",
+      enabled ? "断層シミュレーション。長押しで通常モード" : "シミュレーション。長押しで断層モード",
+    );
     simulationTab?.setAttribute("aria-pressed", enabled ? "true" : "false");
     simulationTabLabel?.replaceChildren(enabled ? "断層" : "シミュレーション");
     setupTitle?.replaceChildren(enabled ? "断層設定" : "震源設定");
@@ -3593,37 +3600,74 @@ function setupTabs() {
     notice.className = "fault-mode-switch-notice";
     notice.setAttribute("role", "status");
     notice.textContent = enabled
-      ? "断層シミュレーションに切り替えました"
-      : "通常のシミュレーションに戻りました";
+      ? "断層メニューに切り替わりました"
+      : "シミュレーションメニューに切り替わりました";
     document.body.append(notice);
     requestAnimationFrame(() => notice.classList.add("is-visible"));
     window.setTimeout(() => {
       notice.classList.remove("is-visible");
       window.setTimeout(() => notice.remove(), 220);
-    }, 1800);
+    }, 1200);
   };
 
-  document.querySelector(".bottom-tabs")?.addEventListener("click", (event) => {
-    if (event.target?.closest?.(".tab")?.id !== "earthquake-tab") {
-      simulationTabTapTimes = [];
-    }
-  }, true);
-
-  document.querySelector("#earthquake-tab")?.addEventListener("click", () => {
-    if (state.simulationRunning || state.simulationCompleted) {
-      simulationTabTapTimes = [];
+  const simulationTab = document.querySelector("#earthquake-tab");
+  let simulationTabLongPressTimer = 0;
+  let simulationTabLongPressPointer = null;
+  let suppressSimulationTabClick = false;
+  const cancelSimulationTabLongPress = () => {
+    window.clearTimeout(simulationTabLongPressTimer);
+    simulationTabLongPressTimer = 0;
+    simulationTabLongPressPointer = null;
+    simulationTab?.classList.remove("is-long-pressing");
+  };
+  simulationTab?.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0 || state.simulationRunning || state.simulationCompleted) {
       return;
     }
-    const now = performance.now();
-    simulationTabTapTimes = simulationTabTapTimes.filter((time) => now - time <= FAULT_MODE_TRIPLE_TAP_WINDOW_MS);
-    simulationTabTapTimes.push(now);
-    if (simulationTabTapTimes.length < 3) {
-      return;
-    }
-    simulationTabTapTimes = [];
-    window.setTimeout(() => {
+    cancelSimulationTabLongPress();
+    suppressSimulationTabClick = false;
+    simulationTabLongPressPointer = {
+      id: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+    };
+    simulationTab.classList.add("is-long-pressing");
+    simulationTabLongPressTimer = window.setTimeout(() => {
+      simulationTabLongPressTimer = 0;
+      suppressSimulationTabClick = true;
+      simulationTab.classList.remove("is-long-pressing");
       setFaultSimulationMenuActive(!document.body.classList.contains("fault-simulation-mode"));
-    }, 0);
+      navigator.vibrate?.(35);
+    }, FAULT_MODE_LONG_PRESS_MS);
+  });
+  simulationTab?.addEventListener("pointermove", (event) => {
+    if (!simulationTabLongPressPointer || event.pointerId !== simulationTabLongPressPointer.id) {
+      return;
+    }
+    if (
+      Math.hypot(
+        event.clientX - simulationTabLongPressPointer.x,
+        event.clientY - simulationTabLongPressPointer.y,
+      ) > FAULT_MODE_LONG_PRESS_MOVE_TOLERANCE_PX
+    ) {
+      cancelSimulationTabLongPress();
+    }
+  });
+  ["pointerup", "pointercancel", "pointerleave"].forEach((eventName) => {
+    simulationTab?.addEventListener(eventName, cancelSimulationTabLongPress);
+  });
+  simulationTab?.addEventListener("contextmenu", (event) => {
+    if (simulationTabLongPressTimer || suppressSimulationTabClick) {
+      event.preventDefault();
+    }
+  });
+  simulationTab?.addEventListener("click", (event) => {
+    if (!suppressSimulationTabClick) {
+      return;
+    }
+    suppressSimulationTabClick = false;
+    event.preventDefault();
+    event.stopImmediatePropagation();
   }, true);
 
   const openInfoOverlay = () => {
@@ -4605,7 +4649,7 @@ function renderMagnitudeOptions() {
     const magnitude = ((index + 1) / 10).toFixed(1);
     const option = document.createElement("option");
     option.value = magnitude;
-    option.textContent = magnitude;
+    option.textContent = `M${magnitude}`;
     option.selected = magnitude === selectedMagnitude;
     return option;
   });
@@ -6281,6 +6325,11 @@ function bindSimulationControls() {
   const faultModelProfile = document.querySelector("#fault-model-profile");
   const faultMagnitudeInput = document.querySelector("#fault-magnitude-input");
   const faultDepthInput = document.querySelector("#fault-depth-input");
+  const faultRuptureSpeedInput = document.querySelector("#fault-rupture-speed");
+  const faultLengthInput = document.querySelector("#fault-length-input");
+  const faultWidthInput = document.querySelector("#fault-width-input");
+  const faultStrikeInput = document.querySelector("#fault-strike-input");
+  const faultDipInput = document.querySelector("#fault-dip-input");
   const activeFaultPicker = document.querySelector("#active-fault-picker");
   const activeFaultSearch = document.querySelector("#active-fault-search");
   const activeFaultSelect = document.querySelector("#active-fault-select");
@@ -6303,6 +6352,30 @@ function bindSimulationControls() {
     ));
     faultDepthInput.replaceChildren(...options);
   }
+  if (faultRuptureSpeedInput) {
+    const selectedSpeed = Number(faultRuptureSpeedInput.value || 2.8).toFixed(1);
+    const options = Array.from({ length: 36 }, (_, index) => {
+      const value = (0.5 + index * 0.1).toFixed(1);
+      return new Option(`${value} km/s`, value, false, value === selectedSpeed);
+    });
+    faultRuptureSpeedInput.replaceChildren(...options);
+  }
+  const populateIntegerUnitOptions = (select, minimum, maximum, unit, fallback) => {
+    if (!select) {
+      return;
+    }
+    const selectedValue = String(Number(select.value || fallback));
+    const options = Array.from({ length: maximum - minimum + 1 }, (_, index) => {
+      const value = String(minimum + index);
+      const label = unit === "°" ? `${value}°` : `${value} ${unit}`;
+      return new Option(label, value, false, value === selectedValue);
+    });
+    select.replaceChildren(...options);
+  };
+  populateIntegerUnitOptions(faultLengthInput, 1, 520, "km", 30);
+  populateIntegerUnitOptions(faultWidthInput, 1, 200, "km", 15);
+  populateIntegerUnitOptions(faultStrikeInput, 0, 359, "°", 0);
+  populateIntegerUnitOptions(faultDipInput, 1, 90, "°", 45);
   const applyFaultSourceParameterInputs = () => {
     state.magnitude = parseClampedInput(faultMagnitudeInput?.value ?? "", state.magnitude, 0.1, 10);
     state.depthKm = parseClampedInput(faultDepthInput?.value ?? "", state.depthKm, 0, 700);
@@ -6400,8 +6473,12 @@ function bindSimulationControls() {
     state.epicenterName = `${entry.name}活動セグメント`;
     const description = entry.description
       .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean)
+      .map((line) => line.replace(/詳細はこちら。?/g, "").trim())
+      .filter((line) => (
+        line
+        && !line.includes("産業技術総合研究所")
+        && !line.includes("産総研 活断層データベース")
+      ))
       .slice(0, 2)
       .join(" ");
     faultModelProfile.innerHTML = `
@@ -6410,7 +6487,6 @@ function bindSimulationControls() {
         <b>活断層</b>
       </div>
       <p>${escapeHtml(description || "活断層データベース収録の断層トレースを使用します。")}</p>
-      ${entry.sourceUrl ? `<a href="${escapeHtml(entry.sourceUrl)}" target="_blank" rel="noopener noreferrer">出典：${escapeHtml(entry.source)}</a>` : `<p>出典：${escapeHtml(entry.source)}</p>`}
     `;
     invalidateIntensityEstimateCache();
     syncInputs();
@@ -7479,12 +7555,11 @@ async function getWorkerBaseUrl() {
 }
 
 function setupCommunityCustomTagEditor(overlay) {
-  const toggle = overlay?.querySelector("[data-community-custom-tag-toggle]");
   const editor = overlay?.querySelector("[data-community-custom-tag-editor]");
   const input = overlay?.querySelector("#community-post-custom-tag");
   const addButton = overlay?.querySelector("[data-community-custom-tag-add]");
   const list = overlay?.querySelector("[data-community-custom-tag-list]");
-  if (!toggle || !editor || !input || !addButton || !list || editor.dataset.ready === "true") {
+  if (!editor || !input || !addButton || !list || editor.dataset.ready === "true") {
     return;
   }
 
@@ -7505,20 +7580,11 @@ function setupCommunityCustomTagEditor(overlay) {
       chip.setAttribute("aria-label", `${value}を削除`);
       list.append(chip);
     }
-    toggle.checked = true;
-    editor.classList.remove("hidden");
     input.value = "";
     input.focus();
     updateCommunityPostSubmitState();
   };
 
-  toggle.addEventListener("change", () => {
-    editor.classList.toggle("hidden", !toggle.checked);
-    if (toggle.checked) {
-      input.focus();
-    }
-    updateCommunityPostSubmitState();
-  });
   addButton.addEventListener("click", addTag);
   input.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
@@ -7584,12 +7650,8 @@ function ensureCommunityPostUi() {
                 <span>${tag.label}</span>
               </label>
             `).join("")}
-            <label>
-              <input type="checkbox" name="optionalTag" value="custom" data-community-custom-tag-toggle />
-              <span>その他（任意で入力）</span>
-            </label>
           </div>
-          <div class="community-post-custom-tag-editor hidden" data-community-custom-tag-editor>
+          <div class="community-post-custom-tag-editor" data-community-custom-tag-editor>
             <div class="community-post-custom-tag-entry">
               <input id="community-post-custom-tag" class="community-post-custom-tag" type="text" maxlength="24" placeholder="任意タグ名" />
               <button type="button" data-community-custom-tag-add>追加</button>
@@ -7697,7 +7759,6 @@ function resetCommunityPostForm() {
   const ui = ensureCommunityPostUi();
   ui.form?.reset();
   ui.form?.querySelector("[data-community-custom-tag-list]")?.replaceChildren();
-  ui.form?.querySelector("[data-community-custom-tag-editor]")?.classList.add("hidden");
   ui.preview?.classList.add("hidden");
   if (ui.preview) {
     ui.preview.innerHTML = "";
@@ -7842,13 +7903,10 @@ function getSelectedCommunityOptionalTags(form) {
   const selected = [...(form?.querySelectorAll('input[name="optionalTag"]:checked') || [])]
     .map((input) => input.value)
     .filter((value) => value && value !== "custom");
-  const customToggle = form?.querySelector("[data-community-custom-tag-toggle]");
-  if (customToggle?.checked) {
-    form.querySelectorAll("[data-community-custom-tag]").forEach((item) => {
-      selected.push(item.dataset.communityCustomTag || "");
-    });
-    selected.push(String(form.querySelector("#community-post-custom-tag")?.value || "").trim().slice(0, 24));
-  }
+  form?.querySelectorAll("[data-community-custom-tag]").forEach((item) => {
+    selected.push(item.dataset.communityCustomTag || "");
+  });
+  selected.push(String(form?.querySelector("#community-post-custom-tag")?.value || "").trim().slice(0, 24));
   return [...new Set(selected.map((value) => String(value || "").trim()).filter(Boolean))]
     .map((value) => `optional:${value}`);
 }
@@ -7874,15 +7932,6 @@ async function submitCommunityPost() {
     return;
   }
   const optionalTags = getSelectedCommunityOptionalTags(ui.form);
-  const customTagSelected = Boolean(ui.form.querySelector("[data-community-custom-tag-toggle]:checked"));
-  const hasCustomTag = Boolean(
-    ui.form.querySelector("[data-community-custom-tag]")
-    || String(ui.form.querySelector("#community-post-custom-tag")?.value || "").trim(),
-  );
-  if (customTagSelected && !hasCustomTag) {
-    ui.status.textContent = "任意タグ名を入力してください。";
-    return;
-  }
   const postText = String(ui.form.querySelector("#community-post-text")?.value || "").trim();
   if (!postText) {
     ui.status.textContent = "投稿文を入力してください。";
@@ -8309,12 +8358,8 @@ function ensureCommunityPostUi() {
                 <span>${tag.label}</span>
               </label>
             `).join("")}
-            <label>
-              <input type="checkbox" name="optionalTag" value="custom" data-community-custom-tag-toggle />
-              <span>その他（任意で入力）</span>
-            </label>
           </div>
-          <div class="community-post-custom-tag-editor hidden" data-community-custom-tag-editor>
+          <div class="community-post-custom-tag-editor" data-community-custom-tag-editor>
             <div class="community-post-custom-tag-entry">
               <input id="community-post-custom-tag" class="community-post-custom-tag" type="text" maxlength="24" placeholder="任意タグ名" />
               <button type="button" data-community-custom-tag-add>追加</button>
@@ -14218,6 +14263,55 @@ function addMapLayers() {
   updateLayerVisibility("active-fault-lines", state.showFaultLayer);
 
   addLayerIfMissing({
+    id: "simulation-fault-area-fill",
+    type: "fill",
+    source: "simulation-fault-source",
+    filter: ["==", ["get", "kind"], "fault-area"],
+    paint: {
+      "fill-color": "#fb7185",
+      "fill-opacity": 0.3,
+    },
+  });
+  updateLayerVisibility("simulation-fault-area-fill", isFaultAreaActive());
+
+  addLayerIfMissing({
+    id: "simulation-fault-area-outline",
+    type: "line",
+    source: "simulation-fault-source",
+    filter: ["==", ["get", "kind"], "fault-area"],
+    layout: {
+      "line-cap": "round",
+      "line-join": "round",
+    },
+    paint: {
+      "line-color": "#9f1239",
+      "line-opacity": 0.95,
+      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 1.8, 8, 3.2],
+    },
+  });
+  updateLayerVisibility("simulation-fault-area-outline", isFaultAreaActive());
+
+  addLayerIfMissing({
+    id: "simulation-fault-rupture-fill",
+    type: "fill",
+    source: "simulation-fault-source",
+    filter: ["==", ["get", "kind"], "fault-rupture"],
+    paint: {
+      "fill-color": [
+        "interpolate",
+        ["linear"],
+        ["get", "progress"],
+        0,
+        "#fb923c",
+        1,
+        "#e11d48",
+      ],
+      "fill-opacity": 0.82,
+    },
+  });
+  updateLayerVisibility("simulation-fault-rupture-fill", isFaultAreaActive());
+
+  addLayerIfMissing({
     id: "simulation-fault-line-casing",
     type: "line",
     source: "simulation-fault-source",
@@ -14232,7 +14326,10 @@ function addMapLayers() {
       "line-width": ["interpolate", ["linear"], ["zoom"], 4, 5.6, 7, 8.2, 10, 10.4],
     },
   });
-  updateLayerVisibility("simulation-fault-line-casing", isFaultSimulationActive());
+  updateLayerVisibility(
+    "simulation-fault-line-casing",
+    isFaultSimulationActive() && !isFaultAreaActive(),
+  );
 
   addLayerIfMissing({
     id: "simulation-fault-line",
@@ -14249,7 +14346,7 @@ function addMapLayers() {
       "line-width": ["interpolate", ["linear"], ["zoom"], 4, 3.2, 7, 5.4, 10, 7.2],
     },
   });
-  updateLayerVisibility("simulation-fault-line", isFaultSimulationActive());
+  updateLayerVisibility("simulation-fault-line", isFaultSimulationActive() && !isFaultAreaActive());
 
   addLayerIfMissing({
     id: "simulation-fault-endpoints",
@@ -14264,7 +14361,10 @@ function addMapLayers() {
       "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 4, 2, 8, 2.8],
     },
   });
-  updateLayerVisibility("simulation-fault-endpoints", isFaultSimulationActive());
+  updateLayerVisibility(
+    "simulation-fault-endpoints",
+    isFaultSimulationActive() && !isFaultAreaActive(),
+  );
 
   addLayerIfMissing({
     id: "jma-intensity-fill",
@@ -14681,6 +14781,9 @@ function keepWaveAndStationLayerOrder() {
   moveLayerToTop("jma-intensity-area-boundaries-light");
   moveLayerToTop("jma-eew-warning-boundaries");
   moveLayerToTop("active-fault-lines");
+  moveLayerToTop("simulation-fault-area-fill");
+  moveLayerToTop("simulation-fault-rupture-fill");
+  moveLayerToTop("simulation-fault-area-outline");
   moveLayerToTop("p-wave-fill");
   moveLayerToTop("s-wave-fill");
   moveLayerToTop("simulation-fault-line-casing");
@@ -16400,7 +16503,8 @@ function stopSimulation(options = {}) {
   state.simulationPaused = false;
   state.simulationCompleted = false;
   document.body.classList.remove("simulation-session-active", "simulation-session-complete");
-  els.setupPanel?.setAttribute("aria-label", "震源設定");
+  const returnsToFaultSelection = isFaultSimulationActive();
+  els.setupPanel?.setAttribute("aria-label", returnsToFaultSelection ? "断層設定" : "震源設定");
   state.eewWarningReportNumber = null;
   state.eewWarningFinalReport = false;
   state.eewReportAreaKeySignature = "";
@@ -16574,6 +16678,7 @@ function renderSimulationAtElapsed(elapsedSec) {
     updateSimulationMagnitudeForElapsed(modelElapsedSec);
     const { pRadiusKm, sRadiusKm } = getWaveSurfaceRadiiForElapsed(modelElapsedSec);
     setWaveRadiusData(pRadiusKm, sRadiusKm);
+    updateSimulationFaultRuptureSource(modelElapsedSec);
     setTextContentIfChanged(els.simulationTime, `${elapsedSec.toFixed(1)} 秒`);
     simulationTimeTextCache = `${elapsedSec.toFixed(1)} 秒`;
     if (state.showStationLayer && map?.getSource("shindo-stations") && shindoStationData) {
@@ -16638,6 +16743,7 @@ function tickSimulation(now) {
   if (currentBucket !== simulationRenderBucket) {
     simulationRenderBucket = currentBucket;
 
+    updateSimulationFaultRuptureSource(modelElapsedSec);
     syncVisibleAreaSourceData(modelElapsedSec);
 
     updateSimulationSummary(modelElapsedSec);
@@ -16676,9 +16782,15 @@ function tickSimulation(now) {
     els.simulationStart.textContent = "開始";
     els.simulationPanel.dataset.simulationComplete = "true";
     if (els.simulationPause) {
-      els.simulationPause.textContent = "震源設定へ";
+      const returnsToFaultSelection = isFaultSimulationActive();
+      els.simulationPause.textContent = returnsToFaultSelection ? "断層選択へ" : "震源設定へ";
       els.simulationPause.disabled = false;
-      els.simulationPause.setAttribute("aria-label", "シミュレーションを終了して震源設定に戻る");
+      els.simulationPause.setAttribute(
+        "aria-label",
+        returnsToFaultSelection
+          ? "シミュレーションを終了して断層選択に戻る"
+          : "シミュレーションを終了して震源設定に戻る",
+      );
     }
     if (els.simulationRewind) {
       els.simulationRewind.textContent = "結果";
@@ -17741,6 +17853,18 @@ function refreshSimulationCompletionSchedule() {
 function setWaveRadiusData(pRadiusKm, sRadiusKm) {
   const pSource = map?.getSource("p-wave");
   const sSource = map?.getSource("s-wave");
+  if (isFaultAreaActive()) {
+    waveCanvasRadiusState = { p: 0, s: 0 };
+    scheduleStationCanvasRender();
+    if (pSource && waveRenderRadiusCache.p !== 0) {
+      setGeoJsonSourceData("p-wave", emptyFeatureCollection());
+    }
+    if (sSource && waveRenderRadiusCache.s !== 0) {
+      setGeoJsonSourceData("s-wave", emptyFeatureCollection());
+    }
+    waveRenderRadiusCache = { p: 0, s: 0 };
+    return;
+  }
   const nextP = getRenderableWaveRadius(pRadiusKm);
   const nextS = getRenderableWaveRadius(sRadiusKm);
 
@@ -20999,9 +21123,76 @@ function isFaultSimulationActive() {
   return state.sourceModel === "fault";
 }
 
+function isFaultAreaActive() {
+  return isFaultSimulationActive() && (
+    Boolean(FAULT_MODEL_PRESETS[state.faultModelId])
+    || (state.faultModelId === "active-fault" && selectedActiveFaultPath.length >= 2)
+  );
+}
+
 function getFaultControlNumber(selector, fallback, minimum, maximum) {
   const value = Number(document.querySelector(selector)?.value);
   return Number.isFinite(value) ? clamp(value, minimum, maximum) : fallback;
+}
+
+function getFaultEndpointDirectionLabels(path = getActiveFaultPath()) {
+  if (path.length < 2) {
+    return { start: "始点側", end: "終点側" };
+  }
+  const start = path[0];
+  const end = path[path.length - 1];
+  const meanLatitude = (start[1] + end[1]) / 2;
+  const deltaX = (end[0] - start[0]) * Math.cos(toRadians(meanLatitude));
+  const deltaY = end[1] - start[1];
+  if (Math.abs(deltaX) >= Math.abs(deltaY)) {
+    return deltaX >= 0
+      ? { start: "西側", end: "東側" }
+      : { start: "東側", end: "西側" };
+  }
+  return deltaY >= 0
+    ? { start: "南側", end: "北側" }
+    : { start: "北側", end: "南側" };
+}
+
+function syncFaultRuptureControls() {
+  const originSelect = document.querySelector("#fault-rupture-origin");
+  const directionSelect = document.querySelector("#fault-rupture-direction");
+  const hint = document.querySelector("#fault-rupture-settings-hint");
+  if (!originSelect || !directionSelect) {
+    return;
+  }
+  const labels = getFaultEndpointDirectionLabels();
+  const startOption = originSelect.querySelector('option[value="start"]');
+  const endOption = originSelect.querySelector('option[value="end"]');
+  const forwardOption = directionSelect.querySelector('option[value="forward"]');
+  const reverseOption = directionSelect.querySelector('option[value="reverse"]');
+  startOption?.replaceChildren(`始点（${labels.start}）`);
+  endOption?.replaceChildren(`終点（${labels.end}）`);
+  forwardOption?.replaceChildren(`終点（${labels.end}）へ`);
+  reverseOption?.replaceChildren(`始点（${labels.start}）へ`);
+
+  const origin = originSelect.value || "center";
+  if (origin === "start") {
+    directionSelect.value = "forward";
+    directionSelect.disabled = true;
+    hint?.replaceChildren(`始点は${labels.start}です。破壊は終点（${labels.end}）へ進みます。`);
+    return;
+  }
+  if (origin === "end") {
+    directionSelect.value = "reverse";
+    directionSelect.disabled = true;
+    hint?.replaceChildren(`終点は${labels.end}です。破壊は始点（${labels.start}）へ進みます。`);
+    return;
+  }
+  directionSelect.disabled = false;
+  hint?.replaceChildren(`始点は${labels.start}、終点は${labels.end}です。`);
+}
+
+function getResolvedFaultRuptureSettings() {
+  const origin = document.querySelector("#fault-rupture-origin")?.value || "center";
+  const selectedDirection = document.querySelector("#fault-rupture-direction")?.value || "bilateral";
+  const direction = origin === "start" ? "forward" : origin === "end" ? "reverse" : selectedDirection;
+  return { origin, direction };
 }
 
 function destinationPointKilometers(center, distanceKm, bearingDegrees) {
@@ -21111,8 +21302,7 @@ function getFaultSourceSamples() {
     return [];
   }
   const ruptureSpeed = getFaultControlNumber("#fault-rupture-speed", 2.8, 0.5, 4);
-  const direction = document.querySelector("#fault-rupture-direction")?.value || "bilateral";
-  const origin = document.querySelector("#fault-rupture-origin")?.value || "center";
+  const { origin, direction } = getResolvedFaultRuptureSettings();
   const cacheKey = `${state.faultModelId}|${path.flat().map((value) => Number(value).toFixed(4)).join(",")}|${ruptureSpeed}|${direction}|${origin}`;
   if (faultSourceSampleCache.key === cacheKey) {
     return faultSourceSampleCache.samples;
@@ -21182,8 +21372,7 @@ function getPointAlongFaultPath(path, segmentLengths, targetAlongKm) {
 function getFaultRuptureMarkers(path) {
   const segmentLengths = path.slice(1).map((point, index) => haversineKilometers(path[index], point));
   const totalLengthKm = segmentLengths.reduce((sum, length) => sum + length, 0);
-  const origin = document.querySelector("#fault-rupture-origin")?.value || "center";
-  const direction = document.querySelector("#fault-rupture-direction")?.value || "bilateral";
+  const { origin, direction } = getResolvedFaultRuptureSettings();
   const originAlongKm = origin === "start" ? 0 : origin === "end" ? totalLengthKm : totalLengthKm / 2;
   const originCoordinates = getPointAlongFaultPath(path, segmentLengths, originAlongKm);
   const endCoordinates = [];
@@ -21292,10 +21481,93 @@ function getFaultTravelMetrics(longitude, latitude) {
   });
 }
 
-function buildSimulationFaultGeoJson() {
+function buildFaultAreaGeometry(path, widthKm) {
+  const segmentLengths = path.slice(1).map((point, index) => haversineKilometers(path[index], point));
+  const totalLengthKm = segmentLengths.reduce((sum, length) => sum + length, 0);
+  const cellCount = Math.min(Math.max(Math.ceil(totalLengthKm / 30), 4), 28);
+  const centerPoints = Array.from({ length: cellCount + 1 }, (_, index) => (
+    getPointAlongFaultPath(path, segmentLengths, totalLengthKm * index / cellCount)
+  ));
+  const halfWidthKm = widthKm / 2;
+  const left = [];
+  const right = [];
+  centerPoints.forEach((point, index) => {
+    const previous = centerPoints[Math.max(index - 1, 0)];
+    const next = centerPoints[Math.min(index + 1, centerPoints.length - 1)];
+    const longitudeScale = Math.max(Math.cos(toRadians(point[1])), 0.2);
+    const deltaX = (next[0] - previous[0]) * longitudeScale;
+    const deltaY = next[1] - previous[1];
+    const tangentLength = Math.hypot(deltaX, deltaY) || 1;
+    const normalX = -deltaY / tangentLength;
+    const normalY = deltaX / tangentLength;
+    const longitudeOffset = normalX * halfWidthKm / (111 * longitudeScale);
+    const latitudeOffset = normalY * halfWidthKm / 111;
+    left.push([point[0] + longitudeOffset, point[1] + latitudeOffset]);
+    right.push([point[0] - longitudeOffset, point[1] - latitudeOffset]);
+  });
+  const areaRing = [...left, ...right.slice().reverse(), left[0]];
+  const cells = Array.from({ length: cellCount }, (_, index) => ({
+    ring: [left[index], left[index + 1], right[index + 1], right[index], left[index]],
+    startAlongKm: totalLengthKm * index / cellCount,
+    endAlongKm: totalLengthKm * (index + 1) / cellCount,
+  }));
+  return { areaRing, cells, totalLengthKm };
+}
+
+function getFaultRuptureCellProgress(cell, originAlongKm, direction, ruptureSpeed, elapsedSec) {
+  const canRupture = direction === "bilateral"
+    || (direction === "forward" && cell.endAlongKm >= originAlongKm)
+    || (direction === "reverse" && cell.startAlongKm <= originAlongKm);
+  if (!canRupture || !Number.isFinite(elapsedSec)) {
+    return 0;
+  }
+  const nearestAlongKm = Math.min(Math.max(originAlongKm, cell.startAlongKm), cell.endAlongKm);
+  const farthestDistanceKm = Math.max(
+    Math.abs(cell.startAlongKm - originAlongKm),
+    Math.abs(cell.endAlongKm - originAlongKm),
+  );
+  const startDelaySec = Math.abs(nearestAlongKm - originAlongKm) / ruptureSpeed;
+  const finishDelaySec = farthestDistanceKm / ruptureSpeed;
+  if (elapsedSec < startDelaySec) {
+    return 0;
+  }
+  return Math.min(Math.max((elapsedSec - startDelaySec) / Math.max(finishDelaySec - startDelaySec, 0.2), 0.12), 1);
+}
+
+function buildSimulationFaultGeoJson(elapsedSec = null) {
   const path = getActiveFaultPath();
   if (path.length < 2) {
     return emptyFeatureCollection();
+  }
+  const preset = FAULT_MODEL_PRESETS[state.faultModelId];
+  const usesSelectedActiveFault = state.faultModelId === "active-fault" && selectedActiveFaultPath.length >= 2;
+  if (preset || usesSelectedActiveFault) {
+    const areaPath = usesSelectedActiveFault ? [path[0], path[path.length - 1]] : path;
+    const areaWidthKm = preset?.areaWidthKm ?? ACTIVE_FAULT_AREA_WIDTH_KM;
+    const { areaRing, cells, totalLengthKm } = buildFaultAreaGeometry(areaPath, areaWidthKm);
+    const ruptureSpeed = getFaultControlNumber("#fault-rupture-speed", 2.8, 0.5, 4);
+    const { origin, direction } = getResolvedFaultRuptureSettings();
+    const originAlongKm = origin === "start" ? 0 : origin === "end" ? totalLengthKm : totalLengthKm / 2;
+    const ruptureFeatures = cells.map((cell, index) => ({
+      cell,
+      index,
+      progress: getFaultRuptureCellProgress(cell, originAlongKm, direction, ruptureSpeed, elapsedSec),
+    })).filter((entry) => entry.progress > 0).map(({ cell, index, progress }) => ({
+      type: "Feature",
+      properties: { kind: "fault-rupture", index, progress: Number(progress.toFixed(3)) },
+      geometry: { type: "Polygon", coordinates: [cell.ring] },
+    }));
+    return {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: { kind: "fault-area", model: state.faultModelId },
+          geometry: { type: "Polygon", coordinates: [areaRing] },
+        },
+        ...ruptureFeatures,
+      ],
+    };
   }
   const { endCoordinates } = getFaultRuptureMarkers(path);
   return {
@@ -21315,11 +21587,23 @@ function buildSimulationFaultGeoJson() {
   };
 }
 
+function updateSimulationFaultRuptureSource(elapsedSec) {
+  if (!isFaultAreaActive() || !map?.getSource("simulation-fault-source")) {
+    return;
+  }
+  setGeoJsonSourceData("simulation-fault-source", buildSimulationFaultGeoJson(elapsedSec));
+}
+
 function updateSimulationFaultSource() {
+  syncFaultRuptureControls();
   void syncFaultEpicenterName();
   const epicenterCoordinates = getDisplayedEpicenterCoordinates();
   epicenterMarker?.setLngLat(epicenterCoordinates);
   updateActiveEpicenterPopups(epicenterCoordinates);
+  const showsFaultArea = isFaultAreaActive();
+  if (showsFaultArea) {
+    setWaveRadiusData(0, 0);
+  }
   if (!map?.getSource("simulation-fault-source")) {
     return;
   }
@@ -21327,9 +21611,12 @@ function updateSimulationFaultSource() {
     "simulation-fault-source",
     isFaultSimulationActive() ? buildSimulationFaultGeoJson() : emptyFeatureCollection(),
   );
-  updateLayerVisibility("simulation-fault-line", isFaultSimulationActive());
-  updateLayerVisibility("simulation-fault-line-casing", isFaultSimulationActive());
-  updateLayerVisibility("simulation-fault-endpoints", isFaultSimulationActive());
+  updateLayerVisibility("simulation-fault-line", isFaultSimulationActive() && !showsFaultArea);
+  updateLayerVisibility("simulation-fault-line-casing", isFaultSimulationActive() && !showsFaultArea);
+  updateLayerVisibility("simulation-fault-area-fill", showsFaultArea);
+  updateLayerVisibility("simulation-fault-area-outline", showsFaultArea);
+  updateLayerVisibility("simulation-fault-rupture-fill", showsFaultArea);
+  updateLayerVisibility("simulation-fault-endpoints", isFaultSimulationActive() && !showsFaultArea);
   keepWaveAndStationLayerOrder();
 }
 
