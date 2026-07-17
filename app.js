@@ -4113,10 +4113,114 @@ function setupTabs() {
     const menu = document.createElement("div");
     menu.className = "admin-section-menu settings-admin-menu-list";
     menu.innerHTML = `
+      <section class="admin-overview" aria-labelledby="admin-overview-title">
+        <header>
+          <strong id="admin-overview-title">管理概要</strong>
+          <button type="button" data-admin-overview-refresh>更新</button>
+        </header>
+        <div class="admin-overview-content" aria-live="polite">読み込み中...</div>
+        <p class="admin-overview-status" role="status"></p>
+      </section>
       <button class="settings-menu-row" type="button" data-admin-section="accounts"><span>アカウント情報</span><span aria-hidden="true">›</span></button>
       <button class="settings-menu-row" type="button" data-admin-section="notification"><span>通知</span><span aria-hidden="true">›</span></button>
       <button class="settings-menu-row" type="button" data-admin-section="maintenance"><span>メンテナンス</span><span aria-hidden="true">›</span></button>
     `;
+
+    const formatAdminDateTime = (value) => {
+      const timestamp = Date.parse(String(value || ""));
+      if (!Number.isFinite(timestamp)) {
+        return "-";
+      }
+      return new Intl.DateTimeFormat("ja-JP", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).format(new Date(timestamp));
+    };
+    const getClientVersion = () => {
+      try {
+        const scriptUrl = document.querySelector('script[src*="app.js"]')?.src;
+        return scriptUrl ? new URL(scriptUrl).searchParams.get("v") || "開発版" : "開発版";
+      } catch {
+        return "開発版";
+      }
+    };
+    const renderAdminOverview = (overview) => {
+      const content = menu.querySelector(".admin-overview-content");
+      if (!content) {
+        return;
+      }
+      const metrics = [
+        ["アカウント", overview.accountCount],
+        ["管理者", overview.adminCount],
+        ["セッション", overview.sessionCount],
+        ["投稿総数", overview.postCount],
+        ["24時間の投稿", overview.post24hCount],
+        ["7日間の投稿", overview.post7dCount],
+        ["期限付き投稿", overview.expiringPostCount],
+        ["通知履歴", overview.notificationCount],
+      ];
+      const maintenanceLabel = overview.maintenance ? "メンテナンス中" : "通常稼働";
+      const workerLabel = overview.workerStatus === "ok" ? "正常" : "要確認";
+      const databaseLabel = overview.databaseStatus === "ok" ? "正常" : "要確認";
+      const mediaLabel = overview.mediaStorageStatus === "connected" ? "接続済み" : "未接続";
+      content.innerHTML = `
+        <div class="admin-overview-metrics">
+          ${metrics.map(([label, value]) => `
+            <article><span>${escapeHtml(label)}</span><strong>${Number(value || 0).toLocaleString("ja-JP")}</strong></article>
+          `).join("")}
+        </div>
+        <dl class="admin-overview-system">
+          <div><dt>運用状態</dt><dd data-state="${overview.maintenance ? "warning" : "ok"}">${maintenanceLabel}</dd></div>
+          <div><dt>Worker API</dt><dd data-state="${overview.workerStatus === "ok" ? "ok" : "warning"}">${workerLabel}</dd></div>
+          <div><dt>データベース</dt><dd data-state="${overview.databaseStatus === "ok" ? "ok" : "warning"}">${databaseLabel}</dd></div>
+          <div><dt>メディア保存</dt><dd data-state="${overview.mediaStorageStatus === "connected" ? "ok" : "warning"}">${mediaLabel}</dd></div>
+          <div><dt>アプリバージョン</dt><dd>${escapeHtml(getClientVersion())}</dd></div>
+          <div><dt>最終デプロイ</dt><dd>${escapeHtml(formatAdminDateTime(document.lastModified))}</dd></div>
+          <div><dt>最新通知</dt><dd>${escapeHtml(formatAdminDateTime(overview.latestNotificationAt))}</dd></div>
+          <div><dt>サーバー時刻</dt><dd>${escapeHtml(formatAdminDateTime(overview.serverTime))}</dd></div>
+        </dl>
+        ${overview.maintenanceReason ? `<p class="admin-overview-maintenance-reason">${escapeHtml(overview.maintenanceReason)}</p>` : ""}
+      `;
+    };
+    const refreshAdminOverview = async () => {
+      const refreshButton = menu.querySelector("[data-admin-overview-refresh]");
+      const status = menu.querySelector(".admin-overview-status");
+      if (refreshButton) refreshButton.disabled = true;
+      if (status) status.textContent = "";
+      try {
+        if (communityAccount?.localOnly) {
+          renderAdminOverview({
+            accountCount: 1,
+            adminCount: 1,
+            sessionCount: 1,
+            workerStatus: "local",
+            databaseStatus: "local",
+            mediaStorageStatus: "unavailable",
+            serverTime: new Date().toISOString(),
+          });
+          return;
+        }
+        const workerUrl = await getWorkerBaseUrl();
+        const response = await fetch(`${workerUrl}/admin-overview`, {
+          headers: { Authorization: `Bearer ${communityAccount?.token || ""}` },
+          cache: "no-store",
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(body?.error || "管理概要を読み込めませんでした。");
+        }
+        renderAdminOverview(body.overview || {});
+      } catch (error) {
+        if (status) status.textContent = error?.message || "管理概要を読み込めませんでした。";
+      } finally {
+        if (refreshButton) refreshButton.disabled = false;
+      }
+    };
+    menu.querySelector("[data-admin-overview-refresh]")?.addEventListener("click", refreshAdminOverview);
 
     const createPage = (id, title) => {
       const page = document.createElement("section");
@@ -4154,6 +4258,7 @@ function setupTabs() {
       menu.classList.remove("hidden");
       adminPanel.querySelectorAll("[data-admin-section-page]").forEach((page) => page.classList.add("hidden"));
       adminPanel.scrollTop = 0;
+      void refreshAdminOverview();
     };
     const showPage = (id) => {
       els.settingsAdminPanel?.classList.add("admin-subpage-open");
@@ -22740,12 +22845,34 @@ async function deleteCommunityAccountWithConfirm() {
   }
 }
 
+function formatCommunityAdminDateTime(value) {
+  const timestamp = Date.parse(String(value || ""));
+  if (!Number.isFinite(timestamp)) {
+    return "-";
+  }
+  return new Intl.DateTimeFormat("ja-JP", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(timestamp));
+}
+
 async function loadCommunityAccountList(screen) {
   const list = screen.querySelector("#community-account-list");
   const workerUrl = await getWorkerBaseUrl();
   try {
     if (communityAccount?.localOnly) {
-      list.innerHTML = `<article class="community-account-list-item"><strong>Local 管理者</strong><span>ログイン端末数: 1</span><em>管理者</em></article>`;
+      list.innerHTML = `
+        <article class="community-account-list-item">
+          <strong>Local 管理者</strong><em>管理者</em>
+          <div class="community-account-list-stats">
+            <span>ログイン端末数: 1</span><span>投稿数: 0</span>
+            <span>フォロー: 0</span><span>フォロワー: 0</span>
+          </div>
+        </article>`;
       return;
     }
     const response = await fetch(`${workerUrl}/community-accounts`, {
@@ -22759,8 +22886,18 @@ async function loadCommunityAccountList(screen) {
     list.innerHTML = (body.accounts || []).map((account) => `
       <article class="community-account-list-item">
         <strong>${escapeHtml(account.name)}</strong>
-        <span>ログイン端末数: ${Number(account.sessionCount || 0).toLocaleString("ja-JP")}</span>
         ${account.isAdmin ? "<em>管理者</em>" : ""}
+        <div class="community-account-list-stats">
+          <span>ログイン端末数: ${Number(account.sessionCount || 0).toLocaleString("ja-JP")}</span>
+          <span>投稿数: ${Number(account.postCount || 0).toLocaleString("ja-JP")}</span>
+          <span>フォロー: ${Number(account.followingCount || 0).toLocaleString("ja-JP")}</span>
+          <span>フォロワー: ${Number(account.followerCount || 0).toLocaleString("ja-JP")}</span>
+        </div>
+        <div class="community-account-list-dates">
+          <span>作成: ${escapeHtml(formatCommunityAdminDateTime(account.createdAt))}</span>
+          <span>更新: ${escapeHtml(formatCommunityAdminDateTime(account.updatedAt))}</span>
+          <span>最終ログイン: ${escapeHtml(formatCommunityAdminDateTime(account.lastLoginAt))}</span>
+        </div>
       </article>
     `).join("") || "アカウントがありません。";
   } catch (error) {
