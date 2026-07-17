@@ -20205,7 +20205,7 @@ html[data-resolved-theme="dark"] #setup-panel.simulation-result-report-open .sim
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.035) !important;
 }
 
-/* Hidden finite-fault simulation prototype, opened by triple-tapping the simulation tab. */
+/* Hidden finite-fault simulation prototype, opened by long-pressing the simulation tab. */
 body.fault-simulation-mode #setup-panel .settings-tabs,
 body.fault-simulation-mode #setup-panel [data-settings-section],
 body.fault-simulation-mode #setup-panel .control-separator,
@@ -20213,6 +20213,20 @@ body.fault-simulation-mode #setup-panel .simulation-quick-actions,
 body.fault-simulation-mode #setup-panel > .settings-menu-row,
 body.fault-simulation-mode #setup-panel .sim-panel-scroll > .settings-menu-row {
   display: none !important;
+}
+
+body.fault-simulation-mode #source-simulation-menu-intro {
+  display: none !important;
+}
+
+#source-simulation-menu-intro {
+  display: grid;
+  gap: 8px;
+  padding: 4px 8px 10px;
+}
+
+#source-simulation-menu-intro h3 {
+  margin: 0;
 }
 
 body.fault-simulation-mode #earthquake-tab span:last-child {
@@ -20318,6 +20332,13 @@ body.fault-simulation-mode #earthquake-tab span:last-child {
   line-height: 1.4;
 }
 
+.fault-rupture-settings-hint {
+  margin: -2px 0 0;
+  color: #64748b;
+  font-size: 0.7rem;
+  line-height: 1.45;
+}
+
 .fault-model-profile:empty {
   display: none;
 }
@@ -20415,26 +20436,6 @@ body.fault-simulation-mode #earthquake-tab span:last-child {
   display: none;
 }
 
-.fault-input-with-unit {
-  position: relative;
-}
-
-.fault-input-with-unit input {
-  width: 100%;
-  padding-right: 42px !important;
-}
-
-.fault-input-with-unit > span {
-  position: absolute;
-  top: 50%;
-  right: 12px;
-  color: #64748b;
-  font-size: 0.72rem;
-  font-weight: 700;
-  pointer-events: none;
-  transform: translateY(-50%);
-}
-
 .fault-simulation-note {
   border-left: 3px solid #f59e0b;
   padding: 8px 10px;
@@ -20448,19 +20449,23 @@ body.fault-simulation-mode #earthquake-tab span:last-child {
 .fault-mode-switch-notice {
   position: fixed;
   z-index: 10050;
+  top: calc(72px + env(safe-area-inset-top));
   left: 50%;
-  bottom: calc(84px + env(safe-area-inset-bottom));
   max-width: calc(100vw - 32px);
   border: 1px solid rgba(245, 158, 11, 0.32);
   border-radius: 999px;
-  padding: 10px 16px;
+  padding: 7px 12px;
   background: rgba(15, 23, 42, 0.94);
   color: #f8fafc;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 800;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   opacity: 0;
   pointer-events: none;
-  transform: translate(-50%, 10px);
+  transform: translate(-50%, -8px);
   transition: opacity 180ms ease, transform 180ms ease;
 }
 
@@ -20477,7 +20482,8 @@ html[data-resolved-theme="light"] .fault-simulation-card {
 
 html[data-resolved-theme="light"] .fault-simulation-card h4,
 html[data-resolved-theme="light"] .fault-simulation-card .field,
-html[data-resolved-theme="light"] .fault-model-profile-head strong {
+html[data-resolved-theme="light"] .fault-model-profile-head strong,
+html[data-resolved-theme="light"] .fault-simulation-heading h3 {
   color: #0f172a;
 }
 
@@ -20501,6 +20507,7 @@ html[data-resolved-theme="light"] .active-fault-picker {
 
 html[data-resolved-theme="light"] .active-fault-picker-status,
 html[data-resolved-theme="light"] .fault-source-parameters-hint,
+html[data-resolved-theme="light"] .fault-rupture-settings-hint,
 html[data-resolved-theme="light"] .fault-model-profile-head span,
 html[data-resolved-theme="light"] .fault-model-profile > small,
 html[data-resolved-theme="light"] .fault-model-profile dt {
@@ -20525,6 +20532,25 @@ html[data-resolved-theme="dark"] .fault-simulation-description,
 html[data-resolved-theme="dark"] .fault-simulation-note,
 html[data-resolved-theme="dark"] .fault-simulation-exit-hint {
   color: #cbd5e1;
+}
+
+html[data-resolved-theme="dark"] .fault-simulation-heading h3,
+html[data-resolved-theme="dark"] .fault-simulation-card h4,
+html[data-resolved-theme="dark"] .fault-simulation-card .field {
+  color: #f1f5f9;
+}
+
+html[data-resolved-theme="dark"] .fault-simulation-card input,
+html[data-resolved-theme="dark"] .fault-simulation-card select {
+  border-color: rgba(148, 163, 184, 0.55);
+  background: #111827;
+  color: #f8fafc;
+}
+
+html[data-resolved-theme="dark"] .fault-simulation-card input:focus,
+html[data-resolved-theme="dark"] .fault-simulation-card select:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
 }
 
 html[data-resolved-theme="dark"] .fault-simulation-kicker,
@@ -20561,6 +20587,10 @@ html[data-resolved-theme="dark"] .fault-model-profile a {
 }
 
 html[data-resolved-theme="dark"] .fault-source-parameters-hint {
+  color: #94a3b8;
+}
+
+html[data-resolved-theme="dark"] .fault-rupture-settings-hint {
   color: #94a3b8;
 }
 
