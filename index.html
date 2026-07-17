@@ -48,13 +48,13 @@
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta name="twitter:image" content="https://itachi-kun-itc.github.io/WE-Simulator/og-image.png" />
-    <link rel="manifest" href="./manifest.webmanifest?v=e4c2e415b642" />
-    <link rel="icon" type="image/png" sizes="32x32" href="./favicon.png?v=e4c2e415b642" />
-    <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=e4c2e415b642" />
+    <link rel="manifest" href="./manifest.webmanifest?v=1a1394d14816" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./favicon.png?v=1a1394d14816" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=1a1394d14816" />
     <link rel="preconnect" href="https://we-simulator-push.h6fgpg2zht.workers.dev" crossorigin />
     <link rel="preconnect" href="https://unpkg.com" crossorigin />
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.css" />
-    <link rel="stylesheet" href="./styles.css?v=e4c2e415b642" />
+    <link rel="stylesheet" href="./styles.css?v=1a1394d14816" />
   </head>
   <body>
     <main class="app-shell">
@@ -104,6 +104,114 @@
             </div>
 
             <div class="sim-panel-scroll">
+            <section class="fault-simulation-menu hidden" id="fault-simulation-menu" aria-labelledby="fault-simulation-title">
+              <div class="fault-simulation-heading">
+                <div>
+                  <span class="fault-simulation-kicker">Hidden prototype</span>
+                  <h3 id="fault-simulation-title">断層シミュレーション</h3>
+                </div>
+                <span class="fault-simulation-badge">試作</span>
+              </div>
+              <p class="fault-simulation-description">断層を複数の小震源に分け、破壊の進行、波の到達時間、断層からの距離を使って揺れを計算します。</p>
+
+              <section class="fault-simulation-card" aria-labelledby="fault-geometry-title">
+                <h4 id="fault-geometry-title">断層形状</h4>
+                <label class="field">
+                  <span>モデル</span>
+                  <select id="fault-model-type">
+                    <option value="rectangle" selected>矩形断層</option>
+                    <optgroup label="内閣府 最大クラス想定">
+                      <option value="nankai-trough">南海トラフ巨大地震</option>
+                      <option value="kuril-trench">千島海溝（十勝・根室沖）</option>
+                      <option value="japan-trench">日本海溝（三陸・日高沖）</option>
+                    </optgroup>
+                    <option value="active-fault">活断層から選択</option>
+                  </select>
+                </label>
+                <div class="active-fault-picker hidden" id="active-fault-picker">
+                  <label class="field">
+                    <span>活断層を検索</span>
+                    <input id="active-fault-search" type="search" placeholder="断層名またはセグメントID" autocomplete="off" />
+                  </label>
+                  <label class="field">
+                    <span>活動セグメント</span>
+                    <select id="active-fault-select" disabled>
+                      <option value="">データを読み込み中...</option>
+                    </select>
+                  </label>
+                  <p class="active-fault-picker-status" id="active-fault-picker-status" role="status"></p>
+                </div>
+                <article class="fault-model-profile" id="fault-model-profile" aria-live="polite"></article>
+              </section>
+
+              <section class="fault-simulation-card fault-source-parameters" aria-labelledby="fault-source-parameters-title">
+                <h4 id="fault-source-parameters-title">地震規模・深さ</h4>
+                <div class="field-grid">
+                  <label class="field">
+                    <span>マグニチュード</span>
+                    <select id="fault-magnitude-input" aria-label="断層地震のマグニチュード"></select>
+                  </label>
+                  <label class="field">
+                    <span>震源の深さ</span>
+                    <select id="fault-depth-input" aria-label="断層地震の震源の深さ"></select>
+                  </label>
+                </div>
+                <p class="fault-source-parameters-hint">公式想定モデルを選ぶと代表値を自動入力します。入力後の変更も可能です。</p>
+              </section>
+
+              <section class="fault-simulation-card fault-manual-geometry" aria-labelledby="fault-manual-geometry-title">
+                <h4 id="fault-manual-geometry-title">矩形断層パラメータ</h4>
+                <div class="field-grid">
+                  <label class="field">
+                    <span>長さ</span>
+                    <div class="fault-input-with-unit"><input id="fault-length-input" type="number" min="1" max="520" step="1" value="30" inputmode="decimal" /><span>km</span></div>
+                  </label>
+                  <label class="field">
+                    <span>幅</span>
+                    <div class="fault-input-with-unit"><input id="fault-width-input" type="number" min="1" max="200" step="1" value="15" inputmode="decimal" /><span>km</span></div>
+                  </label>
+                </div>
+                <div class="field-grid">
+                  <label class="field">
+                    <span>走向</span>
+                    <div class="fault-input-with-unit"><input id="fault-strike-input" type="number" min="0" max="359" step="1" value="0" inputmode="numeric" /><span>°</span></div>
+                  </label>
+                  <label class="field">
+                    <span>傾斜角</span>
+                    <div class="fault-input-with-unit"><input id="fault-dip-input" type="number" min="1" max="90" step="1" value="45" inputmode="numeric" /><span>°</span></div>
+                  </label>
+                </div>
+              </section>
+
+              <section class="fault-simulation-card fault-rupture-settings" aria-labelledby="fault-rupture-title">
+                <h4 id="fault-rupture-title">破壊進行</h4>
+                <label class="field">
+                  <span>破壊開始地点</span>
+                  <select id="fault-rupture-origin">
+                    <option value="center" selected>中央</option>
+                    <option value="start">断層の始点側</option>
+                    <option value="end">断層の終点側</option>
+                  </select>
+                </label>
+                <div class="field-grid">
+                  <label class="field">
+                    <span>破壊方向</span>
+                    <select id="fault-rupture-direction">
+                      <option value="bilateral" selected>両方向</option>
+                      <option value="forward">終点側へ</option>
+                      <option value="reverse">始点側へ</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span>破壊速度</span>
+                    <div class="fault-input-with-unit"><input id="fault-rupture-speed" type="number" min="0.5" max="4" step="0.1" value="2.8" inputmode="decimal" /><span>km/s</span></div>
+                  </label>
+                </div>
+              </section>
+
+              <p class="fault-simulation-note">公的想定の震源域を代表断層軸へ簡略化した教育用モデルです。実際の地震予測や避難判断には使用できません。</p>
+              <p class="fault-simulation-exit-hint">下部の「断層」ボタンをもう一度トリプルタップすると通常モードへ戻ります。</p>
+            </section>
             <div class="settings-tabs" role="tablist" aria-label="設定メニュー">
               <button class="settings-tab is-active" type="button" role="tab" aria-selected="true" data-settings-tab="primary">基本</button>
               <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="source">震源</button>
@@ -238,7 +346,7 @@
 
             <div class="wave-readout">
               <div>
-                <dt>震源地</dt>
+                <dt>震央地名</dt>
                 <dd id="simulation-region-name">-</dd>
               </div>
               <div>
@@ -480,6 +588,6 @@
     </script>
     <script src="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.js"></script>
     <script src="./vendor/pmtiles.js?v=0.1.1"></script>
-    <script src="./app.js?v=e4c2e415b642"></script>
+    <script src="./app.js?v=1a1394d14816"></script>
   </body>
 </html>
