@@ -116,10 +116,9 @@
             <section class="fault-simulation-menu hidden" id="fault-simulation-menu" aria-labelledby="fault-simulation-title">
               <div class="fault-simulation-heading">
                 <div>
-                  <span class="fault-simulation-kicker">Hidden prototype</span>
+                  <span class="fault-simulation-kicker">Fault simulation</span>
                   <h3 id="fault-simulation-title">断層シミュレーション</h3>
                 </div>
-                <span class="fault-simulation-badge">試作</span>
               </div>
               <p class="fault-simulation-description">断層を複数の小震源に分け、破壊の進行、波の到達時間、断層からの距離を使って揺れを計算します。</p>
 
@@ -303,6 +302,12 @@
             </label>
             </section>
 
+            <section class="settings-section simulation-scenario-menu-section" id="simulation-scenario-menu-section" aria-label="シナリオ保存・共有">
+              <button class="simulation-scenario-button fault-scenario-open-button" type="button" data-simulation-scenario-open>
+                シナリオを保存・読み込み
+              </button>
+            </section>
+
             <section class="settings-section" aria-labelledby="setup-source-title" data-settings-section="source" hidden>
               <h3 id="setup-source-title">震源パラメータ</h3>
             <label class="field">
@@ -443,10 +448,6 @@
             </div>
             </section>
 
-              <button class="settings-menu-row" id="settings-push-history-button" type="button">
-                <span>通知履歴</span>
-                <span aria-hidden="true">›</span>
-              </button>
             </div>
           </section>
 
@@ -571,11 +572,11 @@
       </button>
       <button class="tab" id="bottom-history-tab" type="button">
         <span class="bottom-tab-icon" aria-hidden="true"></span>
-        <span>過去の地震</span>
+        <span>投稿</span>
       </button>
       <button class="tab" id="bottom-info-tab" type="button">
         <span class="bottom-tab-icon" aria-hidden="true"></span>
-        <span>情報</span>
+        <span>ツール</span>
       </button>
       <button class="tab" id="bottom-learning-tab" type="button">
         <span class="bottom-tab-icon" aria-hidden="true">⌁</span>

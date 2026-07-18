@@ -1,7 +1,7 @@
 const CACHE_NAME = "we-simulator-pwa-v40";
 const PUSH_METADATA_CACHE_NAME = "we-simulator-push-metadata";
 const LOCAL_DEV_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
-const IS_LOCAL_DEV = LOCAL_DEV_HOSTNAMES.has(new URL(self.location.href).hostname);
+const IS_LOCAL_DEV = isLocalDevelopmentHostname(new URL(self.location.href).hostname);
 const NOTIFICATION_HISTORY_DB_NAME = "we-simulator-notification-history";
 const NOTIFICATION_HISTORY_DB_VERSION = 1;
 const NOTIFICATION_HISTORY_STORE_NAME = "notifications";
@@ -15,6 +15,15 @@ const APP_SHELL = [
   "./manifest.webmanifest",
   "./push-config.json",
 ];
+
+function isLocalDevelopmentHostname(hostname) {
+  const normalized = String(hostname || "").trim().toLowerCase();
+  return LOCAL_DEV_HOSTNAMES.has(normalized)
+    || normalized.endsWith(".local")
+    || /^10\./.test(normalized)
+    || /^192\.168\./.test(normalized)
+    || /^172\.(?:1[6-9]|2\d|3[01])\./.test(normalized);
+}
 
 self.addEventListener("install", (event) => {
   if (IS_LOCAL_DEV) {

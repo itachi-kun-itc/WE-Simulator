@@ -9,12 +9,20 @@ const MUNICIPALITY_BOUNDARIES_URL = "./data/japan_municipalities_simplified_50.g
 const JAPAN_PMTILES_LOCAL_URL = "./map/japan.pmtiles";
 const JAPAN_PMTILES_R2_URL = "https://we-simulator-push.h6fgpg2zht.workers.dev/map/japan.pmtiles";
 const LOCAL_DEV_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
-const IS_LOCAL_DEV = LOCAL_DEV_HOSTNAMES.has(window.location.hostname);
+const IS_LOCAL_DEV = isLocalDevelopmentHostname(window.location.hostname);
 const JAPAN_PMTILES_URL = IS_LOCAL_DEV
   ? JAPAN_PMTILES_LOCAL_URL
   : JAPAN_PMTILES_R2_URL;
+
+function isLocalDevelopmentHostname(hostname) {
+  const normalized = String(hostname || "").trim().toLowerCase();
+  return LOCAL_DEV_HOSTNAMES.has(normalized)
+    || normalized.endsWith(".local")
+    || /^10\./.test(normalized)
+    || /^192\.168\./.test(normalized)
+    || /^172\.(?:1[6-9]|2\d|3[01])\./.test(normalized);
+}
 const JAPAN_PMTILES_SOURCE_LAYER_PREF = "pref";
-const JAPAN_PMTILES_SOURCE_LAYER_EQ_AREA = "eq_area";
 const JAPAN_PMTILES_BYTE_SERVING_RECOVERY_KEY = "ws_pmtiles_byte_serving_recovered";
 const JAPAN_PMTILES_BYTE_SERVING_PROBE_TIMEOUT_MS = 1200;
 const GROUND_MODEL_URL = "./data/ground_model.json";
@@ -24,7 +32,6 @@ const FEEDBACK_SHEET_URL =
 const FEEDBACK_ENDPOINT_URL =
   "https://script.google.com/macros/s/AKfycbztrmCH_ukdLtY6xUKNSZQWShY0ziCT_8HMm7QI-qtSFRviETHw_APJJhyV50hSRvMy3A/exec";
 const PUSH_CONFIG_URL = "./push-config.json";
-const EARTHQUAKE_STATISTICS_FALLBACK_URL = "./data/earthquake_statistics.json";
 const USGS_EARTHQUAKE_QUERY_URL = "https://earthquake.usgs.gov/fdsnws/event/1/query";
 const COMMUNITY_MAP_LIGHT_TILE_URLS = [
   "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
@@ -69,6 +76,10 @@ const NOTIFICATION_HISTORY_STORE_NAME = "notifications";
 const NOTIFICATION_HISTORY_LIMIT = 80;
 const NOTIFICATION_HISTORY_RETENTION_DAYS = 30;
 const NOTIFICATION_HISTORY_BACKFILL_KEY = "weather-earthquake-notification-history-backfill-v1";
+const SHARED_SIMULATION_SCENARIO_PARAM = "scenario";
+const SHARED_SIMULATION_SCENARIO_ID_PARAM = "scenarioId";
+const SHARED_SIMULATION_SCENARIO_MODE_PARAM = "scenarioMode";
+const SIMULATION_SCENARIO_OWNER_KEY_STORAGE_KEY = "we-simulator-scenario-owner-key-v1";
 const LEGACY_NOTIFICATION_HISTORY_ITEMS = [
   {
     id: "legacy-2026-07-08-1700-feature-update",
@@ -203,14 +214,16 @@ const FAULT_MODEL_PRESETS = {
       left: [
         [130.45, 31.35], [130.62, 31.95], [131.02, 32.48], [131.62, 32.88],
         [132.35, 33.20], [133.15, 33.48], [133.95, 33.68], [134.65, 33.72],
-        [135.18, 33.55], [135.62, 33.72], [135.92, 34.12], [136.22, 34.52],
+        [134.68, 34.02], [134.76, 34.10], [134.92, 34.15], [135.15, 34.18],
+        [135.38, 34.10], [135.62, 34.18], [135.92, 34.42], [136.22, 34.52],
         [136.72, 34.82], [137.28, 34.98], [137.88, 35.02], [138.38, 35.30],
         [138.72, 35.16],
       ],
       right: [
         [130.42, 30.99], [130.77, 30.83], [131.31, 30.91], [131.91, 31.09],
         [132.61, 31.32], [133.34, 31.56], [134.07, 31.84], [134.72, 32.09],
-        [135.25, 32.33], [135.72, 32.43], [136.11, 32.58], [136.51, 32.79],
+        [134.90, 32.18], [135.08, 32.26], [135.25, 32.33], [135.42, 32.37],
+        [135.58, 32.40], [135.72, 32.43], [136.11, 32.58], [136.51, 32.79],
         [136.97, 33.03], [137.41, 33.29], [137.82, 33.58], [138.23, 33.92],
         [138.49, 34.32],
       ],
@@ -268,7 +281,7 @@ const NANKAI_RUPTURE_CASES = {
     modelType: "紀伊半島以東の半割れモデル",
     segments: ["熊野灘海盆域", "遠州海盆域", "駿河湾域"],
     pathRange: [3, null],
-    areaRange: [8, null],
+    areaRange: [11, null],
   },
   west: {
     label: "半割れケース（西側）",
@@ -279,7 +292,7 @@ const NANKAI_RUPTURE_CASES = {
     modelType: "紀伊半島以西の半割れモデル",
     segments: ["日向灘域", "土佐海盆域", "室戸舟状海盆域", "熊野灘海盆域"],
     pathRange: [0, 4],
-    areaRange: [0, 10],
+    areaRange: [0, 14],
   },
 };
 const LIGHT_DEFERRED_DATA_DELAY_MS = 700;
@@ -524,9 +537,6 @@ function getStoredIntensityColorScheme() {
   }
 }
 
-function observationsFromNames(stationNames, intensityValue) {
-  return stationNames.map((stationName) => ({ stationName, intensityValue }));
-}
 
 const state = {
   latitude: 35.681,
@@ -741,6 +751,8 @@ let municipalityBoundaryVisible = false;
 let startupLocationResolved = false;
 let startupOverlayReleasePending = false;
 let startupBackgroundDataScheduled = false;
+let startupFaultModeHintShown = false;
+let startupFaultModeHintTimer = 0;
 let maintenanceStatusReady = false;
 let simulationStartedAt;
 let simulationPausedAt;
@@ -757,7 +769,11 @@ let maxStationListItemCache = new Map();
 let maxStationListEmptyItem = null;
 let simulationMaxAreaListSignature = "";
 let simulationResultReportSnapshot = null;
+let simulationComparisonBaseline = null;
+let simulationScenarioRecordCache = new Map();
 let simulationResultSummaryMount = null;
+let simulationFaultScenarioApplyHandler = null;
+let simulationModeScenarioApplyHandler = null;
 let simulationSeeking = false;
 let simulationTimeTextCache = "";
 let eewForecastPanelRenderSignature = "";
@@ -832,24 +848,6 @@ let postMunicipalityDataScheduled = false;
 const sourceDataRefs = new Map();
 let pmtilesProtocolRegistered = false;
 let japanPmtilesProtocolUrl = "";
-const SOURCE_LINKS = [
-  { label: "気象庁", href: "https://www.jma.go.jp/" },
-  { label: "気象庁 気象警報・注意報", href: "https://www.jma.go.jp/jma/kishou/know/bosai/warning.html" },
-  { label: "気象庁 気象警報・注意報の種類", href: "https://www.jma.go.jp/jma/kishou/know/bosai/warning_kind.html" },
-  { label: "気象庁 津波警報・注意報", href: "https://www.jma.go.jp/jma/kishou/know/jishin/joho/tsunamiinfo.html" },
-  { label: "気象予報士試験 試験問題と解答例", href: "https://www.jmbsc.or.jp/jp/examination/examination-7.html" },
-  { label: "気象庁 予報区等GISデータ", href: "https://www.data.jma.go.jp/developer/gis.html" },
-  { label: "気象庁 震度観測点", href: "https://www.jma.go.jp/jma/kishou/know/jishin/intens-st/index.html" },
-  { label: "国土数値情報", href: "https://nlftp.mlit.go.jp/ksj/" },
-  { label: "J-SHIS", href: "https://www.j-shis.bosai.go.jp/" },
-  { label: "Natural Earth", href: "https://www.naturalearthdata.com/" },
-  { label: "PB2002 Plate Boundaries", href: "https://github.com/fraxen/tectonicplates" },
-  { label: "MeteoScope", href: "https://github.com/wvdtc7bjwn-bit/MeteoScope" },
-  { label: "S-net", href: "https://www.seafloor.bosai.go.jp/outline/" },
-  { label: "MapLibre GL JS", href: "https://maplibre.org/maplibre-gl-js/docs/" },
-  { label: "OpenStreetMap", href: "https://www.openstreetmap.org/copyright" },
-  { label: "CARTO", href: "https://carto.com/attributions" },
-];
 const SOURCE_UPDATED_AT = "2026 07 13";
 const SOURCE_SECTIONS = [
   {
@@ -959,6 +957,7 @@ renderIntensityColorSchemeOptions();
 setStartupInteractionLocked(true);
 setInitialSimulationStartLoadingState();
 bindSimulationControls();
+scheduleStartupFaultModeHint();
 applyIntensityColorScheme(state.intensityColorScheme, { refreshLayers: false });
 applyAppearanceTheme();
 window.matchMedia?.("(prefers-color-scheme: dark)")?.addEventListener?.("change", () => {
@@ -978,6 +977,8 @@ bootstrapApplication();
 
 async function bootstrapApplication() {
   await disableLocalDevelopmentServiceWorker();
+  await loadSimulationComparisonBaseline();
+  await restoreSharedSimulationScenarioFromUrl();
   setupSystemPermissionSync();
   restoreCurrentLocationPreference();
   recoverPmtilesByteServingIfNeeded().catch((error) => {
@@ -1411,6 +1412,7 @@ function setupTabs() {
     const speechButton = quickHost.querySelector(".sheet-speech-toggle");
     speechButton?.querySelector("span")?.replaceChildren("");
     speechButton?.querySelector("strong")?.replaceChildren("読み上げ");
+    ensureSimulationScenarioButton();
 
     const scrollHost = els.setupPanel.querySelector(".sim-panel-scroll") ?? els.setupPanel;
     let host = els.setupPanel.querySelector(".simulation-start-sheet-host");
@@ -1807,7 +1809,9 @@ function setupTabs() {
     ensureInfoToolShell();
     document.body.classList.remove("tool-source-search-mode", "tool-station-search-mode", "tool-weather-quiz-mode");
     setHistoryMapModeActive(false);
-    els.historyFullPanel?.classList.add("hidden");
+    hidePageAndResetScroll(els.historyFullPanel);
+    resetPageScrollPosition(els.infoFullPanel?.querySelector("#tool-station-page"));
+    resetPageScrollPosition(els.infoFullPanel?.querySelector("#tool-weather-quiz-page"));
     els.infoFullPanel?.querySelector("#tool-home-page")?.classList.remove("hidden");
     els.infoFullPanel?.querySelector("#tool-station-page")?.classList.add("hidden");
     els.infoFullPanel?.querySelector("#tool-weather-quiz-page")?.classList.add("hidden");
@@ -1834,8 +1838,8 @@ function setupTabs() {
     closeEarthquakePresetPicker({ restoreTab: false, skipFocus: true });
     closeSettingsMenuSheet();
     setSetupMenuOpen(false);
-    els.infoFullPanel?.classList.add("hidden");
-    els.learningFullPanel?.classList.add("hidden");
+    hidePageAndResetScroll(els.infoFullPanel);
+    hidePageAndResetScroll(els.learningFullPanel);
     const panel = ensureHistoryFullPanel();
     ensureToolPageHeader(panel, "震源地検索", showInfoToolHome);
     panel?.classList.remove("hidden");
@@ -1862,16 +1866,16 @@ function setupTabs() {
     closeSettingsMenuSheet();
     setSetupMenuOpen(false);
     setHistoryMapModeActive(false);
-    els.historyFullPanel?.classList.add("hidden");
-    els.learningFullPanel?.classList.add("hidden");
+    hidePageAndResetScroll(els.historyFullPanel);
+    hidePageAndResetScroll(els.learningFullPanel);
     document.body.classList.remove("tool-source-search-mode");
     document.body.classList.remove("tool-weather-quiz-mode");
     document.body.classList.add("tool-station-search-mode");
     const stationPage = els.infoFullPanel?.querySelector("#tool-station-page");
     ensureInfoStationPanel();
     ensureToolPageHeader(stationPage, "観測点検索", showInfoToolHome);
-    els.infoFullPanel?.querySelector("#tool-home-page")?.classList.add("hidden");
-    els.infoFullPanel?.querySelector("#tool-weather-quiz-page")?.classList.add("hidden");
+    hidePageAndResetScroll(els.infoFullPanel?.querySelector("#tool-home-page"));
+    hidePageAndResetScroll(els.infoFullPanel?.querySelector("#tool-weather-quiz-page"));
     stationPage?.classList.remove("hidden");
     els.infoFullPanel?.classList.remove("hidden");
     renderInfoStationList();
@@ -2985,14 +2989,14 @@ function setupTabs() {
     closeSettingsMenuSheet();
     setSetupMenuOpen(false);
     setHistoryMapModeActive(false);
-    els.historyFullPanel?.classList.add("hidden");
-    els.learningFullPanel?.classList.add("hidden");
+    hidePageAndResetScroll(els.historyFullPanel);
+    hidePageAndResetScroll(els.learningFullPanel);
     document.body.classList.remove("tool-source-search-mode", "tool-station-search-mode");
     document.body.classList.add("tool-weather-quiz-mode");
     const page = ensureInfoWeatherQuizPanel();
     ensureToolPageHeader(page, "気象予報士試験 対策問題集", handleWeatherQuizPageBack);
-    els.infoFullPanel?.querySelector("#tool-home-page")?.classList.add("hidden");
-    els.infoFullPanel?.querySelector("#tool-station-page")?.classList.add("hidden");
+    hidePageAndResetScroll(els.infoFullPanel?.querySelector("#tool-home-page"));
+    hidePageAndResetScroll(els.infoFullPanel?.querySelector("#tool-station-page"));
     page?.classList.remove("hidden");
     page?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
     els.infoFullPanel?.classList.remove("hidden");
@@ -3193,6 +3197,8 @@ function setupTabs() {
 
     const selectCategory = (category) => {
       const showWeather = category === "weather";
+      resetPageScrollPosition(content);
+      resetPageScrollPosition(els.learningFullPanel);
       earthquakePanel.classList.toggle("hidden", showWeather);
       weatherPanel.classList.toggle("hidden", !showWeather);
       categorySwitch.querySelectorAll("[data-learning-category]").forEach((button) => {
@@ -3201,7 +3207,6 @@ function setupTabs() {
         button.tabIndex = selected ? 0 : -1;
       });
       content.dataset.learningCategory = category;
-      els.learningFullPanel?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
     };
 
     categorySwitch.addEventListener("click", (event) => {
@@ -3258,6 +3263,31 @@ function setupTabs() {
     `;
     content.append(section);
 
+    const liquefactionSection = document.createElement("section");
+    liquefactionSection.className = "learning-card learning-disaster-topic-card learning-liquefaction-card";
+    liquefactionSection.innerHTML = `
+      <span class="learning-topic-label">地震による地盤災害</span>
+      <h3>液状化について</h3>
+      <p>地下水位が高く、ゆるく堆積した砂地盤に強い揺れが加わると、砂の粒同士の支えが失われ、地盤が一時的に液体のようになることがあります。</p>
+      <div class="learning-topic-grid">
+        <article>
+          <strong>起こりやすい場所</strong>
+          <p>埋立地、干拓地、昔の川筋を埋めた土地、砂丘や砂州の間の低地など。条件がそろえば内陸でも発生します。</p>
+        </article>
+        <article>
+          <strong>起こること</strong>
+          <p>水や砂の噴き出し、建物の沈下・傾斜、道路の段差、マンホールや埋設管の浮き上がりなどが生じます。</p>
+        </article>
+        <article>
+          <strong>地震のあとは</strong>
+          <p>傾いた建物や電柱、地面の亀裂、浮き上がった設備に近づかず、ガス漏れや断水にも注意してください。</p>
+        </article>
+      </div>
+      <p class="learning-safety-note">同じ震度でも、地盤や地下水の状態によって液状化の起こりやすさは異なります。自治体の液状化ハザードマップも確認してください。</p>
+      <a href="https://www.jishin.go.jp/resource/terms/tm_liquefaction/" target="_blank" rel="noopener noreferrer">地震本部「液状化現象」</a>
+    `;
+    content.append(liquefactionSection);
+
     const weatherSection = document.createElement("section");
     weatherSection.className = "learning-weather-section";
     weatherSection.innerHTML = `
@@ -3266,6 +3296,28 @@ function setupTabs() {
         <h2>防災気象情報の見方</h2>
         <p>2026年5月29日からの気象庁の区分に合わせ、危険度と行動を短く整理しています。</p>
       </div>
+
+      <section class="learning-card learning-disaster-topic-card learning-linear-rainband-card">
+        <span class="learning-topic-label">集中豪雨をもたらす現象</span>
+        <h3>線状降水帯</h3>
+        <p>発達した積乱雲が次々と列をなし、数時間にわたってほぼ同じ場所を通過・停滞することで、非常に激しい雨が続く現象です。災害の危険度が急激に高まることがあります。</p>
+        <div class="learning-topic-grid">
+          <article>
+            <strong>発生情報</strong>
+            <p>線状降水帯による非常に激しい雨が実際に続き、災害発生の危険度が急激に高まっている状況を知らせます。</p>
+          </article>
+          <article>
+            <strong>直前・半日前予測</strong>
+            <p>発生する可能性を事前に知らせます。予測が出ていなくても、大雨災害が起こらないとは限りません。</p>
+          </article>
+          <article>
+            <strong>取るべき行動</strong>
+            <p>自治体の避難情報、警報、キキクル、河川水位を確認し、崖や川の近くなど危険な場所では早めに安全を確保します。</p>
+          </article>
+        </div>
+        <p class="learning-safety-note">「線状降水帯」という言葉が出るまで待たず、警戒レベルや周囲の状況に応じて避難してください。</p>
+        <a href="https://www.jma.go.jp/jma/kishou/know/bosai/kishojoho_senjoukousuitai.html" target="_blank" rel="noopener noreferrer">気象庁「線状降水帯に関する情報」</a>
+      </section>
 
       <section class="learning-card learning-tsunami-card">
         <h3>津波情報</h3>
@@ -3547,9 +3599,7 @@ function setupTabs() {
       return;
     }
     document.querySelectorAll(selectors.join(",")).forEach((element) => {
-      element.scrollTop = 0;
-      element.scrollLeft = 0;
-      element.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+      resetPageScrollPosition(element);
     });
   };
 
@@ -3648,21 +3698,11 @@ function setupTabs() {
     setupPanel?.querySelector(".sim-panel-scroll")?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
     updateSimulationAvailability();
 
-    const existingNotice = document.querySelector(".fault-mode-switch-notice");
-    existingNotice?.remove();
-    const notice = document.createElement("div");
-    notice.className = "fault-mode-switch-notice";
-    notice.setAttribute("role", "status");
-    notice.textContent = enabled
+    showFaultModeSwitchNotice(enabled
       ? "断層メニューに切り替わりました"
-      : "シミュレーションメニューに切り替わりました";
-    document.body.append(notice);
-    requestAnimationFrame(() => notice.classList.add("is-visible"));
-    window.setTimeout(() => {
-      notice.classList.remove("is-visible");
-      window.setTimeout(() => notice.remove(), 220);
-    }, 1200);
+      : "シミュレーションメニューに切り替わりました");
   };
+  simulationModeScenarioApplyHandler = setFaultSimulationMenuActive;
 
   const simulationTab = document.querySelector("#earthquake-tab");
   let simulationTabLongPressTimer = 0;
@@ -3763,16 +3803,16 @@ function setupTabs() {
   const closeSettingsMenuSheet = () => {
     closeSettingsDetailPanel({ immediate: true });
     closeCommunityAccountScreen();
-    els.settingsMenuSheet?.classList.add("hidden");
+    hidePageAndResetScroll(els.settingsMenuSheet);
     showMaintenanceBlockingScreen();
   };
 
   const closeFullPanels = () => {
     setHistoryMapModeActive(false);
     document.body.classList.remove("tool-source-search-mode", "tool-station-search-mode", "tool-weather-quiz-mode");
-    els.historyFullPanel?.classList.add("hidden");
-    els.infoFullPanel?.classList.add("hidden");
-    els.learningFullPanel?.classList.add("hidden");
+    hidePageAndResetScroll(els.historyFullPanel);
+    hidePageAndResetScroll(els.infoFullPanel);
+    hidePageAndResetScroll(els.learningFullPanel);
   };
 
   const openHistoryFullPanel = () => {
@@ -3780,8 +3820,8 @@ function setupTabs() {
     closeSettingsMenuSheet();
     setSetupMenuOpen(false);
     setSheetState(els.setupPanel, "collapsed");
-    els.infoFullPanel?.classList.add("hidden");
-    els.learningFullPanel?.classList.add("hidden");
+    hidePageAndResetScroll(els.infoFullPanel);
+    hidePageAndResetScroll(els.learningFullPanel);
     ensureHistoryFullPanel()?.classList.remove("hidden");
     setHistoryMapModeActive(true);
     renderPastEarthquakeStatsPanel();
@@ -3803,7 +3843,7 @@ function setupTabs() {
     closeEarthquakePresetPicker({ restoreTab: false, skipFocus: true });
     closeSettingsMenuSheet();
     setSetupMenuOpen(false);
-    els.learningFullPanel?.classList.add("hidden");
+    hidePageAndResetScroll(els.learningFullPanel);
     showInfoToolHome();
   };
 
@@ -3812,8 +3852,8 @@ function setupTabs() {
     closeSettingsMenuSheet();
     setSetupMenuOpen(false);
     setHistoryMapModeActive(false);
-    els.historyFullPanel?.classList.add("hidden");
-    els.infoFullPanel?.classList.add("hidden");
+    hidePageAndResetScroll(els.historyFullPanel);
+    hidePageAndResetScroll(els.infoFullPanel);
     ensureLearningPanel();
     els.learningFullPanel?.classList.remove("hidden");
   };
@@ -3932,7 +3972,7 @@ function setupTabs() {
       [els.settingsPushHistoryButton, els.settingsPushHistoryPanel],
     ].forEach(([button, panel]) => {
       if (panel && panel !== exceptPanel) {
-        panel.classList.add("hidden");
+        hidePageAndResetScroll(panel);
       }
       if (button && panel !== exceptPanel) {
         button.setAttribute("aria-expanded", "false");
@@ -4310,15 +4350,20 @@ function setupTabs() {
     const showMenu = () => {
       els.settingsAdminPanel?.classList.remove("admin-subpage-open");
       menu.classList.remove("hidden");
-      adminPanel.querySelectorAll("[data-admin-section-page]").forEach((page) => page.classList.add("hidden"));
+      adminPanel.querySelectorAll("[data-admin-section-page]").forEach(hidePageAndResetScroll);
       adminPanel.scrollTop = 0;
       void refreshAdminOverview();
     };
     const showPage = (id) => {
       els.settingsAdminPanel?.classList.add("admin-subpage-open");
-      menu.classList.add("hidden");
+      hidePageAndResetScroll(menu);
       adminPanel.querySelectorAll("[data-admin-section-page]").forEach((page) => {
-        page.classList.toggle("hidden", page.dataset.adminSectionPage !== id);
+        const willHide = page.dataset.adminSectionPage !== id;
+        if (willHide) {
+          hidePageAndResetScroll(page);
+        } else {
+          page.classList.remove("hidden");
+        }
       });
       adminPanel.scrollTop = 0;
     };
@@ -4358,7 +4403,7 @@ function setupTabs() {
     if (!panel) {
       return;
     }
-    panel.classList.add("hidden");
+    hidePageAndResetScroll(panel);
     panel.classList.remove("settings-detail-panel", "is-active", "is-leaving");
   };
 
@@ -4367,6 +4412,7 @@ function setupTabs() {
     if (!panel) {
       return;
     }
+    resetPageScrollPosition(panel);
     window.clearTimeout(settingsDetailCloseTimer);
     activeSettingsDetailPanel = null;
     els.settingsMenuSheet?.classList.remove("settings-detail-open");
@@ -4454,8 +4500,8 @@ function setupTabs() {
   });
 
   setSettingsRowLabels();
-  document.querySelector("#bottom-history-tab span:last-child")?.replaceChildren("地震統計");
-  document.querySelector("#bottom-info-tab span:last-child")?.replaceChildren("情報");
+  document.querySelector("#bottom-history-tab span:last-child")?.replaceChildren("投稿");
+  document.querySelector("#bottom-info-tab span:last-child")?.replaceChildren("ツール");
   document.querySelector("#bottom-learning-tab span:last-child")?.replaceChildren("学習");
   document.querySelector("#bottom-settings-tab span:last-child")?.replaceChildren("設定");
   document.querySelector("#earthquake-tab span:last-child")?.replaceChildren("シミュレーション");
@@ -5051,47 +5097,6 @@ function ensurePresetPickerCloseButton() {
   return button;
 }
 
-function setupPresetToolbar() {
-  const head = document.querySelector(".preset-picker-head");
-  if (!head || head.dataset.toolbarReady === "true") {
-    return;
-  }
-
-  head.dataset.toolbarReady = "true";
-  head.innerHTML = `
-    <input class="preset-filter-input" id="preset-filter-input" type="search" inputmode="search" autocomplete="off" placeholder="検索" aria-label="プリセット地震を検索" />
-    <select class="preset-sort-select" id="preset-sort-select" aria-label="並べ替え">
-      <option value="">新しい順</option>
-      <option value="date:asc">古い順</option>
-      <option value="intensity:desc">震度が大きい順</option>
-      <option value="magnitude:desc">Mが大きい順</option>
-      <option value="depth:asc">浅い順</option>
-      <option value="epicenter:asc">北から順</option>
-    </select>
-  `;
-
-  head.querySelector('[data-preset-sort="date:asc"]')?.replaceChildren("発生日時");
-  head.querySelector('[data-preset-sort="magnitude:asc"]')?.replaceChildren("マグニチュード");
-  head.querySelector('[data-preset-sort="depth:asc"]')?.replaceChildren("深さ");
-
-  const filterInput = head.querySelector("#preset-filter-input");
-  const sortSelect = head.querySelector("#preset-sort-select");
-  if (filterInput) {
-    filterInput.value = state.presetFilterText;
-  }
-  filterInput?.addEventListener("input", () => {
-    state.presetFilterText = filterInput.value;
-    renderEarthquakePresetPicker();
-    resetPresetPickerScroll();
-  });
-  sortSelect?.addEventListener("change", () => {
-    const [key, direction] = String(sortSelect.value || "").split(":");
-    state.presetSortKey = key || null;
-    state.presetSortDirection = direction || "desc";
-    renderEarthquakePresetPicker();
-    resetPresetPickerScroll();
-  });
-}
 
 function setupPresetToolbar() {
   const head = document.querySelector(".preset-picker-head");
@@ -6478,6 +6483,38 @@ function prefetchEarthquakePresetDetail(presetId) {
     .catch((error) => console.warn("Earthquake preset prefetch failed", error));
 }
 
+function showFaultModeSwitchNotice(message, options = {}) {
+  document.querySelector(".fault-mode-switch-notice")?.remove();
+  const notice = document.createElement("div");
+  notice.className = "fault-mode-switch-notice";
+  notice.classList.toggle("is-startup-hint", Boolean(options.startupHint));
+  notice.setAttribute("role", "status");
+  notice.textContent = message;
+  document.body.append(notice);
+  requestAnimationFrame(() => notice.classList.add("is-visible"));
+  window.setTimeout(() => {
+    notice.classList.remove("is-visible");
+    window.setTimeout(() => notice.remove(), 220);
+  }, Number(options.durationMs) || 1200);
+}
+
+function scheduleStartupFaultModeHint() {
+  if (startupFaultModeHintShown || startupFaultModeHintTimer) {
+    return;
+  }
+  startupFaultModeHintTimer = window.setTimeout(() => {
+    startupFaultModeHintTimer = 0;
+    startupFaultModeHintShown = true;
+    const simulationTab = document.querySelector("#earthquake-tab");
+    simulationTab?.classList.add("show-long-press-hint");
+    showFaultModeSwitchNotice(
+      "下の「シミュレーション」を長押し → 断層モード",
+      { durationMs: 2400, startupHint: true },
+    );
+    window.setTimeout(() => simulationTab?.classList.remove("show-long-press-hint"), 2400);
+  }, 700);
+}
+
 function bindSimulationControls() {
   els.settingsMenuButton?.addEventListener("click", () => toggleSetupMenu());
 
@@ -6807,6 +6844,45 @@ function bindSimulationControls() {
       updateIntensityLayer();
     });
   });
+  simulationFaultScenarioApplyHandler = async (fault = {}) => {
+    if (faultModelSelect) {
+      faultModelSelect.value = fault.modelId || "rectangle";
+    }
+    if (faultNankaiCaseSelect) {
+      faultNankaiCaseSelect.value = fault.nankaiCase || "full";
+    }
+    syncFaultModelPreset();
+    if (fault.modelId === "active-fault") {
+      state.activeFaultSegmentId = fault.activeFaultSegmentId || "";
+      await ensureActiveFaultPickerData();
+      if (state.activeFaultSegmentId) {
+        await applyActiveFaultSelection(state.activeFaultSegmentId);
+      }
+    }
+    [
+      [faultLengthInput, fault.lengthKm],
+      [faultWidthInput, fault.widthKm],
+      [faultStrikeInput, fault.strikeDegrees],
+      [faultDipInput, fault.dipDegrees],
+      [faultRuptureSpeedInput, fault.ruptureSpeed],
+      [document.querySelector("#fault-rupture-origin"), fault.ruptureOrigin],
+      [document.querySelector("#fault-rupture-direction"), fault.ruptureDirection],
+    ].forEach(([control, value]) => {
+      if (control && value != null && [...control.options].some((option) => option.value === String(value))) {
+        control.value = String(value);
+      }
+    });
+    if (fault.magnitude != null && faultMagnitudeInput) {
+      faultMagnitudeInput.value = Number(fault.magnitude).toFixed(1);
+    }
+    if (fault.depthKm != null && faultDepthInput) {
+      faultDepthInput.value = String(Number(fault.depthKm));
+    }
+    applyFaultSourceParameterInputs();
+    invalidateIntensityEstimateCache();
+    updateSimulationFaultSource();
+    updateIntensityLayer();
+  };
   syncFaultModelPreset();
 
   document.addEventListener("click", (event) => {
@@ -6969,6 +7045,25 @@ function bindSimulationControls() {
   updateSettingsMenuButtonVisibility();
 }
 
+function resetPageScrollPosition(page) {
+  if (!(page instanceof Element)) {
+    return;
+  }
+  [page, ...page.querySelectorAll("*")].forEach((element) => {
+    if (element.scrollTop !== 0) {
+      element.scrollTop = 0;
+    }
+    if (element.scrollLeft !== 0) {
+      element.scrollLeft = 0;
+    }
+  });
+}
+
+function hidePageAndResetScroll(page) {
+  resetPageScrollPosition(page);
+  page?.classList.add("hidden");
+}
+
 function activateSettingsTab(tabId) {
   const nextTabId = String(tabId || "primary");
   document.querySelectorAll("[data-settings-tab]").forEach((button) => {
@@ -6977,7 +7072,11 @@ function activateSettingsTab(tabId) {
     button.setAttribute("aria-selected", selected ? "true" : "false");
   });
   document.querySelectorAll("[data-settings-section]").forEach((section) => {
-    section.hidden = section.dataset.settingsSection !== nextTabId;
+    const willHide = section.dataset.settingsSection !== nextTabId;
+    if (willHide && !section.hidden) {
+      resetPageScrollPosition(section);
+    }
+    section.hidden = willHide;
   });
 }
 
@@ -7004,6 +7103,8 @@ function ensureSimulationResultReportPage() {
     </header>
     <div class="simulation-result-report-content"></div>
     <div class="simulation-result-report-actions">
+      <button class="simulation-comparison-save-button" type="button" data-simulation-comparison-save>Aとして保存</button>
+      <button class="simulation-comparison-show-button" type="button" data-simulation-comparison-show disabled>Aと今回を比較</button>
       <button type="button" data-simulation-result-pdf>PDF出力</button>
       <button type="button" data-simulation-result-csv>CSV出力</button>
     </div>
@@ -7017,17 +7118,32 @@ function ensureSimulationResultReportPage() {
   page.querySelector("[data-simulation-result-csv]")?.addEventListener("click", () => {
     downloadSimulationResultCsv();
   });
+  page.querySelector("[data-simulation-comparison-save]")?.addEventListener("click", () => {
+    saveCurrentSimulationAsComparisonBaseline();
+  });
+  page.querySelector("[data-simulation-comparison-show]")?.addEventListener("click", () => {
+    showSimulationComparison();
+  });
   scrollHost.append(page);
   return page;
 }
 
 function captureSimulationResultReport() {
+  const maxIntensity = els.simulationMaxIntensity?.textContent?.trim() || "-";
+  const maxIntensityClass = INTENSITY_CLASSES.find((candidate) => (
+    candidate.label === maxIntensity || candidate.shortLabel === maxIntensity
+  ));
+  const faultPreset = isFaultSimulationActive() ? getSelectedFaultModelPreset() : null;
+  const earthquakePreset = getSelectedPreset();
   return {
     epicenter: els.simulationRegionName?.textContent?.trim() || "-",
     magnitude: els.simulationMagnitude?.textContent?.trim() || "-",
     depth: els.simulationDepth?.textContent?.trim() || "-",
     originTime: els.simulationOriginTime?.textContent?.trim() || "-",
-    maxIntensity: els.simulationMaxIntensity?.textContent?.trim() || "-",
+    maxIntensity,
+    maxIntensityRank: maxIntensityClass?.rank ?? 0,
+    modelName: faultPreset?.name || earthquakePreset?.name || (isFaultSimulationActive() ? "断層モデル" : "通常シミュレーション"),
+    sourceType: isFaultSimulationActive() ? "断層" : "点震源",
     magnitudeHistory: simulationMagnitudeReports.map((report) => ({
       reportNumber: report.reportNumber,
       elapsedSec: report.elapsedSec,
@@ -7066,6 +7182,649 @@ function buildSimulationResultStationGroups() {
     .map((group) => ({ ...group, names: [...group.names].sort((a, b) => a.localeCompare(b, "ja")) }));
 }
 
+async function loadSimulationComparisonBaseline() {
+  try {
+    const body = await requestSimulationScenarioApi("/simulation-comparison");
+    simulationComparisonBaseline = body.comparison?.snapshot
+      ? cloneSimulationResultSnapshot(body.comparison.snapshot)
+      : null;
+  } catch (error) {
+    console.warn("Simulation comparison baseline could not be loaded", error);
+    simulationComparisonBaseline = null;
+  }
+  updateSimulationComparisonActionState();
+}
+
+async function persistSimulationComparisonBaseline(snapshot) {
+  return requestSimulationScenarioApi("/simulation-comparison", {
+    method: "PUT",
+    body: JSON.stringify({
+      snapshot: cloneSimulationResultSnapshot(snapshot),
+    }),
+  });
+}
+
+async function deleteSimulationComparisonBaseline() {
+  return requestSimulationScenarioApi("/simulation-comparison", { method: "DELETE" });
+}
+
+function cloneSimulationResultSnapshot(snapshot) {
+  return {
+    ...snapshot,
+    magnitudeHistory: (snapshot.magnitudeHistory || []).map((report) => ({ ...report })),
+    stationGroups: (snapshot.stationGroups || []).map((group) => ({
+      ...group,
+      names: [...(group.names || [])],
+    })),
+  };
+}
+
+async function saveCurrentSimulationAsComparisonBaseline() {
+  if (!state.simulationCompleted) {
+    return;
+  }
+  const snapshot = simulationResultReportSnapshot || captureSimulationResultReport();
+  const button = document.querySelector("[data-simulation-comparison-save]");
+  if (button) {
+    button.disabled = true;
+    button.textContent = "保存中...";
+  }
+  try {
+    await persistSimulationComparisonBaseline(snapshot);
+    simulationComparisonBaseline = cloneSimulationResultSnapshot(snapshot);
+    if (button) {
+      button.textContent = "Aに保存しました";
+    }
+    window.setTimeout(() => stopSimulation({ expandSetup: true }), 360);
+  } catch (error) {
+    console.warn("Simulation comparison baseline could not be saved", error);
+    if (button) {
+      button.disabled = false;
+      button.textContent = "保存できませんでした";
+    }
+  }
+}
+
+function getSimulationComparisonCounts(snapshot) {
+  const byRank = new Map((snapshot.stationGroups || []).map((group) => [
+    Number(group.rank) || 0,
+    group.names?.length || 0,
+  ]));
+  const sumFromRank = (minimumRank) => [...byRank.entries()]
+    .filter(([rank]) => rank >= minimumRank)
+    .reduce((total, [, count]) => total + count, 0);
+  return {
+    byRank,
+    total: sumFromRank(1),
+    fiveLowerOrMore: sumFromRank(5),
+    sixLowerOrMore: sumFromRank(7),
+  };
+}
+
+function getSimulationComparisonNumber(value) {
+  const match = String(value ?? "").replace(/,/gu, "").match(/-?\d+(?:\.\d+)?/u);
+  return match ? Number(match[0]) : NaN;
+}
+
+function formatSimulationComparisonDelta(value, suffix = "") {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number === 0) {
+    return `±0${suffix}`;
+  }
+  return `${number > 0 ? "+" : ""}${number}${suffix}`;
+}
+
+function renderSimulationComparisonPanel(baseline, current) {
+  const page = ensureSimulationResultReportPage();
+  const content = page?.querySelector(".simulation-result-report-content");
+  if (!content) {
+    return;
+  }
+  content.querySelector(".simulation-comparison-panel")?.remove();
+  const baselineCounts = getSimulationComparisonCounts(baseline);
+  const currentCounts = getSimulationComparisonCounts(current);
+  const magnitudeDelta = getSimulationComparisonNumber(current.magnitude) - getSimulationComparisonNumber(baseline.magnitude);
+  const depthDelta = getSimulationComparisonNumber(current.depth) - getSimulationComparisonNumber(baseline.depth);
+  const intensityRows = [...INTENSITY_CLASSES]
+    .filter((intensityClass) => intensityClass.rank > 0)
+    .reverse()
+    .map((intensityClass) => {
+      const baselineCount = baselineCounts.byRank.get(intensityClass.rank) || 0;
+      const currentCount = currentCounts.byRank.get(intensityClass.rank) || 0;
+      return `
+        <tr>
+          <th><span style="--comparison-intensity-color:${escapeHtml(intensityClass.color)};--comparison-intensity-text:${escapeHtml(intensityClass.textColor)}">${escapeHtml(intensityClass.label)}</span></th>
+          <td>${baselineCount.toLocaleString("ja-JP")}</td>
+          <td>${currentCount.toLocaleString("ja-JP")}</td>
+          <td class="${currentCount > baselineCount ? "is-increase" : currentCount < baselineCount ? "is-decrease" : ""}">${formatSimulationComparisonDelta(currentCount - baselineCount)}</td>
+        </tr>
+      `;
+    }).join("");
+  const panel = document.createElement("section");
+  panel.className = "simulation-comparison-panel";
+  panel.innerHTML = `
+    <header class="simulation-comparison-head">
+      <div><span>試作機能</span><h4>シミュレーション比較</h4></div>
+      <button type="button" data-simulation-comparison-clear>比較を終了</button>
+    </header>
+    <div class="simulation-comparison-cards">
+      ${renderSimulationComparisonScenarioCard("A", "比較元", baseline)}
+      ${renderSimulationComparisonScenarioCard("B", "今回", current)}
+    </div>
+    <div class="simulation-comparison-key-deltas">
+      <article><span>最大震度</span><strong>${escapeHtml(baseline.maxIntensity)} → ${escapeHtml(current.maxIntensity)}</strong><small>${formatSimulationComparisonDelta((current.maxIntensityRank || 0) - (baseline.maxIntensityRank || 0), "段階")}</small></article>
+      <article><span>マグニチュード</span><strong>${escapeHtml(baseline.magnitude)} → ${escapeHtml(current.magnitude)}</strong><small>${Number.isFinite(magnitudeDelta) ? formatSimulationComparisonDelta(Number(magnitudeDelta.toFixed(1))) : "-"}</small></article>
+      <article><span>深さ</span><strong>${escapeHtml(baseline.depth)} → ${escapeHtml(current.depth)}</strong><small>${Number.isFinite(depthDelta) ? formatSimulationComparisonDelta(Number(depthDelta.toFixed(1)), "km") : "-"}</small></article>
+      <article><span>震度5弱以上</span><strong>${baselineCounts.fiveLowerOrMore} → ${currentCounts.fiveLowerOrMore}地点</strong><small>${formatSimulationComparisonDelta(currentCounts.fiveLowerOrMore - baselineCounts.fiveLowerOrMore, "地点")}</small></article>
+    </div>
+    <div class="simulation-comparison-table-wrap">
+      <table class="simulation-comparison-table">
+        <thead><tr><th>震度</th><th>A</th><th>B</th><th>差</th></tr></thead>
+        <tbody>${intensityRows}</tbody>
+        <tfoot><tr><th>震度1以上</th><td>${baselineCounts.total}</td><td>${currentCounts.total}</td><td>${formatSimulationComparisonDelta(currentCounts.total - baselineCounts.total)}</td></tr></tfoot>
+      </table>
+    </div>
+    <p class="simulation-comparison-note">地点数はシミュレーションで震度1以上になった観測点の比較です。実際の被害予測ではありません。</p>
+  `;
+  const actions = content.querySelector(".simulation-result-report-actions");
+  (actions || content.querySelector(".simulation-result-report-summary-host"))?.insertAdjacentElement("afterend", panel);
+  panel.querySelector("[data-simulation-comparison-clear]")?.addEventListener("click", async () => {
+    simulationComparisonBaseline = null;
+    panel.remove();
+    updateSimulationComparisonActionState();
+    try {
+      await deleteSimulationComparisonBaseline();
+    } catch (error) {
+      console.warn("Simulation comparison baseline could not be deleted", error);
+    }
+  });
+  resetPageScrollPosition(page);
+}
+
+function renderSimulationComparisonScenarioCard(label, role, snapshot) {
+  return `
+    <article class="simulation-comparison-scenario is-${label.toLowerCase()}">
+      <header><b>${label}</b><span>${role}</span></header>
+      <strong>${escapeHtml(snapshot.modelName || snapshot.sourceType || "シミュレーション")}</strong>
+      <dl>
+        <div><dt>震央</dt><dd>${escapeHtml(snapshot.epicenter)}</dd></div>
+        <div><dt>規模</dt><dd>${escapeHtml(snapshot.magnitude)}</dd></div>
+        <div><dt>深さ</dt><dd>${escapeHtml(snapshot.depth)}</dd></div>
+        <div><dt>最大震度</dt><dd>${escapeHtml(snapshot.maxIntensity)}</dd></div>
+      </dl>
+    </article>
+  `;
+}
+
+function updateSimulationComparisonActionState() {
+  const saveButton = document.querySelector("[data-simulation-comparison-save]");
+  const showButton = document.querySelector("[data-simulation-comparison-show]");
+  if (saveButton) {
+    saveButton.disabled = false;
+    saveButton.textContent = "Aとして保存";
+  }
+  if (showButton) {
+    showButton.disabled = !simulationComparisonBaseline;
+    showButton.textContent = simulationComparisonBaseline ? "Aと今回を比較" : "比較元Aが未保存";
+  }
+}
+
+function showSimulationComparison() {
+  if (!state.simulationCompleted || !simulationComparisonBaseline) {
+    return;
+  }
+  const current = simulationResultReportSnapshot || captureSimulationResultReport();
+  renderSimulationComparisonPanel(simulationComparisonBaseline, current);
+}
+
+function getSimulationScenarioControlValue(selector, fallback = "") {
+  return document.querySelector(selector)?.value ?? fallback;
+}
+
+function getCurrentSimulationScenarioMode() {
+  return document.body.classList.contains("fault-simulation-mode") ? "fault" : "point";
+}
+
+function captureCurrentSimulationScenario() {
+  const isFault = document.body.classList.contains("fault-simulation-mode");
+  return {
+    version: 1,
+    mode: isFault ? "fault" : "point",
+    presetId: isFault ? "" : state.selectedPresetId || "",
+    epicenter: {
+      latitude: Number(state.latitude),
+      longitude: Number(state.longitude),
+      name: String(state.epicenterName || els.epicenterRegion?.value || ""),
+    },
+    magnitude: Number(state.magnitude),
+    depthKm: Number(state.depthKm),
+    fault: isFault ? {
+      modelId: getSimulationScenarioControlValue("#fault-model-type", state.faultModelId || "rectangle"),
+      nankaiCase: getSimulationScenarioControlValue("#fault-nankai-case", state.faultNankaiCase || "full"),
+      activeFaultSegmentId: state.activeFaultSegmentId || "",
+      magnitude: Number(getSimulationScenarioControlValue("#fault-magnitude-input", state.magnitude)),
+      depthKm: Number(getSimulationScenarioControlValue("#fault-depth-input", state.depthKm)),
+      lengthKm: Number(getSimulationScenarioControlValue("#fault-length-input", 30)),
+      widthKm: Number(getSimulationScenarioControlValue("#fault-width-input", 15)),
+      strikeDegrees: Number(getSimulationScenarioControlValue("#fault-strike-input", 0)),
+      dipDegrees: Number(getSimulationScenarioControlValue("#fault-dip-input", 45)),
+      ruptureOrigin: getSimulationScenarioControlValue("#fault-rupture-origin", "center"),
+      ruptureDirection: getSimulationScenarioControlValue("#fault-rupture-direction", "bilateral"),
+      ruptureSpeed: Number(getSimulationScenarioControlValue("#fault-rupture-speed", 2.8)),
+    } : null,
+  };
+}
+
+function normalizeSimulationScenario(rawScenario) {
+  const raw = rawScenario && typeof rawScenario === "object" ? rawScenario : {};
+  const epicenter = raw.epicenter && typeof raw.epicenter === "object" ? raw.epicenter : {};
+  const fault = raw.fault && typeof raw.fault === "object" ? raw.fault : {};
+  const latitude = clamp(Number(epicenter.latitude), -90, 90);
+  const longitude = clamp(Number(epicenter.longitude), -180, 180);
+  const magnitude = clamp(Number(raw.magnitude), 0.1, 10);
+  const depthKm = clamp(Number(raw.depthKm), 0, 700);
+  if (![latitude, longitude, magnitude, depthKm].every(Number.isFinite)) {
+    throw new Error("共有シナリオの設定が正しくありません。");
+  }
+  const mode = raw.mode === "fault" ? "fault" : "point";
+  const finiteFaultValue = (value, fallback, minimum, maximum) => {
+    const numericValue = Number(value);
+    return clamp(Number.isFinite(numericValue) ? numericValue : fallback, minimum, maximum);
+  };
+  return {
+    version: 1,
+    mode,
+    presetId: mode === "point" ? String(raw.presetId || "") : "",
+    epicenter: {
+      latitude,
+      longitude,
+      name: String(epicenter.name || "保存した震源").slice(0, 120),
+    },
+    magnitude,
+    depthKm,
+    fault: mode === "fault" ? {
+      modelId: ["rectangle", "nankai-trough", "kuril-trench", "japan-trench", "active-fault"].includes(fault.modelId)
+        ? fault.modelId
+        : "rectangle",
+      nankaiCase: ["full", "east", "west"].includes(fault.nankaiCase) ? fault.nankaiCase : "full",
+      activeFaultSegmentId: String(fault.activeFaultSegmentId || "").slice(0, 120),
+      magnitude: finiteFaultValue(fault.magnitude, magnitude, 0.1, 10),
+      depthKm: finiteFaultValue(fault.depthKm, depthKm, 0, 700),
+      lengthKm: finiteFaultValue(fault.lengthKm, 30, 1, 520),
+      widthKm: finiteFaultValue(fault.widthKm, 15, 1, 200),
+      strikeDegrees: finiteFaultValue(fault.strikeDegrees, 0, 0, 359),
+      dipDegrees: finiteFaultValue(fault.dipDegrees, 45, 1, 90),
+      ruptureOrigin: ["center", "start", "end"].includes(fault.ruptureOrigin) ? fault.ruptureOrigin : "center",
+      ruptureDirection: ["bilateral", "forward", "reverse"].includes(fault.ruptureDirection)
+        ? fault.ruptureDirection
+        : "bilateral",
+      ruptureSpeed: finiteFaultValue(fault.ruptureSpeed, 2.8, 0.5, 4),
+    } : null,
+  };
+}
+
+async function saveSimulationScenario(name, scenario = captureCurrentSimulationScenario()) {
+  const body = await requestSimulationScenarioApi("/simulation-scenarios", {
+    method: "POST",
+    body: JSON.stringify({
+      name: String(name || "保存したシナリオ").trim().slice(0, 60) || "保存したシナリオ",
+      scenario: normalizeSimulationScenario(scenario),
+    }),
+  });
+  return body.scenario;
+}
+
+async function listSimulationScenarios() {
+  const body = await requestSimulationScenarioApi("/simulation-scenarios");
+  return Array.isArray(body.scenarios) ? body.scenarios : [];
+}
+
+async function deleteSimulationScenario(id) {
+  return requestSimulationScenarioApi(`/simulation-scenarios/${encodeURIComponent(String(id || ""))}`, {
+    method: "DELETE",
+  });
+}
+
+function getSimulationScenarioOwnerKey() {
+  let key = localStorage.getItem(SIMULATION_SCENARIO_OWNER_KEY_STORAGE_KEY) || "";
+  if (/^[A-Za-z0-9_-]{32,180}$/.test(key)) return key;
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  key = btoa(String.fromCharCode(...bytes)).replace(/\+/gu, "-").replace(/\//gu, "_").replace(/=+$/gu, "");
+  localStorage.setItem(SIMULATION_SCENARIO_OWNER_KEY_STORAGE_KEY, key);
+  return key;
+}
+
+async function requestSimulationScenarioApi(path, options = {}) {
+  const workerUrl = await getWorkerBaseUrl();
+  if (!workerUrl) throw new Error("Cloudflare Workerが設定されていません。");
+  const response = await fetch(`${workerUrl}${path}`, {
+    ...options,
+    cache: "no-store",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Scenario ${getSimulationScenarioOwnerKey()}`,
+      ...(options.headers || {}),
+    },
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body?.error || `Cloudflare DBとの通信に失敗しました（${response.status}）。`);
+  return body;
+}
+
+async function fetchSharedSimulationScenario(id) {
+  const workerUrl = await getWorkerBaseUrl();
+  if (!workerUrl) throw new Error("Cloudflare Workerが設定されていません。");
+  const response = await fetch(`${workerUrl}/simulation-scenarios/${encodeURIComponent(String(id || ""))}`, {
+    cache: "no-store",
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || !body.scenario?.scenario) throw new Error("共有シナリオが見つかりません。");
+  return body.scenario;
+}
+
+function encodeSimulationScenarioForUrl(scenario) {
+  const bytes = new TextEncoder().encode(JSON.stringify(normalizeSimulationScenario(scenario)));
+  let binary = "";
+  bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+  return btoa(binary).replace(/\+/gu, "-").replace(/\//gu, "_").replace(/=+$/gu, "");
+}
+
+function decodeSimulationScenarioFromUrl(value) {
+  const normalized = String(value || "").replace(/-/gu, "+").replace(/_/gu, "/");
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+  const binary = atob(padded);
+  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  return normalizeSimulationScenario(JSON.parse(new TextDecoder().decode(bytes)));
+}
+
+function buildSimulationScenarioShareUrl(record) {
+  const url = new URL(window.location.href);
+  url.searchParams.delete(SHARED_SIMULATION_SCENARIO_PARAM);
+  url.searchParams.set(SHARED_SIMULATION_SCENARIO_ID_PARAM, record.id);
+  url.searchParams.set(SHARED_SIMULATION_SCENARIO_MODE_PARAM, normalizeSimulationScenario(record.scenario).mode);
+  return url.href;
+}
+
+async function readSimulationScenarioFromSharedUrl(sharedUrl, expectedMode = "") {
+  const url = new URL(sharedUrl);
+  const declaredMode = url.searchParams.get(SHARED_SIMULATION_SCENARIO_MODE_PARAM) || "";
+  if (declaredMode && !["point", "fault"].includes(declaredMode)) {
+    throw new Error("共有URLのシミュレーション種別が正しくありません。");
+  }
+  const scenarioId = url.searchParams.get(SHARED_SIMULATION_SCENARIO_ID_PARAM);
+  let record;
+  if (scenarioId) {
+    record = await fetchSharedSimulationScenario(scenarioId);
+  } else {
+    const encoded = url.searchParams.get(SHARED_SIMULATION_SCENARIO_PARAM);
+    if (!encoded) throw new Error("共有シナリオがURLに含まれていません。");
+    record = { scenario: decodeSimulationScenarioFromUrl(encoded) };
+  }
+  const actualMode = normalizeSimulationScenario(record.scenario).mode;
+  if (declaredMode && declaredMode !== actualMode) {
+    throw new Error("共有URLと保存されたシミュレーション種別が一致しません。");
+  }
+  if (expectedMode && expectedMode !== actualMode) {
+    throw new Error(expectedMode === "fault"
+      ? "断層シミュレーションでは通常シミュレーションのURLを読み込めません。"
+      : "通常シミュレーションでは断層シミュレーションのURLを読み込めません。");
+  }
+  return record;
+}
+
+async function applySimulationScenario(scenario, options = {}) {
+  const normalized = normalizeSimulationScenario(scenario);
+  if (state.simulationRunning || state.simulationCompleted) {
+    stopSimulation({ expandSetup: false });
+  }
+  simulationModeScenarioApplyHandler?.(normalized.mode === "fault");
+  if (normalized.mode === "point" && normalized.presetId) {
+    try {
+      await applyEarthquakePreset(normalized.presetId);
+    } catch (error) {
+      console.warn("Saved earthquake preset could not be restored", error);
+      state.selectedPresetId = "";
+    }
+  }
+  if (normalized.mode === "fault" && simulationFaultScenarioApplyHandler) {
+    await simulationFaultScenarioApplyHandler(normalized.fault);
+  }
+  state.latitude = normalized.epicenter.latitude;
+  state.longitude = normalized.epicenter.longitude;
+  state.epicenterName = normalized.epicenter.name;
+  state.magnitude = normalized.mode === "fault" ? normalized.fault.magnitude : normalized.magnitude;
+  state.depthKm = normalized.mode === "fault" ? normalized.fault.depthKm : normalized.depthKm;
+  if (els.latitude) els.latitude.value = state.latitude.toFixed(3);
+  if (els.longitude) els.longitude.value = state.longitude.toFixed(3);
+  if (els.magnitude) els.magnitude.value = state.magnitude.toFixed(1);
+  if (els.depth) els.depth.value = String(Number(state.depthKm));
+  if (els.epicenterRegion) els.epicenterRegion.value = state.epicenterName;
+  epicenterMarker?.setLngLat([state.longitude, state.latitude]);
+  invalidateIntensityEstimateCache();
+  syncInputs();
+  updateSimulationFaultSource();
+  updateIntensityLayer();
+  updateSimulationAvailability();
+  setSetupMenuOpen(true);
+  setSheetState(els.setupPanel, "open");
+  if (!options.silent) {
+    showFaultModeSwitchNotice("シナリオ設定を読み込みました", { durationMs: 1600 });
+  }
+}
+
+async function restoreSharedSimulationScenarioFromUrl() {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has(SHARED_SIMULATION_SCENARIO_ID_PARAM)
+    && !url.searchParams.has(SHARED_SIMULATION_SCENARIO_PARAM)) {
+    return;
+  }
+  try {
+    const record = await readSimulationScenarioFromSharedUrl(url.href);
+    await applySimulationScenario(record.scenario);
+  } catch (error) {
+    console.warn("Shared simulation scenario could not be restored", error);
+    window.setTimeout(() => showFaultModeSwitchNotice("共有シナリオを読み込めませんでした", { durationMs: 2200 }), 300);
+  }
+}
+
+function ensureSimulationScenarioButton() {
+  const sourceParameters = document.querySelector("#setup-source-title")?.closest("[data-settings-section]");
+  let scenarioSection = document.querySelector("#simulation-scenario-menu-section");
+  if (sourceParameters && !scenarioSection) {
+    scenarioSection = document.createElement("section");
+    scenarioSection.id = "simulation-scenario-menu-section";
+    scenarioSection.className = "settings-section simulation-scenario-menu-section";
+    scenarioSection.setAttribute("aria-label", "シナリオ保存・共有");
+    sourceParameters.insertAdjacentElement("beforebegin", scenarioSection);
+  }
+  let scenarioButton = scenarioSection?.querySelector("[data-simulation-scenario-open]");
+  if (scenarioSection && !scenarioButton) {
+    scenarioButton = document.createElement("button");
+    const button = scenarioButton;
+    button.type = "button";
+    button.className = "simulation-scenario-button fault-scenario-open-button";
+    button.dataset.simulationScenarioOpen = "";
+    button.textContent = "シナリオを保存・読み込み";
+    scenarioSection.append(button);
+  }
+  if (scenarioButton && scenarioButton.dataset.simulationScenarioBound !== "true") {
+    scenarioButton.dataset.simulationScenarioBound = "true";
+    scenarioButton.addEventListener("click", openSimulationScenarioManager);
+  }
+  const faultMenu = document.querySelector("#fault-simulation-menu");
+  if (faultMenu && !faultMenu.querySelector(".fault-scenario-open-button")) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "fault-scenario-open-button";
+    button.textContent = "シナリオを保存・読み込み";
+    button.addEventListener("click", openSimulationScenarioManager);
+    faultMenu.querySelector(".fault-simulation-exit-hint")?.insertAdjacentElement("beforebegin", button);
+  }
+}
+
+function ensureSimulationScenarioOverlay() {
+  let overlay = document.querySelector("#simulation-scenario-overlay");
+  if (overlay) {
+    return overlay;
+  }
+  overlay = document.createElement("div");
+  overlay.id = "simulation-scenario-overlay";
+  overlay.className = "simulation-scenario-overlay hidden";
+  overlay.innerHTML = `
+    <section class="simulation-scenario-dialog" role="dialog" aria-modal="true" aria-labelledby="simulation-scenario-title">
+      <header><button type="button" data-simulation-scenario-close aria-label="閉じる">‹</button><h2 id="simulation-scenario-title">シナリオ保存・共有</h2><span aria-hidden="true"></span></header>
+      <form class="simulation-scenario-save-form" data-simulation-scenario-save-form>
+        <label><span>シナリオ名</span><input name="name" type="text" maxlength="60" placeholder="震源地名／詳細" required /></label>
+        <button type="submit">現在の設定を保存</button>
+      </form>
+      <form class="simulation-scenario-import-form" data-simulation-scenario-import-form>
+        <label><span>共有されたシナリオURL</span><input name="sharedUrl" type="url" inputmode="url" autocomplete="off" placeholder="https://…?scenarioId=…" required /></label>
+        <button type="submit">URLから読み込む</button>
+      </form>
+      <p class="simulation-scenario-status" role="status" aria-live="polite"></p>
+      <section class="simulation-scenario-list-section"><h3>保存済みのシナリオ</h3><div class="simulation-scenario-list"></div></section>
+    </section>
+  `;
+  overlay.querySelector("[data-simulation-scenario-close]")?.addEventListener("click", closeSimulationScenarioManager);
+  document.querySelector(".bottom-tabs")?.addEventListener("click", closeSimulationScenarioManager);
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) closeSimulationScenarioManager();
+  });
+  overlay.querySelector("[data-simulation-scenario-save-form]")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const status = overlay.querySelector(".simulation-scenario-status");
+    const submitButton = form.querySelector('button[type="submit"]');
+    submitButton.disabled = true;
+    status.textContent = "保存中...";
+    try {
+      await saveSimulationScenario(new FormData(form).get("name"));
+      status.textContent = "Cloudflare DBに保存しました。";
+      await renderSimulationScenarioList(overlay);
+    } catch (error) {
+      console.warn("Simulation scenario could not be saved", error);
+      status.textContent = error?.message || "保存できませんでした。";
+    } finally {
+      submitButton.disabled = false;
+    }
+  });
+  overlay.querySelector("[data-simulation-scenario-import-form]")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const status = overlay.querySelector(".simulation-scenario-status");
+    const submitButton = form.querySelector('button[type="submit"]');
+    submitButton.disabled = true;
+    status.textContent = "共有シナリオを読み込み中...";
+    try {
+      const sharedUrl = String(new FormData(form).get("sharedUrl") || "").trim();
+      const record = await readSimulationScenarioFromSharedUrl(sharedUrl, getCurrentSimulationScenarioMode());
+      await applySimulationScenario(record.scenario);
+      form.reset();
+      closeSimulationScenarioManager();
+    } catch (error) {
+      console.warn("Shared simulation scenario URL could not be loaded", error);
+      status.textContent = error?.message || "共有URLを読み込めませんでした。";
+    } finally {
+      submitButton.disabled = false;
+    }
+  });
+  overlay.querySelector(".simulation-scenario-list")?.addEventListener("click", async (event) => {
+    const button = event.target.closest("button[data-scenario-action]");
+    if (!button) return;
+    const record = simulationScenarioRecordCache.get(button.dataset.scenarioId);
+    if (!record) return;
+    if (button.dataset.scenarioAction === "load") {
+      await applySimulationScenario(record.scenario);
+      closeSimulationScenarioManager();
+      return;
+    }
+    if (button.dataset.scenarioAction === "share") {
+      await shareSimulationScenario(record);
+      return;
+    }
+    if (button.dataset.scenarioAction === "delete" && window.confirm(`「${record.name}」を削除しますか？`)) {
+      await deleteSimulationScenario(record.id);
+      await renderSimulationScenarioList(overlay);
+    }
+  });
+  document.body.append(overlay);
+  return overlay;
+}
+
+async function openSimulationScenarioManager() {
+  const overlay = ensureSimulationScenarioOverlay();
+  const input = overlay.querySelector('input[name="name"]');
+  if (input) input.value = "";
+  overlay.classList.remove("hidden");
+  document.body.classList.add("simulation-scenario-overlay-open");
+  await renderSimulationScenarioList(overlay);
+  input?.focus({ preventScroll: true });
+}
+
+function closeSimulationScenarioManager() {
+  const overlay = document.querySelector("#simulation-scenario-overlay");
+  hidePageAndResetScroll(overlay);
+  document.body.classList.remove("simulation-scenario-overlay-open");
+}
+
+async function renderSimulationScenarioList(overlay = ensureSimulationScenarioOverlay()) {
+  const list = overlay.querySelector(".simulation-scenario-list");
+  if (!list) return;
+  list.innerHTML = '<p class="simulation-scenario-empty">読み込み中...</p>';
+  try {
+    const records = await listSimulationScenarios();
+    const visibleRecords = records.filter((record) => {
+      try {
+        return normalizeSimulationScenario(record.scenario).mode === getCurrentSimulationScenarioMode();
+      } catch {
+        return false;
+      }
+    });
+    simulationScenarioRecordCache = new Map(visibleRecords.map((record) => [record.id, record]));
+    list.innerHTML = visibleRecords.length ? visibleRecords.map((record) => {
+      const scenario = record.scenario;
+      const modelLabel = scenario.mode === "fault"
+        ? (FAULT_MODEL_PRESETS[scenario.fault?.modelId]?.name || (scenario.fault?.modelId === "active-fault" ? "活断層" : "矩形断層"))
+        : "通常シミュレーション";
+      const scenarioMagnitude = scenario.mode === "fault" ? scenario.fault?.magnitude : scenario.magnitude;
+      const scenarioDepthKm = scenario.mode === "fault" ? scenario.fault?.depthKm : scenario.depthKm;
+      return `
+        <article class="simulation-scenario-item">
+          <div><strong>${escapeHtml(record.name)}</strong><span>${escapeHtml(modelLabel)}</span></div>
+          <dl><div><dt>震源</dt><dd>${escapeHtml(scenario.epicenter.name)}</dd></div><div><dt>規模</dt><dd>M${Number(scenarioMagnitude).toFixed(1)}・深さ${Number(scenarioDepthKm)}km</dd></div></dl>
+          <div class="simulation-scenario-item-actions">
+            <button type="button" data-scenario-action="load" data-scenario-id="${escapeHtml(record.id)}">読み込む</button>
+            <button type="button" data-scenario-action="share" data-scenario-id="${escapeHtml(record.id)}">共有</button>
+            <button type="button" data-scenario-action="delete" data-scenario-id="${escapeHtml(record.id)}">削除</button>
+          </div>
+        </article>
+      `;
+    }).join("") : '<p class="simulation-scenario-empty">保存されているシナリオがありません</p>';
+  } catch (error) {
+    simulationScenarioRecordCache.clear();
+    console.warn("Simulation scenario list could not be loaded", error);
+    list.innerHTML = '<p class="simulation-scenario-empty">Cloudflare DBを読み込めませんでした。</p>';
+  }
+}
+
+async function shareSimulationScenario(record) {
+  const url = buildSimulationScenarioShareUrl(record);
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: `WE-Simulator｜${record.name}`, text: "地震シミュレーション設定", url });
+      return;
+    } catch (error) {
+      if (error?.name === "AbortError") return;
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    showFaultModeSwitchNotice("共有URLをコピーしました", { durationMs: 1600 });
+  } catch {
+    window.prompt("共有URLをコピーしてください", url);
+  }
+}
+
 function renderSimulationResultReport(snapshot) {
   const page = ensureSimulationResultReportPage();
   const content = page?.querySelector(".simulation-result-report-content");
@@ -7093,6 +7852,7 @@ function renderSimulationResultReport(snapshot) {
     </section>
   `;
   content.querySelector(".simulation-result-report-summary-host")?.insertAdjacentElement("afterend", actions);
+  updateSimulationComparisonActionState();
   return page;
 }
 
@@ -7167,7 +7927,7 @@ function closeSimulationResultReport(options = {}) {
     && state.simulationCompleted;
   const page = document.querySelector("#simulation-result-report-page");
   restoreLiveSimulationSummary();
-  page?.classList.add("hidden");
+  hidePageAndResetScroll(page);
   els.setupPanel?.classList.remove("simulation-result-report-open");
   document.body.classList.remove("simulation-result-report-visible");
   if (returnToCompletedSimulation) {
@@ -7779,145 +8539,6 @@ function setupCommunityCustomTagEditor(overlay) {
   editor.dataset.ready = "true";
 }
 
-function ensureCommunityPostUi() {
-  if (communityPostOverlayElements) {
-    return communityPostOverlayElements;
-  }
-
-  const button = document.createElement("button");
-  button.id = "community-post-button";
-  button.className = "community-post-button";
-  button.type = "button";
-  button.textContent = "＋ 投稿";
-  button.addEventListener("click", () => openCommunityPostOverlay());
-
-  const overlay = document.createElement("section");
-  overlay.id = "community-post-overlay";
-  overlay.className = "community-post-overlay hidden";
-  overlay.setAttribute("aria-label", "投稿");
-  overlay.innerHTML = `
-    <div class="community-post-sheet" role="dialog" aria-modal="false">
-      <div class="community-post-head">
-        <button class="community-post-close" type="button" aria-label="戻る">‹</button>
-        <h2>投稿する</h2>
-        <span></span>
-      </div>
-      <form id="community-post-form" class="community-post-form">
-        <section class="community-post-section">
-          <h3>どこから投稿するか</h3>
-          <div class="community-post-location-actions">
-            <button type="button" data-community-location="current">現在地</button>
-            <button type="button" data-community-location="map">指定する</button>
-          </div>
-        </section>
-        <section class="community-post-section">
-          <h3>タグ</h3>
-          <div class="community-post-tags">
-            ${COMMUNITY_POST_TAGS.map((tag) => `
-              <label>
-                <input type="radio" name="tags" value="${tag.id}" required />
-                <span>${tag.label}</span>
-              </label>
-            `).join("")}
-          </div>
-        </section>
-        <section class="community-post-section community-post-optional-tag-section">
-          <h3>任意タグ</h3>
-          <div class="community-post-tags community-post-optional-tags">
-            ${COMMUNITY_POST_OPTIONAL_TAGS.map((tag) => `
-              <label>
-                <input type="checkbox" name="optionalTag" value="${tag.id}" />
-                <span>${tag.label}</span>
-              </label>
-            `).join("")}
-          </div>
-          <div class="community-post-custom-tag-editor" data-community-custom-tag-editor>
-            <div class="community-post-custom-tag-entry">
-              <input id="community-post-custom-tag" class="community-post-custom-tag" type="text" maxlength="24" placeholder="任意タグ名" />
-              <button type="button" data-community-custom-tag-add>追加</button>
-            </div>
-            <div class="community-post-custom-tag-list" data-community-custom-tag-list aria-live="polite"></div>
-          </div>
-        </section>
-        <section class="community-post-section">
-          <h3>写真・動画</h3>
-          <label class="community-media-picker">
-            <input id="community-post-media" name="media" type="file" accept="image/png,image/jpeg,video/mp4" />
-            <span>PNG / JPEG / 30秒以内のMP4</span>
-          </label>
-          <div id="community-post-preview" class="community-post-preview hidden"></div>
-        </section>
-        <section class="community-post-section">
-          <h3>投稿文</h3>
-          <textarea id="community-post-text" name="text" rows="5" maxlength="1200" required placeholder="状況、見えたもの、危険箇所など"></textarea>
-        </section>
-        <section class="community-post-section">
-          <h3>投稿保持時間</h3>
-          <div class="community-post-retention-options">
-            <label><input type="radio" name="retention" value="24h" /><span>24時間</span></label>
-            <label><input type="radio" name="retention" value="7d" /><span>1週間</span></label>
-            <label><input type="radio" name="retention" value="forever" checked /><span>削除するまで</span></label>
-          </div>
-        </section>
-        <p id="community-post-status" class="community-post-status" aria-live="polite"></p>
-        <button class="community-post-submit" type="submit">投稿する</button>
-      </form>
-    </div>
-  `;
-
-  document.body.append(button, overlay);
-
-  const form = overlay.querySelector("#community-post-form");
-  const close = overlay.querySelector(".community-post-close");
-  close?.replaceChildren("‹");
-  overlay.querySelector(".community-post-head h2")?.replaceChildren("投稿設定");
-  close?.replaceChildren("‹");
-  overlay.querySelector(".community-post-head h2")?.replaceChildren("投稿設定");
-  const currentLocationButton = overlay.querySelector('[data-community-location="current"]');
-  const mapLocationButton = overlay.querySelector('[data-community-location="map"]');
-  const locationStatus = overlay.querySelector("#community-post-location-status");
-  const mediaInput = overlay.querySelector("#community-post-media");
-  const preview = overlay.querySelector("#community-post-preview");
-  const status = overlay.querySelector("#community-post-status");
-  overlay.setAttribute("aria-label", "投稿設定");
-  close?.replaceChildren("‹");
-  close?.setAttribute("aria-label", "戻る");
-  overlay.querySelector(".community-post-head h2")?.replaceChildren("投稿設定");
-  overlay.querySelector('[data-community-location="current"]')?.replaceChildren("現在地");
-  overlay.querySelector('[data-community-location="vague"]')?.replaceChildren("曖昧な現在地");
-  overlay.querySelector('[data-community-location="map"]')?.replaceChildren("指定する");
-  overlay.querySelector(".community-media-picker span")?.replaceChildren("ここをタップして画像・動画を追加");
-  overlay.querySelector(".community-media-picker small")?.replaceChildren("PNG / JPEG / 30秒以内のMP4");
-  overlay.querySelector(".community-post-submit")?.replaceChildren("投稿する");
-  overlay.querySelector("#community-post-text")?.setAttribute("placeholder", "状況、見えたもの、危険箇所など");
-  overlay.querySelectorAll(".community-post-section h3").forEach((heading, index) => {
-    const labels = ["投稿場所", "タグ", "任意タグ", "写真・動画", "投稿文", "投稿保持時間"];
-    if (labels[index]) {
-      heading.textContent = labels[index];
-    }
-  });
-
-  close?.addEventListener("click", () => closeCommunityPostOverlay());
-  overlay.addEventListener("click", (event) => {
-    if (event.target === overlay) {
-      closeCommunityPostOverlay();
-    }
-  });
-  currentLocationButton?.addEventListener("click", () => selectCommunityPostCurrentLocation());
-  mapLocationButton?.addEventListener("click", () => beginCommunityPostMapPick());
-  setupCommunityCustomTagEditor(overlay);
-  mediaInput?.addEventListener("change", () => validateAndPreviewCommunityMedia());
-  form?.addEventListener("input", updateCommunityPostSubmitState);
-  form?.addEventListener("change", updateCommunityPostSubmitState);
-  form?.addEventListener("submit", (event) => {
-    event.preventDefault();
-    submitCommunityPost();
-  });
-
-  communityPostOverlayElements = { button, overlay, form, locationStatus, mediaInput, preview, status };
-  updateCommunityPostLocationStatus();
-  return communityPostOverlayElements;
-}
 
 function openCommunityPostOverlay() {
   const ui = ensureCommunityPostUi();
@@ -7932,7 +8553,7 @@ function openCommunityPostOverlay() {
 
 function closeCommunityPostOverlay() {
   document.body.classList.remove("community-post-overlay-open", "community-pick-mode");
-  communityPostOverlayElements?.overlay?.classList.add("hidden");
+  hidePageAndResetScroll(communityPostOverlayElements?.overlay);
 }
 
 function resetCommunityPostForm() {
@@ -7950,44 +8571,6 @@ function resetCommunityPostForm() {
   updateCommunityPostLocationStatus();
 }
 
-function updateCommunityPostLocationStatus() {
-  const ui = ensureCommunityPostUi();
-  if (!ui.locationStatus) {
-    return;
-  }
-  if (!communityPostLocation) {
-    ui.locationStatus.textContent = "場所を選択してください";
-    return;
-  }
-  const label = communityPostLocation.mode === "current" ? "現在地" : "マップ指定";
-  ui.locationStatus.textContent = `${label}: ${communityPostLocation.latitude.toFixed(5)}, ${communityPostLocation.longitude.toFixed(5)}`;
-}
-
-function selectCommunityPostCurrentLocation() {
-  const ui = ensureCommunityPostUi();
-  if (!navigator.geolocation) {
-    ui.status.textContent = "このブラウザでは現在地を取得できません。";
-    return;
-  }
-  ui.status.textContent = "現在地を取得中...";
-  navigator.geolocation.getCurrentPosition(
-    (position) => {
-      communityPostLocation = {
-        mode: "current",
-        latitude: Number(position.coords.latitude),
-        longitude: Number(position.coords.longitude),
-      };
-      ui.status.textContent = "";
-      updateCommunityPostLocationStatus();
-      updateCommunityPostSubmitState();
-    },
-    () => {
-      ui.status.textContent = "現在地の取得ができませんでした。マップから指定してください。";
-    },
-    { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 },
-  );
-}
-
 function beginCommunityPostMapPick() {
   const ui = ensureCommunityPostUi();
   ui.status.textContent = "地図をタップして投稿場所を指定してください。";
@@ -7995,15 +8578,6 @@ function beginCommunityPostMapPick() {
   ui.overlay.classList.add("hidden");
 }
 
-function setCommunityPostMapLocation(lngLat) {
-  communityPostLocation = {
-    mode: "map",
-    latitude: Number(lngLat.lat),
-    longitude: Number(lngLat.lng),
-  };
-  document.body.classList.remove("community-pick-mode");
-  openCommunityPostOverlay();
-}
 
 function validateAndPreviewCommunityMedia() {
   const ui = ensureCommunityPostUi();
@@ -8255,9 +8829,6 @@ function setCommunityMapControlResult(control, result, message) {
   }, 1800);
 }
 
-function getCommunityPostMarkerOffsets(posts) {
-  return new Map((Array.isArray(posts) ? posts : []).map((post) => [post, [0, 0]]));
-}
 
 const COMMUNITY_POST_COUNT_MAX_ZOOM = 9;
 const COMMUNITY_POST_OVERLAP_DISTANCE_PX = 18;
@@ -8313,43 +8884,6 @@ function getCommunityPostMarkerGroups(posts) {
   return [...groups.values()];
 }
 
-function renderCommunityPostMarkers() {
-  communityPostMarkers.forEach((marker) => marker.remove());
-  communityPostMarkers = [];
-  if (!map || !document.body.classList.contains("community-map-mode")) {
-    return;
-  }
-  const markerGroups = getCommunityPostMarkerGroups(communityPosts);
-  markerGroups.forEach((group) => {
-    const post = group[0];
-    const postCount = group.length;
-    const latitude = Number(post.latitude);
-    const longitude = Number(post.longitude);
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-      return;
-    }
-    const markerElement = document.createElement("button");
-    markerElement.type = "button";
-    markerElement.className = "community-post-marker";
-    markerElement.dataset.communityTag = Array.isArray(post.tags) ? String(post.tags[0] || "") : "";
-    markerElement.setAttribute("aria-label", "投稿");
-    const popup = new maplibregl.Popup({
-      closeButton: true,
-      closeOnClick: true,
-      className: "community-post-popup",
-      offset: 16,
-    }).setHTML(buildCommunityPostPopupHtml(post));
-    const marker = new maplibregl.Marker({
-      element: markerElement,
-      anchor: "center",
-      offset: markerOffsets.get(post) || [0, 0],
-    })
-      .setLngLat([longitude, latitude])
-      .setPopup(popup)
-      .addTo(map);
-    communityPostMarkers.push(marker);
-  });
-}
 
 function isCommunityPostOptionalTag(tag) {
   return String(tag || "").startsWith("optional:");
@@ -8379,22 +8913,6 @@ function renderCommunityPostTagPills(tags) {
     .join("");
 }
 
-function buildCommunityPostPopupHtml(post) {
-  const tags = renderCommunityPostTagPills(post.tags);
-  const media = post.mediaUrl
-    ? post.mediaType === "video/mp4"
-      ? `<video controls playsinline src="${escapeHtml(post.mediaUrl)}"></video>`
-      : `<img alt="投稿写真" src="${escapeHtml(post.mediaUrl)}" />`
-    : "";
-  return `
-    <article class="community-post-popup-card">
-      <div class="community-post-popup-tags">${tags}</div>
-      ${media}
-      <p>${escapeHtml(post.text || "投稿文なし")}</p>
-      <time>${escapeHtml(formatCommunityPostDate(post.createdAt))}</time>
-    </article>
-  `;
-}
 
 function formatCommunityPostDate(value) {
   const date = new Date(value);
@@ -8625,26 +9143,6 @@ function ensureCommunityPostUi() {
   return communityPostOverlayElements;
 }
 
-async function updateCommunityPostLocationStatus() {
-  const ui = ensureCommunityPostUi();
-  const text = ui.locationPreview?.querySelector(".community-post-location-preview-text");
-  const dot = ui.locationPreview?.querySelector(".community-post-location-dot");
-  const requestId = ++communityPostLocationResolveRequestId;
-  if (!communityPostLocation) {
-    if (text) {
-      text.textContent = "場所を選択してください";
-    }
-    dot?.classList.remove("is-set", "is-vague");
-    return;
-  }
-  const location = communityPostLocation;
-  if (text) {
-    text.textContent = "場所を確認中...";
-  }
-  dot?.classList.add("is-set");
-  dot?.classList.toggle("is-vague", communityPostLocation.mode === "vague");
-}
-
 function selectCommunityPostCurrentLocation(mode = "current") {
   const ui = ensureCommunityPostUi();
   if (!navigator.geolocation) {
@@ -8835,7 +9333,7 @@ function resetCommunityPostDetailScroll(sheet) {
 function closeCommunityPostDetail() {
   document.documentElement.classList.remove("community-post-detail-open");
   document.body.classList.remove("community-post-detail-open");
-  communityPostOverlayElements?.detailSheet?.classList.add("hidden");
+  hidePageAndResetScroll(communityPostOverlayElements?.detailSheet);
   activeCommunityPostDetail = null;
 }
 
@@ -9001,10 +9499,6 @@ function updateCommunityPostFollowButton(button, following) {
   button.textContent = following ? "フォロー中" : "フォロー";
 }
 
-function getActiveCommunityPostPlaceName() {
-  return communityPostOverlayElements?.detailSheet
-    ?.querySelector(".community-post-detail-meta dd")?.textContent || "";
-}
 
 function canDeleteCommunityPost(post) {
   return Boolean(
@@ -9112,45 +9606,8 @@ COMMUNITY_POST_OPTIONAL_TAGS = [
   { id: "landslide", label: "土砂災害" },
 ];
 
-function loadCommunityAccountFromStorage() {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(COMMUNITY_ACCOUNT_STORAGE_KEY) || "null");
-    if (parsed?.token && parsed?.name) {
-      return {
-        id: String(parsed.id || ""),
-        name: String(parsed.name || ""),
-        icon: String(parsed.icon || "🌐"),
-        token: String(parsed.token || ""),
-      };
-    }
-  } catch (error) {
-    console.warn("community account storage read failed", error);
-  }
-  return null;
-}
 
-function saveCommunityAccount(account) {
-  communityAccount = account?.token ? {
-    id: String(account.id || ""),
-    name: String(account.name || ""),
-    icon: String(account.icon || "🌐"),
-    token: String(account.token || ""),
-  } : null;
-  if (communityAccount) {
-    localStorage.setItem(COMMUNITY_ACCOUNT_STORAGE_KEY, JSON.stringify(communityAccount));
-  } else {
-    localStorage.removeItem(COMMUNITY_ACCOUNT_STORAGE_KEY);
-  }
-  updateCommunityAccountSettingsCard();
-  if (communityAccount && document.body.dataset.activeBottomTab === "bottom-history-tab") {
-    closeCommunityAccountRequiredPanel();
-    setCommunityMapModeActive(true);
-  }
-}
 
-function hasCommunityAccount() {
-  return Boolean(communityAccount?.token && communityAccount?.name);
-}
 
 function openCommunityAccountRequiredPanel() {
   if (!communityAccountRequiredPanel) {
@@ -9177,21 +9634,6 @@ function closeCommunityAccountRequiredPanel() {
   communityAccountRequiredPanel?.classList.add("hidden");
 }
 
-function ensureCommunityAccountSettingsCard() {
-  const list = els.settingsMenuSheet?.querySelector(".settings-menu-list");
-  if (!list) {
-    return null;
-  }
-  if (!communityAccountPanel) {
-    communityAccountPanel = document.createElement("section");
-    communityAccountPanel.id = "community-account-panel";
-    communityAccountPanel.className = "community-account-panel";
-    list.insertAdjacentElement("afterbegin", communityAccountPanel);
-  }
-  updateCommunityAccountSettingsCard();
-  refreshCommunityAccountStats();
-  return communityAccountPanel;
-}
 
 function refreshCommunityAccountStats() {
   if (!communityAccount?.token || communityAccount.localOnly || communityAccountStatsPromise) {
@@ -9218,154 +9660,6 @@ function refreshCommunityAccountStats() {
   return communityAccountStatsPromise;
 }
 
-function updateCommunityAccountSettingsCard() {
-  if (!communityAccountPanel) {
-    return;
-  }
-  document.body.classList.toggle("community-admin-account", Boolean(communityAccount?.isAdmin));
-  document.body.classList.toggle("community-local-account", Boolean(communityAccount?.localOnly));
-  if (hasCommunityAccount()) {
-    communityAccountPanel.innerHTML = `
-      <div class="community-profile-card">
-        <div class="community-profile-icon">${escapeHtml(communityAccount.icon || "🌐")}</div>
-        <div class="community-profile-main">
-          <span>プロフィール</span>
-          <strong>${escapeHtml(communityAccount.name)}</strong>
-        </div>
-      </div>
-      <form class="community-account-edit-form">
-        <label>名前<input name="name" type="text" maxlength="32" value="${escapeHtml(communityAccount.name)}" /></label>
-        <label>アイコン<input name="icon" type="text" maxlength="8" value="${escapeHtml(communityAccount.icon || "🌐")}" /></label>
-        <button type="submit">プロフィールを更新</button>
-      </form>
-      <p class="community-account-note">投稿にはこのプロフィール名が表示されます。</p>
-    `;
-    communityAccountPanel.querySelector(".community-account-edit-form")?.addEventListener("submit", (event) => {
-      event.preventDefault();
-      updateCommunityAccountProfile(event.currentTarget);
-    });
-    return;
-  }
-
-  communityAccountPanel.innerHTML = `
-    <div class="community-profile-card is-empty">
-      <div class="community-profile-icon">＋</div>
-      <div class="community-profile-main">
-        <span>プロフィール</span>
-        <strong>アカウント未作成</strong>
-      </div>
-    </div>
-    <form class="community-account-create-form">
-      <label>名前<input name="name" type="text" maxlength="32" autocomplete="username" placeholder="表示名" required /></label>
-      <label>アイコン<input name="icon" type="text" maxlength="8" placeholder="例: 🌦️" /></label>
-      <label>パスワード<input name="password" type="password" minlength="8" autocomplete="new-password" placeholder="8文字以上" required /></label>
-      <label class="community-account-confirm"><input name="confirm" type="checkbox" required /><span>パスワードは絶対に忘れてはいけません。</span></label>
-      <button type="submit">アカウント作成</button>
-    </form>
-    <form class="community-account-login-form">
-      <strong>作成済みアカウントでログイン</strong>
-      <label>名前<input name="name" type="text" maxlength="32" autocomplete="username" /></label>
-      <label>パスワード<input name="password" type="password" autocomplete="current-password" /></label>
-      <button type="submit">ログイン</button>
-    </form>
-    <p class="community-account-note">パスワードはサーバー側でハッシュ化して保存します。平文では保存しません。</p>
-  `;
-  communityAccountPanel.querySelector(".community-account-create-form")?.addEventListener("submit", (event) => {
-    event.preventDefault();
-    createCommunityAccountFromForm(event.currentTarget);
-  });
-  communityAccountPanel.querySelector(".community-account-login-form")?.addEventListener("submit", (event) => {
-    event.preventDefault();
-    loginCommunityAccountFromForm(event.currentTarget);
-  });
-}
-
-async function createCommunityAccountFromForm(form) {
-  const status = getCommunityAccountStatusElement();
-  const workerUrl = await getWorkerBaseUrl();
-  if (!workerUrl) {
-    status.textContent = "Workerが設定されていません。";
-    return;
-  }
-  const data = Object.fromEntries(new FormData(form).entries());
-  status.textContent = "アカウント作成中...";
-  try {
-    const response = await fetch(`${workerUrl}/community-accounts`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: data.name,
-        icon: data.icon,
-        password: data.password,
-      }),
-    });
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(body?.error || "アカウント作成に失敗しました。");
-    }
-    saveCommunityAccount(body.account);
-    status.textContent = "アカウントを作成しました。";
-    closeCommunityAccountRequiredPanel();
-  } catch (error) {
-    status.textContent = error?.message || "アカウント作成に失敗しました。";
-  }
-}
-
-async function loginCommunityAccountFromForm(form) {
-  const status = getCommunityAccountStatusElement();
-  const workerUrl = await getWorkerBaseUrl();
-  if (!workerUrl) {
-    status.textContent = "Workerが設定されていません。";
-    return;
-  }
-  const data = Object.fromEntries(new FormData(form).entries());
-  status.textContent = "ログイン中...";
-  try {
-    const response = await fetch(`${workerUrl}/community-accounts/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: data.name, password: data.password }),
-    });
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(body?.error || "ログインに失敗しました。");
-    }
-    saveCommunityAccount(body.account);
-    status.textContent = "ログインしました。";
-    closeCommunityAccountRequiredPanel();
-  } catch (error) {
-    status.textContent = error?.message || "ログインに失敗しました。";
-  }
-}
-
-async function updateCommunityAccountProfile(form) {
-  const status = getCommunityAccountStatusElement();
-  const workerUrl = await getWorkerBaseUrl();
-  if (!workerUrl || !hasCommunityAccount()) {
-    status.textContent = "アカウント情報を更新できません。";
-    return;
-  }
-  const data = Object.fromEntries(new FormData(form).entries());
-  status.textContent = "更新中...";
-  try {
-    const response = await fetch(`${workerUrl}/community-account`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${communityAccount.token}`,
-      },
-      body: JSON.stringify({ name: data.name, icon: data.icon }),
-    });
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(body?.error || "更新に失敗しました。");
-    }
-    saveCommunityAccount({ ...communityAccount, ...body.account, token: body.account?.token || communityAccount.token });
-    status.textContent = "プロフィールを更新しました。";
-  } catch (error) {
-    status.textContent = error?.message || "更新に失敗しました。";
-  }
-}
 
 function getCommunityAccountStatusElement() {
   ensureCommunityAccountSettingsCard();
@@ -10195,17 +10489,11 @@ function isLandscapeSidePanelViewport() {
   return window.matchMedia("(orientation: landscape) and (max-width: 1180px) and (max-height: 720px)").matches;
 }
 
-function isPhonePortraitViewport() {
-  return window.matchMedia("(orientation: portrait) and (max-width: 720px)").matches;
-}
 
 function isCompactViewport() {
   return window.matchMedia("(max-width: 720px)").matches;
 }
 
-function isTabletViewport() {
-  return window.matchMedia("(min-width: 721px) and (max-width: 1180px)").matches;
-}
 
 function setSheetState(panel, stateName) {
   if (!panel) {
@@ -12496,26 +12784,8 @@ function normalizeMaintenanceReason(reason) {
     .slice(0, 500);
 }
 
-function createMaintenanceModeBadge() {
-  const badge = document.createElement("div");
-  badge.className = "maintenance-mode-badge hidden";
-  badge.textContent = "メンテナンスモード";
-  return badge;
-}
 
-function createLocalServerBadge() {
-  const badge = document.createElement("div");
-  badge.className = "local-server-badge hidden";
-  badge.textContent = "Localサーバー";
-  return badge;
-}
 
-function createParentTerminalBadge() {
-  const badge = document.createElement("div");
-  badge.className = "parent-terminal-badge hidden";
-  badge.textContent = "親端末";
-  return badge;
-}
 
 function createAdminModeOverlay() {
   const overlay = document.createElement("section");
@@ -13140,25 +13410,7 @@ function setupMaintenanceMode(maintenanceOverlay, maintenanceBadge) {
   window.setInterval(refresh, MAINTENANCE_STATUS_POLL_MS);
 }
 
-function setupParentTerminalBadge(badge) {
-  const refresh = () => updateParentTerminalBadge(badge, latestMaintenanceStatus);
-  window.addEventListener("admin-parent-status-change", refresh);
-  window.addEventListener("maintenance-status-change", (event) => {
-    updateParentTerminalBadge(badge, event.detail);
-  });
-  window.addEventListener("storage", (event) => {
-    if (event.key === ADMIN_PARENT_TOKEN_KEY) {
-      refresh();
-    }
-  });
-  refresh();
-}
 
-function setupLocalServerBadge(badge) {
-  const refresh = () => updateLocalServerBadge(badge);
-  window.addEventListener("maintenance-status-change", refresh);
-  refresh();
-}
 
 function updateLocalServerBadge(badge) {
   if (!badge) {
@@ -13450,9 +13702,6 @@ function applyFeedbackPlaceholder(textarea) {
   textarea.placeholder = getCleanFeedbackPlaceholderText();
 }
 
-function getFeedbackPlaceholderText() {
-  return "例：◯◯の機能を追加してほしい";
-}
 
 function getCleanFeedbackPlaceholderText() {
   return "例：◯◯の機能を追加してほしい";
@@ -13825,14 +14074,6 @@ function applyMunicipalityLogicData(displayData, options = {}) {
   }
 }
 
-function isOldScaleSyntheticMunicipalityHydrating() {
-  const preset = getSelectedPreset();
-  return Boolean(
-    preset &&
-      oldScaleSyntheticMunicipalityHydrationPromise &&
-      oldScaleSyntheticMunicipalityHydratingPresetId === preset.id,
-  );
-}
 
 function scheduleOldScaleSyntheticMunicipalityHydration(preset) {
   if (!isOldJmaScaleSyntheticPreset(preset)) {
@@ -14001,6 +14242,7 @@ function releaseStartupMapOverlay() {
   document.body.classList.remove("map-core-loading");
   updateSimulationAvailability();
   scheduleStartupBackgroundData();
+  scheduleStartupFaultModeHint();
 }
 
 function schedulePostMunicipalityDataHydration() {
@@ -16146,6 +16388,7 @@ function showStartupLocationPermissionPrompt(permissionState = "prompt") {
 
 function closeStartupLocationPermissionPrompt() {
   document.querySelector("#startup-location-permission-overlay")?.remove();
+  scheduleStartupFaultModeHint();
 }
 
 async function refreshSystemPermissionStates() {
@@ -18302,35 +18545,6 @@ function emptyStationData() {
   };
 }
 
-function buildPolygonBoundaryLinework(geojson) {
-  const lines = [];
-  for (const feature of geojson?.features ?? []) {
-    const geometry = feature.geometry;
-    if (geometry?.type === "Polygon") {
-      lines.push(...geometry.coordinates);
-    } else if (geometry?.type === "MultiPolygon") {
-      geometry.coordinates.forEach((polygon) => lines.push(...polygon));
-    }
-  }
-
-  return {
-    type: "FeatureCollection",
-    features: lines.length
-      ? [
-          {
-            type: "Feature",
-            properties: {
-              kind: "generated-outline",
-            },
-            geometry: {
-              type: "MultiLineString",
-              coordinates: lines,
-            },
-          },
-        ]
-      : [],
-  };
-}
 
 async function findMunicipalityAtPoint(longitude, latitude) {
   if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {
@@ -19844,57 +20058,8 @@ function updateEewReportState(features, selectedPreset, activePresetEewReport, e
   state.eewWarningFinalReport = magnitudeReport?.isFinal === true && faultRuptureComplete;
 }
 
-function hasPendingSimulationEewUpdate(features, elapsedSec) {
-  if (!state.simulationRunning || !Number.isFinite(elapsedSec)) {
-    return false;
-  }
 
-  return features.some((feature) => {
-    if (feature.properties.eewWarning) {
-      return false;
-    }
 
-    if (!isFinalSimulationEewFeature(feature)) {
-      return false;
-    }
-
-    return true;
-  });
-}
-
-function getSimulationEewTimedReportNumber(elapsedSec) {
-  if (!Number.isFinite(elapsedSec) || state.eewFirstReportElapsedSec == null) {
-    return state.eewSyntheticReportNumber || 1;
-  }
-
-  const intervalSec = getSimulationEewReportIntervalSec();
-  return Math.max(1, Math.floor((elapsedSec - state.eewFirstReportElapsedSec) / intervalSec) + 1);
-}
-
-function hasSimulationEewHadEnoughReview(elapsedSec, reportNumber) {
-  if (!Number.isFinite(elapsedSec) || state.eewFirstReportElapsedSec == null) {
-    return true;
-  }
-
-  const reviewElapsedSec = elapsedSec - state.eewFirstReportElapsedSec;
-  return (
-    reviewElapsedSec >= getSimulationEewMinimumReviewSec() &&
-    reportNumber >= getSimulationEewMinimumReportCount()
-  );
-}
-
-function getSimulationEewReportIntervalSec() {
-  return clamp(4.2 - Math.max(state.magnitude - 6.0, 0) * 0.45, 2.6, 4.2);
-}
-
-function getSimulationEewMinimumReviewSec() {
-  const offshoreFactor = getOffshoreEpicenterFactor();
-  return clamp(12 + Math.max(state.magnitude - 5.5, 0) * 13 + offshoreFactor * 9, 12, 96);
-}
-
-function getSimulationEewMinimumReportCount() {
-  return Math.round(clamp(3 + Math.max(state.magnitude - 5.5, 0) * 7.1, 3, 30));
-}
 
 function isPresetFinalEewReport(preset, activePresetEewReport) {
   const reports = preset?.eewReports ?? [];
@@ -20880,9 +21045,6 @@ function getPresetEpicenterNameOverride(preset) {
   return "";
 }
 
-function shouldPreservePresetEpicenterName(preset) {
-  return Boolean(getPresetEpicenterNameOverride(preset));
-}
 
 function applyPresetEpicenterNameOverride() {
   const preset = getSelectedPreset();
@@ -21121,7 +21283,6 @@ function buildOldScaleSyntheticStationFeatures(preset, existingFeatures) {
   return features;
 }
 
-const HYOGO_NANBU_MUNICIPALITY_HINTS = [];
 function findOldScaleSyntheticMunicipalityFeature(observation, allMunicipalityFeatures = municipalityDisplayData?.features ?? []) {
   const stationName = normalizeStationNameForMatch(observation.stationName);
   const municipalityFeatures = allMunicipalityFeatures.filter(
@@ -22440,32 +22601,6 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
-function setCompactHistoryTabLabel() {
-  document.querySelector("#bottom-history-tab span:last-child")?.replaceChildren("統計");
-}
-
-setCompactHistoryTabLabel();
-document.addEventListener("DOMContentLoaded", setCompactHistoryTabLabel);
-window.addEventListener("load", setCompactHistoryTabLabel);
-
-function setFinalToolTabLabels() {
-  document.querySelector("#bottom-history-tab span:last-child")?.replaceChildren("マップ");
-  document.querySelector("#bottom-info-tab span:last-child")?.replaceChildren("ツール");
-}
-
-setFinalToolTabLabels();
-document.addEventListener("DOMContentLoaded", setFinalToolTabLabels);
-window.addEventListener("load", setFinalToolTabLabels);
-
-function setFinalPostTabLabels() {
-  document.querySelector("#bottom-history-tab span:last-child")?.replaceChildren("投稿");
-  document.querySelector("#bottom-info-tab span:last-child")?.replaceChildren("ツール");
-}
-
-setFinalPostTabLabels();
-document.addEventListener("DOMContentLoaded", setFinalPostTabLabels);
-window.addEventListener("load", setFinalPostTabLabels);
-
 COMMUNITY_POST_TAGS = [
   { id: "weather", label: "気象" },
   { id: "disaster", label: "災害" },
@@ -22710,7 +22845,7 @@ function openCommunityAccountScreen(type) {
 
 function closeCommunityAccountScreen() {
   els.settingsMenuSheet?.classList.remove("community-account-screen-open");
-  els.settingsMenuSheet?.querySelector("#community-account-screen")?.classList.add("hidden");
+  hidePageAndResetScroll(els.settingsMenuSheet?.querySelector("#community-account-screen"));
   els.settingsAdminPanel?.classList.remove("admin-subpage-open");
 }
 
@@ -23011,14 +23146,6 @@ async function updateCommunityAccountRequest(patch, status) {
   }
 }
 
-function readFileAsDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-}
 
 function getCommunityAccountScreenStatus() {
   return els.settingsMenuSheet?.querySelector(".community-account-screen-status") || getCommunityAccountStatusElement();

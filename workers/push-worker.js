@@ -1,6 +1,6 @@
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
+  "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
   "Access-Control-Allow-Headers": "authorization,content-type",
 };
 
@@ -110,6 +110,43 @@ export default {
           endYear: url.searchParams.get("endYear"),
         });
         return json(statistics);
+      }
+
+      if (request.method === "GET" && url.pathname === "/simulation-scenarios") {
+        const scenarios = await listSimulationScenarios(request, env);
+        return json({ scenarios });
+      }
+
+      if (request.method === "POST" && url.pathname === "/simulation-scenarios") {
+        const scenario = await createSimulationScenario(request, env);
+        return json({ scenario }, 201);
+      }
+
+      if (request.method === "GET" && url.pathname === "/simulation-comparison") {
+        const comparison = await readSimulationComparison(request, env);
+        return json({ comparison });
+      }
+
+      if (request.method === "PUT" && url.pathname === "/simulation-comparison") {
+        const comparison = await saveSimulationComparison(request, env);
+        return json({ comparison });
+      }
+
+      if (request.method === "DELETE" && url.pathname === "/simulation-comparison") {
+        await deleteSimulationComparison(request, env);
+        return json({ ok: true });
+      }
+
+      const simulationScenarioMatch = url.pathname.match(/^\/simulation-scenarios\/([^/]+)$/);
+      if (simulationScenarioMatch && request.method === "GET") {
+        const scenario = await readSimulationScenario(env, decodeURIComponent(simulationScenarioMatch[1]));
+        if (!scenario) return json({ error: "not found" }, 404);
+        return json({ scenario }, 200, { "Cache-Control": "no-store" });
+      }
+
+      if (simulationScenarioMatch && request.method === "DELETE") {
+        await deleteSimulationScenario(request, env, decodeURIComponent(simulationScenarioMatch[1]));
+        return json({ ok: true });
       }
 
       if (request.method === "POST" && url.pathname === "/community-accounts") {
@@ -1094,6 +1131,174 @@ function getAppDb(env) {
     throw httpError("EARTHQUAKE_PRESETS_DB is not configured", 500);
   }
   return env.EARTHQUAKE_PRESETS_DB;
+}
+
+async function ensureSimulationScenarioSchema(db) {
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS simulation_scenarios (
+      id TEXT PRIMARY KEY,
+      owner_key_hash TEXT NOT NULL,
+      name TEXT NOT NULL,
+      scenario_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `).run();
+  await db.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_simulation_scenarios_owner_updated ON simulation_scenarios(owner_key_hash, updated_at DESC)",
+  ).run();
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS simulation_comparison_baselines (
+      owner_key_hash TEXT PRIMARY KEY,
+      snapshot_json TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `).run();
+}
+
+function readSimulationScenarioOwnerToken(request) {
+  const token = request.headers.get("Authorization")?.match(/^Scenario\s+([A-Za-z0-9_-]{32,180})$/)?.[1] || "";
+  if (!token) throw httpError("scenario owner key is required", 401);
+  return token;
+}
+
+async function hashSimulationScenarioOwnerToken(token) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
+  return arrayBufferToBase64Url(digest);
+}
+
+function normalizeSimulationScenarioPayload(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw httpError("scenario is required", 400);
+  }
+  const jsonValue = JSON.stringify(value);
+  if (jsonValue.length > 24000) throw httpError("scenario is too large", 413);
+  if (!value.epicenter || !["point", "fault"].includes(value.mode)) {
+    throw httpError("invalid scenario", 400);
+  }
+  return jsonValue;
+}
+
+function mapSimulationScenarioRow(row) {
+  if (!row) return null;
+  let scenario;
+  try {
+    scenario = JSON.parse(row.scenarioJson);
+  } catch {
+    return null;
+  }
+  return {
+    id: row.id,
+    name: row.name,
+    scenario,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+async function createSimulationScenario(request, env) {
+  const db = getAppDb(env);
+  await ensureSimulationScenarioSchema(db);
+  const ownerKeyHash = await hashSimulationScenarioOwnerToken(readSimulationScenarioOwnerToken(request));
+  const body = await readRequestBody(request);
+  const name = String(body?.name || "保存したシナリオ").trim().slice(0, 60) || "保存したシナリオ";
+  const scenarioJson = normalizeSimulationScenarioPayload(body?.scenario);
+  const idBytes = crypto.getRandomValues(new Uint8Array(12));
+  const id = arrayBufferToBase64Url(idBytes);
+  const now = new Date().toISOString();
+  await db.prepare(`
+    INSERT INTO simulation_scenarios (id, owner_key_hash, name, scenario_json, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).bind(id, ownerKeyHash, name, scenarioJson, now, now).run();
+  return { id, name, scenario: JSON.parse(scenarioJson), createdAt: now, updatedAt: now };
+}
+
+async function listSimulationScenarios(request, env) {
+  const db = getAppDb(env);
+  await ensureSimulationScenarioSchema(db);
+  const ownerKeyHash = await hashSimulationScenarioOwnerToken(readSimulationScenarioOwnerToken(request));
+  const result = await db.prepare(`
+    SELECT id, name, scenario_json AS scenarioJson, created_at AS createdAt, updated_at AS updatedAt
+    FROM simulation_scenarios
+    WHERE owner_key_hash = ?
+    ORDER BY updated_at DESC
+    LIMIT 200
+  `).bind(ownerKeyHash).all();
+  return (result.results || []).map(mapSimulationScenarioRow).filter(Boolean);
+}
+
+async function readSimulationScenario(env, id) {
+  if (!/^[A-Za-z0-9_-]{8,80}$/.test(String(id || ""))) return null;
+  const db = getAppDb(env);
+  await ensureSimulationScenarioSchema(db);
+  const row = await db.prepare(`
+    SELECT id, name, scenario_json AS scenarioJson, created_at AS createdAt, updated_at AS updatedAt
+    FROM simulation_scenarios
+    WHERE id = ?
+  `).bind(id).first();
+  return mapSimulationScenarioRow(row);
+}
+
+async function deleteSimulationScenario(request, env, id) {
+  if (!/^[A-Za-z0-9_-]{8,80}$/.test(String(id || ""))) throw httpError("not found", 404);
+  const db = getAppDb(env);
+  await ensureSimulationScenarioSchema(db);
+  const ownerKeyHash = await hashSimulationScenarioOwnerToken(readSimulationScenarioOwnerToken(request));
+  const result = await db.prepare(
+    "DELETE FROM simulation_scenarios WHERE id = ? AND owner_key_hash = ?",
+  ).bind(id, ownerKeyHash).run();
+  if (!Number(result.meta?.changes || 0)) throw httpError("not found", 404);
+}
+
+function mapSimulationComparisonRow(row) {
+  if (!row) return null;
+  try {
+    return { snapshot: JSON.parse(row.snapshotJson), updatedAt: row.updatedAt };
+  } catch {
+    return null;
+  }
+}
+
+async function readSimulationComparison(request, env) {
+  const db = getAppDb(env);
+  await ensureSimulationScenarioSchema(db);
+  const ownerKeyHash = await hashSimulationScenarioOwnerToken(readSimulationScenarioOwnerToken(request));
+  const row = await db.prepare(`
+    SELECT snapshot_json AS snapshotJson, updated_at AS updatedAt
+    FROM simulation_comparison_baselines
+    WHERE owner_key_hash = ?
+  `).bind(ownerKeyHash).first();
+  return mapSimulationComparisonRow(row);
+}
+
+async function saveSimulationComparison(request, env) {
+  const db = getAppDb(env);
+  await ensureSimulationScenarioSchema(db);
+  const ownerKeyHash = await hashSimulationScenarioOwnerToken(readSimulationScenarioOwnerToken(request));
+  const body = await readRequestBody(request);
+  if (!body?.snapshot || typeof body.snapshot !== "object" || Array.isArray(body.snapshot)) {
+    throw httpError("comparison snapshot is required", 400);
+  }
+  const snapshotJson = JSON.stringify(body.snapshot);
+  if (snapshotJson.length > 524288) throw httpError("comparison snapshot is too large", 413);
+  const now = new Date().toISOString();
+  await db.prepare(`
+    INSERT INTO simulation_comparison_baselines (owner_key_hash, snapshot_json, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(owner_key_hash) DO UPDATE SET
+      snapshot_json = excluded.snapshot_json,
+      updated_at = excluded.updated_at
+  `).bind(ownerKeyHash, snapshotJson, now).run();
+  return { snapshot: JSON.parse(snapshotJson), updatedAt: now };
+}
+
+async function deleteSimulationComparison(request, env) {
+  const db = getAppDb(env);
+  await ensureSimulationScenarioSchema(db);
+  const ownerKeyHash = await hashSimulationScenarioOwnerToken(readSimulationScenarioOwnerToken(request));
+  await db.prepare("DELETE FROM simulation_comparison_baselines WHERE owner_key_hash = ?")
+    .bind(ownerKeyHash)
+    .run();
 }
 
 async function listCommunityPosts(env, request) {
