@@ -189,13 +189,16 @@ const FAULT_MODEL_PRESETS = {
     modelType: "6セグメント強震断層モデル",
     segments: ["駿河湾域", "遠州海盆域", "熊野灘海盆域", "室戸舟状海盆域", "土佐海盆域", "日向灘域"],
     summary: "プレート境界面の深さ10kmより深い強震断層域を6区分し、各セグメントに2か所の強震動生成域（SMGA）を置く最大クラス想定です。",
-    detail: "SMGAの総面積は強震断層域のおおむね10％。2025年報告でも強震断層モデルは2012年モデルと同一とされています。",
+    detail: "SMGAの総面積は強震断層域のおおむね10％。領域外形は内閣府公表図を基に地図表示用に近似しています。",
     sourceLabel: "内閣府「南海トラフ巨大地震モデル・被害想定手法検討会」報告",
     sourceUrl: "https://www.bousai.go.jp/jishin/nankai/kento_wg/pdf/honbun.pdf",
     magnitudeValue: 9.0,
     depthKm: 20,
-    areaWidthKm: 120,
-    path: [[131.7, 32.0], [133.1, 32.5], [134.5, 32.9], [135.8, 33.3], [137.2, 33.8], [138.5, 34.5]],
+    path: [[130.95, 31.55], [132.1, 32.05], [133.35, 32.45], [134.65, 32.85], [135.9, 33.3], [137.1, 33.85], [138.35, 34.55]],
+    areaSides: {
+      left: [[130.55, 31.75], [131.45, 32.45], [132.65, 32.95], [133.85, 33.35], [135.05, 33.65], [136.25, 34.05], [137.35, 34.45], [138.15, 34.85], [138.7, 35.15]],
+      right: [[131.0, 30.65], [132.05, 30.85], [133.2, 31.15], [134.4, 31.5], [135.6, 31.9], [136.75, 32.35], [137.75, 32.85], [138.55, 33.45], [139.0, 34.15]],
+    },
   },
   "kuril-trench": {
     name: "千島海溝（十勝・根室沖）モデル",
@@ -205,13 +208,16 @@ const FAULT_MODEL_PRESETS = {
     modelType: "最大クラス強震・津波断層モデル",
     segments: ["十勝沖", "根室沖", "千島海溝沿い"],
     summary: "津波堆積物を説明する最大クラスの津波断層域に、過去の地震活動を参考に強震動生成域（SMGA）を配置した想定です。",
-    detail: "日本海溝モデルとは別々に発生する前提で設定され、両モデルの同時連動は公式想定に含まれていません。",
+    detail: "日本海溝モデルとは別々に発生する前提です。領域外形は内閣府公表図を基に地図表示用に近似しています。",
     sourceLabel: "内閣府「日本海溝・千島海溝沿いの巨大地震モデル検討会」最終報告",
     sourceUrl: "https://www.bousai.go.jp/jishin/nihonkaiko_chishima/model/pdf/hokoku_honbun.pdf",
     magnitudeValue: 9.3,
     depthKm: 25,
-    areaWidthKm: 150,
-    path: [[143.5, 41.7], [144.2, 42.3], [145.0, 42.9], [146.0, 43.5], [147.1, 44.0]],
+    path: [[143.6, 41.9], [144.45, 42.45], [145.4, 43.0], [146.5, 43.55], [147.7, 44.15], [149.0, 44.85], [150.3, 45.6]],
+    areaSides: {
+      left: [[143.15, 42.05], [143.9, 42.7], [144.85, 43.3], [145.95, 43.85], [147.2, 44.45], [148.55, 45.15], [150.05, 46.15]],
+      right: [[143.95, 41.55], [144.9, 42.05], [145.95, 42.55], [147.05, 43.05], [148.35, 43.65], [149.75, 44.35], [151.55, 45.45]],
+    },
   },
   "japan-trench": {
     name: "日本海溝（三陸・日高沖）モデル",
@@ -221,13 +227,43 @@ const FAULT_MODEL_PRESETS = {
     modelType: "最大クラス強震・津波断層モデル",
     segments: ["三陸沖北部", "青森県東方沖", "日高沖"],
     summary: "津波堆積物を説明する最大クラスの津波断層域に、過去の地震活動を参考に強震動生成域（SMGA）を配置した想定です。",
-    detail: "千島海溝モデルとは別々に発生する前提で設定され、SMGAの応力降下量は30MPaとされています。",
+    detail: "千島海溝モデルとは別々に発生する前提です。領域外形は内閣府公表図を基に地図表示用に近似しています。",
     sourceLabel: "内閣府「日本海溝・千島海溝沿いの巨大地震モデル検討会」最終報告",
     sourceUrl: "https://www.bousai.go.jp/jishin/nihonkaiko_chishima/model/pdf/hokoku_honbun.pdf",
     magnitudeValue: 9.1,
     depthKm: 25,
-    areaWidthKm: 130,
-    path: [[143.2, 39.0], [143.5, 39.8], [143.7, 40.6], [143.7, 41.4], [143.3, 42.1]],
+    path: [[143.1, 38.8], [143.2, 39.5], [143.3, 40.2], [143.35, 40.9], [143.4, 41.6], [143.45, 42.15]],
+    areaSides: {
+      left: [[142.15, 38.65], [142.1, 39.3], [142.1, 40.0], [142.15, 40.7], [142.35, 41.45], [142.95, 42.2]],
+      right: [[144.0, 38.55], [144.15, 39.3], [144.25, 40.0], [144.35, 40.7], [144.25, 41.5], [143.9, 42.3]],
+    },
+  },
+};
+const NANKAI_RUPTURE_CASES = {
+  full: {
+    label: "全割れケース",
+  },
+  east: {
+    label: "半割れケース（東側）",
+    name: "南海トラフ地震（半割れ・東側）",
+    magnitude: "Mw8クラス",
+    magnitudeValue: 8.6,
+    region: "紀伊半島沖から駿河湾側",
+    modelType: "紀伊半島以東の半割れモデル",
+    segments: ["熊野灘海盆域", "遠州海盆域", "駿河湾域"],
+    pathRange: [3, null],
+    areaRange: [4, null],
+  },
+  west: {
+    label: "半割れケース（西側）",
+    name: "南海トラフ地震（半割れ・西側）",
+    magnitude: "Mw8クラス",
+    magnitudeValue: 8.7,
+    region: "日向灘から紀伊半島沖側",
+    modelType: "紀伊半島以西の半割れモデル",
+    segments: ["日向灘域", "土佐海盆域", "室戸舟状海盆域", "熊野灘海盆域"],
+    pathRange: [0, 4],
+    areaRange: [0, 6],
   },
 };
 const LIGHT_DEFERRED_DATA_DELAY_MS = 700;
@@ -519,6 +555,7 @@ const state = {
   pushSubscribed: false,
   sourceModel: "point",
   faultModelId: "rectangle",
+  faultNankaiCase: "full",
   activeFaultSegmentId: "",
 };
 
@@ -3548,6 +3585,7 @@ function setupTabs() {
     if (activeTab?.id !== "bottom-info-tab") {
       resetInfoTabState();
     }
+    updateSimulationFaultSource();
   };
 
   document.body.dataset.activeBottomTab = document.querySelector(".tab.active")?.id || "earthquake-tab";
@@ -4572,6 +4610,7 @@ function setupTabs() {
           }
         });
       }
+      updateSimulationFaultSource();
     });
   });
 
@@ -6435,6 +6474,9 @@ function bindSimulationControls() {
   const faultWidthInput = document.querySelector("#fault-width-input");
   const faultStrikeInput = document.querySelector("#fault-strike-input");
   const faultDipInput = document.querySelector("#fault-dip-input");
+  const faultEpicenterEditButton = document.querySelector("#fault-epicenter-edit-button");
+  const faultNankaiCasePicker = document.querySelector("#fault-nankai-case-picker");
+  const faultNankaiCaseSelect = document.querySelector("#fault-nankai-case");
   const activeFaultPicker = document.querySelector("#active-fault-picker");
   const activeFaultSearch = document.querySelector("#active-fault-search");
   const activeFaultSelect = document.querySelector("#active-fault-select");
@@ -6634,9 +6676,17 @@ function bindSimulationControls() {
     }
   };
   const syncFaultModelPreset = () => {
-    const preset = FAULT_MODEL_PRESETS[faultModelSelect?.value];
     const faultMenu = document.querySelector("#fault-simulation-menu");
     state.faultModelId = faultModelSelect?.value || "rectangle";
+    if (faultNankaiCaseSelect) {
+      state.faultNankaiCase = faultNankaiCaseSelect.value || "full";
+    }
+    const preset = getSelectedFaultModelPreset();
+    faultNankaiCasePicker?.classList.toggle("hidden", state.faultModelId !== "nankai-trough");
+    if (state.faultModelId !== "rectangle" && els.epicenterEditToggle?.checked) {
+      els.epicenterEditToggle.checked = false;
+    }
+    updateEpicenterEditMode();
     const selectsExistingFault = state.faultModelId === "active-fault";
     if (!selectsExistingFault) {
       activeFaultSelectionRequestId += 1;
@@ -6709,6 +6759,14 @@ function bindSimulationControls() {
     updateIntensityLayer();
   };
   faultModelSelect?.addEventListener("change", syncFaultModelPreset);
+  faultNankaiCaseSelect?.addEventListener("change", syncFaultModelPreset);
+  faultEpicenterEditButton?.addEventListener("click", () => {
+    if (state.faultModelId !== "rectangle" || state.simulationRunning) {
+      return;
+    }
+    els.epicenterEditToggle.checked = !els.epicenterEditToggle.checked;
+    updateEpicenterEditMode();
+  });
   activeFaultSearch?.addEventListener("input", () => renderActiveFaultOptions(activeFaultSearch.value));
   activeFaultSelect?.addEventListener("change", () => {
     void applyActiveFaultSelection(activeFaultSelect.value);
@@ -6719,6 +6777,7 @@ function bindSimulationControls() {
   document.querySelectorAll("#fault-simulation-menu input, #fault-simulation-menu select").forEach((control) => {
     if (
       control === faultModelSelect
+      || control === faultNankaiCaseSelect
       || control === faultMagnitudeInput
       || control === faultDepthInput
       || control === activeFaultSearch
@@ -10405,6 +10464,9 @@ async function initEarthquakeMap() {
     clearSelectedPreset();
     invalidateIntensityEstimateCache();
     syncInputs();
+    if (isFaultSimulationActive()) {
+      updateSimulationFaultSource();
+    }
     updateActiveEpicenterPopups(syncEpicenterMarkerPosition());
     scheduleDeferredEpicenterUpdate({ resolveLocation: true, enforceManagedArea: true });
   });
@@ -14377,7 +14439,7 @@ function addMapLayers() {
       "fill-opacity": 0.3,
     },
   });
-  updateLayerVisibility("simulation-fault-area-fill", isFaultAreaActive());
+  updateLayerVisibility("simulation-fault-area-fill", shouldDisplaySimulationFaultLayer() && isFaultAreaActive());
 
   addLayerIfMissing({
     id: "simulation-fault-area-outline",
@@ -14394,7 +14456,7 @@ function addMapLayers() {
       "line-width": ["interpolate", ["linear"], ["zoom"], 4, 1.8, 8, 3.2],
     },
   });
-  updateLayerVisibility("simulation-fault-area-outline", isFaultAreaActive());
+  updateLayerVisibility("simulation-fault-area-outline", shouldDisplaySimulationFaultLayer() && isFaultAreaActive());
 
   addLayerIfMissing({
     id: "simulation-fault-rupture-fill",
@@ -14414,7 +14476,7 @@ function addMapLayers() {
       "fill-opacity": 0.82,
     },
   });
-  updateLayerVisibility("simulation-fault-rupture-fill", isFaultAreaActive());
+  updateLayerVisibility("simulation-fault-rupture-fill", shouldDisplaySimulationFaultLayer() && isFaultAreaActive());
 
   addLayerIfMissing({
     id: "simulation-fault-line-casing",
@@ -14433,7 +14495,7 @@ function addMapLayers() {
   });
   updateLayerVisibility(
     "simulation-fault-line-casing",
-    isFaultSimulationActive() && !isFaultAreaActive(),
+    shouldDisplaySimulationFaultLayer() && !isFaultAreaActive(),
   );
 
   addLayerIfMissing({
@@ -14451,7 +14513,7 @@ function addMapLayers() {
       "line-width": ["interpolate", ["linear"], ["zoom"], 4, 3.2, 7, 5.4, 10, 7.2],
     },
   });
-  updateLayerVisibility("simulation-fault-line", isFaultSimulationActive() && !isFaultAreaActive());
+  updateLayerVisibility("simulation-fault-line", shouldDisplaySimulationFaultLayer() && !isFaultAreaActive());
 
   addLayerIfMissing({
     id: "simulation-fault-endpoints",
@@ -14468,7 +14530,7 @@ function addMapLayers() {
   });
   updateLayerVisibility(
     "simulation-fault-endpoints",
-    isFaultSimulationActive() && !isFaultAreaActive(),
+    shouldDisplaySimulationFaultLayer() && !isFaultAreaActive(),
   );
 
   addLayerIfMissing({
@@ -15497,6 +15559,11 @@ function scheduleLocationResolve(options = {}) {
 
 function updateEpicenterEditMode() {
   state.epicenterEditEnabled = state.simulationRunning ? false : els.epicenterEditToggle.checked;
+  const faultEditButton = document.querySelector("#fault-epicenter-edit-button");
+  const faultEditHint = document.querySelector("#fault-epicenter-edit-hint");
+  const rectangleEditActive = isFaultSimulationActive()
+    && state.faultModelId === "rectangle"
+    && state.epicenterEditEnabled;
 
   if (map) {
     map.getCanvas().classList.toggle("epicenter-edit-enabled", state.epicenterEditEnabled);
@@ -15507,6 +15574,15 @@ function updateEpicenterEditMode() {
   if (els.currentLocationRequestButton) {
     els.currentLocationRequestButton.disabled = state.simulationRunning;
   }
+  if (faultEditButton) {
+    faultEditButton.disabled = state.simulationRunning || state.faultModelId !== "rectangle";
+    faultEditButton.classList.toggle("is-active", rectangleEditActive);
+    faultEditButton.setAttribute("aria-pressed", rectangleEditActive ? "true" : "false");
+    faultEditButton.replaceChildren(rectangleEditActive ? "配置地点を設定中" : "震源地を設定");
+  }
+  faultEditHint?.replaceChildren(rectangleEditActive
+    ? "地図上をタップするか震源マーカーを移動すると、その地点へ矩形断層を配置します。"
+    : "地図上の配置地点をタップするか、震源マーカーを移動してください。");
 
   if (epicenterMarker) {
     epicenterMarker.setDraggable(state.epicenterEditEnabled);
@@ -18905,6 +18981,9 @@ async function updateEpicenter(options = {}) {
       clearSelectedPreset();
       invalidateIntensityEstimateCache();
       syncInputs();
+      if (isFaultSimulationActive()) {
+        updateSimulationFaultSource();
+      }
       updateActiveEpicenterPopups([state.longitude, state.latitude]);
       scheduleDeferredEpicenterUpdate({ resolveLocation: true, enforceManagedArea: true }, EPICENTER_DRAG_UPDATE_DELAY_MS);
     });
@@ -19079,6 +19158,7 @@ function getIntensitySourceCacheKey(elapsedSec = Infinity) {
     getSelectedPreset()?.id ?? "",
     state.sourceModel,
     state.faultModelId,
+    state.faultNankaiCase,
     state.activeFaultSegmentId,
   ].join("|");
 }
@@ -19365,6 +19445,7 @@ function buildIntensityAreaData(geojson, elapsedSec = Infinity) {
     if (!freezeSimulationEew) {
       applyAdaptiveEewExpansion(features, shouldIssueEew, elapsedSec);
     }
+    applyFaultRuptureEewProgressGate(features, elapsedSec);
     applyPersistentSimulationEewWarnings(features, elapsedSec);
   }
   updateEewReportState(features, selectedPreset, activePresetEewReport, elapsedSec);
@@ -19431,6 +19512,45 @@ function shouldIssueSimulationEewFeature(feature, elapsedSec = Infinity) {
     feature.properties.predictedIntensityRank >= 4 &&
     (currentValue >= getSimulationEewObservedIntensityThreshold(predictedValue) ||
       isNearEpicenterHighPredictedArea(feature))
+  );
+}
+
+function applyFaultRuptureEewProgressGate(features, elapsedSec = Infinity) {
+  if (!isFaultSimulationActive() || !Number.isFinite(elapsedSec)) {
+    return;
+  }
+  const samples = getFaultSourceSamples();
+  if (samples.length === 0) {
+    return;
+  }
+  features.forEach((feature) => {
+    if (!feature.properties.eewWarning) {
+      return;
+    }
+    const polygons = getFeatureIntensityDistancePolygons(feature);
+    let nearestDistanceKm = Infinity;
+    let nearestRuptureDelaySec = Infinity;
+    samples.forEach((sample) => {
+      const distanceKm = getNearestPointOnFeature(sample.coordinates, feature, { polygons }).distanceKm;
+      if (distanceKm < nearestDistanceKm) {
+        nearestDistanceKm = distanceKm;
+        nearestRuptureDelaySec = sample.ruptureDelaySec;
+      }
+    });
+    feature.properties.faultRuptureAvailableSec = Number(nearestRuptureDelaySec.toFixed(2));
+    if (elapsedSec < nearestRuptureDelaySec) {
+      feature.properties.eewWarning = false;
+    }
+  });
+}
+
+function getFaultRuptureCompletionSec() {
+  if (!isFaultSimulationActive()) {
+    return 0;
+  }
+  return getFaultSourceSamples().reduce(
+    (maximum, sample) => Math.max(maximum, Number(sample.ruptureDelaySec) || 0),
+    0,
   );
 }
 
@@ -19702,7 +19822,9 @@ function updateEewReportState(features, selectedPreset, activePresetEewReport, e
   state.eewSyntheticReportNumber = Math.max(state.eewSyntheticReportNumber, scheduledReportNumber);
   state.eewReportAreaKeySignature = nextSignature;
   state.eewWarningReportNumber = state.eewSyntheticReportNumber;
-  state.eewWarningFinalReport = magnitudeReport?.isFinal === true;
+  const faultRuptureComplete = !isFaultSimulationActive()
+    || elapsedSec >= getFaultRuptureCompletionSec();
+  state.eewWarningFinalReport = magnitudeReport?.isFinal === true && faultRuptureComplete;
 }
 
 function hasPendingSimulationEewUpdate(features, elapsedSec) {
@@ -21228,9 +21350,41 @@ function isFaultSimulationActive() {
   return state.sourceModel === "fault";
 }
 
+function shouldDisplaySimulationFaultLayer() {
+  return isFaultSimulationActive()
+    && document.body.dataset.activeBottomTab === "earthquake-tab"
+    && !document.body.classList.contains("tool-source-search-mode")
+    && !document.body.classList.contains("community-pick-mode");
+}
+
+function getSelectedFaultModelPreset(modelId = state.faultModelId) {
+  const preset = FAULT_MODEL_PRESETS[modelId];
+  if (!preset || modelId !== "nankai-trough") {
+    return preset;
+  }
+  const ruptureCase = NANKAI_RUPTURE_CASES[state.faultNankaiCase] ?? NANKAI_RUPTURE_CASES.full;
+  if (state.faultNankaiCase === "full" || !ruptureCase.pathRange) {
+    return preset;
+  }
+  const [pathStart, pathEnd] = ruptureCase.pathRange;
+  const [areaStart, areaEnd] = ruptureCase.areaRange;
+  return {
+    ...preset,
+    ...ruptureCase,
+    summary: `${ruptureCase.label}として、${ruptureCase.region}の破壊を想定します。`,
+    detail: "半割れは南海トラフ想定震源域の一部でM8級の地震が発生する防災対応上のケースです。領域外形は内閣府公表図を基に地図表示用に近似しています。",
+    path: preset.path.slice(pathStart, pathEnd ?? undefined),
+    areaSides: {
+      left: preset.areaSides.left.slice(areaStart, areaEnd ?? undefined),
+      right: preset.areaSides.right.slice(areaStart, areaEnd ?? undefined),
+    },
+  };
+}
+
 function isFaultAreaActive() {
   return isFaultSimulationActive() && (
-    Boolean(FAULT_MODEL_PRESETS[state.faultModelId])
+    state.faultModelId === "rectangle"
+    || Boolean(getSelectedFaultModelPreset())
     || (state.faultModelId === "active-fault" && selectedActiveFaultPath.length >= 2)
   );
 }
@@ -21385,7 +21539,7 @@ function getActiveFaultPath() {
   if (!isFaultSimulationActive()) {
     return [];
   }
-  const preset = FAULT_MODEL_PRESETS[state.faultModelId];
+  const preset = getSelectedFaultModelPreset();
   if (preset?.path?.length >= 2) {
     return preset.path.map((point) => [...point]);
   }
@@ -21619,6 +21773,34 @@ function buildFaultAreaGeometry(path, widthKm) {
   return { areaRing, cells, totalLengthKm };
 }
 
+function buildPresetFaultAreaGeometry(preset) {
+  const left = preset?.areaSides?.left ?? [];
+  const right = preset?.areaSides?.right ?? [];
+  if (left.length < 2 || left.length !== right.length) {
+    return null;
+  }
+  const centerPoints = left.map((point, index) => [
+    (point[0] + right[index][0]) / 2,
+    (point[1] + right[index][1]) / 2,
+  ]);
+  const segmentLengths = centerPoints.slice(1).map((point, index) => (
+    haversineKilometers(centerPoints[index], point)
+  ));
+  const cumulativeLengths = [0];
+  segmentLengths.forEach((length) => {
+    cumulativeLengths.push(cumulativeLengths[cumulativeLengths.length - 1] + length);
+  });
+  return {
+    areaRing: [...left, ...right.slice().reverse(), left[0]],
+    cells: left.slice(0, -1).map((point, index) => ({
+      ring: [point, left[index + 1], right[index + 1], right[index], point],
+      startAlongKm: cumulativeLengths[index],
+      endAlongKm: cumulativeLengths[index + 1],
+    })),
+    totalLengthKm: cumulativeLengths[cumulativeLengths.length - 1],
+  };
+}
+
 function getFaultRuptureCellProgress(cell, originAlongKm, direction, ruptureSpeed, elapsedSec) {
   const canRupture = direction === "bilateral"
     || (direction === "forward" && cell.endAlongKm >= originAlongKm)
@@ -21644,12 +21826,18 @@ function buildSimulationFaultGeoJson(elapsedSec = null) {
   if (path.length < 2) {
     return emptyFeatureCollection();
   }
-  const preset = FAULT_MODEL_PRESETS[state.faultModelId];
+  const preset = getSelectedFaultModelPreset();
   const usesSelectedActiveFault = state.faultModelId === "active-fault" && selectedActiveFaultPath.length >= 2;
-  if (preset || usesSelectedActiveFault) {
+  const usesRectangleFault = state.faultModelId === "rectangle";
+  if (preset || usesSelectedActiveFault || usesRectangleFault) {
     const areaPath = usesSelectedActiveFault ? [path[0], path[path.length - 1]] : path;
-    const areaWidthKm = preset?.areaWidthKm ?? ACTIVE_FAULT_AREA_WIDTH_KM;
-    const { areaRing, cells, totalLengthKm } = buildFaultAreaGeometry(areaPath, areaWidthKm);
+    const areaWidthKm = usesRectangleFault
+      ? getFaultControlNumber("#fault-width-input", 15, 1, 200)
+      : preset?.areaWidthKm ?? ACTIVE_FAULT_AREA_WIDTH_KM;
+    const { areaRing, cells, totalLengthKm } = (
+      buildPresetFaultAreaGeometry(preset)
+      ?? buildFaultAreaGeometry(areaPath, areaWidthKm)
+    );
     const ruptureSpeed = getFaultControlNumber("#fault-rupture-speed", 2.8, 0.5, 4);
     const { origin, direction } = getResolvedFaultRuptureSettings();
     const originAlongKm = origin === "start" ? 0 : origin === "end" ? totalLengthKm : totalLengthKm / 2;
@@ -21693,7 +21881,7 @@ function buildSimulationFaultGeoJson(elapsedSec = null) {
 }
 
 function updateSimulationFaultRuptureSource(elapsedSec) {
-  if (!isFaultAreaActive() || !map?.getSource("simulation-fault-source")) {
+  if (!shouldDisplaySimulationFaultLayer() || !isFaultAreaActive() || !map?.getSource("simulation-fault-source")) {
     return;
   }
   setGeoJsonSourceData("simulation-fault-source", buildSimulationFaultGeoJson(elapsedSec));
@@ -21705,7 +21893,8 @@ function updateSimulationFaultSource() {
   const epicenterCoordinates = getDisplayedEpicenterCoordinates();
   epicenterMarker?.setLngLat(epicenterCoordinates);
   updateActiveEpicenterPopups(epicenterCoordinates);
-  const showsFaultArea = isFaultAreaActive();
+  const displaysFault = shouldDisplaySimulationFaultLayer();
+  const showsFaultArea = displaysFault && isFaultAreaActive();
   if (showsFaultArea) {
     setWaveRadiusData(0, 0);
   }
@@ -21714,14 +21903,14 @@ function updateSimulationFaultSource() {
   }
   setGeoJsonSourceData(
     "simulation-fault-source",
-    isFaultSimulationActive() ? buildSimulationFaultGeoJson() : emptyFeatureCollection(),
+    displaysFault ? buildSimulationFaultGeoJson() : emptyFeatureCollection(),
   );
-  updateLayerVisibility("simulation-fault-line", isFaultSimulationActive() && !showsFaultArea);
-  updateLayerVisibility("simulation-fault-line-casing", isFaultSimulationActive() && !showsFaultArea);
+  updateLayerVisibility("simulation-fault-line", displaysFault && !showsFaultArea);
+  updateLayerVisibility("simulation-fault-line-casing", displaysFault && !showsFaultArea);
   updateLayerVisibility("simulation-fault-area-fill", showsFaultArea);
   updateLayerVisibility("simulation-fault-area-outline", showsFaultArea);
   updateLayerVisibility("simulation-fault-rupture-fill", showsFaultArea);
-  updateLayerVisibility("simulation-fault-endpoints", isFaultSimulationActive() && !showsFaultArea);
+  updateLayerVisibility("simulation-fault-endpoints", displaysFault && !showsFaultArea);
   keepWaveAndStationLayerOrder();
 }
 

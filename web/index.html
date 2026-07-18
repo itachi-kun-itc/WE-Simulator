@@ -137,6 +137,14 @@
                     <option value="active-fault">活断層から選択</option>
                   </select>
                 </label>
+                <label class="field fault-nankai-case-picker hidden" id="fault-nankai-case-picker">
+                  <span>破壊ケース</span>
+                  <select id="fault-nankai-case">
+                    <option value="full" selected>全割れケース</option>
+                    <option value="east">半割れケース（東側）</option>
+                    <option value="west">半割れケース（西側）</option>
+                  </select>
+                </label>
                 <div class="active-fault-picker hidden" id="active-fault-picker">
                   <label class="field">
                     <span>活断層を検索</span>
@@ -190,6 +198,10 @@
                     <select id="fault-dip-input" aria-label="矩形断層の傾斜角"><option value="45" selected>45°</option></select>
                   </label>
                 </div>
+                <button class="fault-epicenter-edit-button" id="fault-epicenter-edit-button" type="button" aria-pressed="false">
+                  震源地を設定
+                </button>
+                <p class="fault-epicenter-edit-hint" id="fault-epicenter-edit-hint">地図上の配置地点をタップするか、震源マーカーを移動してください。</p>
               </section>
 
               <section class="fault-simulation-card fault-rupture-settings" aria-labelledby="fault-rupture-title">
