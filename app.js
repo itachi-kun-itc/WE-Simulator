@@ -753,6 +753,7 @@ let startupOverlayReleasePending = false;
 let startupBackgroundDataScheduled = false;
 let startupFaultModeHintShown = false;
 let startupFaultModeHintTimer = 0;
+let startupLocationPermissionCheckPending = true;
 let maintenanceStatusReady = false;
 let simulationStartedAt;
 let simulationPausedAt;
@@ -981,7 +982,14 @@ async function bootstrapApplication() {
   void loadSimulationComparisonBaseline();
   await restoreSharedSimulationScenarioFromUrl();
   setupSystemPermissionSync();
-  restoreCurrentLocationPreference();
+  void restoreCurrentLocationPreference()
+    .catch((error) => {
+      console.warn("location preference restore failed", error);
+    })
+    .finally(() => {
+      startupLocationPermissionCheckPending = false;
+      scheduleStartupFaultModeHint();
+    });
   recoverPmtilesByteServingIfNeeded().catch((error) => {
     console.warn("PMTiles byte serving recovery failed", error);
   });
@@ -6500,7 +6508,12 @@ function showFaultModeSwitchNotice(message, options = {}) {
 }
 
 function scheduleStartupFaultModeHint() {
-  if (startupFaultModeHintShown || startupFaultModeHintTimer) {
+  if (
+    startupFaultModeHintShown
+    || startupFaultModeHintTimer
+    || startupLocationPermissionCheckPending
+    || document.querySelector("#startup-location-permission-overlay")
+  ) {
     return;
   }
   startupFaultModeHintTimer = window.setTimeout(() => {
@@ -16401,6 +16414,7 @@ function showStartupLocationPermissionPrompt(permissionState = "prompt") {
 
 function closeStartupLocationPermissionPrompt() {
   document.querySelector("#startup-location-permission-overlay")?.remove();
+  startupLocationPermissionCheckPending = false;
   scheduleStartupFaultModeHint();
 }
 
