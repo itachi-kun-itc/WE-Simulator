@@ -771,6 +771,7 @@ let simulationMaxAreaListSignature = "";
 let simulationResultReportSnapshot = null;
 let simulationComparisonBaseline = null;
 let simulationScenarioRecordCache = new Map();
+let simulationScenarioRenderRequestId = 0;
 let simulationResultSummaryMount = null;
 let simulationFaultScenarioApplyHandler = null;
 let simulationModeScenarioApplyHandler = null;
@@ -977,7 +978,7 @@ bootstrapApplication();
 
 async function bootstrapApplication() {
   await disableLocalDevelopmentServiceWorker();
-  await loadSimulationComparisonBaseline();
+  void loadSimulationComparisonBaseline();
   await restoreSharedSimulationScenarioFromUrl();
   setupSystemPermissionSync();
   restoreCurrentLocationPreference();
@@ -7041,7 +7042,7 @@ function bindSimulationControls() {
   syncInputs();
   updateDisplayMode();
   updateSimulationAvailability();
-  setSetupMenuOpen(false);
+  setSetupMenuOpen(true);
   updateSettingsMenuButtonVisibility();
 }
 
@@ -7755,14 +7756,22 @@ async function openSimulationScenarioManager() {
   const overlay = ensureSimulationScenarioOverlay();
   const input = overlay.querySelector('input[name="name"]');
   if (input) input.value = "";
+  const status = overlay.querySelector(".simulation-scenario-status");
+  if (status) status.textContent = "";
+  overlay.querySelector("[data-simulation-scenario-import-form]")?.reset();
   overlay.classList.remove("hidden");
   document.body.classList.add("simulation-scenario-overlay-open");
-  await renderSimulationScenarioList(overlay);
   input?.focus({ preventScroll: true });
+  void renderSimulationScenarioList(overlay);
 }
 
 function closeSimulationScenarioManager() {
   const overlay = document.querySelector("#simulation-scenario-overlay");
+  simulationScenarioRenderRequestId += 1;
+  const status = overlay?.querySelector(".simulation-scenario-status");
+  if (status) status.textContent = "";
+  const list = overlay?.querySelector(".simulation-scenario-list");
+  if (list) list.replaceChildren();
   hidePageAndResetScroll(overlay);
   document.body.classList.remove("simulation-scenario-overlay-open");
 }
@@ -7770,9 +7779,11 @@ function closeSimulationScenarioManager() {
 async function renderSimulationScenarioList(overlay = ensureSimulationScenarioOverlay()) {
   const list = overlay.querySelector(".simulation-scenario-list");
   if (!list) return;
+  const requestId = ++simulationScenarioRenderRequestId;
   list.innerHTML = '<p class="simulation-scenario-empty">読み込み中...</p>';
   try {
     const records = await listSimulationScenarios();
+    if (requestId !== simulationScenarioRenderRequestId || overlay.classList.contains("hidden")) return;
     const visibleRecords = records.filter((record) => {
       try {
         return normalizeSimulationScenario(record.scenario).mode === getCurrentSimulationScenarioMode();
@@ -7801,6 +7812,7 @@ async function renderSimulationScenarioList(overlay = ensureSimulationScenarioOv
       `;
     }).join("") : '<p class="simulation-scenario-empty">保存されているシナリオがありません</p>';
   } catch (error) {
+    if (requestId !== simulationScenarioRenderRequestId || overlay.classList.contains("hidden")) return;
     simulationScenarioRecordCache.clear();
     console.warn("Simulation scenario list could not be loaded", error);
     list.innerHTML = '<p class="simulation-scenario-empty">Cloudflare DBを読み込めませんでした。</p>';
@@ -7809,19 +7821,20 @@ async function renderSimulationScenarioList(overlay = ensureSimulationScenarioOv
 
 async function shareSimulationScenario(record) {
   const url = buildSimulationScenarioShareUrl(record);
+  const shareText = `【地震シナリオ共有】\n${url}`;
   if (navigator.share) {
     try {
-      await navigator.share({ title: `WE-Simulator｜${record.name}`, text: "地震シミュレーション設定", url });
+      await navigator.share({ title: "地震シナリオ共有", text: shareText });
       return;
     } catch (error) {
       if (error?.name === "AbortError") return;
     }
   }
   try {
-    await navigator.clipboard.writeText(url);
+    await navigator.clipboard.writeText(shareText);
     showFaultModeSwitchNotice("共有URLをコピーしました", { durationMs: 1600 });
   } catch {
-    window.prompt("共有URLをコピーしてください", url);
+    window.prompt("共有文をコピーしてください", shareText);
   }
 }
 
@@ -10130,7 +10143,7 @@ function setupMobileSheets() {
       return;
     }
 
-    setSheetState(panel, "collapsed");
+    setSheetState(panel, panel.id === "setup-panel" ? "open" : "collapsed");
     const handle = panel.querySelector(".sheet-handle");
     const toggleButtons = [els.setupSheetToggle, els.simulationSheetToggle].filter(Boolean);
 

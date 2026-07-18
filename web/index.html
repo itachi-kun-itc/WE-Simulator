@@ -69,7 +69,7 @@
 
         <div class="map-wrap">
           <div id="map" aria-label="地震地域区分の日本地図"></div>
-          <button class="settings-menu-button" id="settings-menu-button" type="button" aria-controls="setup-panel" aria-expanded="false" aria-label="設定メニューを開く">
+          <button class="settings-menu-button is-active" id="settings-menu-button" type="button" aria-controls="setup-panel" aria-expanded="true" aria-label="設定メニューを閉じる">
             <span aria-hidden="true">⚙</span>
           </button>
           <button class="map-layer-control-button" id="map-layer-control-button" type="button" aria-controls="map-layer-control-panel" aria-expanded="false" aria-label="レイヤー表示を設定">
@@ -91,7 +91,7 @@
             <label><input type="checkbox" data-map-layer-target="fault-layer-toggle" disabled />断層（一時無効化中）</label>
           </section>
 
-          <section class="sim-panel setup-menu-closed" id="setup-panel" data-sheet-state="collapsed" aria-label="震源設定">
+          <section class="sim-panel setup-menu-open" id="setup-panel" data-sheet-state="open" aria-label="震源設定">
             <button class="sheet-handle" type="button" aria-label="メニューを開閉"></button>
             <div class="sim-panel-head">
               <div class="setup-panel-title">
