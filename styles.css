@@ -20339,6 +20339,30 @@ body.fault-simulation-mode #earthquake-tab span:last-child {
   line-height: 1.45;
 }
 
+.fault-epicenter-edit-button {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid rgba(2, 132, 199, 0.34);
+  border-radius: 12px;
+  background: rgba(14, 165, 233, 0.1);
+  color: #075985;
+  font-weight: 900;
+}
+
+.fault-epicenter-edit-button.is-active {
+  border-color: #0284c7;
+  background: #0284c7;
+  color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.18);
+}
+
+.fault-epicenter-edit-hint {
+  margin: -4px 0 0;
+  color: #64748b;
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+
 .fault-model-profile:empty {
   display: none;
 }
@@ -20576,6 +20600,12 @@ html[data-resolved-theme="dark"] .fault-model-profile p {
   color: #e2e8f0;
 }
 
+html[data-resolved-theme="dark"] .fault-model-profile-head b {
+  border: 1px solid rgba(56, 189, 248, 0.42);
+  background: rgba(14, 116, 144, 0.42);
+  color: #bae6fd;
+}
+
 html[data-resolved-theme="dark"] .fault-model-profile-head span,
 html[data-resolved-theme="dark"] .fault-model-profile > small,
 html[data-resolved-theme="dark"] .fault-model-profile dt {
@@ -20591,6 +20621,22 @@ html[data-resolved-theme="dark"] .fault-source-parameters-hint {
 }
 
 html[data-resolved-theme="dark"] .fault-rupture-settings-hint {
+  color: #94a3b8;
+}
+
+html[data-resolved-theme="dark"] .fault-epicenter-edit-button {
+  border-color: rgba(56, 189, 248, 0.42);
+  background: rgba(14, 116, 144, 0.28);
+  color: #bae6fd;
+}
+
+html[data-resolved-theme="dark"] .fault-epicenter-edit-button.is-active {
+  border-color: #38bdf8;
+  background: #0369a1;
+  color: #f0f9ff;
+}
+
+html[data-resolved-theme="dark"] .fault-epicenter-edit-hint {
   color: #94a3b8;
 }
 
@@ -23214,4 +23260,65 @@ html[data-resolved-theme="light"] .admin-overview-system dd[data-state="warning"
 
 html[data-resolved-theme="light"] .community-account-list-dates {
   border-top-color: #e2e8f0;
+}
+
+/* Keep the administrator operation area scrollable inside the fixed settings page. */
+#settings-admin-panel,
+#settings-admin-panel .settings-admin-embedded,
+#settings-admin-panel .admin-mode-dialog {
+  min-height: 0 !important;
+}
+
+#settings-admin-panel:not(.admin-subpage-open) .settings-admin-embedded {
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+  touch-action: pan-y !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+#settings-admin-panel.admin-subpage-open .settings-admin-embedded,
+#settings-admin-panel.admin-subpage-open .admin-mode-dialog,
+#settings-admin-panel.admin-subpage-open .admin-section-page {
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+}
+
+#settings-admin-panel.admin-subpage-open .admin-section-body {
+  min-height: 0 !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+  touch-action: pan-y !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+.settings-admin-embedded .admin-overview > header button {
+  flex: 0 0 44px !important;
+  width: 44px !important;
+  min-width: 44px !important;
+  max-width: 44px !important;
+  padding-right: 0 !important;
+  padding-left: 0 !important;
+}
+
+/* The planned maximum-intensity observation line needs a wider luminous dash on dark TL. */
+html[data-resolved-theme="dark"] .simulation-timeline-event.is-intensity-planned,
+html[data-resolved-theme="dark"] .simulation-runtime-hud .simulation-timeline-event.is-intensity-planned {
+  --simulation-planned-line-color: #fb923c;
+  width: 3px !important;
+  border-left: 0 !important;
+  background-color: transparent !important;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    #fb923c 0 7px,
+    transparent 7px 12px
+  ) !important;
+  background-position: left top !important;
+  background-repeat: no-repeat !important;
+  background-size: 3px 100% !important;
+  filter: drop-shadow(0 0 2px rgba(251, 146, 60, 0.72));
 }
