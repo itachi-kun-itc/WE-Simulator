@@ -23818,7 +23818,7 @@ body.simulation-scenario-overlay-open {
   border: 1px solid rgba(125, 211, 252, 0.26);
   border-radius: 20px;
   padding: 0 15px 17px;
-  background: linear-gradient(180deg, #111827, #07111f);
+  background: #0a0e16;
   color: #f8fafc;
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
 }
@@ -23832,11 +23832,12 @@ body.simulation-scenario-overlay-open {
   align-items: center;
   height: 48px;
   min-height: 48px;
+  max-height: 48px;
   box-sizing: border-box;
   margin: 0 -15px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-  padding: 0 15px;
-  background: rgba(17, 24, 39, 0.96);
+  padding: 0 8px;
+  background: #0a0e16;
   backdrop-filter: blur(10px);
 }
 
@@ -24102,4 +24103,149 @@ html[data-resolved-theme="light"] .simulation-scenario-item-actions button[data-
   .simulation-scenario-import-form {
     grid-template-columns: 1fr;
   }
+}
+
+/* Keep TL labels fixed when a planned dashed event becomes an actual solid event. */
+html[data-resolved-theme] .simulation-timeline-event,
+html[data-resolved-theme] .simulation-runtime-hud .simulation-timeline-event {
+  width: 3px !important;
+  border-left: 0 !important;
+  background-color: var(--tl-stable-line, #cbd5e1) !important;
+  background-image: none !important;
+  transition: none !important;
+}
+
+html[data-resolved-theme] .simulation-timeline-event.is-intensity-planned,
+html[data-resolved-theme] .simulation-runtime-hud .simulation-timeline-event.is-intensity-planned,
+html[data-resolved-theme] .simulation-timeline-event.is-eew-planned,
+html[data-resolved-theme] .simulation-runtime-hud .simulation-timeline-event.is-eew-planned,
+html[data-resolved-theme] .simulation-timeline-event.is-magnitude-planned,
+html[data-resolved-theme] .simulation-runtime-hud .simulation-timeline-event.is-magnitude-planned {
+  background-color: transparent !important;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    var(--tl-stable-line) 0 7px,
+    transparent 7px 12px
+  ) !important;
+  background-position: left top !important;
+  background-repeat: no-repeat !important;
+  background-size: 3px 100% !important;
+  filter: none !important;
+}
+
+.simulation-timeline-event b,
+.simulation-runtime-hud .simulation-timeline-event b {
+  left: 8px !important;
+  box-sizing: border-box !important;
+  background: var(--tl-stable-label) !important;
+  transform: none !important;
+  transition: none !important;
+}
+
+html[data-resolved-theme] .simulation-timeline-event:is(
+  .is-intensity,
+  .is-intensity-planned,
+  .is-eew,
+  .is-eew-planned,
+  .is-magnitude,
+  .is-magnitude-planned
+) b,
+html[data-resolved-theme] .simulation-runtime-hud .simulation-timeline-event:is(
+  .is-intensity,
+  .is-intensity-planned,
+  .is-eew,
+  .is-eew-planned,
+  .is-magnitude,
+  .is-magnitude-planned
+) b {
+  background: var(--tl-stable-label) !important;
+}
+
+html[data-resolved-theme="light"] .simulation-timeline-event,
+html[data-resolved-theme="light"] .simulation-runtime-hud .simulation-timeline-event {
+  --tl-stable-line: #334155;
+  --tl-stable-label: rgba(248, 250, 252, 0.96);
+}
+
+html[data-resolved-theme="light"] .simulation-timeline-event:is(.is-intensity, .is-intensity-planned),
+html[data-resolved-theme="light"] .simulation-runtime-hud .simulation-timeline-event:is(.is-intensity, .is-intensity-planned) {
+  --tl-stable-line: #ea580c;
+  --tl-stable-label: #fff7ed;
+}
+
+html[data-resolved-theme="light"] .simulation-timeline-event:is(.is-eew, .is-eew-planned),
+html[data-resolved-theme="light"] .simulation-runtime-hud .simulation-timeline-event:is(.is-eew, .is-eew-planned) {
+  --tl-stable-line: #dc2626;
+  --tl-stable-label: #fef2f2;
+}
+
+html[data-resolved-theme="light"] .simulation-timeline-event:is(.is-magnitude, .is-magnitude-planned),
+html[data-resolved-theme="light"] .simulation-runtime-hud .simulation-timeline-event:is(.is-magnitude, .is-magnitude-planned) {
+  --tl-stable-line: #475569;
+  --tl-stable-label: #f1f5f9;
+}
+
+html[data-resolved-theme="light"] .simulation-timeline-event.is-complete,
+html[data-resolved-theme="light"] .simulation-runtime-hud .simulation-timeline-event.is-complete {
+  --tl-stable-line: #e11d48;
+}
+
+html[data-resolved-theme="dark"] .simulation-timeline-event,
+html[data-resolved-theme="dark"] .simulation-runtime-hud .simulation-timeline-event {
+  --tl-stable-line: #cbd5e1;
+  --tl-stable-label: rgba(15, 23, 42, 0.96);
+}
+
+html[data-resolved-theme="dark"] .simulation-timeline-event:is(.is-intensity, .is-intensity-planned),
+html[data-resolved-theme="dark"] .simulation-runtime-hud .simulation-timeline-event:is(.is-intensity, .is-intensity-planned) {
+  --tl-stable-line: #fb923c;
+  --tl-stable-label: #432008;
+}
+
+html[data-resolved-theme="dark"] .simulation-timeline-event:is(.is-eew, .is-eew-planned),
+html[data-resolved-theme="dark"] .simulation-runtime-hud .simulation-timeline-event:is(.is-eew, .is-eew-planned) {
+  --tl-stable-line: #fb7185;
+  --tl-stable-label: #450a0a;
+}
+
+html[data-resolved-theme="dark"] .simulation-timeline-event:is(.is-magnitude, .is-magnitude-planned),
+html[data-resolved-theme="dark"] .simulation-runtime-hud .simulation-timeline-event:is(.is-magnitude, .is-magnitude-planned) {
+  --tl-stable-label: #1e293b;
+}
+
+html[data-resolved-theme="dark"] .simulation-timeline-event.is-complete,
+html[data-resolved-theme="dark"] .simulation-runtime-hud .simulation-timeline-event.is-complete {
+  --tl-stable-line: #fb7185;
+}
+
+/* Use a light mini-map treatment in the light appearance. */
+html[data-resolved-theme="light"] .community-post-location-preview {
+  border-color: rgba(100, 116, 139, 0.28) !important;
+  background:
+    linear-gradient(90deg, rgba(71, 85, 105, 0.1) 1px, transparent 1px) 0 0 / 38px 38px,
+    linear-gradient(0deg, rgba(71, 85, 105, 0.08) 1px, transparent 1px) 0 0 / 38px 38px,
+    radial-gradient(circle at 68% 36%, rgba(14, 165, 233, 0.13), transparent 34%),
+    linear-gradient(180deg, #f8fbfd, #dce8ef) !important;
+}
+
+html[data-resolved-theme="light"] .community-post-location-preview::before {
+  background: rgba(51, 65, 85, 0.22) !important;
+  box-shadow:
+    60px 24px 0 rgba(51, 65, 85, 0.18),
+    170px 42px 0 rgba(51, 65, 85, 0.14),
+    270px 12px 0 rgba(51, 65, 85, 0.14) !important;
+}
+
+html[data-resolved-theme="light"] .community-post-location-preview-text {
+  color: #334155 !important;
+}
+
+html[data-resolved-theme="light"] .community-post-location-dot {
+  border-color: #64748b !important;
+}
+
+html[data-resolved-theme="light"] .community-post-location-dot.is-set {
+  border-color: #ffffff !important;
+  background: #0284c7 !important;
+  box-shadow: 0 0 0 7px rgba(2, 132, 199, 0.16) !important;
 }
