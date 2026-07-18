@@ -181,6 +181,8 @@ const RESET_VIEW_ANIMATION_MS = 1200;
 const FAULT_MODE_LONG_PRESS_MS = 650;
 const FAULT_MODE_LONG_PRESS_MOVE_TOLERANCE_PX = 12;
 const ACTIVE_FAULT_AREA_WIDTH_KM = 15;
+const FAULT_SOURCE_SAMPLE_MAX_INTERVALS = 16;
+const FAULT_SOURCE_SAMPLE_MIN_SPACING_KM = 12;
 const FAULT_MODEL_PRESETS = {
   "nankai-trough": {
     name: "南海トラフ巨大地震",
@@ -189,15 +191,29 @@ const FAULT_MODEL_PRESETS = {
     modelType: "6セグメント強震断層モデル",
     segments: ["駿河湾域", "遠州海盆域", "熊野灘海盆域", "室戸舟状海盆域", "土佐海盆域", "日向灘域"],
     summary: "プレート境界面の深さ10kmより深い強震断層域を6区分し、各セグメントに2か所の強震動生成域（SMGA）を置く最大クラス想定です。",
-    detail: "SMGAの総面積は強震断層域のおおむね10％。領域外形は内閣府公表図を基に地図表示用に近似しています。",
-    sourceLabel: "内閣府「南海トラフ巨大地震モデル・被害想定手法検討会」報告",
+    detail: "SMGAの総面積は強震断層域のおおむね10％。領域外形は内閣府が2025年に公表した強震断層域（深さ約10km以深）の図を基に地図表示用に近似しています。",
+    sourceLabel: "内閣府「南海トラフ巨大地震モデル・被害想定手法検討会」地震モデル報告書（2025年）",
     sourceUrl: "https://www.bousai.go.jp/jishin/nankai/kento_wg/pdf/honbun.pdf",
     magnitudeValue: 9.0,
     depthKm: 20,
     path: [[130.95, 31.55], [132.1, 32.05], [133.35, 32.45], [134.65, 32.85], [135.9, 33.3], [137.1, 33.85], [138.35, 34.55]],
     areaSides: {
-      left: [[130.55, 31.75], [131.45, 32.45], [132.65, 32.95], [133.85, 33.35], [135.05, 33.65], [136.25, 34.05], [137.35, 34.45], [138.15, 34.85], [138.7, 35.15]],
-      right: [[131.0, 30.65], [132.05, 30.85], [133.2, 31.15], [134.4, 31.5], [135.6, 31.9], [136.75, 32.35], [137.75, 32.85], [138.55, 33.45], [139.0, 34.15]],
+      // Landward and trenchward edges of the 2025 strong-motion fault area.
+      // Extra vertices preserve the Hyuga-nada bulge, Kii-channel neck, and Suruga-bay reach.
+      left: [
+        [130.45, 31.35], [130.62, 31.95], [131.02, 32.48], [131.62, 32.88],
+        [132.35, 33.20], [133.15, 33.48], [133.95, 33.68], [134.65, 33.72],
+        [135.18, 33.55], [135.62, 33.72], [135.92, 34.12], [136.22, 34.52],
+        [136.72, 34.82], [137.28, 34.98], [137.88, 35.02], [138.38, 35.30],
+        [138.72, 35.16],
+      ],
+      right: [
+        [130.43, 31.07], [130.74, 31.07], [131.25, 31.25], [131.84, 31.48],
+        [132.55, 31.73], [133.30, 31.98], [134.05, 32.24], [134.70, 32.45],
+        [135.23, 32.60], [135.69, 32.72], [136.07, 32.92], [136.44, 33.17],
+        [136.91, 33.42], [137.38, 33.66], [137.83, 33.90], [138.26, 34.22],
+        [138.54, 34.50],
+      ],
     },
   },
   "kuril-trench": {
@@ -252,7 +268,7 @@ const NANKAI_RUPTURE_CASES = {
     modelType: "紀伊半島以東の半割れモデル",
     segments: ["熊野灘海盆域", "遠州海盆域", "駿河湾域"],
     pathRange: [3, null],
-    areaRange: [4, null],
+    areaRange: [8, null],
   },
   west: {
     label: "半割れケース（西側）",
@@ -263,7 +279,7 @@ const NANKAI_RUPTURE_CASES = {
     modelType: "紀伊半島以西の半割れモデル",
     segments: ["日向灘域", "土佐海盆域", "室戸舟状海盆域", "熊野灘海盆域"],
     pathRange: [0, 4],
-    areaRange: [0, 6],
+    areaRange: [0, 10],
   },
 };
 const LIGHT_DEFERRED_DATA_DELAY_MS = 700;
@@ -18622,6 +18638,7 @@ function invalidateIntensityEstimateCache(options = {}) {
   areaDataCache = { key: "", data: null };
   visibleAreaDataSyncBucket = null;
   areaEpicentralDistanceCache = { key: "", distances: [] };
+  faultSourceSampleCache = { key: "", samples: [] };
   localAreaStationSnapshotCache = null;
   stationSourceInputDataRef = null;
   submarineStationCanvasFeatureCache = { data: null, features: [] };
@@ -20502,7 +20519,12 @@ function getPWaveIntensityTarget(properties) {
     strongMotionFactor * 1.28 +
     siteResponse * 0.36;
   const target = Math.max(finalIntensity * share, pWaveFloor);
-  return clamp(target, 0, Math.min(finalIntensity * 0.82, pWaveCeiling, 3.55));
+  const nearSourceFactor = clamp((220 - distanceKm) / 160, 0, 1);
+  const severeShakingFactor = clamp((finalIntensity - 5.0) / 1.2, 0, 1);
+  // Do not paint widespread intensity-3 areas from the first P-wave motion alone.
+  // A rank-3 P-wave remains possible close to a source that will ultimately shake severely.
+  const pWaveDisplayCap = 2.42 + nearSourceFactor * severeShakingFactor * 0.58;
+  return clamp(target, 0, Math.min(finalIntensity * 0.72, pWaveCeiling, pWaveDisplayCap));
 }
 
 function getStationWaveResponseProperties(key, finalIntensity, ground = {}) {
@@ -20661,13 +20683,13 @@ function buildStationIntensityFeatures(data) {
         return null;
       }
       const ground = getGroundModelAt(station.longitude, station.latitude);
-      const intensityValue = actualObservation
-        ? actualObservation.intensityValue
-        : estimateIntensityAtPoint(station.longitude, station.latitude);
-      const intensityClass = toJmaIntensityClass(intensityValue);
       const travelMetrics = isFaultSimulationActive()
         ? getFaultTravelMetrics(station.longitude, station.latitude)
         : null;
+      const intensityValue = actualObservation
+        ? actualObservation.intensityValue
+        : estimateIntensityAtPoint(station.longitude, station.latitude, null, travelMetrics);
+      const intensityClass = toJmaIntensityClass(intensityValue);
       const epicentralDistanceKm = travelMetrics?.surfaceDistanceKm ?? haversineKilometers(
           [state.longitude, state.latitude],
           [station.longitude, station.latitude],
@@ -20777,9 +20799,9 @@ function buildSubmarineObservationIntensityFeatures(data) {
       const lon = Number(longitude);
       const lat = Number(latitude);
       const id = feature.properties?.code || `${lon.toFixed(4)},${lat.toFixed(4)}`;
-      const intensityValue = estimateIntensityAtPoint(lon, lat);
-      const intensityClass = toJmaIntensityClass(intensityValue);
       const travelMetrics = isFaultSimulationActive() ? getFaultTravelMetrics(lon, lat) : null;
+      const intensityValue = estimateIntensityAtPoint(lon, lat, null, travelMetrics);
+      const intensityClass = toJmaIntensityClass(intensityValue);
       const epicentralDistanceKm = travelMetrics?.surfaceDistanceKm
         ?? haversineKilometers([state.longitude, state.latitude], [lon, lat]);
       const pArrivalSec = travelMetrics?.pArrivalSec
@@ -21556,37 +21578,39 @@ function getActiveFaultPath() {
 }
 
 function getFaultSourceSamples() {
+  const ruptureSpeed = getFaultControlNumber("#fault-rupture-speed", 2.8, 0.5, 4);
+  const { origin, direction } = getResolvedFaultRuptureSettings();
+  const cacheKey = [
+    state.faultModelId,
+    state.faultNankaiCase,
+    state.activeFaultSegmentId,
+    state.longitude.toFixed(4),
+    state.latitude.toFixed(4),
+    ruptureSpeed,
+    direction,
+    origin,
+  ].join("|");
+  if (faultSourceSampleCache.key === cacheKey) {
+    return faultSourceSampleCache.samples;
+  }
   const path = getActiveFaultPath();
   if (path.length < 2) {
     return [];
   }
-  const ruptureSpeed = getFaultControlNumber("#fault-rupture-speed", 2.8, 0.5, 4);
-  const { origin, direction } = getResolvedFaultRuptureSettings();
-  const cacheKey = `${state.faultModelId}|${path.flat().map((value) => Number(value).toFixed(4)).join(",")}|${ruptureSpeed}|${direction}|${origin}`;
-  if (faultSourceSampleCache.key === cacheKey) {
-    return faultSourceSampleCache.samples;
-  }
   const segmentLengths = path.slice(1).map((point, index) => haversineKilometers(path[index], point));
   const totalLengthKm = segmentLengths.reduce((sum, length) => sum + length, 0);
   const originAlongKm = origin === "start" ? 0 : origin === "end" ? totalLengthKm : totalLengthKm / 2;
-  const spacingKm = Math.max(totalLengthKm / 16, 12);
-  const samples = [{ coordinates: path[0], alongKm: 0 }];
-  let traversedKm = 0;
-  segmentLengths.forEach((segmentLengthKm, index) => {
-    const start = path[index];
-    const end = path[index + 1];
-    const divisions = Math.max(Math.ceil(segmentLengthKm / spacingKm), 1);
-    for (let division = 1; division <= divisions; division += 1) {
-      const ratio = division / divisions;
-      samples.push({
-        coordinates: [
-          start[0] + (end[0] - start[0]) * ratio,
-          start[1] + (end[1] - start[1]) * ratio,
-        ],
-        alongKm: traversedKm + segmentLengthKm * ratio,
-      });
-    }
-    traversedKm += segmentLengthKm;
+  const spacingKm = Math.max(
+    totalLengthKm / FAULT_SOURCE_SAMPLE_MAX_INTERVALS,
+    FAULT_SOURCE_SAMPLE_MIN_SPACING_KM,
+  );
+  const intervalCount = Math.max(Math.ceil(totalLengthKm / spacingKm), 1);
+  const samples = Array.from({ length: intervalCount + 1 }, (_, index) => {
+    const alongKm = totalLengthKm * index / intervalCount;
+    return {
+      coordinates: getPointAlongFaultPath(path, segmentLengths, alongKm),
+      alongKm,
+    };
   });
 
   if (!samples.some((sample) => Math.abs(sample.alongKm - originAlongKm) < 0.01)) {
@@ -21930,9 +21954,14 @@ function estimateMaxIntensityForFeature(feature) {
   return estimateIntensityAtPoint(nearestPoint.point[0], nearestPoint.point[1], nearestPoint.distanceKm);
 }
 
-function estimateIntensityAtPoint(longitude, latitude, knownEpicentralDistanceKm = null) {
+function estimateIntensityAtPoint(
+  longitude,
+  latitude,
+  knownEpicentralDistanceKm = null,
+  knownFaultTravelMetrics = null,
+) {
   if (isFaultSimulationActive()) {
-    const metrics = getFaultTravelMetrics(longitude, latitude);
+    const metrics = knownFaultTravelMetrics ?? getFaultTravelMetrics(longitude, latitude);
     const ground = getGroundModelAt(longitude, latitude);
     return estimateInstrumentalIntensity({
       magnitude: state.magnitude,
