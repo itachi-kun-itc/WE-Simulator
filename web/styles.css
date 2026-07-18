@@ -24218,6 +24218,25 @@ html[data-resolved-theme="dark"] .simulation-runtime-hud .simulation-timeline-ev
   --tl-stable-line: #fb7185;
 }
 
+/* Paint the completion line past both TL edges so track clipping cannot leave a gap. */
+html[data-resolved-theme] .simulation-timeline-event.is-complete,
+html[data-resolved-theme] .simulation-runtime-hud .simulation-timeline-event.is-complete {
+  overflow: visible !important;
+  background-color: transparent !important;
+}
+
+html[data-resolved-theme] .simulation-timeline-event.is-complete::before,
+html[data-resolved-theme] .simulation-runtime-hud .simulation-timeline-event.is-complete::before {
+  content: "";
+  position: absolute;
+  top: -8px;
+  bottom: -8px;
+  left: 0;
+  width: 3px;
+  background: var(--tl-stable-line);
+  pointer-events: none;
+}
+
 /* Use a light mini-map treatment in the light appearance. */
 html[data-resolved-theme="light"] .community-post-location-preview {
   border-color: rgba(100, 116, 139, 0.28) !important;
