@@ -16032,6 +16032,14 @@ body.simulation-session-active .simulation-runtime-hud {
   bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 8px) !important;
 }
 
+/* The tablet map already ends above the bottom navigation. Position the runtime
+   menu against the viewport so the navigation height is not counted twice. */
+@media (min-width: 561px) and (max-width: 1366px) {
+  body.simulation-session-active .simulation-runtime-hud {
+    position: fixed !important;
+  }
+}
+
 .simulation-runtime-hud .simulation-timeline-controls {
   display: none !important;
 }
@@ -19226,6 +19234,18 @@ body.simulation-session-active #setup-panel.simulation-result-report-open
 body.simulation-session-active #setup-panel.simulation-result-report-open
   .simulation-result-report-summary-host .max-shindo-card strong {
   font-size: 2.65rem !important;
+}
+
+body.simulation-session-active #setup-panel.simulation-result-report-open
+  .simulation-result-report-summary-host .max-shindo-card strong:is(
+    [data-intensity-rank="5"],
+    [data-intensity-rank="6"],
+    [data-intensity-rank="7"],
+    [data-intensity-rank="8"]
+  ) {
+  font-size: 1.8rem !important;
+  letter-spacing: -0.08em !important;
+  white-space: nowrap !important;
 }
 
 body.simulation-session-active #setup-panel.simulation-result-report-open
