@@ -3433,8 +3433,8 @@ function setupTabs() {
         <h3>台風とは</h3>
         <p>北西太平洋または南シナ海にある熱帯低気圧のうち、最大風速（10分間平均）がおよそ17m/s以上のものです。雨は中心付近だけで強くなるとは限らず、台風から離れた場所でも大雨になることがあります。</p>
         <div class="learning-typhoon-fact-grid">
-          <article><strong>強風域</strong><span>平均風速15m/s以上の風が吹く、または吹く可能性がある範囲</span></article>
-          <article><strong>暴風域</strong><span>平均風速25m/s以上の風が吹く、または吹く可能性がある範囲</span></article>
+          <article class="is-strong-wind"><strong>強風域</strong><span>平均風速15m/s以上の風が吹く、または吹く可能性がある範囲</span></article>
+          <article class="is-storm"><strong>暴風域</strong><span>平均風速25m/s以上の風が吹く、または吹く可能性がある範囲</span></article>
         </div>
       </section>
 
@@ -3730,7 +3730,7 @@ function setupTabs() {
     simulationTab?.classList.remove("is-long-pressing");
   };
   simulationTab?.addEventListener("pointerdown", (event) => {
-    if (event.button !== 0 || state.simulationRunning || state.simulationCompleted) {
+    if (event.button !== 0) {
       return;
     }
     cancelSimulationTabLongPress();
@@ -3745,6 +3745,15 @@ function setupTabs() {
       simulationTabLongPressTimer = 0;
       suppressSimulationTabClick = true;
       simulationTab.classList.remove("is-long-pressing");
+      if (
+        state.simulationRunning
+        || state.simulationCompleted
+        || document.body.classList.contains("simulation-session-active")
+        || document.body.classList.contains("simulation-session-complete")
+        || document.body.classList.contains("simulation-result-report-visible")
+      ) {
+        stopSimulation({ expandSetup: false });
+      }
       setFaultSimulationMenuActive(!document.body.classList.contains("fault-simulation-mode"));
       navigator.vibrate?.(35);
     }, FAULT_MODE_LONG_PRESS_MS);
