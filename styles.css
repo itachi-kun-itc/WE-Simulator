@@ -24500,6 +24500,125 @@ html[data-resolved-theme="dark"]
   outline: 0 !important;
 }
 
+/* Match the result report shell and information ticket to the runtime HUD. */
+body.simulation-session-active #setup-panel.simulation-result-report-open {
+  box-sizing: border-box !important;
+  width: min(460px, calc(100% - 48px)) !important;
+  max-width: 460px !important;
+}
+
+body.simulation-session-active #setup-panel.simulation-result-report-open
+  .simulation-result-report-page {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  padding-right: 0 !important;
+  padding-left: 0 !important;
+}
+
+/* Both point-source and fault results use the standard 48px title bar. */
+body.simulation-session-active #setup-panel.simulation-result-report-open
+  .simulation-result-report-head {
+  box-sizing: border-box !important;
+  height: 48px !important;
+  min-height: 48px !important;
+  max-height: 48px !important;
+}
+
+body.simulation-session-active #setup-panel.simulation-result-report-open
+  .simulation-result-report-content,
+body.simulation-session-active #setup-panel.simulation-result-report-open
+  .simulation-result-report-summary-host,
+body.simulation-session-active #setup-panel.simulation-result-report-open
+  .simulation-result-report-runtime-hud,
+body.simulation-session-active #setup-panel.simulation-result-report-open
+  .simulation-result-report-summary-host .simulation-summary {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+body.simulation-session-active #setup-panel.simulation-result-report-open
+  .simulation-result-report-summary-host .simulation-summary {
+  grid-template-rows: repeat(3, minmax(0, 1fr)) !important;
+  row-gap: 0 !important;
+  min-height: 0 !important;
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+}
+
+@media (max-width: 560px) {
+  body.simulation-session-active #setup-panel.simulation-result-report-open {
+    width: min(420px, calc(100% - 40px)) !important;
+    max-width: 420px !important;
+  }
+}
+
+/* The visible result title area itself is exactly 48px, including no outer top inset. */
+body.simulation-session-active #setup-panel.simulation-result-report-open {
+  padding-top: 0 !important;
+}
+
+body.simulation-session-active #setup-panel.simulation-result-report-open
+  .sim-panel-scroll {
+  padding-top: 0 !important;
+}
+
+/* Compact result actions and the two controls shown while a simulation is running. */
+.simulation-result-report-actions button,
+.simulation-comparison-head button,
+body.simulation-session-active:not(.simulation-session-complete)
+  .simulation-runtime-hud .simulation-pause,
+body.simulation-session-active:not(.simulation-session-complete)
+  .simulation-runtime-hud .simulation-stop,
+body.simulation-session-complete
+  .simulation-runtime-hud .simulation-timeline-controls button {
+  box-sizing: border-box !important;
+  height: 38px !important;
+  min-height: 38px !important;
+  max-height: 38px !important;
+  border-radius: 11px !important;
+  padding: 0 10px !important;
+  font-size: 0.84rem !important;
+  line-height: 1 !important;
+}
+
+/* The epicenter-search title bar is exactly 48px including its padding. */
+body.tool-source-search-mode #history-full-panel .tool-page-head {
+  box-sizing: border-box !important;
+  grid-template-columns: 42px minmax(0, 1fr) 42px !important;
+  height: 48px !important;
+  min-height: 48px !important;
+  max-height: 48px !important;
+  padding: 0 !important;
+}
+
+body.tool-source-search-mode #history-full-panel .tool-page-back {
+  width: 40px !important;
+  height: 40px !important;
+}
+
+body.tool-source-search-mode #history-full-panel {
+  box-sizing: border-box !important;
+  left: 50% !important;
+  right: auto !important;
+  width: min(460px, calc(100% - 48px)) !important;
+  max-width: 460px !important;
+  padding-top: 0 !important;
+  transform: translateX(-50%) !important;
+}
+
+/* Match the title-divider-to-controls spacing used by station search. */
+body.tool-source-search-mode #history-full-panel .history-stats-toolbar {
+  margin-top: -12px !important;
+}
+
+@media (max-width: 560px) {
+  body.tool-source-search-mode #history-full-panel {
+    width: min(420px, calc(100% - 40px)) !important;
+    max-width: 420px !important;
+  }
+}
+
 body.simulation-session-active:not(.simulation-session-complete)
   .simulation-runtime-hud
   .simulation-timeline-quick-controls
@@ -24545,4 +24664,172 @@ html[data-resolved-theme="dark"] .simulation-timeline-quick-controls button.is-a
   .simulation-timeline-control-separator {
     margin-inline: 2px;
   }
+}
+
+/* Organize the Earthquake / Weather learning pages as one consistent system. */
+#learning-full-panel .learning-content {
+  width: min(720px, 100%) !important;
+  margin-inline: auto !important;
+  gap: 12px !important;
+  padding-inline: 14px !important;
+}
+
+#learning-full-panel .learning-category-switch {
+  gap: 3px !important;
+  padding: 3px !important;
+  border: 1px solid rgba(148, 163, 184, 0.2) !important;
+  border-radius: 14px !important;
+  background: rgba(15, 23, 42, 0.92) !important;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.14) !important;
+}
+
+#learning-full-panel .learning-category-switch button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
+  box-sizing: border-box !important;
+  height: 38px !important;
+  min-height: 38px !important;
+  border: 0 !important;
+  border-radius: 10px !important;
+  padding: 0 12px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: rgba(226, 232, 240, 0.68) !important;
+  font-size: 0.86rem !important;
+  line-height: 1 !important;
+}
+
+#learning-full-panel .learning-category-switch button::before {
+  content: none !important;
+  display: none !important;
+}
+
+#learning-full-panel .learning-category-switch button[aria-selected="true"] {
+  background: #087f98 !important;
+  color: #fff !important;
+  box-shadow: 0 2px 8px rgba(8, 127, 152, 0.28) !important;
+}
+
+#learning-full-panel .learning-category-switch button[aria-selected="true"]::before {
+  content: none !important;
+  display: none !important;
+}
+
+#learning-full-panel .learning-category-panel,
+#learning-full-panel .learning-weather-section,
+#learning-full-panel .learning-typhoon-section {
+  gap: 12px !important;
+}
+
+#learning-full-panel .learning-hero,
+#learning-full-panel .learning-section-heading,
+#learning-full-panel .learning-category-panel > .learning-weather-section:first-child > .learning-section-heading {
+  padding: 10px 4px 4px !important;
+}
+
+#learning-full-panel .learning-hero h2,
+#learning-full-panel .learning-section-heading h2 {
+  margin: 7px 0 8px !important;
+  font-size: 1.18rem !important;
+  font-weight: 950 !important;
+  line-height: 1.32 !important;
+  letter-spacing: 0.01em !important;
+}
+
+#learning-full-panel .learning-kicker {
+  font-size: 0.82rem !important;
+  line-height: 1.25 !important;
+  letter-spacing: 0.02em !important;
+}
+
+#learning-full-panel .learning-hero > p,
+#learning-full-panel .learning-section-heading > p {
+  color: rgba(226, 232, 240, 0.76) !important;
+  font-size: 0.84rem !important;
+  line-height: 1.75 !important;
+}
+
+#learning-full-panel .learning-card h3 {
+  margin: 0 0 8px !important;
+  font-size: 1rem !important;
+  font-weight: 900 !important;
+  line-height: 1.4 !important;
+}
+
+#learning-full-panel .learning-card,
+#learning-full-panel .learning-intensity-item {
+  border-radius: 14px !important;
+  box-shadow: none !important;
+}
+
+#learning-full-panel .learning-card {
+  padding: 14px !important;
+}
+
+#learning-full-panel .learning-intensity-list {
+  gap: 7px !important;
+}
+
+#learning-full-panel .learning-intensity-item {
+  gap: 10px !important;
+  padding: 10px 12px !important;
+}
+
+html[data-resolved-theme="light"] #learning-full-panel .learning-category-switch {
+  border-color: rgba(51, 65, 85, 0.16) !important;
+  background: rgba(226, 232, 240, 0.94) !important;
+  box-shadow: 0 5px 15px rgba(51, 65, 85, 0.1) !important;
+}
+
+html[data-resolved-theme="light"] #learning-full-panel .learning-category-switch button {
+  color: rgba(51, 65, 85, 0.68) !important;
+}
+
+html[data-resolved-theme="light"] #learning-full-panel .learning-category-switch button[aria-selected="true"] {
+  background: #087f98 !important;
+  color: #fff !important;
+}
+
+html[data-resolved-theme="light"] #learning-full-panel .learning-hero > p,
+html[data-resolved-theme="light"] #learning-full-panel .learning-section-heading > p {
+  color: rgba(30, 41, 59, 0.76) !important;
+}
+
+/* Use the standard typhoon colors for the two wind-area definitions. */
+#learning-full-panel .learning-typhoon-fact-grid article.is-strong-wind {
+  border-color: rgba(250, 204, 21, 0.44) !important;
+  background: rgba(250, 204, 21, 0.075) !important;
+}
+
+#learning-full-panel .learning-typhoon-fact-grid article.is-strong-wind strong {
+  color: #facc15 !important;
+}
+
+#learning-full-panel .learning-typhoon-fact-grid article.is-storm {
+  border-color: rgba(255, 64, 95, 0.46) !important;
+  background: rgba(255, 64, 95, 0.08) !important;
+}
+
+#learning-full-panel .learning-typhoon-fact-grid article.is-storm strong {
+  color: #ff526d !important;
+}
+
+html[data-resolved-theme="light"] #learning-full-panel .learning-typhoon-fact-grid article.is-strong-wind {
+  border-color: rgba(202, 138, 4, 0.42) !important;
+  background: rgba(250, 204, 21, 0.11) !important;
+}
+
+html[data-resolved-theme="light"] #learning-full-panel .learning-typhoon-fact-grid article.is-strong-wind strong {
+  color: #a16207 !important;
+}
+
+html[data-resolved-theme="light"] #learning-full-panel .learning-typhoon-fact-grid article.is-storm {
+  border-color: rgba(220, 38, 38, 0.38) !important;
+  background: rgba(239, 68, 68, 0.085) !important;
+}
+
+html[data-resolved-theme="light"] #learning-full-panel .learning-typhoon-fact-grid article.is-storm strong {
+  color: #c81e3a !important;
 }
