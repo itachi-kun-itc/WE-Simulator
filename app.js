@@ -15875,6 +15875,9 @@ function updateEpicenterEditMode() {
 
   els.epicenterEditToggle.checked = state.epicenterEditEnabled;
   els.epicenterEditToggle.disabled = state.simulationRunning;
+  els.epicenterEditToggle.closest("label")?.querySelector("span")?.replaceChildren(
+    state.epicenterEditEnabled ? "震源地を設定中" : "震源地を設定",
+  );
   if (els.currentLocationRequestButton) {
     els.currentLocationRequestButton.disabled = state.simulationRunning;
   }
