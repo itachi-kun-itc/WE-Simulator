@@ -19040,7 +19040,7 @@ body.simulation-session-active:not(.simulation-session-complete) .simulation-run
 }
 
 /* Completed simulation: green result action and an in-menu report page. */
-body.simulation-session-complete .simulation-runtime-hud #simulation-rewind {
+body.simulation-session-complete .simulation-runtime-hud #simulation-result {
   border-color: rgba(74, 222, 128, 0.58) !important;
   background: linear-gradient(180deg, #22c55e, #15803d) !important;
   color: #ffffff !important;
@@ -19832,12 +19832,21 @@ body.simulation-session-active #setup-panel.simulation-result-report-open
   border-top-color: #f97316 !important;
 }
 
-/* Completed simulation: make the return-to-source action clearly blue. */
+/* Completed simulation: show the source-setting and result actions side by side. */
 body.simulation-session-complete .simulation-runtime-hud #simulation-pause {
+  grid-column: 1 !important;
   border-color: rgba(37, 99, 235, 0.58) !important;
   background: linear-gradient(180deg, #3b82f6, #1d4ed8) !important;
   color: #ffffff !important;
   box-shadow: 0 7px 18px rgba(29, 78, 216, 0.24) !important;
+}
+
+body.simulation-session-complete .simulation-runtime-hud #simulation-result {
+  grid-column: 2 !important;
+  border-color: rgba(74, 222, 128, 0.58) !important;
+  background: linear-gradient(180deg, #22c55e, #15803d) !important;
+  color: #ffffff !important;
+  box-shadow: 0 7px 18px rgba(21, 128, 61, 0.24) !important;
 }
 
 /* Use the same light-gray basis for the result/PDF export menu. */
@@ -24267,4 +24276,110 @@ html[data-resolved-theme="light"] .community-post-location-dot.is-set {
   border-color: #ffffff !important;
   background: #0284c7 !important;
   box-shadow: 0 0 0 7px rgba(2, 132, 199, 0.16) !important;
+}
+
+/* Compact playback controls live beside the timeline heading. */
+.simulation-progress-head {
+  gap: 6px !important;
+}
+
+.simulation-progress-head > span {
+  flex: 0 0 auto;
+}
+
+.simulation-progress-head > #simulation-progress-time {
+  display: none !important;
+}
+
+.simulation-timeline-quick-controls {
+  display: flex;
+  flex: 1 1 auto;
+  justify-content: flex-end;
+  gap: 4px;
+  min-width: 0;
+}
+
+.simulation-timeline-quick-controls button {
+  min-width: 0;
+  min-height: 24px;
+  margin: 0;
+  padding: 2px 6px;
+  border: 1px solid rgba(71, 85, 105, 0.28);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #334155;
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.15;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.simulation-timeline-quick-controls button.is-active {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #fff;
+}
+
+.simulation-timeline-quick-controls button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.simulation-timeline-control-separator {
+  align-self: center;
+  flex: 0 0 auto;
+  width: 2px;
+  height: 16px;
+  margin-inline: 2px;
+  background: rgba(71, 85, 105, 0.72);
+  box-shadow: 0 0 2px rgba(255, 255, 255, 0.5);
+}
+
+body.simulation-session-active:not(.simulation-session-complete)
+  .simulation-runtime-hud
+  .simulation-timeline-quick-controls
+  #simulation-rewind {
+  display: inline-block !important;
+}
+
+html[data-resolved-theme="dark"] .simulation-timeline-quick-controls button {
+  border-color: rgba(203, 213, 225, 0.3);
+  background: rgba(30, 41, 59, 0.88);
+  color: #e2e8f0;
+}
+
+html[data-resolved-theme="dark"]
+  .simulation-timeline-control-separator {
+  background: rgba(226, 232, 240, 0.82);
+  box-shadow: 0 0 3px rgba(148, 163, 184, 0.35);
+}
+
+html[data-resolved-theme="light"]
+  .simulation-timeline-control-separator {
+  background: rgba(51, 65, 85, 0.78);
+  box-shadow: 0 0 2px rgba(255, 255, 255, 0.75);
+}
+
+html[data-resolved-theme="dark"] .simulation-timeline-quick-controls button.is-active {
+  border-color: #60a5fa;
+  background: #2563eb;
+  color: #fff;
+}
+
+@media (max-width: 360px) {
+  .simulation-timeline-quick-controls {
+    gap: 2px;
+  }
+
+  .simulation-timeline-quick-controls button {
+    min-height: 22px;
+    padding-inline: 2px;
+    font-size: 0.56rem;
+  }
+
+  .simulation-timeline-control-separator {
+    margin-inline: 2px;
+  }
 }

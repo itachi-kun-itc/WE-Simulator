@@ -343,6 +343,14 @@
             <div class="simulation-progress-panel" aria-label="シミュレーション進行状況">
               <div class="simulation-progress-head">
                 <span>タイムライン</span>
+                <div class="simulation-timeline-quick-controls" aria-label="タイムライン操作">
+                  <button id="simulation-speed-slow" type="button" aria-label="スロー再生" aria-pressed="false" disabled>スロー</button>
+                  <button id="simulation-speed-normal" type="button" aria-label="等倍で再生" aria-pressed="true" disabled>等倍</button>
+                  <button id="simulation-speed-double" type="button" aria-label="2倍速で再生" aria-pressed="false" disabled>2倍速</button>
+                  <span class="simulation-timeline-control-separator" aria-hidden="true"></span>
+                  <button id="simulation-rewind" type="button" aria-label="5秒巻き戻す" disabled>5秒戻す</button>
+                  <button id="simulation-skip" type="button" aria-label="5秒先へ進む" disabled>5秒skip</button>
+                </div>
                 <strong id="simulation-progress-time">0.0 / 0.0 秒</strong>
               </div>
               <div class="simulation-progress-track" id="simulation-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="自動追従するシミュレーションの時間軸">
@@ -369,8 +377,8 @@
             </div>
 
             <div class="simulation-timeline-controls" aria-label="タイムライン操作">
-              <button id="simulation-rewind" type="button" aria-label="5秒巻き戻す" disabled>↶ 5秒</button>
               <button class="simulation-pause" id="simulation-pause" type="button" disabled>一時停止</button>
+              <button class="simulation-result" id="simulation-result" type="button" hidden disabled>結果</button>
             </div>
 
             <div class="wave-readout">

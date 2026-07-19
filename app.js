@@ -644,7 +644,12 @@ const els = {
   simulationPanel: document.querySelector("#simulation-panel"),
   simulationStart: document.querySelector("#simulation-start"),
   simulationRewind: document.querySelector("#simulation-rewind"),
+  simulationSkip: document.querySelector("#simulation-skip"),
+  simulationSpeedSlow: document.querySelector("#simulation-speed-slow"),
+  simulationSpeedDouble: document.querySelector("#simulation-speed-double"),
+  simulationSpeedNormal: document.querySelector("#simulation-speed-normal"),
   simulationPause: document.querySelector("#simulation-pause"),
+  simulationResult: document.querySelector("#simulation-result"),
   simulationStop: document.querySelector("#simulation-stop"),
   simulationMaxIntensity: document.querySelector("#simulation-max-intensity"),
   simulationMagnitude: document.querySelector("#simulation-magnitude"),
@@ -757,6 +762,7 @@ let startupLocationPermissionCheckPending = true;
 let maintenanceStatusReady = false;
 let simulationStartedAt;
 let simulationPausedAt;
+let simulationPlaybackRate = 1;
 let simulationPreviousEpicenterEditEnabled = false;
 let simulationEpicenter = [state.longitude, state.latitude];
 let simulationRenderBucket = -1;
@@ -7033,15 +7039,29 @@ function bindSimulationControls() {
 
     toggleSimulationPause();
   });
-  els.simulationRewind?.addEventListener("click", () => {
+  els.simulationResult?.addEventListener("click", () => {
     if (state.simulationCompleted) {
       showSimulationResultReport();
+    }
+  });
+  els.simulationRewind?.addEventListener("click", () => {
+    if (state.simulationCompleted) {
+      resumeCompletedSimulationFromElapsed((Number(simulationCompleteAtSec) || 0) - 5);
       return;
     }
     if (!state.simulationRunning || !simulationStartedAt) {
       return;
     }
     seekSimulationToElapsed(getSimulationElapsedSec() - 5);
+  });
+  els.simulationSpeedDouble?.addEventListener("click", () => setSimulationPlaybackRate(2));
+  els.simulationSpeedNormal?.addEventListener("click", () => setSimulationPlaybackRate(1));
+  els.simulationSpeedSlow?.addEventListener("click", () => setSimulationPlaybackRate(0.5));
+  els.simulationSkip?.addEventListener("click", () => {
+    if (!state.simulationRunning || !simulationStartedAt) {
+      return;
+    }
+    seekSimulationToElapsed(getSimulationElapsedSec() + 5);
   });
   els.simulationStop.addEventListener("click", () => stopSimulation());
   document.addEventListener("visibilitychange", pauseSimulationWhenAppHidden);
@@ -7318,7 +7338,7 @@ function renderSimulationComparisonPanel(baseline, current) {
   panel.className = "simulation-comparison-panel";
   panel.innerHTML = `
     <header class="simulation-comparison-head">
-      <div><span>試作機能</span><h4>シミュレーション比較</h4></div>
+      <div><h4>シミュレーション比較</h4></div>
       <button type="button" data-simulation-comparison-clear>比較を終了</button>
     </header>
     <div class="simulation-comparison-cards">
@@ -16879,6 +16899,7 @@ async function startSimulation() {
   state.simulationRunning = true;
   state.simulationPaused = false;
   state.simulationCompleted = false;
+  simulationPlaybackRate = 1;
   document.body.classList.add("simulation-session-active");
   document.body.classList.remove("simulation-session-complete");
   const runtimeHud = document.querySelector(".simulation-runtime-hud");
@@ -16944,11 +16965,19 @@ async function startSimulation() {
     els.simulationPause.disabled = false;
     els.simulationPause.setAttribute("aria-label", "シミュレーションを一時停止");
   }
+  if (els.simulationResult) {
+    els.simulationResult.hidden = true;
+    els.simulationResult.disabled = true;
+  }
   if (els.simulationRewind) {
-    els.simulationRewind.textContent = "↶ 5秒";
+    els.simulationRewind.textContent = "5秒戻す";
     els.simulationRewind.disabled = false;
     els.simulationRewind.setAttribute("aria-label", "5秒巻き戻す");
   }
+  if (els.simulationSkip) {
+    els.simulationSkip.disabled = false;
+  }
+  syncSimulationPlaybackRateControls();
   if (els.simulationStop) {
     els.simulationStop.textContent = "シミュレーション終了";
   }
@@ -16969,6 +16998,7 @@ function stopSimulation(options = {}) {
   state.simulationRunning = false;
   state.simulationPaused = false;
   state.simulationCompleted = false;
+  simulationPlaybackRate = 1;
   document.body.classList.remove("simulation-session-active", "simulation-session-complete");
   const returnsToFaultSelection = isFaultSimulationActive();
   els.setupPanel?.setAttribute("aria-label", returnsToFaultSelection ? "断層設定" : "震源設定");
@@ -17005,11 +17035,19 @@ function stopSimulation(options = {}) {
     els.simulationPause.disabled = true;
     els.simulationPause.setAttribute("aria-label", "シミュレーションを一時停止");
   }
+  if (els.simulationResult) {
+    els.simulationResult.hidden = true;
+    els.simulationResult.disabled = true;
+  }
   if (els.simulationRewind) {
-    els.simulationRewind.textContent = "↶ 5秒";
+    els.simulationRewind.textContent = "5秒戻す";
     els.simulationRewind.disabled = true;
     els.simulationRewind.setAttribute("aria-label", "5秒巻き戻す");
   }
+  if (els.simulationSkip) {
+    els.simulationSkip.disabled = true;
+  }
+  syncSimulationPlaybackRateControls();
   if (els.simulationStop) {
     els.simulationStop.textContent = "シミュレーション終了";
   }
@@ -17091,7 +17129,7 @@ function seekSimulationToElapsed(nextElapsedSec) {
   const upperBound = Number.isFinite(simulationCompleteAtSec) ? simulationCompleteAtSec : Math.max(getSimulationElapsedSec(), 0);
   const elapsedSec = clamp(Number(nextElapsedSec) || 0, 0, upperBound);
   const now = performance.now();
-  simulationStartedAt = now - elapsedSec * 1000;
+  simulationStartedAt = now - (elapsedSec * 1000) / simulationPlaybackRate;
   if (state.simulationPaused) {
     simulationPausedAt = now;
   }
@@ -17105,6 +17143,79 @@ function seekSimulationToElapsed(nextElapsedSec) {
     simulationFrame = requestAnimationFrame(tickSimulation);
   }
   return true;
+}
+
+function resumeCompletedSimulationFromElapsed(nextElapsedSec) {
+  if (!state.simulationCompleted || !Number.isFinite(simulationCompleteAtSec)) {
+    return false;
+  }
+
+  state.simulationRunning = true;
+  state.simulationPaused = false;
+  state.simulationCompleted = false;
+  document.body.classList.remove("simulation-session-complete");
+  delete els.simulationPanel.dataset.simulationComplete;
+  simulationPausedAt = null;
+  state.epicenterEditEnabled = false;
+  els.epicenterEditToggle.checked = false;
+  updateEpicenterEditMode();
+  els.simulationStart.textContent = "シミュレーション中止";
+  if (els.simulationPause) {
+    els.simulationPause.textContent = "一時停止";
+    els.simulationPause.disabled = false;
+    els.simulationPause.setAttribute("aria-label", "シミュレーションを一時停止");
+  }
+  if (els.simulationResult) {
+    els.simulationResult.hidden = true;
+    els.simulationResult.disabled = true;
+  }
+  if (els.simulationRewind) {
+    els.simulationRewind.textContent = "5秒戻す";
+    els.simulationRewind.disabled = false;
+  }
+  if (els.simulationSkip) {
+    els.simulationSkip.disabled = false;
+  }
+  syncSimulationPlaybackRateControls();
+  updateSimulationAvailability();
+  return seekSimulationToElapsed(nextElapsedSec);
+}
+
+function setSimulationPlaybackRate(nextRate) {
+  const requestedRate = Number(nextRate);
+  const playbackRate = [0.5, 1, 2].includes(requestedRate) ? requestedRate : 1;
+  if (playbackRate === simulationPlaybackRate) {
+    syncSimulationPlaybackRateControls();
+    return;
+  }
+
+  const now = performance.now();
+  const elapsedSec = getSimulationElapsedSec(now);
+  simulationPlaybackRate = playbackRate;
+  if (simulationStartedAt) {
+    simulationStartedAt = now - (elapsedSec * 1000) / simulationPlaybackRate;
+    if (state.simulationPaused) {
+      simulationPausedAt = now;
+    }
+  }
+  syncSimulationPlaybackRateControls();
+}
+
+function syncSimulationPlaybackRateControls() {
+  const controlsEnabled = state.simulationRunning && !state.simulationCompleted;
+  [
+    [els.simulationSpeedSlow, 0.5],
+    [els.simulationSpeedDouble, 2],
+    [els.simulationSpeedNormal, 1],
+  ].forEach(([button, rate]) => {
+    if (!button) {
+      return;
+    }
+    const isActive = simulationPlaybackRate === rate;
+    button.disabled = !controlsEnabled;
+    button.setAttribute("aria-pressed", String(isActive));
+    button.classList.toggle("is-active", isActive);
+  });
 }
 
 function resetSimulationStateForSeek(elapsedSec) {
@@ -17259,11 +17370,20 @@ function tickSimulation(now) {
           : "シミュレーションを終了して震源設定に戻る",
       );
     }
-    if (els.simulationRewind) {
-      els.simulationRewind.textContent = "結果";
-      els.simulationRewind.disabled = false;
-      els.simulationRewind.setAttribute("aria-label", "シミュレーション結果を表示");
+    if (els.simulationResult) {
+      els.simulationResult.hidden = false;
+      els.simulationResult.disabled = false;
+      els.simulationResult.setAttribute("aria-label", "シミュレーション結果を表示");
     }
+    if (els.simulationRewind) {
+      els.simulationRewind.textContent = "5秒戻す";
+      els.simulationRewind.disabled = false;
+      els.simulationRewind.setAttribute("aria-label", "5秒巻き戻す");
+    }
+    if (els.simulationSkip) {
+      els.simulationSkip.disabled = true;
+    }
+    syncSimulationPlaybackRateControls();
     if (els.simulationStop) {
       els.simulationStop.textContent = "シミュレーション終了";
     }
@@ -17276,7 +17396,9 @@ function tickSimulation(now) {
 
 function getSimulationElapsedSec(now = performance.now()) {
   const currentTime = state.simulationPaused && simulationPausedAt ? simulationPausedAt : now;
-  return simulationStartedAt ? Math.max((currentTime - simulationStartedAt) / 1000, 0) : 0;
+  return simulationStartedAt
+    ? Math.max(((currentTime - simulationStartedAt) / 1000) * simulationPlaybackRate, 0)
+    : 0;
 }
 
 function getSimulationModelElapsedSec(sessionElapsedSec = getSimulationElapsedSec()) {
