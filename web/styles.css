@@ -7539,7 +7539,6 @@ body {
 }
 
 #setup-panel .settings-section-primary .field,
-#setup-primary-title,
 #historical-earthquake-button {
   display: none !important;
 }
@@ -18967,17 +18966,35 @@ body.simulation-session-active:not(.simulation-session-complete) .simulation-run
   color: #ffffff !important;
 }
 
-/* Split the epicenter controls evenly between map selection and geolocation. */
+/* Give each epicenter action a full row below the source-settings heading. */
 #setup-panel .setup-epicenter-actions {
-  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  grid-template-columns: minmax(0, 1fr) !important;
   gap: 8px !important;
 }
 
 #setup-panel .setup-epicenter-actions .toggle-row {
-  grid-column: auto !important;
+  grid-column: 1 / -1 !important;
   width: 100% !important;
   min-width: 0 !important;
   margin: 0 !important;
+}
+
+#setup-panel .setup-epicenter-actions .setup-current-location-button {
+  grid-column: 1 / -1 !important;
+}
+
+#setup-panel .setup-epicenter-actions .toggle-row:has(#epicenter-edit-toggle) {
+  color: #e8f1f8 !important;
+  font-weight: 900 !important;
+}
+
+html[data-resolved-theme="light"]
+  #setup-panel .setup-epicenter-actions .toggle-row:has(#epicenter-edit-toggle) {
+  color: #1e293b !important;
+}
+
+#setup-panel .setup-epicenter-actions .toggle-row:has(#epicenter-edit-toggle) > span {
+  font-weight: 900 !important;
 }
 
 #setup-panel .setup-current-location-button {
@@ -19156,7 +19173,7 @@ body.simulation-session-active #setup-panel.simulation-result-report-open
   margin: 0 !important;
   align-self: start !important;
   align-content: stretch !important;
-  grid-template-rows: repeat(3, minmax(23px, 1fr)) !important;
+  grid-template-rows: repeat(3, minmax(0, 1fr)) !important;
 }
 
 /* Prevent setup-menu card rules from stretching the live ticket after it is mounted here. */
@@ -19164,6 +19181,24 @@ body.simulation-session-active #setup-panel.simulation-result-report-open
   .simulation-result-report-summary-host .simulation-summary {
   column-gap: clamp(6px, 2vw, 12px) !important;
   row-gap: 0 !important;
+}
+
+/* Keep the result ticket's depth/magnitude row on the same baseline as the live ticket. */
+body.simulation-session-active #setup-panel.simulation-result-report-open
+  .simulation-result-report-summary-host .simulation-depth-magnitude-row {
+  align-self: center !important;
+  min-height: 0 !important;
+  line-height: 1.15 !important;
+}
+
+body.simulation-session-active #setup-panel.simulation-result-report-open
+  .simulation-result-report-summary-host .simulation-depth-magnitude-row > div,
+body.simulation-session-active #setup-panel.simulation-result-report-open
+  .simulation-result-report-summary-host .simulation-depth-magnitude-row .magnitude-card,
+body.simulation-session-active #setup-panel.simulation-result-report-open
+  .simulation-result-report-summary-host .simulation-depth-magnitude-row .magnitude-card strong {
+  align-items: baseline !important;
+  line-height: 1.15 !important;
 }
 
 body.simulation-session-active #setup-panel.simulation-result-report-open
@@ -24300,6 +24335,9 @@ html[data-resolved-theme="light"] .community-post-location-dot.is-set {
 }
 
 .simulation-timeline-quick-controls button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-width: 0;
   min-height: 24px;
   margin: 0;
@@ -24312,6 +24350,7 @@ html[data-resolved-theme="light"] .community-post-location-dot.is-set {
   font-size: 0.68rem;
   font-weight: 800;
   line-height: 1.15;
+  text-align: center;
   white-space: nowrap;
   cursor: pointer;
 }
@@ -24335,6 +24374,130 @@ html[data-resolved-theme="light"] .community-post-location-dot.is-set {
   margin-inline: 2px;
   background: rgba(71, 85, 105, 0.72);
   box-shadow: 0 0 2px rgba(255, 255, 255, 0.5);
+}
+
+/* Match the point-source selection state to the fault-menu edit button. */
+#setup-panel .setup-epicenter-actions .toggle-row:has(#epicenter-edit-toggle:checked),
+html[data-resolved-theme="light"]
+  #setup-panel .setup-epicenter-actions .toggle-row:has(#epicenter-edit-toggle:checked),
+html[data-resolved-theme="dark"]
+  #setup-panel .setup-epicenter-actions .toggle-row:has(#epicenter-edit-toggle:checked) {
+  border-color: #0284c7 !important;
+  background: #0284c7 !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.18) !important;
+}
+
+#setup-panel .setup-epicenter-actions .toggle-row:has(#epicenter-edit-toggle:checked)::before {
+  content: none !important;
+  display: none !important;
+}
+
+/* Use the same dimensions as the fault menu's in-sheet Start button. */
+#setup-panel .setup-epicenter-actions .toggle-row:has(#epicenter-edit-toggle),
+#setup-panel .setup-epicenter-actions .setup-current-location-button {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 42px !important;
+  min-height: 42px !important;
+  max-height: 42px !important;
+  border-radius: 15px !important;
+  padding: 0 12px !important;
+  font-size: 0.92rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+}
+
+/* Share one control size across source, fault, result, and completed-run menus. */
+#setup-panel .simulation-quick-actions #historical-earthquake-button,
+#setup-panel .simulation-quick-actions .sheet-speech-toggle,
+.fault-scenario-open-button,
+#fault-simulation-menu button,
+.simulation-result-report-actions button,
+.simulation-comparison-head button,
+body.simulation-session-complete .simulation-runtime-hud .simulation-timeline-controls button {
+  box-sizing: border-box !important;
+  height: 42px !important;
+  min-height: 42px !important;
+  max-height: 42px !important;
+  border-radius: 15px !important;
+  padding: 0 12px !important;
+  font-size: 0.92rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+}
+
+#setup-panel .simulation-quick-actions #historical-earthquake-button,
+#setup-panel .simulation-quick-actions .sheet-speech-toggle,
+.fault-scenario-open-button,
+#fault-simulation-menu button,
+.simulation-result-report-actions button,
+body.simulation-session-complete .simulation-runtime-hud .simulation-timeline-controls button {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+/* Light sheets should not show a second frame behind these standalone actions. */
+html[data-resolved-theme="light"] #setup-panel .simulation-quick-actions,
+html[data-resolved-theme="light"] #setup-panel .simulation-start-sheet-host {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+
+html[data-resolved-theme="light"]
+  #setup-panel .simulation-quick-actions #historical-earthquake-button,
+html[data-resolved-theme="light"]
+  #setup-panel .simulation-quick-actions .sheet-speech-toggle,
+html[data-resolved-theme="light"]
+  #setup-panel #simulation-start.sheet-simulation-start {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  filter: none !important;
+  outline: 0 !important;
+}
+
+html[data-resolved-theme="light"]
+  #setup-panel .simulation-quick-actions .sheet-speech-toggle strong {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+
+html[data-resolved-theme="light"]
+  #setup-panel .simulation-quick-actions .sheet-speech-toggle::before,
+html[data-resolved-theme="light"]
+  #setup-panel .simulation-quick-actions .sheet-speech-toggle::after,
+html[data-resolved-theme="light"]
+  #setup-panel .simulation-quick-actions .sheet-speech-toggle strong::before,
+html[data-resolved-theme="light"]
+  #setup-panel .simulation-quick-actions .sheet-speech-toggle strong::after,
+html[data-resolved-theme="light"]
+  #setup-panel #simulation-start.sheet-simulation-start::before,
+html[data-resolved-theme="light"]
+  #setup-panel #simulation-start.sheet-simulation-start::after {
+  content: none !important;
+  display: none !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Remove the faint dark slab behind the simulation-result title. */
+html[data-resolved-theme="dark"]
+  #setup-panel.simulation-result-report-open .simulation-result-report-head,
+html[data-resolved-theme="dark"]
+  #setup-panel.simulation-result-report-open .simulation-result-report-head h3 {
+  border-right: 0 !important;
+  border-left: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: 0 !important;
 }
 
 body.simulation-session-active:not(.simulation-session-complete)
