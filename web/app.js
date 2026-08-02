@@ -6112,6 +6112,7 @@ function setCommunityMapModeActive(active) {
     "plate-boundaries",
     "jshis-active-fault-model-lines",
     "jshis-active-fault-model-fills",
+    "jshis-subduction-detail-lines",
     "jshis-active-fault-traces",
     "p-wave-fill",
     "p-wave-line",
@@ -6272,6 +6273,7 @@ function updateHistoryMapIsolation() {
     "plate-boundaries",
     "jshis-active-fault-model-lines",
     "jshis-active-fault-model-fills",
+    "jshis-subduction-detail-lines",
     "jshis-active-fault-traces",
     "p-wave-fill",
     "p-wave-line",
@@ -14776,6 +14778,7 @@ function addMapLayers() {
     id: "jshis-active-fault-model-fills",
     type: "fill",
     source: "jshis-active-fault-models",
+    filter: ["!=", ["get", "category"], "subduction"],
     paint: {
       "fill-color": jshisFaultCategoryColor,
       "fill-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.05, 8, 0.09, 12, 0.04],
@@ -14787,6 +14790,11 @@ function addMapLayers() {
     id: "jshis-active-fault-model-lines",
     type: "line",
     source: "jshis-active-fault-models",
+    filter: [
+      "any",
+      ["!=", ["get", "category"], "subduction"],
+      ["==", ["get", "initiallyHidden"], 0],
+    ],
     layout: {
       "line-cap": "round",
       "line-join": "round",
@@ -14798,6 +14806,28 @@ function addMapLayers() {
     },
   });
   updateLayerVisibility("jshis-active-fault-model-lines", state.showFaultLayer);
+
+  addLayerIfMissing({
+    id: "jshis-subduction-detail-lines",
+    type: "line",
+    source: "jshis-active-fault-models",
+    minzoom: 8,
+    filter: [
+      "all",
+      ["==", ["get", "category"], "subduction"],
+      ["!=", ["get", "initiallyHidden"], 0],
+    ],
+    layout: {
+      "line-cap": "round",
+      "line-join": "round",
+    },
+    paint: {
+      "line-color": "#38bdf8",
+      "line-opacity": ["interpolate", ["linear"], ["zoom"], 8, 0.32, 11, 0.58],
+      "line-width": ["interpolate", ["linear"], ["zoom"], 8, 0.65, 11, 1.15],
+    },
+  });
+  updateLayerVisibility("jshis-subduction-detail-lines", state.showFaultLayer);
 
   addLayerIfMissing({
     id: "jshis-active-fault-traces",
@@ -15331,6 +15361,7 @@ function keepWaveAndStationLayerOrder() {
   moveLayerToTop("jma-eew-warning-boundaries");
   moveLayerToTop("jshis-active-fault-model-fills");
   moveLayerToTop("jshis-active-fault-model-lines");
+  moveLayerToTop("jshis-subduction-detail-lines");
   moveLayerToTop("jshis-active-fault-traces");
   moveLayerToTop("simulation-fault-area-fill");
   moveLayerToTop("simulation-fault-rupture-fill");
@@ -16112,6 +16143,7 @@ function isSubmarineFeatureId(featureId) {
 function updateFaultLayerVisibility() {
   updateLayerVisibility("jshis-active-fault-model-lines", state.showFaultLayer);
   updateLayerVisibility("jshis-active-fault-model-fills", state.showFaultLayer);
+  updateLayerVisibility("jshis-subduction-detail-lines", state.showFaultLayer);
   updateLayerVisibility("jshis-active-fault-traces", state.showFaultLayer);
   if (state.showFaultLayer) {
     ensureJshisActiveFaultMapData().catch((error) => {
