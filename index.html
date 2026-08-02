@@ -88,7 +88,7 @@
             <label><input type="checkbox" data-map-layer-target="region-layer-toggle" checked />細分区域</label>
             <label><input type="checkbox" data-map-layer-target="eew-warning-toggle" />緊急地震速報（警報）</label>
             <label><input type="checkbox" data-map-layer-target="plate-boundary-layer-toggle" />プレート境界</label>
-            <label><input type="checkbox" data-map-layer-target="fault-layer-toggle" disabled />断層（一時無効化中）</label>
+            <label><input type="checkbox" data-map-layer-target="fault-layer-toggle" />J-SHIS震源断層（すべて）</label>
           </section>
 
           <section class="sim-panel setup-menu-open" id="setup-panel" data-sheet-state="open" aria-label="震源設定">
@@ -133,7 +133,7 @@
                       <option value="kuril-trench">千島海溝（十勝・根室沖）</option>
                       <option value="japan-trench">日本海溝（三陸・日高沖）</option>
                     </optgroup>
-                    <option value="active-fault">活断層から選択</option>
+                    <option value="active-fault">主要活断層帯（J-SHIS）</option>
                   </select>
                 </label>
                 <label class="field fault-nankai-case-picker hidden" id="fault-nankai-case-picker">
@@ -146,11 +146,11 @@
                 </label>
                 <div class="active-fault-picker hidden" id="active-fault-picker">
                   <label class="field">
-                    <span>活断層を検索</span>
-                    <input id="active-fault-search" type="search" placeholder="断層名またはセグメントID" autocomplete="off" />
+                    <span>主要活断層帯を検索</span>
+                    <input id="active-fault-search" type="search" placeholder="断層名またはJ-SHIS断層コード" autocomplete="off" />
                   </label>
                   <label class="field">
-                    <span>活動セグメント</span>
+                    <span>主要活断層帯</span>
                     <select id="active-fault-select" disabled>
                       <option value="">データを読み込み中...</option>
                     </select>
@@ -284,8 +284,8 @@
                 <span>プレート境界</span>
               </label>
               <label class="toggle-row">
-                <input id="fault-layer-toggle" type="checkbox" disabled />
-                <span>断層（一時無効化中）</span>
+                <input id="fault-layer-toggle" type="checkbox" />
+                <span>J-SHIS震源断層（すべて）</span>
               </label>
             </div>
             <label class="field intensity-color-scheme-native">
@@ -439,8 +439,8 @@
                 <span>プレート境界</span>
               </label>
               <label class="toggle-row">
-                <input id="simulation-fault-layer-toggle" type="checkbox" disabled />
-                <span>断層（一時無効化中）</span>
+                <input id="simulation-fault-layer-toggle" type="checkbox" />
+                <span>J-SHIS震源断層（すべて）</span>
               </label>
             </div>
 
