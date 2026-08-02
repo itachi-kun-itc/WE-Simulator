@@ -27,6 +27,7 @@ const presetFiles = [
   "日向灘の地震（2024）.csv",
   "青森県東方沖の地震（2025）.csv",
   "岩手県沖の地震（2026）.csv",
+  "令和8年 熊本地震（2026）.csv",
 ];
 
 const eewForecastAreasByName = {
@@ -47,6 +48,7 @@ const eewForecastAreasByName = {
   "日向灘の地震（2024）": ["九州", "中国", "四国"],
   "青森県東方沖の地震（2025）": ["北海道", "東北"],
   "岩手県沖の地震（2026）": ["北海道", "東北"],
+  "令和8年 熊本地震（2026）": ["九州"],
 };
 
 const representativeIntensity = new Map([

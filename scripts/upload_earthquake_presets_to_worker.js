@@ -23,9 +23,18 @@ if (!adminToken) {
 
 const source = JSON.parse(fs.readFileSync(inputPath, "utf8"));
 const sourcePresets = Array.isArray(source.presets) ? source.presets : [];
-const presets = process.env.EARTHQUAKE_PRESETS_EEW_ONLY === "1"
+const selectedPresetId = String(process.env.EARTHQUAKE_PRESET_ID || "").trim();
+let presets = process.env.EARTHQUAKE_PRESETS_EEW_ONLY === "1"
   ? sourcePresets.filter((preset) => Array.isArray(preset.eewReports) && preset.eewReports.length > 0)
   : sourcePresets;
+if (selectedPresetId) {
+  presets = presets.filter((preset) => String(preset.id || "") === selectedPresetId);
+}
+if (presets.length === 0) {
+  throw new Error(selectedPresetId
+    ? `Earthquake preset not found: ${selectedPresetId}`
+    : "No earthquake presets to upload.");
+}
 
 uploadPresets().catch((error) => {
   console.error(error);

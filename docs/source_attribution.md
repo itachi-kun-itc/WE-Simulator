@@ -33,6 +33,9 @@
   - https://www.naturalearthdata.com/
 - J-SHIS 地震ハザードステーション
   - https://www.j-shis.bosai.go.jp/
+  - 主要活断層帯地表トレースはJ-SHIS公式WMSを直接表示
+  - J-SHIS 2024年版に収録された主要活断層帯・その他の活断層・海溝型地震震源断層を外接矩形で表示
+  - 断層シミュレーションの主要活断層帯モデルはJ-SHIS 2024年版を使用
 - S-net 日本海溝海底地震津波観測網
   - https://www.seafloor.bosai.go.jp/outline/
 

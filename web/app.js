@@ -2,7 +2,8 @@ const JMA_LOCAL_AREAS_URL = "./data/jma_local_areas_simplified_10.geojson";
 const JMA_EEW_FORECAST_AREAS_URL = "./data/jma_eew_forecast_areas.json";
 const JMA_EPICENTER_AREAS_URL = "./data/jma_epicenter_areas.geojson";
 const PLATE_BOUNDARIES_URL = "./data/plate_boundaries.geojson";
-const ACTIVE_FAULT_SEGMENTS_URL = "./data/activefault_japan_segments.geojson";
+const JSHIS_ACTIVE_FAULT_WMS_URL = "https://www.j-shis.bosai.go.jp/map/wms/jmw";
+const JSHIS_ACTIVE_FAULT_WMS_LAYER = "F-Y2009-TRACE-ACTIVEFAULT";
 const SUBMARINE_OBSERVATION_POINTS_URL = "./data/submarine_observation_points.geojson";
 const SURROUNDING_LAND_URL = "./data/surrounding_land.geojson";
 const MUNICIPALITY_BOUNDARIES_URL = "./data/japan_municipalities_simplified_50.geojson";
@@ -687,8 +688,6 @@ let epicenterAreaData;
 let epicenterAreaLoadPromise;
 let plateBoundaryData;
 let plateBoundaryLoadPromise;
-let activeFaultData;
-let activeFaultLoadPromise;
 let submarineObservationPointData;
 let submarineObservationPointLoadPromise;
 let surroundingLandData;
@@ -836,6 +835,8 @@ let activeFaultCatalog = [];
 let selectedActiveFaultPath = [];
 const activeFaultDetailCache = new Map();
 let activeFaultSelectionRequestId = 0;
+let jshisActiveFaultMapData;
+let jshisActiveFaultMapLoadPromise;
 let faultEpicenterNameSyncKey = "";
 let faultEpicenterNameRequestId = 0;
 let faultEpicenterNamePendingKey = "";
@@ -6109,7 +6110,9 @@ function setCommunityMapModeActive(active) {
     "submarine-observation-fill",
     "shindo-station-points",
     "plate-boundaries",
-    "active-fault-lines",
+    "jshis-active-fault-model-lines",
+    "jshis-active-fault-model-fills",
+    "jshis-active-fault-traces",
     "p-wave-fill",
     "p-wave-line",
     "s-wave-fill",
@@ -6267,7 +6270,9 @@ function updateHistoryMapIsolation() {
     "submarine-observation-fill",
     "eew-warning-fill",
     "plate-boundaries",
-    "active-fault-lines",
+    "jshis-active-fault-model-lines",
+    "jshis-active-fault-model-fills",
+    "jshis-active-fault-traces",
     "p-wave-fill",
     "p-wave-line",
     "s-wave-fill",
@@ -6664,18 +6669,19 @@ function bindSimulationControls() {
         entry.source ||= detail.source;
         entry.sourceUrl ||= detail.sourceUrl;
       } catch (error) {
-        console.warn("Active fault detail unavailable from D1; using local fallback", error);
-        const fallbackEntry = buildActiveFaultCatalog(await loadActiveFaultSegments())
-          .find((candidate) => candidate.id === entry.id);
+        console.warn("J-SHIS active fault detail unavailable", error);
         if (requestId !== activeFaultSelectionRequestId) {
           return;
         }
-        if (fallbackEntry) {
-          entry.features = fallbackEntry.features;
-          entry.description ||= fallbackEntry.description;
-          entry.source ||= fallbackEntry.source;
-          entry.sourceUrl ||= fallbackEntry.sourceUrl;
+        state.activeFaultSegmentId = "";
+        if (activeFaultSelect) {
+          activeFaultSelect.value = "";
         }
+        if (activeFaultPickerStatus) {
+          activeFaultPickerStatus.textContent = "J-SHISから断層座標を読み込めませんでした。";
+        }
+        updateSimulationAvailability();
+        return;
       }
     }
     selectedActiveFaultPath = entry
@@ -6684,7 +6690,7 @@ function bindSimulationControls() {
     if (!entry || selectedActiveFaultPath.length < 2) {
       faultModelProfile.innerHTML = `
         <strong>活断層を選択</strong>
-        <p>産総研 活断層データベースの活動セグメントから、シミュレーションに使う断層を選択してください。</p>
+        <p>J-SHISの主要活断層帯から、シミュレーションに使う断層を選択してください。</p>
       `;
       invalidateIntensityEstimateCache();
       updateSimulationFaultSource();
@@ -6699,23 +6705,22 @@ function bindSimulationControls() {
     const centerPoint = selectedActiveFaultPath[Math.floor(selectedActiveFaultPath.length / 2)];
     state.longitude = centerPoint[0];
     state.latitude = centerPoint[1];
-    state.epicenterName = `${entry.name}活動セグメント`;
+    state.epicenterName = entry.name;
     const description = entry.description
       .split(/\r?\n/)
       .map((line) => line.replace(/詳細はこちら。?/g, "").trim())
       .filter((line) => (
         line
-        && !line.includes("産業技術総合研究所")
-        && !line.includes("産総研 活断層データベース")
+        && !line.includes("J-SHIS 地震ハザードステーション")
       ))
       .slice(0, 2)
       .join(" ");
     faultModelProfile.innerHTML = `
       <div class="fault-model-profile-head">
-        <div><strong>${escapeHtml(entry.name)}</strong><span>活動セグメント ${escapeHtml(entry.id)}</span></div>
-        <b>活断層</b>
+        <div><strong>${escapeHtml(entry.name)}</strong><span>J-SHIS断層コード ${escapeHtml(entry.id)}</span></div>
+        <b>主要活断層帯</b>
       </div>
-      <p>${escapeHtml(description || "活断層データベース収録の断層トレースを使用します。")}</p>
+      <p>${escapeHtml(description || "J-SHIS収録の主要活断層帯モデルを使用します。")}</p>
     `;
     invalidateIntensityEstimateCache();
     syncInputs();
@@ -6741,8 +6746,8 @@ function bindSimulationControls() {
       try {
         activeFaultCatalog = await fetchActiveFaultCatalogFromWorker();
       } catch (error) {
-        console.warn("Active fault catalog unavailable from D1; using local fallback", error);
-        activeFaultCatalog = buildActiveFaultCatalog(await loadActiveFaultSegments());
+        console.warn("J-SHIS active fault catalog unavailable", error);
+        throw error;
       }
       renderActiveFaultOptions(activeFaultSearch?.value || "");
       await applyActiveFaultSelection(state.activeFaultSegmentId);
@@ -6781,7 +6786,7 @@ function bindSimulationControls() {
     if (selectsExistingFault) {
       faultModelProfile.innerHTML = `
         <strong>活断層を選択</strong>
-        <p>産総研 活断層データベースの活動セグメントから選択できます。</p>
+        <p>J-SHISの主要活断層帯から選択できます。</p>
       `;
       ensureActiveFaultPickerData();
       invalidateIntensityEstimateCache();
@@ -14016,7 +14021,8 @@ async function showMapLayers() {
   addGeoJsonSource("jma-intensity-areas", emptyFeatureCollection());
   addGeoJsonSource("history-epicenter-areas", emptyFeatureCollection());
   addGeoJsonSource("plate-boundaries", emptyFeatureCollection());
-  addGeoJsonSource("active-faults", emptyFeatureCollection());
+  addGeoJsonSource("jshis-active-fault-models", emptyFeatureCollection());
+  addJshisActiveFaultSource();
   addGeoJsonSource("simulation-fault-source", emptyFeatureCollection());
   addGeoJsonSource("submarine-observation-points", emptyFeatureCollection());
   addGeoJsonSource("shindo-stations", emptyFeatureCollection());
@@ -14495,6 +14501,37 @@ function addVectorTileSource(id, options) {
   });
 }
 
+function addJshisActiveFaultSource() {
+  if (map.getSource("jshis-active-fault-traces")) {
+    return;
+  }
+
+  const query = new URLSearchParams({
+    SERVICE: "WMS",
+    REQUEST: "GetMap",
+    VERSION: "1.1.1",
+    MAP: "F-Y2009-TRACE",
+    LAYERS: JSHIS_ACTIVE_FAULT_WMS_LAYER,
+    STYLES: "",
+    FORMAT: "image/png",
+    TRANSPARENT: "true",
+    SRS: "EPSG:3857",
+    BBOX: "{bbox-epsg-3857}",
+    WIDTH: "256",
+    HEIGHT: "256",
+  });
+  const tileUrl = `${JSHIS_ACTIVE_FAULT_WMS_URL}?${query}`
+    .replace("%7Bbbox-epsg-3857%7D", "{bbox-epsg-3857}");
+  map.addSource("jshis-active-fault-traces", {
+    type: "raster",
+    tiles: [tileUrl],
+    tileSize: 256,
+    minzoom: 8,
+    maxzoom: 15,
+    attribution: '<a href="https://www.j-shis.bosai.go.jp/" target="_blank" rel="noopener noreferrer">J-SHIS / 防災科研</a>',
+  });
+}
+
 function setGeoJsonSourceData(id, data) {
   const source = map?.getSource(id);
   if (!source) {
@@ -14726,21 +14763,53 @@ function addMapLayers() {
     },
   });
 
+  const jshisFaultCategoryColor = [
+    "match",
+    ["get", "category"],
+    "major-active", "#ff4d8d",
+    "other-active", "#f59e0b",
+    "subduction", "#38bdf8",
+    "#ff4d8d",
+  ];
+
   addLayerIfMissing({
-    id: "active-fault-lines",
+    id: "jshis-active-fault-model-fills",
+    type: "fill",
+    source: "jshis-active-fault-models",
+    paint: {
+      "fill-color": jshisFaultCategoryColor,
+      "fill-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.05, 8, 0.09, 12, 0.04],
+    },
+  });
+  updateLayerVisibility("jshis-active-fault-model-fills", state.showFaultLayer);
+
+  addLayerIfMissing({
+    id: "jshis-active-fault-model-lines",
     type: "line",
-    source: "active-faults",
+    source: "jshis-active-fault-models",
     layout: {
       "line-cap": "round",
       "line-join": "round",
     },
     paint: {
-      "line-color": "#ff4d6d",
-      "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.62, 7, 0.78, 10, 0.92],
-      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 1.15, 7, 1.75, 10, 2.55],
+      "line-color": jshisFaultCategoryColor,
+      "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.72, 7, 0.92, 12, 0.82],
+      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 1.1, 7, 1.7, 12, 2.1],
     },
   });
-  updateLayerVisibility("active-fault-lines", state.showFaultLayer);
+  updateLayerVisibility("jshis-active-fault-model-lines", state.showFaultLayer);
+
+  addLayerIfMissing({
+    id: "jshis-active-fault-traces",
+    type: "raster",
+    source: "jshis-active-fault-traces",
+    minzoom: 8,
+    paint: {
+      "raster-opacity": 0.9,
+      "raster-fade-duration": 0,
+    },
+  });
+  updateLayerVisibility("jshis-active-fault-traces", state.showFaultLayer);
 
   addLayerIfMissing({
     id: "simulation-fault-area-fill",
@@ -15260,7 +15329,9 @@ function keepWaveAndStationLayerOrder() {
   moveLayerToTop("jma-intensity-area-boundaries");
   moveLayerToTop("jma-intensity-area-boundaries-light");
   moveLayerToTop("jma-eew-warning-boundaries");
-  moveLayerToTop("active-fault-lines");
+  moveLayerToTop("jshis-active-fault-model-fills");
+  moveLayerToTop("jshis-active-fault-model-lines");
+  moveLayerToTop("jshis-active-fault-traces");
   moveLayerToTop("simulation-fault-area-fill");
   moveLayerToTop("simulation-fault-rupture-fill");
   moveLayerToTop("simulation-fault-area-outline");
@@ -15922,8 +15993,7 @@ function updateDisplayMode() {
   state.showRegionLayer = els.regionLayerToggle.checked;
   state.showEewWarningLayer = els.eewWarningToggle.checked;
   state.showPlateBoundaryLayer = Boolean(els.plateBoundaryLayerToggle?.checked);
-  state.showFaultLayer = false;
-  updateFaultLayerToggleAvailability();
+  state.showFaultLayer = Boolean(els.faultLayerToggle?.checked);
   els.simulationStationLayerToggle.checked = state.showStationLayer;
   if (els.simulationSubmarineStationLayerToggle) {
     els.simulationSubmarineStationLayerToggle.checked = state.showSubmarineStationLayer;
@@ -16040,26 +16110,32 @@ function isSubmarineFeatureId(featureId) {
 }
 
 function updateFaultLayerVisibility() {
-  updateFaultLayerToggleAvailability();
+  updateLayerVisibility("jshis-active-fault-model-lines", state.showFaultLayer);
+  updateLayerVisibility("jshis-active-fault-model-fills", state.showFaultLayer);
+  updateLayerVisibility("jshis-active-fault-traces", state.showFaultLayer);
+  if (state.showFaultLayer) {
+    ensureJshisActiveFaultMapData().catch((error) => {
+      console.warn("J-SHIS active fault map unavailable", error);
+    });
+  }
 }
 
 function updateFaultLayerToggleAvailability() {
-  state.showFaultLayer = false;
   [els.faultLayerToggle, els.simulationFaultLayerToggle].forEach((toggle) => {
     if (!toggle) {
       return;
     }
-    toggle.checked = false;
-    toggle.disabled = true;
-    toggle.closest(".toggle-row")?.classList.add("is-disabled");
+    toggle.checked = state.showFaultLayer;
+    toggle.disabled = false;
+    toggle.closest(".toggle-row")?.classList.remove("is-disabled");
   });
   const proxyToggle = els.mapLayerControlPanel?.querySelector('[data-map-layer-target="fault-layer-toggle"]');
   if (proxyToggle instanceof HTMLInputElement) {
-    proxyToggle.checked = false;
-    proxyToggle.disabled = true;
-    proxyToggle.closest("label")?.classList.add("is-disabled");
+    proxyToggle.checked = state.showFaultLayer;
+    proxyToggle.disabled = false;
+    proxyToggle.closest("label")?.classList.remove("is-disabled");
   }
-  updateLayerVisibility("active-fault-lines", false);
+  updateFaultLayerVisibility();
 }
 
 function updatePlateBoundaryLayerVisibility() {
@@ -16072,7 +16148,7 @@ function syncSimulationLayerToggles() {
   state.showRegionLayer = els.simulationRegionLayerToggle.checked;
   state.showEewWarningLayer = els.simulationEewWarningToggle.checked;
   state.showPlateBoundaryLayer = Boolean(els.simulationPlateBoundaryLayerToggle?.checked);
-  state.showFaultLayer = false;
+  state.showFaultLayer = Boolean(els.simulationFaultLayerToggle?.checked);
   els.stationLayerToggle.checked = state.showStationLayer;
   if (els.submarineStationLayerToggle) {
     els.submarineStationLayerToggle.checked = state.showSubmarineStationLayer;
@@ -18773,19 +18849,6 @@ async function loadPlateBoundaries() {
   return plateBoundaryData;
 }
 
-async function loadActiveFaultSegments() {
-  if (activeFaultData) {
-    return activeFaultData;
-  }
-
-  if (!activeFaultLoadPromise) {
-    activeFaultLoadPromise = fetchJson(ACTIVE_FAULT_SEGMENTS_URL, "Active fault segment GeoJSON");
-  }
-
-  activeFaultData = await activeFaultLoadPromise;
-  return activeFaultData;
-}
-
 async function fetchActiveFaultCatalogFromWorker() {
   const workerUrl = await getWorkerBaseUrl();
   if (!workerUrl) {
@@ -18810,6 +18873,36 @@ async function fetchActiveFaultCatalogFromWorker() {
   })).filter((segment) => segment.id);
 }
 
+async function ensureJshisActiveFaultMapData() {
+  if (jshisActiveFaultMapData) {
+    setGeoJsonSourceData("jshis-active-fault-models", jshisActiveFaultMapData);
+    return jshisActiveFaultMapData;
+  }
+  if (!jshisActiveFaultMapLoadPromise) {
+    jshisActiveFaultMapLoadPromise = (async () => {
+      const workerUrl = await getWorkerBaseUrl();
+      if (!workerUrl) {
+        throw new Error("Worker URL is not configured");
+      }
+      const response = await fetch(`${workerUrl}/active-faults/map?version=Y2024-all-1`);
+      if (!response.ok) {
+        throw new Error(`J-SHIS active fault map request failed: ${response.status}`);
+      }
+      const data = await response.json();
+      if (data?.type !== "FeatureCollection" || !Array.isArray(data.features)) {
+        throw new Error("J-SHIS active fault map response is invalid");
+      }
+      jshisActiveFaultMapData = data;
+      setGeoJsonSourceData("jshis-active-fault-models", data);
+      return data;
+    })().catch((error) => {
+      jshisActiveFaultMapLoadPromise = null;
+      throw error;
+    });
+  }
+  return jshisActiveFaultMapLoadPromise;
+}
+
 async function fetchActiveFaultDetailFromWorker(segmentId) {
   const workerUrl = await getWorkerBaseUrl();
   if (!workerUrl) {
@@ -18831,7 +18924,7 @@ async function fetchActiveFaultDetailFromWorker(segmentId) {
     id: String(segment.id || segmentId),
     name: String(segment.name || segmentId),
     description: String(segment.description || ""),
-    source: String(segment.source || "産総研 活断層データベース"),
+    source: String(segment.source || "J-SHIS 地震ハザードステーション"),
     sourceUrl: String(segment.sourceUrl || ""),
     path,
   };
@@ -21812,30 +21905,6 @@ function destinationPointKilometers(center, distanceKm, bearingDegrees) {
     Math.cos(angularDistance) - Math.sin(latitude) * Math.sin(destinationLatitude),
   );
   return [normalizeLongitude(toDegrees(destinationLongitude)), toDegrees(destinationLatitude)];
-}
-
-function buildActiveFaultCatalog(data) {
-  const groups = new Map();
-  (data?.features ?? []).forEach((feature) => {
-    const id = String(feature.properties?.segment_id ?? "").trim();
-    if (!id || feature.geometry?.type !== "LineString") {
-      return;
-    }
-    if (!groups.has(id)) {
-      groups.set(id, {
-        id,
-        name: String(feature.properties?.segment_name || feature.properties?.name || id).trim(),
-        description: String(feature.properties?.description || "").trim(),
-        source: String(feature.properties?.source || "産総研 活断層データベース").trim(),
-        sourceUrl: String(feature.properties?.source_url || "").trim(),
-        features: [],
-      });
-    }
-    groups.get(id).features.push(feature);
-  });
-  return [...groups.values()].sort((left, right) => (
-    left.name.localeCompare(right.name, "ja") || left.id.localeCompare(right.id)
-  ));
 }
 
 function buildRepresentativeActiveFaultPath(entry) {

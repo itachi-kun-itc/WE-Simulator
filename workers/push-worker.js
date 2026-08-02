@@ -11,6 +11,35 @@ const NOTIFICATION_HISTORY_RETENTION_DAYS = 30;
 const SUBSCRIPTION_PREFIX = "subscription:";
 const TARGETED_NOTIFICATION_PREFIX = "subscription-notification:";
 const MAINTENANCE_STATE_ID = "global";
+const JSHIS_ACTIVE_FAULT_EPOCH = "Y2024";
+const JSHIS_ACTIVE_FAULT_CATALOG_URL = `https://www.j-shis.bosai.go.jp/cgi-bin/JSHIS2/LteTable.cgi?GROUP=98F&CASE=AVR&EPOCH=${JSHIS_ACTIVE_FAULT_EPOCH}&OFFSET=0&LIMIT=700&FLANG=jp`;
+const JSHIS_ACTIVE_FAULT_GEOJSON_URL = `https://www.j-shis.bosai.go.jp/JSHIS2/GeoJSON/F-${JSHIS_ACTIVE_FAULT_EPOCH}-SHP-98F_TTL_TTL.geojson`;
+const JSHIS_FAULT_MAP_GROUPS = [
+  {
+    id: "major-active",
+    catalogGroup: "98F",
+    label: "主要活断層帯",
+    geometryUrl: JSHIS_ACTIVE_FAULT_GEOJSON_URL,
+  },
+  {
+    id: "other-active",
+    catalogGroup: "GR1",
+    label: "その他の活断層",
+    geometryUrl: `https://www.j-shis.bosai.go.jp/JSHIS2/GeoJSON/F-${JSHIS_ACTIVE_FAULT_EPOCH}-SHP-ELS_GR1_TTL.geojson`,
+  },
+  {
+    id: "subduction",
+    catalogGroup: "PME",
+    label: "海溝型地震震源断層",
+    geometryUrl: `https://www.j-shis.bosai.go.jp/JSHIS2/GeoJSON/F-${JSHIS_ACTIVE_FAULT_EPOCH}-SHP-PME_TTL_TTL.geojson`,
+  },
+];
+const JSHIS_SOURCE_LABEL = "J-SHIS 地震ハザードステーション（2024年版）";
+const JSHIS_SOURCE_URL = "https://www.j-shis.bosai.go.jp/";
+let jshisActiveFaultCatalogPromise;
+let jshisActiveFaultGeoJsonPromise;
+const jshisFaultMapCatalogPromises = new Map();
+const jshisFaultMapGeoJsonPromises = new Map();
 const EARTHQUAKE_PRESET_DETAIL_COLUMNS = `
   id,
   label,
@@ -83,7 +112,7 @@ export default {
       }
 
       if (request.method === "GET" && url.pathname === "/active-faults") {
-        const segments = await listActiveFaultSummaries(env, {
+        const segments = await listActiveFaultSummaries({
           search: url.searchParams.get("search"),
           limit: url.searchParams.get("limit"),
         });
@@ -92,10 +121,27 @@ export default {
         });
       }
 
+      if (request.method === "GET" && url.pathname === "/active-faults/map") {
+        const cache = globalThis.caches?.default;
+        const cacheKey = new Request(`${url.origin}/active-faults/map?version=Y2024-all-1`);
+        const cachedResponse = cache ? await cache.match(cacheKey) : null;
+        if (cachedResponse) {
+          return cachedResponse;
+        }
+        const featureCollection = await buildJshisActiveFaultMap();
+        const response = json(featureCollection, 200, {
+          "Cache-Control": "public, max-age=86400, s-maxage=604800",
+        });
+        if (cache) {
+          context.waitUntil(cache.put(cacheKey, response.clone()));
+        }
+        return response;
+      }
+
       const activeFaultMatch = url.pathname.match(/^\/active-faults\/([^/]+)$/);
       if (activeFaultMatch && request.method === "GET") {
         const id = decodeURIComponent(activeFaultMatch[1]);
-        const segment = await readActiveFaultSegment(env, id);
+        const segment = await readActiveFaultSegment(id);
         if (!segment) {
           return json({ error: "not found" }, 404);
         }
@@ -893,68 +939,336 @@ async function listEarthquakePresetSummaries(env) {
   }));
 }
 
-async function listActiveFaultSummaries(env, options = {}) {
-  const db = getAppDb(env);
+async function listActiveFaultSummaries(options = {}) {
   const search = String(options.search || "").trim().slice(0, 80);
   const limit = clampInteger(options.limit, 1, 700, 600);
-  const query = `
-    SELECT
-      segment_id AS id,
-      segment_name AS name,
-      point_count AS pointCount
-    FROM active_fault_segments
-    ${search ? "WHERE segment_name LIKE ?1 OR segment_id LIKE ?1" : ""}
-    ORDER BY segment_name COLLATE NOCASE ASC, segment_id ASC
-    LIMIT ?${search ? 2 : 1}
-  `;
-  const statement = db.prepare(query);
-  const result = search
-    ? await statement.bind(`%${search}%`, limit).all()
-    : await statement.bind(limit).all();
-
-  return (result.results || []).map((row) => ({
-    id: String(row.id || ""),
-    name: String(row.name || row.id || ""),
-    pointCount: Number(row.pointCount) || 0,
-  }));
+  const normalizedSearch = search.toLocaleLowerCase("ja");
+  const catalog = await fetchJshisActiveFaultCatalog();
+  return catalog
+    .filter((entry) => (
+      !normalizedSearch
+      || entry.id.toLocaleLowerCase("ja").includes(normalizedSearch)
+      || entry.name.toLocaleLowerCase("ja").includes(normalizedSearch)
+    ))
+    .slice(0, limit)
+    .map(({ id, name }) => ({ id, name, pointCount: 0 }));
 }
 
-async function readActiveFaultSegment(env, id) {
+async function readActiveFaultSegment(id) {
   const segmentId = String(id || "").trim();
-  if (!segmentId || segmentId.length > 80) {
+  if (!/^F[0-9A-Z]{6,8}$/.test(segmentId)) {
     throw httpError("invalid active fault id", 400);
   }
-  const row = await getAppDb(env).prepare(`
-    SELECT
-      segment_id AS id,
-      segment_name AS name,
-      description,
-      source,
-      source_url AS sourceUrl,
-      path_json AS pathJson,
-      point_count AS pointCount
-    FROM active_fault_segments
-    WHERE segment_id = ?1
-  `).bind(segmentId).first();
-  if (!row) {
+  const [catalog, faultGeoJson] = await Promise.all([
+    fetchJshisActiveFaultCatalog(),
+    fetchJshisActiveFaultGeoJson(),
+  ]);
+  const metadata = catalog.find((entry) => entry.id === segmentId);
+  const coordinates = [];
+  (faultGeoJson.features || []).forEach((feature) => {
+    if (String(feature?.properties?.LTE_CODE || "").trim() !== segmentId) {
+      return;
+    }
+    collectJshisWebMercatorCoordinates(feature?.geometry?.coordinates, coordinates);
+  });
+  const path = buildJshisRepresentativeFaultPath(coordinates);
+  if (!metadata || path.length < 2) {
     return null;
   }
-  let path = [];
-  try {
-    const parsed = JSON.parse(row.pathJson || "[]");
-    path = Array.isArray(parsed) ? parsed : [];
-  } catch {
-    path = [];
-  }
   return {
-    id: String(row.id || ""),
-    name: String(row.name || row.id || ""),
-    description: String(row.description || ""),
-    source: String(row.source || ""),
-    sourceUrl: String(row.sourceUrl || ""),
-    pointCount: Number(row.pointCount) || path.length,
+    id: metadata.id,
+    name: metadata.name,
+    description: buildJshisFaultDescription(metadata),
+    source: JSHIS_SOURCE_LABEL,
+    sourceUrl: metadata.link || JSHIS_SOURCE_URL,
+    pointCount: path.length,
     path,
   };
+}
+
+async function buildJshisActiveFaultMap() {
+  const groups = await Promise.all(JSHIS_FAULT_MAP_GROUPS.map(async (group) => {
+    const [catalog, faultGeoJson] = await Promise.all([
+      fetchJshisFaultMapCatalog(group),
+      fetchJshisFaultMapGeoJson(group),
+    ]);
+    return { group, catalog, faultGeoJson };
+  }));
+  const features = [];
+  groups.forEach(({ group, catalog, faultGeoJson }) => {
+    const metadataById = new Map(catalog.map((entry) => [entry.id, entry]));
+    (faultGeoJson.features || []).forEach((feature, featureIndex) => {
+      const faultCode = String(feature?.properties?.LTE_CODE || "").trim();
+      const coordinates = [];
+      collectJshisWebMercatorCoordinates(feature?.geometry?.coordinates, coordinates);
+      const frame = buildJshisFaultFrame(coordinates);
+      if (!faultCode || frame.length < 4) {
+        return;
+      }
+      const metadata = metadataById.get(faultCode);
+      features.push({
+        type: "Feature",
+        properties: {
+          id: `${group.id}:${faultCode}:${featureIndex + 1}`,
+          faultCode,
+          name: metadata?.name || faultCode,
+          category: group.id,
+          categoryLabel: group.label,
+          initiallyHidden: Number(feature?.properties?.INIHIDE) || 0,
+          source: JSHIS_SOURCE_LABEL,
+        },
+        geometry: { type: "Polygon", coordinates: [frame] },
+      });
+    });
+  });
+  return {
+    type: "FeatureCollection",
+    metadata: {
+      source: JSHIS_SOURCE_LABEL,
+      sourceUrl: JSHIS_SOURCE_URL,
+      derived: "J-SHIS収録の全震源断層モデルを表示用の外接矩形に変換",
+      categories: JSHIS_FAULT_MAP_GROUPS.map(({ id, label }) => ({ id, label })),
+      modelCount: features.length,
+    },
+    features,
+  };
+}
+
+async function fetchJshisFaultMapCatalog(group) {
+  if (!jshisFaultMapCatalogPromises.has(group.id)) {
+    const url = `https://www.j-shis.bosai.go.jp/cgi-bin/JSHIS2/LteTable.cgi?GROUP=${group.catalogGroup}&CASE=AVR&EPOCH=${JSHIS_ACTIVE_FAULT_EPOCH}&OFFSET=0&LIMIT=5000&FLANG=jp`;
+    const promise = fetch(url)
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`J-SHIS fault catalog request failed: ${response.status}`);
+        }
+        const xml = await response.text();
+        return parseJshisActiveFaultCatalog(xml);
+      })
+      .catch((error) => {
+        jshisFaultMapCatalogPromises.delete(group.id);
+        throw error;
+      });
+    jshisFaultMapCatalogPromises.set(group.id, promise);
+  }
+  return jshisFaultMapCatalogPromises.get(group.id);
+}
+
+async function fetchJshisFaultMapGeoJson(group) {
+  if (!jshisFaultMapGeoJsonPromises.has(group.id)) {
+    const promise = fetch(group.geometryUrl)
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`J-SHIS fault geometry request failed: ${response.status}`);
+        }
+        return response.json();
+      })
+      .catch((error) => {
+        jshisFaultMapGeoJsonPromises.delete(group.id);
+        throw error;
+      });
+    jshisFaultMapGeoJsonPromises.set(group.id, promise);
+  }
+  return jshisFaultMapGeoJsonPromises.get(group.id);
+}
+
+async function fetchJshisActiveFaultCatalog() {
+  if (!jshisActiveFaultCatalogPromise) {
+    jshisActiveFaultCatalogPromise = fetch(JSHIS_ACTIVE_FAULT_CATALOG_URL)
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`J-SHIS active fault catalog request failed: ${response.status}`);
+        }
+        const xml = await response.text();
+        return parseJshisActiveFaultCatalog(xml);
+      })
+      .catch((error) => {
+        jshisActiveFaultCatalogPromise = null;
+        throw error;
+      });
+  }
+  return jshisActiveFaultCatalogPromise;
+}
+
+function parseJshisActiveFaultCatalog(xml) {
+  return [...String(xml || "").matchAll(/<Item>([\s\S]*?)<\/Item>/g)]
+    .map((match) => {
+      const item = match[1];
+      return {
+        id: readJshisXmlValue(item, "lte_code_uniq"),
+        name: readJshisXmlValue(item, "lte_name"),
+        magnitude: readJshisXmlValue(item, "mag"),
+        averageIntervalYears: readJshisXmlValue(item, "avract"),
+        probability30Years: readJshisXmlValue(item, "t30p"),
+        link: readJshisXmlValue(item, "link").replace(/^http:/, "https:"),
+      };
+    })
+    .filter((entry) => entry.id && entry.name);
+}
+
+async function fetchJshisActiveFaultGeoJson() {
+  if (!jshisActiveFaultGeoJsonPromise) {
+    jshisActiveFaultGeoJsonPromise = fetch(JSHIS_ACTIVE_FAULT_GEOJSON_URL)
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`J-SHIS active fault geometry request failed: ${response.status}`);
+        }
+        return response.json();
+      })
+      .catch((error) => {
+        jshisActiveFaultGeoJsonPromise = null;
+        throw error;
+      });
+  }
+  return jshisActiveFaultGeoJsonPromise;
+}
+
+function readJshisXmlValue(xml, tagName) {
+  const match = String(xml || "").match(new RegExp(`<${tagName}>([\\s\\S]*?)<\\/${tagName}>`));
+  return decodeXmlEntities(match?.[1] || "").trim();
+}
+
+function decodeXmlEntities(value) {
+  return String(value || "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, codePoint) => String.fromCodePoint(Number(codePoint)));
+}
+
+function buildJshisFaultDescription(metadata) {
+  const details = [];
+  if (metadata.magnitude) {
+    details.push(`想定規模 ${metadata.magnitude}`);
+  }
+  const averageInterval = Number(metadata.averageIntervalYears);
+  if (averageInterval > 0) {
+    details.push(`平均発生間隔 約${Math.round(averageInterval).toLocaleString("ja-JP")}年`);
+  }
+  const probability = Number(metadata.probability30Years);
+  if (Number.isFinite(probability) && probability >= 0) {
+    details.push(`30年発生確率 ${probability}%`);
+  }
+  return details.join("、");
+}
+
+function collectJshisWebMercatorCoordinates(value, output) {
+  if (!Array.isArray(value)) {
+    return;
+  }
+  if (
+    value.length >= 2
+    && Number.isFinite(Number(value[0]))
+    && Number.isFinite(Number(value[1]))
+  ) {
+    output.push(webMercatorToLongitudeLatitude(Number(value[0]), Number(value[1])));
+    return;
+  }
+  value.forEach((child) => collectJshisWebMercatorCoordinates(child, output));
+}
+
+function webMercatorToLongitudeLatitude(x, y) {
+  const longitude = x * 180 / 20037508.342789244;
+  const latitude = Math.atan(Math.sinh(y / 6378137)) * 180 / Math.PI;
+  return [Number(longitude.toFixed(5)), Number(latitude.toFixed(5))];
+}
+
+function buildJshisRepresentativeFaultPath(inputCoordinates) {
+  const coordinateMap = new Map();
+  inputCoordinates.forEach(([longitude, latitude]) => {
+    if (Number.isFinite(longitude) && Number.isFinite(latitude)) {
+      coordinateMap.set(`${longitude.toFixed(5)},${latitude.toFixed(5)}`, [longitude, latitude]);
+    }
+  });
+  const coordinates = [...coordinateMap.values()];
+  if (coordinates.length < 2) {
+    return coordinates;
+  }
+  const meanLongitude = coordinates.reduce((sum, point) => sum + point[0], 0) / coordinates.length;
+  const meanLatitude = coordinates.reduce((sum, point) => sum + point[1], 0) / coordinates.length;
+  const longitudeScale = Math.cos(meanLatitude * Math.PI / 180);
+  let covarianceXX = 0;
+  let covarianceXY = 0;
+  let covarianceYY = 0;
+  coordinates.forEach(([longitude, latitude]) => {
+    const x = (longitude - meanLongitude) * longitudeScale;
+    const y = latitude - meanLatitude;
+    covarianceXX += x * x;
+    covarianceXY += x * y;
+    covarianceYY += y * y;
+  });
+  const angle = 0.5 * Math.atan2(2 * covarianceXY, covarianceXX - covarianceYY);
+  const axisX = Math.cos(angle);
+  const axisY = Math.sin(angle);
+  const projections = coordinates.map(([longitude, latitude]) => (
+    (longitude - meanLongitude) * longitudeScale * axisX
+    + (latitude - meanLatitude) * axisY
+  ));
+  const minimumProjection = Math.min(...projections);
+  const maximumProjection = Math.max(...projections);
+  const pointAtProjection = (projection) => [
+    Number((meanLongitude + projection * axisX / longitudeScale).toFixed(5)),
+    Number((meanLatitude + projection * axisY).toFixed(5)),
+  ];
+  return [pointAtProjection(minimumProjection), pointAtProjection(maximumProjection)];
+}
+
+function buildJshisFaultFrame(inputCoordinates) {
+  const coordinateMap = new Map();
+  inputCoordinates.forEach(([longitude, latitude]) => {
+    if (Number.isFinite(longitude) && Number.isFinite(latitude)) {
+      coordinateMap.set(`${longitude.toFixed(5)},${latitude.toFixed(5)}`, [longitude, latitude]);
+    }
+  });
+  const coordinates = [...coordinateMap.values()];
+  if (coordinates.length < 2) {
+    return [];
+  }
+  const meanLongitude = coordinates.reduce((sum, point) => sum + point[0], 0) / coordinates.length;
+  const meanLatitude = coordinates.reduce((sum, point) => sum + point[1], 0) / coordinates.length;
+  const longitudeScale = Math.max(0.2, Math.cos(meanLatitude * Math.PI / 180));
+  let covarianceXX = 0;
+  let covarianceXY = 0;
+  let covarianceYY = 0;
+  const localCoordinates = coordinates.map(([longitude, latitude]) => {
+    const x = (longitude - meanLongitude) * longitudeScale;
+    const y = latitude - meanLatitude;
+    covarianceXX += x * x;
+    covarianceXY += x * y;
+    covarianceYY += y * y;
+    return [x, y];
+  });
+  const angle = 0.5 * Math.atan2(2 * covarianceXY, covarianceXX - covarianceYY);
+  const axisX = Math.cos(angle);
+  const axisY = Math.sin(angle);
+  const normalX = -axisY;
+  const normalY = axisX;
+  const along = localCoordinates.map(([x, y]) => x * axisX + y * axisY);
+  const across = localCoordinates.map(([x, y]) => x * normalX + y * normalY);
+  const alongMin = Math.min(...along);
+  const alongMax = Math.max(...along);
+  let acrossMin = Math.min(...across);
+  let acrossMax = Math.max(...across);
+  const minimumHalfWidth = 0.0045;
+  if (acrossMax - acrossMin < minimumHalfWidth * 2) {
+    const center = (acrossMin + acrossMax) / 2;
+    acrossMin = center - minimumHalfWidth;
+    acrossMax = center + minimumHalfWidth;
+  }
+  const point = (alongValue, acrossValue) => [
+    Number((meanLongitude + (alongValue * axisX + acrossValue * normalX) / longitudeScale).toFixed(5)),
+    Number((meanLatitude + alongValue * axisY + acrossValue * normalY).toFixed(5)),
+  ];
+  const frame = [
+    point(alongMin, acrossMin),
+    point(alongMax, acrossMin),
+    point(alongMax, acrossMax),
+    point(alongMin, acrossMax),
+  ];
+  frame.push([...frame[0]]);
+  return frame;
 }
 
 async function listEarthquakeStatistics(env, options = {}) {
