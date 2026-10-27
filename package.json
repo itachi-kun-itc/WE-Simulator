@@ -1,6 +1,7 @@
 {
   "name": "weather-earthquake-simulator",
-  "version": "0.1.41",
+  "version": "2.0.0",
+  "displayVersion": "2.0.00",
   "private": true,
   "homepage": "https://itachi-kun-itc.github.io/WE-Simulator/",
   "scripts": {
@@ -20,7 +21,8 @@
     "upload:japan-pmtiles": "cd workers && npx wrangler r2 object put we-simulator-data/map/japan.pmtiles --file ../web/map/japan.pmtiles --remote",
     "upload:earthquake-presets": "node scripts/upload_earthquake_presets_to_worker.js",
     "check:encoding": "node scripts/check_text_encoding.js",
-    "check:app": "npm run check:encoding && node --check web/app.js",
+    "check:glass": "node --test tests/liquid_glass.test.cjs",
+    "check:app": "npm run check:encoding && node --check web/app.js && node --check web/liquid-glass.js && node --check web/bottom-navigation.js && npm run check:glass",
     "web": "node web/dev-server.js",
     "inject-version": "node scripts/inject_version.js",
     "prepare:web-deploy": "node scripts/prepare_web_deploy.js",

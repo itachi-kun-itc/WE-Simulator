@@ -1,4 +1,4 @@
-const CACHE_NAME = "we-simulator-pwa-v40";
+const CACHE_NAME = "we-simulator-pwa-v51";
 const PUSH_METADATA_CACHE_NAME = "we-simulator-push-metadata";
 const LOCAL_DEV_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
 const IS_LOCAL_DEV = isLocalDevelopmentHostname(new URL(self.location.href).hostname);
@@ -12,6 +12,10 @@ const APP_SHELL = [
   "./index.html",
   "./styles.css",
   "./app.js",
+  "./bottom-navigation.css?v=2",
+  "./bottom-navigation.js?v=2",
+  "./liquid-glass.js?v=1",
+  "./interface-appearance.css?v=8",
   "./manifest.webmanifest",
   "./push-config.json",
 ];
@@ -74,6 +78,11 @@ self.addEventListener("fetch", (event) => {
 
   const requestUrl = new URL(event.request.url);
   if (!["http:", "https:"].includes(requestUrl.protocol)) {
+    return;
+  }
+
+  // Let the browser honour the tile provider's HTTP cache headers directly.
+  if (requestUrl.hostname === "tile.openstreetmap.org") {
     return;
   }
 

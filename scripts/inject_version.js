@@ -27,12 +27,24 @@ if (!fs.existsSync(manifestPath)) {
 }
 
 const pkg = readJSON(pkgPath);
+const displayVersion = pkg.displayVersion || pkg.version || String(Date.now());
 const version = process.env.GITHUB_SHA
   ? process.env.GITHUB_SHA.slice(0, 12)
-  : pkg.version || String(Date.now());
+  : displayVersion;
 
 const originalHtml = fs.readFileSync(indexPath, 'utf8');
 let html = originalHtml;
+
+// Keep the visible release number independent of the deploy's cache key.
+const escapedDisplayVersion = String(displayVersion).replace(/[&<>"']/g, (character) => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+})[character]);
+const versionMeta = '<meta name="application-version" content="' + escapedDisplayVersion + '" />';
+if (html.includes('name="application-version"')) {
+  html = html.replace(/<meta name="application-version" content="[^"]*"\s*\/?>/, versionMeta);
+} else {
+  html = html.replace('</head>', '  ' + versionMeta + '\n  </head>');
+}
 
 // Replace known local asset references to add ?v=version
 html = html.replace(/\.\/styles\.css(?:\?v=[^"']*)?/g, './styles.css?v=' + version);

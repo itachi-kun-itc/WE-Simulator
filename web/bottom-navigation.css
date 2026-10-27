@@ -1,0 +1,182 @@
+/* Floating navigation: one glass surface and one spring-driven selection lens. */
+:root {
+  --bottom-nav-height: 88px !important;
+}
+
+html .bottom-tabs.liquid-glass-nav {
+  --glass-tint: rgba(26, 34, 47, 0.64);
+  --glass-edge: rgba(255, 255, 255, 0.24);
+  --glass-text: #d7e0ec;
+  --glass-active: #8cdcff;
+  --glass-lens: rgba(208, 235, 255, 0.14);
+  position: fixed !important;
+  inset: auto 0 calc(10px + env(safe-area-inset-bottom)) !important;
+  width: calc(100% - 24px) !important;
+  max-width: 680px !important;
+  height: 68px !important;
+  min-height: 0 !important;
+  margin: 0 auto !important;
+  padding: 5px !important;
+  gap: 2px !important;
+  border: 1px solid var(--glass-edge) !important;
+  border-radius: 36px !important;
+  background: linear-gradient(160deg, rgba(255,255,255,0.15), transparent 44%, rgba(255,255,255,0.045)), var(--glass-tint) !important;
+  box-shadow: 0 10px 36px rgba(0, 8, 24, 0.24), 0 2px 8px rgba(0, 8, 24, 0.12), inset 0 1px 0 rgba(255,255,255,0.24), inset 0 -1px 0 rgba(255,255,255,0.05) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(1.65) !important;
+  backdrop-filter: blur(24px) saturate(1.65) !important;
+  overflow: hidden !important;
+  isolation: isolate;
+  touch-action: pan-y pinch-zoom;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html .bottom-tabs.liquid-glass-nav::after {
+  display: none !important;
+}
+
+html .bottom-tabs.liquid-glass-nav::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(115deg, rgba(255,255,255,0.11), transparent 28% 65%, rgba(255,255,255,0.07));
+  pointer-events: none;
+  z-index: 2;
+}
+
+.liquid-glass-selection {
+  position: absolute;
+  left: 0;
+  top: 5px;
+  bottom: 5px;
+  border: 1px solid rgba(255,255,255,0.24);
+  border-radius: 29px;
+  box-sizing: border-box;
+  background: linear-gradient(145deg, rgba(255,255,255,0.22), transparent 54%, rgba(255,255,255,0.07)), var(--glass-lens);
+  box-shadow: inset 0 1px 1px rgba(255,255,255,0.3), inset 0 -1px 2px rgba(255,255,255,0.06), 0 2px 8px rgba(0,0,0,0.08);
+  pointer-events: none;
+  transform-origin: center;
+  will-change: transform;
+  transition: background 200ms ease, box-shadow 200ms ease;
+  z-index: 0;
+}
+
+html .bottom-tabs.liquid-glass-nav .tab {
+  position: relative !important;
+  z-index: 1;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 44px !important;
+  margin: 0 !important;
+  padding: 4px 0 !important;
+  grid-template-rows: 27px auto !important;
+  align-content: center !important;
+  gap: 3px !important;
+  border: 0 !important;
+  border-radius: 29px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--glass-text) !important;
+  font-size: clamp(0.56rem, 2.35vw, 0.7rem) !important;
+  font-weight: 650 !important;
+  letter-spacing: -0.045em !important;
+  line-height: 1.15 !important;
+  transform: translateY(0) scale(1) !important;
+  transition: color 220ms ease, transform 350ms cubic-bezier(.2,.8,.2,1) !important;
+}
+
+html .bottom-tabs.liquid-glass-nav .tab > span:last-child {
+  color: inherit !important;
+  font-size: inherit !important;
+  line-height: inherit !important;
+  white-space: nowrap;
+  transform: none !important;
+}
+
+html .bottom-tabs.liquid-glass-nav #earthquake-tab > span:last-child {
+  transform: none !important;
+}
+
+html .bottom-tabs.liquid-glass-nav .tab > .bottom-tab-icon {
+  left: 0 !important;
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  color: inherit !important;
+  transform: scale(0.94) !important;
+  transform-origin: center !important;
+  transition: transform 440ms cubic-bezier(.22,1.4,.35,1) !important;
+}
+
+html .bottom-tabs.liquid-glass-nav .tab.active,
+html .bottom-tabs.liquid-glass-nav .tab.active span {
+  color: var(--glass-active) !important;
+}
+
+html .bottom-tabs.liquid-glass-nav .tab.active > .bottom-tab-icon {
+  transform: translateY(-1px) scale(1.04) !important;
+}
+
+html .bottom-tabs.liquid-glass-nav .tab:active {
+  transform: scale(0.94) !important;
+}
+
+html .bottom-tabs.liquid-glass-nav .tab:focus-visible {
+  outline: 2px solid var(--glass-active) !important;
+  outline-offset: -3px !important;
+}
+
+.liquid-glass-nav.glass-pressed .liquid-glass-selection {
+  background-color: rgba(215, 237, 255, 0.2);
+  box-shadow: inset 0 1px 2px rgba(255,255,255,0.5), 0 3px 12px rgba(0,0,0,0.12);
+}
+
+html[data-resolved-theme="light"] .bottom-tabs.liquid-glass-nav {
+  --glass-tint: rgba(245, 250, 255, 0.65);
+  --glass-edge: rgba(255, 255, 255, 0.85);
+  --glass-text: #46556c;
+  --glass-active: #006baa;
+  --glass-lens: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 8px 32px rgba(30, 53, 80, 0.16), 0 1px 5px rgba(30,53,80,0.08), inset 0 1px 1px rgba(255,255,255,0.95) !important;
+}
+
+@media (hover: hover) {
+  html .bottom-tabs.liquid-glass-nav .tab:hover > .bottom-tab-icon {
+    transform: translateY(-2px) scale(1.07) !important;
+  }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html .bottom-tabs.liquid-glass-nav { --glass-tint: #1b2637; }
+  html[data-resolved-theme="light"] .bottom-tabs.liquid-glass-nav { --glass-tint: #edf3fa; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html .bottom-tabs.liquid-glass-nav .tab,
+  html .bottom-tabs.liquid-glass-nav .tab > .bottom-tab-icon,
+  .liquid-glass-selection { transition: none !important; }
+  html .bottom-tabs.liquid-glass-nav .tab,
+  html .bottom-tabs.liquid-glass-nav .tab > .bottom-tab-icon { transform: none !important; }
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  html .bottom-tabs.liquid-glass-nav {
+    --glass-tint: #182435;
+    --glass-edge: #8e9eb4;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  html[data-resolved-theme="light"] .bottom-tabs.liquid-glass-nav {
+    --glass-tint: #f3f7fc;
+    --glass-edge: #64748b;
+  }
+}
+
+@media (forced-colors: active) {
+  html .bottom-tabs.liquid-glass-nav { border: 1px solid CanvasText !important; }
+  html .bottom-tabs.liquid-glass-nav .tab.active { outline: 2px solid Highlight !important; }
+  .liquid-glass-selection { border: 2px solid Highlight; }
+}

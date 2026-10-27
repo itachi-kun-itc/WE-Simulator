@@ -1,0 +1,553 @@
+:root {
+  --app-control-radius: 16px;
+  --app-surface-radius: 24px;
+  --app-glass-surface: rgba(28, 39, 56, 0.62);
+  --app-glass-border: rgba(227, 242, 255, 0.28);
+  --app-glass-highlight: rgba(255, 255, 255, 0.24);
+  --app-glass-lens: rgba(214, 237, 255, 0.14);
+  --app-glass-text: #d7e4f3;
+  --app-glass-selected: #9bdeff;
+  --app-glass-shadow: rgba(0, 9, 24, 0.22);
+}
+
+html[data-resolved-theme="light"] {
+  --app-glass-surface: rgba(245, 250, 255, 0.64);
+  --app-glass-border: rgba(255, 255, 255, 0.88);
+  --app-glass-highlight: rgba(255, 255, 255, 0.92);
+  --app-glass-lens: rgba(255, 255, 255, 0.52);
+  --app-glass-text: #46556c;
+  --app-glass-selected: #00669b;
+  --app-glass-shadow: rgba(30, 53, 80, 0.14);
+}
+
+/* Layered important declarations give the shared shape tokens precedence over
+   the older per-screen important rules without changing control geometry. */
+@layer app-shapes {
+  body :where(button, [role="button"], input[type="button"], input[type="submit"], summary):not(:where(
+    .maplibregl-marker, .community-post-marker, .epicenter-marker-shell,
+    .current-location-marker, .simulation-timeline-event
+  )) {
+    border-radius: var(--app-control-radius) !important;
+  }
+
+  body :where(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]),
+    select, textarea
+  ) {
+    border-radius: var(--app-control-radius) !important;
+  }
+
+  body :where(
+    .settings-menu-row, .tool-menu-row, .learning-menu-row,
+    .settings-theme-options label, .settings-section, .toggle-row,
+    .settings-status-card, .settings-notification-card, .settings-appearance-section,
+    .community-profile-card, .community-account-required-card, .community-post-card,
+    .community-account-list article, .source-link-card, .source-info-section,
+    .learning-card, .learning-intensity-item, .learning-long-period-item,
+    .learning-disaster-topic-card, .learning-liquefaction-card,
+    .learning-typhoon-fact-grid article, .fault-simulation-card,
+    .simulation-summary, .simulation-scenario-item, .simulation-comparison-card,
+    .weather-quiz-card, .weather-quiz-overview, .weather-quiz-history article,
+    .admin-overview-metrics article, .admin-overview-system
+  ) {
+    border-radius: var(--app-surface-radius) !important;
+  }
+
+  body :where(
+    .preset-picker-dialog, .simulation-scenario-dialog, .weather-quiz-leave-dialog,
+    .weather-quiz-quality-dialog, .startup-location-permission-dialog,
+    .community-post-sheet, .community-post-detail-sheet, .map-layer-control-panel
+  ) {
+    border-radius: var(--app-surface-radius) !important;
+  }
+}
+
+/* Keep the nested pill shapes and circular icon controls. */
+.bottom-tabs,
+.learning-category-switch,
+.community-profile-follow-counts,
+.community-account-wide-button,
+.settings-detail-back,
+.admin-section-back,
+.community-account-screen-back,
+.source-info-close,
+.maplibregl-ctrl-group {
+  --app-control-radius: 999px;
+}
+
+/* Learning uses a single moving lens underneath the two labels. */
+html #learning-full-panel .learning-category-switch {
+  position: sticky !important;
+  isolation: isolate;
+  box-sizing: border-box;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 4px !important;
+  padding: 4px !important;
+  border: 1px solid var(--app-glass-border) !important;
+  border-radius: 999px !important;
+  background: linear-gradient(150deg, rgba(255,255,255,0.15), transparent 60%), var(--app-glass-surface) !important;
+  box-shadow: 0 8px 24px var(--app-glass-shadow), inset 0 1px 0 var(--app-glass-highlight) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(1.65) !important;
+  backdrop-filter: blur(22px) saturate(1.65) !important;
+  touch-action: pan-y pinch-zoom;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html #learning-full-panel .learning-category-switch::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc((100% - 12px) / 2);
+  box-sizing: border-box;
+  border: 1px solid var(--app-glass-border);
+  border-radius: inherit;
+  background: linear-gradient(145deg, rgba(255,255,255,0.22), transparent 65%), var(--app-glass-lens);
+  box-shadow: inset 0 1px 1px var(--app-glass-highlight), 0 2px 8px var(--app-glass-shadow);
+  pointer-events: none;
+  transform: translateX(0);
+  transition: transform 520ms cubic-bezier(.22, 1.15, .3, 1);
+}
+
+html #learning-full-panel .learning-category-switch[data-active-category="weather"]::before {
+  transform: translateX(calc(100% + 4px));
+}
+
+html #learning-full-panel .learning-category-switch.glass-selector-ready::before {
+  content: none;
+}
+
+.learning-glass-selection {
+  position: absolute;
+  z-index: -1;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  box-sizing: border-box;
+  border: 1px solid var(--app-glass-border);
+  border-radius: inherit;
+  background: linear-gradient(145deg, rgba(255,255,255,0.22), transparent 65%), var(--app-glass-lens);
+  box-shadow: inset 0 1px 1px var(--app-glass-highlight), 0 2px 8px var(--app-glass-shadow);
+  transform-origin: center;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.glass-pressed .learning-glass-selection {
+  background-color: var(--app-glass-highlight);
+}
+
+html #learning-full-panel .learning-category-switch button {
+  position: relative;
+  min-height: 44px !important;
+  height: 44px !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--app-glass-text) !important;
+  transition: color 220ms ease, transform 360ms cubic-bezier(.2,.8,.2,1) !important;
+}
+
+html #learning-full-panel .learning-category-switch button[aria-selected="true"] {
+  color: var(--app-glass-selected) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html #learning-full-panel .learning-category-switch button:active {
+  transform: scale(0.97);
+}
+
+html #learning-full-panel .learning-category-switch button:focus-visible {
+  outline: 2px solid var(--app-glass-selected) !important;
+  outline-offset: -3px;
+}
+
+/* The profile remains a distinct glass card within the settings page. */
+html .settings-menu-sheet #community-account-panel {
+  background: transparent !important;
+}
+
+html .settings-menu-sheet #community-account-panel .community-profile-card {
+  --app-surface-radius: 28px;
+  position: relative;
+  isolation: isolate;
+  border: 1px solid var(--app-glass-border) !important;
+  border-style: solid !important;
+  background:
+    radial-gradient(ellipse at 100% 0, rgba(87,194,255,0.18), transparent 65%),
+    linear-gradient(145deg, rgba(255,255,255,0.14), transparent 60%),
+    var(--app-glass-surface) !important;
+  box-shadow: 0 10px 28px var(--app-glass-shadow), inset 0 1px 0 var(--app-glass-highlight), inset 0 -1px 0 rgba(255,255,255,0.06) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(1.6) !important;
+  backdrop-filter: blur(24px) saturate(1.6) !important;
+  color: var(--app-glass-text);
+}
+
+html .settings-menu-sheet #community-account-panel .community-profile-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(110deg, rgba(255,255,255,0.09), transparent 35% 75%, rgba(255,255,255,0.04));
+  pointer-events: none;
+}
+
+html .settings-menu-sheet #community-account-panel .community-profile-card.is-empty {
+  border-style: solid !important;
+}
+
+/* Action controls share the glass material in every simulation state,
+   including when a button's label changes to resume or return to setup. */
+@layer app-glass-controls {
+  body :where(
+    #historical-earthquake-button, .sheet-speech-toggle,
+    #simulation-start, #simulation-pause, #simulation-stop, #simulation-result,
+    .simulation-result-report-actions button, [data-simulation-result-back],
+    #community-post-button, .liquid-glass-action
+  ) {
+    --app-control-radius: 999px;
+    border: 1px solid var(--glass-control-edge, var(--app-glass-border)) !important;
+    background:
+      linear-gradient(145deg, rgba(255,255,255,0.23), transparent 48%, rgba(255,255,255,0.055)),
+      var(--glass-control-surface, var(--app-glass-surface)) !important;
+    color: var(--glass-control-text, var(--app-glass-text)) !important;
+    box-shadow: 0 6px 18px var(--app-glass-shadow), inset 0 1px 1px var(--app-glass-highlight), inset 0 -1px 0 rgba(255,255,255,0.08) !important;
+    -webkit-backdrop-filter: blur(18px) saturate(1.6) !important;
+    backdrop-filter: blur(18px) saturate(1.6) !important;
+    filter: none !important;
+    text-shadow: none !important;
+    transition: scale 280ms cubic-bezier(.2,.8,.2,1), translate 280ms cubic-bezier(.2,.8,.2,1),
+      box-shadow 220ms ease, border-color 220ms ease, color 220ms ease !important;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  body :where(
+    #historical-earthquake-button, .sheet-speech-toggle,
+    #simulation-start, #simulation-pause, #simulation-stop, #simulation-result,
+    .simulation-result-report-actions button, [data-simulation-result-back],
+    #community-post-button, .liquid-glass-action
+  ):active:not(:disabled) {
+    scale: 0.97;
+    translate: 0 1px;
+    box-shadow: 0 2px 7px var(--app-glass-shadow), inset 0 1px 2px var(--app-glass-highlight) !important;
+  }
+
+  body :where(
+    #historical-earthquake-button, .sheet-speech-toggle,
+    #simulation-start, #simulation-pause, #simulation-stop, #simulation-result,
+    .simulation-result-report-actions button, [data-simulation-result-back],
+    #community-post-button, .liquid-glass-action
+  ):focus-visible {
+    outline: 2px solid var(--glass-control-text, var(--app-glass-selected)) !important;
+    outline-offset: 3px !important;
+  }
+
+  body :where(
+    #historical-earthquake-button, .sheet-speech-toggle,
+    #simulation-start, #simulation-pause, #simulation-stop, #simulation-result,
+    .simulation-result-report-actions button, [data-simulation-result-back],
+    #community-post-button, .liquid-glass-action
+  ):disabled {
+    opacity: 0.48 !important;
+    box-shadow: inset 0 1px 0 var(--app-glass-border) !important;
+    cursor: not-allowed;
+  }
+
+  .sheet-speech-toggle strong { color: inherit !important; }
+
+  .liquid-glass-action { cursor: pointer; }
+  .liquid-glass-action > span { color: inherit !important; }
+
+  .liquid-glass-action:has(> input:focus-visible) {
+    outline: 2px solid var(--app-glass-selected) !important;
+    outline-offset: 3px !important;
+  }
+
+  .liquid-glass-action:has(> input:disabled) {
+    opacity: 0.48 !important;
+    cursor: not-allowed;
+    scale: none !important;
+    translate: none !important;
+  }
+
+  @media (hover: hover) {
+    body :where(
+      #historical-earthquake-button, .sheet-speech-toggle,
+      #simulation-start, #simulation-pause, #simulation-stop, #simulation-result,
+      .simulation-result-report-actions button, [data-simulation-result-back],
+      #community-post-button, .liquid-glass-action
+    ):hover:not(:disabled) {
+      border-color: var(--app-glass-highlight) !important;
+      box-shadow: 0 9px 24px var(--app-glass-shadow), inset 0 1px 1px var(--app-glass-highlight) !important;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    body :where(
+      #historical-earthquake-button, .sheet-speech-toggle,
+      #simulation-start, #simulation-pause, #simulation-stop, #simulation-result,
+      .simulation-result-report-actions button, [data-simulation-result-back],
+      #community-post-button, .liquid-glass-action
+    ) {
+      transition: none !important;
+      scale: none !important;
+      translate: none !important;
+    }
+  }
+
+  @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+    body :where(
+      #historical-earthquake-button, .sheet-speech-toggle,
+      #simulation-start, #simulation-pause, #simulation-stop, #simulation-result,
+      .simulation-result-report-actions button, [data-simulation-result-back],
+      #community-post-button, .liquid-glass-action
+    ) {
+      background: var(--glass-control-surface, var(--app-glass-surface)) !important;
+      -webkit-backdrop-filter: none !important;
+      backdrop-filter: none !important;
+    }
+  }
+
+  @media (forced-colors: active) {
+    body :where(
+      #historical-earthquake-button, .sheet-speech-toggle,
+      #simulation-start, #simulation-pause, #simulation-stop, #simulation-result,
+      .simulation-result-report-actions button, [data-simulation-result-back],
+      #community-post-button, .liquid-glass-action
+    ) {
+      border-color: ButtonText !important;
+      background: ButtonFace !important;
+      color: ButtonText !important;
+    }
+  }
+}
+
+:is(#simulation-start, #simulation-result, #community-post-button) {
+  --glass-control-surface: color-mix(in srgb, var(--app-glass-surface) 78%, #0891b2 22%);
+  --glass-control-text: var(--app-glass-selected);
+}
+
+#simulation-stop {
+  --glass-control-surface: color-mix(in srgb, var(--app-glass-surface) 82%, #ef4444 18%);
+  --glass-control-text: #ffbec6;
+  --glass-control-edge: rgba(255, 143, 157, 0.4);
+}
+
+html[data-resolved-theme="light"] #simulation-stop { --glass-control-text: #a32035; }
+
+.sheet-speech-toggle:not(.is-muted) {
+  --glass-control-text: var(--app-glass-selected);
+  --glass-control-edge: rgba(56, 189, 248, 0.5);
+}
+
+/* The native checkbox and fault editor's pressed state are the source of truth. */
+.liquid-glass-action:has(> #epicenter-edit-toggle:checked),
+.fault-epicenter-edit-button[aria-pressed="true"] {
+  --glass-control-surface: rgba(190, 28, 52, 0.88);
+  --glass-control-text: #ffffff;
+  --glass-control-edge: rgba(255, 151, 167, 0.78);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root { --app-glass-surface: #1d2a3d; }
+  html[data-resolved-theme="light"] { --app-glass-surface: #edf4fb; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html #learning-full-panel .learning-category-switch::before,
+  html #learning-full-panel .learning-category-switch button {
+    transition: none !important;
+  }
+  html #learning-full-panel .learning-category-switch button:active { transform: none; }
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  :root { --app-glass-surface: #1b293b; --app-glass-border: #91a4be; }
+  html[data-resolved-theme="light"] { --app-glass-surface: #f0f6fc; --app-glass-border: #64748b; }
+  .liquid-glass-action:has(> #epicenter-edit-toggle:checked),
+  .fault-epicenter-edit-button[aria-pressed="true"] { --glass-control-surface: #be1c34; }
+  html #learning-full-panel .learning-category-switch,
+  html .settings-menu-sheet #community-account-panel .community-profile-card {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+}
+
+@media (forced-colors: active) {
+  html #learning-full-panel .learning-category-switch,
+  html .settings-menu-sheet #community-account-panel .community-profile-card {
+    border-color: CanvasText !important;
+  }
+  html #learning-full-panel .learning-category-switch::before { border: 2px solid Highlight; }
+  html #learning-full-panel .learning-category-switch button[aria-selected="true"] { color: Highlight !important; }
+}
+
+/* Leave space below the top browser treatment in both simulation modes. */
+@layer app-map-controls {
+  body[data-active-bottom-tab="earthquake-tab"] {
+    --simulation-map-controls-top: calc(max(8px, env(safe-area-inset-top)) + 12px);
+  }
+
+  body[data-active-bottom-tab="earthquake-tab"] :is(.intensity-legend, .map-layer-control-button) {
+    top: var(--simulation-map-controls-top) !important;
+  }
+
+  body[data-active-bottom-tab="earthquake-tab"] .map-layer-control-panel {
+    top: calc(var(--simulation-map-controls-top) + 37px) !important;
+  }
+}
+
+/* A separate circle for each intensity, with no enclosing colored strip. */
+@layer app-intensity-legend {
+  .intensity-legend {
+    --legend-circle-size: clamp(20px, calc((100vw - 98px) / 9), 28px);
+    box-sizing: border-box !important;
+    width: max-content !important;
+    min-width: 0 !important;
+    max-width: calc(100vw - 66px) !important;
+    height: auto !important;
+    min-height: 0 !important;
+    flex: 0 0 auto !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    overflow: visible !important;
+  }
+
+  .intensity-legend h2 { display: none !important; }
+
+  .intensity-scale {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 4px !important;
+    width: max-content !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: auto !important;
+    flex: 0 0 auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+  }
+
+  .intensity-scale > span {
+    display: grid !important;
+    place-items: center !important;
+    box-sizing: border-box !important;
+    flex: 0 0 var(--legend-circle-size) !important;
+    width: var(--legend-circle-size) !important;
+    min-width: var(--legend-circle-size) !important;
+    max-width: var(--legend-circle-size) !important;
+    height: var(--legend-circle-size) !important;
+    min-height: var(--legend-circle-size) !important;
+    max-height: var(--legend-circle-size) !important;
+    aspect-ratio: 1;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 1px solid rgba(100, 116, 139, 0.32) !important;
+    border-radius: 50% !important;
+    background: var(--color) !important;
+    color: var(--text-color, #ffffff) !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.16) !important;
+    font-size: calc(var(--legend-circle-size) * 0.5) !important;
+    font-weight: 850 !important;
+    line-height: 1 !important;
+    text-align: center !important;
+    letter-spacing: normal !important;
+    white-space: nowrap;
+  }
+
+  .settings-color-scheme-preview {
+    gap: 4px !important;
+    align-items: center !important;
+    justify-items: center !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+  }
+
+  .settings-color-scheme-preview > i {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    max-width: 30px !important;
+    height: auto !important;
+    min-height: 0 !important;
+    aspect-ratio: 1;
+    padding: 0 !important;
+    border: 1px solid rgba(100, 116, 139, 0.32) !important;
+    border-radius: 50% !important;
+    font-size: clamp(0.72rem, 3.25vw, 0.91rem) !important;
+    text-align: center !important;
+    letter-spacing: normal !important;
+    white-space: nowrap;
+  }
+
+  .intensity-symbol {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    transform: translateY(-0.07em) !important;
+    gap: 0.02em;
+    margin: 0;
+    padding: 0;
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+    font-style: normal;
+    line-height: 1;
+    letter-spacing: normal;
+    text-align: center;
+    color: inherit;
+    white-space: nowrap;
+  }
+
+  .intensity-symbol > :is(.intensity-symbol-number, .intensity-symbol-qualifier) {
+    display: block;
+    margin: 0;
+    padding: 0;
+    font-family: inherit;
+    font-weight: inherit;
+    font-style: normal;
+    line-height: 1;
+    letter-spacing: normal;
+    text-align: center;
+    color: inherit;
+  }
+
+  .intensity-symbol-number { font-size: 1em; font-variant-numeric: tabular-nums; }
+  .intensity-symbol-qualifier { font-size: 0.85em; }
+
+  .learning-intensity-badge {
+    width: 38px !important;
+    min-width: 38px !important;
+    max-width: 38px !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    border-radius: 50% !important;
+  }
+
+  @media (min-width: 768px) {
+    .intensity-legend { --legend-circle-size: 32px; }
+    .intensity-scale { flex-direction: column !important; gap: 5px !important; }
+  }
+}
