@@ -89,7 +89,7 @@ html #learning-full-panel .learning-category-switch {
   box-shadow: 0 8px 24px var(--app-glass-shadow), inset 0 1px 0 var(--app-glass-highlight) !important;
   -webkit-backdrop-filter: blur(22px) saturate(1.65) !important;
   backdrop-filter: blur(22px) saturate(1.65) !important;
-  touch-action: pan-y pinch-zoom;
+  touch-action: pan-y pinch-zoom !important;
   user-select: none;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
@@ -142,6 +142,7 @@ html #learning-full-panel .learning-category-switch.glass-selector-ready::before
 }
 
 html #learning-full-panel .learning-category-switch button {
+  touch-action: pan-y pinch-zoom !important;
   position: relative;
   min-height: 44px !important;
   height: 44px !important;
@@ -347,9 +348,10 @@ html[data-resolved-theme="light"] #simulation-stop { --glass-control-text: #a320
   --glass-control-edge: rgba(56, 189, 248, 0.5);
 }
 
-/* The native checkbox and fault editor's pressed state are the source of truth. */
+/* Red glass identifies active source editing and the post submission action. */
 .liquid-glass-action:has(> #epicenter-edit-toggle:checked),
-.fault-epicenter-edit-button[aria-pressed="true"] {
+.fault-epicenter-edit-button[aria-pressed="true"],
+.community-post-submit {
   --glass-control-surface: rgba(190, 28, 52, 0.88);
   --glass-control-text: #ffffff;
   --glass-control-edge: rgba(255, 151, 167, 0.78);
@@ -372,7 +374,8 @@ html[data-resolved-theme="light"] #simulation-stop { --glass-control-text: #a320
   :root { --app-glass-surface: #1b293b; --app-glass-border: #91a4be; }
   html[data-resolved-theme="light"] { --app-glass-surface: #f0f6fc; --app-glass-border: #64748b; }
   .liquid-glass-action:has(> #epicenter-edit-toggle:checked),
-  .fault-epicenter-edit-button[aria-pressed="true"] { --glass-control-surface: #be1c34; }
+  .fault-epicenter-edit-button[aria-pressed="true"],
+  .community-post-submit { --glass-control-surface: #be1c34; }
   html #learning-full-panel .learning-category-switch,
   html .settings-menu-sheet #community-account-panel .community-profile-card {
     -webkit-backdrop-filter: none !important;
@@ -392,10 +395,14 @@ html[data-resolved-theme="light"] #simulation-stop { --glass-control-text: #a320
 /* Leave space below the top browser treatment in both simulation modes. */
 @layer app-map-controls {
   body[data-active-bottom-tab="earthquake-tab"] {
-    --simulation-map-controls-top: calc(max(8px, env(safe-area-inset-top)) + 12px);
+    --simulation-map-controls-top: calc(max(8px, env(safe-area-inset-top)) + 20px);
   }
 
-  body[data-active-bottom-tab="earthquake-tab"] :is(.intensity-legend, .map-layer-control-button) {
+  body[data-active-bottom-tab="earthquake-tab"] .map-layer-control-button {
+    top: var(--simulation-map-controls-top) !important;
+  }
+
+  body[data-active-bottom-tab="earthquake-tab"] .intensity-legend {
     top: var(--simulation-map-controls-top) !important;
   }
 
@@ -406,8 +413,13 @@ html[data-resolved-theme="light"] #simulation-stop { --glass-control-text: #a320
 
 /* A separate circle for each intensity, with no enclosing colored strip. */
 @layer app-intensity-legend {
-  .intensity-legend {
+  .intensity-legend,
+  .settings-color-scheme-preview {
     --legend-circle-size: clamp(20px, calc((100vw - 98px) / 9), 28px);
+    --legend-circle-gap: 4px;
+  }
+
+  .intensity-legend {
     box-sizing: border-box !important;
     width: max-content !important;
     min-width: 0 !important;
@@ -432,7 +444,7 @@ html[data-resolved-theme="light"] #simulation-stop { --glass-control-text: #a320
     flex-direction: row !important;
     align-items: center !important;
     justify-content: flex-end !important;
-    gap: 4px !important;
+    gap: var(--legend-circle-gap) !important;
     width: max-content !important;
     min-width: 0 !important;
     max-width: none !important;
@@ -447,7 +459,8 @@ html[data-resolved-theme="light"] #simulation-stop { --glass-control-text: #a320
     overflow: visible !important;
   }
 
-  .intensity-scale > span {
+  .intensity-scale > span,
+  .settings-color-scheme-preview > i {
     display: grid !important;
     place-items: center !important;
     box-sizing: border-box !important;
@@ -468,6 +481,7 @@ html[data-resolved-theme="light"] #simulation-stop { --glass-control-text: #a320
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.16) !important;
     font-size: calc(var(--legend-circle-size) * 0.5) !important;
     font-weight: 850 !important;
+    font-style: normal !important;
     line-height: 1 !important;
     text-align: center !important;
     letter-spacing: normal !important;
@@ -475,9 +489,12 @@ html[data-resolved-theme="light"] #simulation-stop { --glass-control-text: #a320
   }
 
   .settings-color-scheme-preview {
-    gap: 4px !important;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap;
+    gap: var(--legend-circle-gap) !important;
     align-items: center !important;
-    justify-items: center !important;
+    justify-content: flex-start !important;
     padding: 0 !important;
     border: 0 !important;
     border-radius: 0 !important;
@@ -487,19 +504,8 @@ html[data-resolved-theme="light"] #simulation-stop { --glass-control-text: #a320
   }
 
   .settings-color-scheme-preview > i {
-    box-sizing: border-box !important;
-    width: 100% !important;
-    max-width: 30px !important;
-    height: auto !important;
-    min-height: 0 !important;
-    aspect-ratio: 1;
-    padding: 0 !important;
-    border: 1px solid rgba(100, 116, 139, 0.32) !important;
-    border-radius: 50% !important;
-    font-size: clamp(0.72rem, 3.25vw, 0.91rem) !important;
-    text-align: center !important;
-    letter-spacing: normal !important;
-    white-space: nowrap;
+    --color: var(--preview-color);
+    --text-color: var(--preview-text);
   }
 
   .intensity-symbol {
@@ -535,7 +541,7 @@ html[data-resolved-theme="light"] #simulation-stop { --glass-control-text: #a320
   }
 
   .intensity-symbol-number { font-size: 1em; font-variant-numeric: tabular-nums; }
-  .intensity-symbol-qualifier { font-size: 0.85em; }
+  .intensity-symbol-qualifier { font-size: 1em; }
 
   .learning-intensity-badge {
     width: 38px !important;
@@ -547,7 +553,11 @@ html[data-resolved-theme="light"] #simulation-stop { --glass-control-text: #a320
   }
 
   @media (min-width: 768px) {
-    .intensity-legend { --legend-circle-size: 32px; }
-    .intensity-scale { flex-direction: column !important; gap: 5px !important; }
+    .intensity-legend,
+    .settings-color-scheme-preview {
+      --legend-circle-size: 32px;
+      --legend-circle-gap: 5px;
+    }
+    .intensity-scale { flex-direction: column !important; }
   }
 }

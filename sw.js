@@ -1,4 +1,4 @@
-const CACHE_NAME = "we-simulator-pwa-v51";
+const CACHE_NAME = "we-simulator-pwa-v57";
 const PUSH_METADATA_CACHE_NAME = "we-simulator-push-metadata";
 const LOCAL_DEV_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
 const IS_LOCAL_DEV = isLocalDevelopmentHostname(new URL(self.location.href).hostname);
@@ -12,10 +12,10 @@ const APP_SHELL = [
   "./index.html",
   "./styles.css",
   "./app.js",
-  "./bottom-navigation.css?v=2",
+  "./bottom-navigation.css?v=3",
   "./bottom-navigation.js?v=2",
-  "./liquid-glass.js?v=1",
-  "./interface-appearance.css?v=8",
+  "./liquid-glass.js?v=3",
+  "./interface-appearance.css?v=13",
   "./manifest.webmanifest",
   "./push-config.json",
 ];

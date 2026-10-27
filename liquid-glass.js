@@ -22,6 +22,16 @@
     const tick = (time) => {
       const dt = Math.min((time - lastTime) / 1000 || 1 / 60, 1 / 30);
       lastTime = time;
+      if (pointer?.dragged) {
+        // Touch tracking must reach the latest finger position in one frame.
+        // Keep the spring for release and programmatic selection only.
+        const travel = target - position;
+        position = target;
+        velocity = 0;
+        draw(reducedMotion.matches ? 1 : 1 + Math.min(Math.abs(travel) / dt / 12000, 0.13));
+        frame = 0;
+        return;
+      }
       velocity += ((target - position) * 340 - velocity * 30) * dt;
       position += velocity * dt;
       draw(1 + Math.min(Math.abs(velocity) / 12000, 0.13));
@@ -52,13 +62,13 @@
       options.onSync?.(buttons, index);
       if (!pointer && bounds[index]) moveTo(bounds[index].left, immediate);
     };
-    const measure = () => {
+    const measure = (immediate = true) => {
       rect = container.getBoundingClientRect();
       // A hidden learning page is measured when it becomes visible.
       if (!rect.width || !buttons[0].offsetWidth) return;
       bounds = buttons.map((button) => ({ left: button.offsetLeft, width: button.offsetWidth }));
       lens.style.width = `${bounds[0].width}px`;
-      sync(true);
+      sync(immediate);
     };
     const nearest = (clientX) => {
       const x = clientX - rect.left - container.clientLeft;
@@ -86,8 +96,10 @@
         suppressNativeClick(event.pointerId);
         const inside = event.clientY >= rect.top - 24 && event.clientY <= rect.bottom + 24;
         if (!cancelled && inside) {
-          let index = nearest(event.clientX);
           const distance = event.clientX - gesture.x;
+          // A few pixels of tap jitter can start visual tracking and retarget
+          // the native click to the container. Still commit the pressed button.
+          let index = Math.abs(distance) <= 10 ? gesture.index : nearest(event.clientX);
           const speed = distance / Math.max(1, event.timeStamp - gesture.time);
           if (index === gesture.index && Math.abs(distance) > 20 && Math.abs(speed) > 0.35) {
             index = Math.max(0, Math.min(buttons.length - 1, index + Math.sign(distance)));
@@ -99,14 +111,18 @@
     };
     container.addEventListener("pointerdown", (event) => {
       const button = event.target.closest(options.buttonSelector);
-      if (!event.isPrimary || event.button !== 0 || !button || button.disabled) return;
+      if (!event.isPrimary || event.button !== 0 || button?.disabled || pointer) return;
       clearTimeout(suppressionTimer);
       suppressedPointer = null;
-      measure();
+      measure(false);
       if (!bounds.length) return;
+      const index = button ? buttons.indexOf(button) : nearest(event.clientX);
+      if (index < 0 || buttons[index].disabled) return;
       pointer = { id: event.pointerId, x: event.clientX, y: event.clientY,
-        time: event.timeStamp, index: buttons.indexOf(button), dragged: false };
+        time: event.timeStamp, index, dragged: false,
+        grabOffset: event.clientX - rect.left - container.clientLeft - bounds[index].left };
       container.classList.add("glass-pressed");
+      moveTo(bounds[index].left);
     });
     container.addEventListener("pointermove", (event) => {
       if (!pointer || pointer.id !== event.pointerId) return;
@@ -117,19 +133,27 @@
         finish(event, true);
         return;
       }
-      if (!pointer.dragged && Math.abs(dx) > 7 && Math.abs(dx) > Math.abs(dy)) {
+      if (!pointer.dragged && Math.abs(dx) > 3 && Math.abs(dx) > Math.abs(dy)) {
         pointer.dragged = true;
         container.setPointerCapture(event.pointerId);
         container.classList.add("glass-dragging");
       }
       if (pointer.dragged) {
-        const x = event.clientX - rect.left - container.clientLeft - bounds[0].width / 2;
+        // Preserve where the finger grabbed the segment instead of jumping
+        // the segment's centre underneath an off-centre touch.
+        const x = event.clientX - rect.left - container.clientLeft - pointer.grabOffset;
         moveTo(Math.max(bounds[0].left, Math.min(bounds.at(-1).left, x)));
       }
     });
     container.addEventListener("pointerup", (event) => finish(event));
     container.addEventListener("pointercancel", (event) => finish(event, true));
-    container.addEventListener("lostpointercapture", (event) => finish(event, true));
+    container.addEventListener("lostpointercapture", (event) => {
+      // Implicit touch capture on a child button is lost when this container
+      // takes over a drag. Its bubbling event is a handoff, not cancellation.
+      if (event.target === container && !container.hasPointerCapture(event.pointerId)) {
+        finish(event, true);
+      }
+    });
     container.addEventListener("pointerleave", (event) => {
       if (pointer && !pointer.dragged) finish(event, true);
     });
@@ -154,12 +178,12 @@
         lastWheelCommit = now;
       }
     }, { passive: false });
-    new ResizeObserver(measure).observe(container);
+    new ResizeObserver(() => measure()).observe(container);
     new MutationObserver(() => sync()).observe(container, {
       attributes: true, attributeFilter: ["class", "aria-selected"], subtree: true,
     });
     reducedMotion.addEventListener("change", () => sync(true));
-    document.fonts?.ready.then(measure);
+    document.fonts?.ready.then(() => measure());
     const controller = { sync, measure };
     controllers.set(container, controller);
     measure();
