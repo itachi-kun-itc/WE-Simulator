@@ -26,7 +26,7 @@ html .bottom-tabs.liquid-glass-nav {
   backdrop-filter: blur(24px) saturate(1.65) !important;
   overflow: hidden !important;
   isolation: isolate;
-  touch-action: pan-y pinch-zoom;
+  touch-action: pan-y pinch-zoom !important;
   user-select: none;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
@@ -64,6 +64,7 @@ html .bottom-tabs.liquid-glass-nav::before {
 }
 
 html .bottom-tabs.liquid-glass-nav .tab {
+  touch-action: pan-y pinch-zoom !important;
   position: relative !important;
   z-index: 1;
   width: 100% !important;

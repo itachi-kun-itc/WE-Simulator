@@ -3780,6 +3780,12 @@ function setupTabs() {
       cancelSimulationTabLongPress();
     }
   });
+  const bottomNavigation = simulationTab?.closest(".bottom-tabs");
+  bottomNavigation?.addEventListener("gotpointercapture", (event) => {
+    // A horizontal glass drag takes capture from the button. Cancel its
+    // fault-mode long press while retaining stationary long-press behaviour.
+    if (event.target === bottomNavigation) cancelSimulationTabLongPress();
+  });
   ["pointerup", "pointercancel", "pointerleave"].forEach((eventName) => {
     simulationTab?.addEventListener(eventName, cancelSimulationTabLongPress);
   });
@@ -9189,7 +9195,7 @@ function ensureCommunityPostUi() {
           </div>
         </section>
         <p id="community-post-status" class="community-post-status" aria-live="polite"></p>
-        <button class="community-post-submit" type="submit">投稿する</button>
+        <button class="community-post-submit liquid-glass-action" type="submit">投稿する</button>
       </form>
     </div>
   `;
