@@ -34,22 +34,15 @@ const FEEDBACK_ENDPOINT_URL =
   "https://script.google.com/macros/s/AKfycbztrmCH_ukdLtY6xUKNSZQWShY0ziCT_8HMm7QI-qtSFRviETHw_APJJhyV50hSRvMy3A/exec";
 const PUSH_CONFIG_URL = "./push-config.json";
 const USGS_EARTHQUAKE_QUERY_URL = "https://earthquake.usgs.gov/fdsnws/event/1/query";
+// Both appearances share keyless tiles; dark mode is applied in raster paint.
 const COMMUNITY_MAP_LIGHT_TILE_URLS = [
-  "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
-  "https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
-  "https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
-  "https://d.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
+  "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
 ];
-const COMMUNITY_MAP_DARK_TILE_URLS = [
-  "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
-  "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
-  "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
-  "https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
-];
+const COMMUNITY_MAP_DARK_TILE_URLS = COMMUNITY_MAP_LIGHT_TILE_URLS;
 const COMMUNITY_MAP_STYLE_STORAGE_KEY = "we-simulator-community-map-style";
 const COMMUNITY_LOCATION_MARKER_VISIBLE_KEY = "we-simulator-community-location-marker-visible";
 const COMMUNITY_MAP_ATTRIBUTION =
-  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 const COMMUNITY_MAP_FALLBACK_CENTER = [137.2, 37.0];
 const COMMUNITY_MAP_FALLBACK_ZOOM = 3.5;
 const COMMUNITY_MAP_DEFAULT_ZOOM = 8;
@@ -914,7 +907,6 @@ const SOURCE_SECTIONS = [
       { label: "S-net", href: "https://www.seafloor.bosai.go.jp/outline/" },
       { label: "MapLibre GL JS", href: "https://maplibre.org/maplibre-gl-js/docs/" },
       { label: "OpenStreetMap", href: "https://www.openstreetmap.org/copyright" },
-      { label: "CARTO", href: "https://carto.com/attributions" },
     ],
   },
   {
@@ -1179,7 +1171,8 @@ function setupTabs() {
       const preview = intensityPreviewKeys.map((key) => {
         const color = key === "1" ? INTENSITY_INFORMATION_GRAY : scheme.colors[key];
         const textColor = key === "1" ? "#1f2937" : getIntensitySchemeTextColor(scheme, key);
-        return `<i style="--preview-color:${escapeHtml(color)};--preview-text:${escapeHtml(textColor)}">${escapeHtml(key)}</i>`;
+        const displayLabel = getIntensityLegendDisplayLabel(key);
+        return `<i data-intensity="${escapeHtml(key)}" title="震度${escapeHtml(displayLabel)}" style="--preview-color:${escapeHtml(color)};--preview-text:${escapeHtml(textColor)}">${buildIntensityLegendSymbolHtml(key)}</i>`;
       }).join("");
       return `
         <label class="settings-color-scheme-choice">
@@ -3222,6 +3215,7 @@ function setupTabs() {
         button.setAttribute("aria-selected", String(selected));
         button.tabIndex = selected ? 0 : -1;
       });
+      categorySwitch.dataset.activeCategory = category;
       content.dataset.learningCategory = category;
     };
 
@@ -3229,8 +3223,22 @@ function setupTabs() {
       const button = event.target.closest("[data-learning-category]");
       if (button) selectCategory(button.dataset.learningCategory);
     });
+    categorySwitch.addEventListener("keydown", (event) => {
+      const current = event.target.closest("[data-learning-category]");
+      if (!current || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+      const category = event.key === "Home" ? "earthquake" : event.key === "End" ? "weather"
+        : current.dataset.learningCategory === "earthquake" ? "weather" : "earthquake";
+      selectCategory(category);
+      categorySwitch.querySelector(`[data-learning-category="${category}"]`)?.focus();
+    });
     content.replaceChildren(categorySwitch, earthquakePanel, weatherPanel);
     selectCategory("earthquake");
+    window.setupLiquidGlassSelector(categorySwitch, {
+      buttonSelector: "[data-learning-category]",
+      lensClass: "learning-glass-selection",
+      isSelected: (button) => button.getAttribute("aria-selected") === "true",
+    });
   };
 
   const enhanceLearningPanelContent = () => {
@@ -4237,7 +4245,7 @@ function setupTabs() {
           <strong id="admin-overview-title">管理概要</strong>
           <button type="button" data-admin-overview-refresh>更新</button>
         </header>
-        <div class="admin-overview-content" aria-live="polite">読み込み中...</div>
+        <div class="admin-overview-content" aria-live="polite" aria-busy="true"></div>
         <p class="admin-overview-status" role="status"></p>
       </section>
       <button class="settings-menu-row" type="button" data-admin-section="accounts"><span>アカウント情報</span><span aria-hidden="true">›</span></button>
@@ -4261,55 +4269,76 @@ function setupTabs() {
     };
     const getClientVersion = () => {
       try {
+        const releaseVersion = document.querySelector('meta[name="application-version"]')?.content;
+        if (releaseVersion) return releaseVersion;
         const scriptUrl = document.querySelector('script[src*="app.js"]')?.src;
         return scriptUrl ? new URL(scriptUrl).searchParams.get("v") || "開発版" : "開発版";
       } catch {
         return "開発版";
       }
     };
-    const renderAdminOverview = (overview) => {
+    const renderAdminOverview = (overview = null, { failed = false } = {}) => {
       const content = menu.querySelector(".admin-overview-content");
       if (!content) {
         return;
       }
       const metrics = [
-        ["アカウント", overview.accountCount],
-        ["管理者", overview.adminCount],
-        ["セッション", overview.sessionCount],
-        ["投稿総数", overview.postCount],
-        ["24時間の投稿", overview.post24hCount],
-        ["7日間の投稿", overview.post7dCount],
-        ["期限付き投稿", overview.expiringPostCount],
-        ["通知履歴", overview.notificationCount],
+        ["アカウント", "accountCount"],
+        ["管理者", "adminCount"],
+        ["セッション", "sessionCount"],
+        ["投稿総数", "postCount"],
+        ["24時間の投稿", "post24hCount"],
+        ["7日間の投稿", "post7dCount"],
+        ["期限付き投稿", "expiringPostCount"],
+        ["通知履歴", "notificationCount"],
       ];
-      const maintenanceLabel = overview.maintenance ? "メンテナンス中" : "通常稼働";
-      const workerLabel = overview.workerStatus === "ok" ? "正常" : "要確認";
-      const databaseLabel = overview.databaseStatus === "ok" ? "正常" : "要確認";
-      const mediaLabel = overview.mediaStorageStatus === "connected" ? "接続済み" : "未接続";
-      content.innerHTML = `
+      const system = [
+        ["運用状態", overview?.maintenance ? "メンテナンス中" : "通常稼働", overview?.maintenance ? "warning" : "ok"],
+        ["Worker API", overview?.workerStatus === "ok" ? "正常" : "要確認", overview?.workerStatus === "ok" ? "ok" : "warning"],
+        ["データベース", overview?.databaseStatus === "ok" ? "正常" : "要確認", overview?.databaseStatus === "ok" ? "ok" : "warning"],
+        ["メディア保存", overview?.mediaStorageStatus === "connected" ? "接続済み" : "未接続", overview?.mediaStorageStatus === "connected" ? "ok" : "warning"],
+        ["アプリバージョン", getClientVersion()],
+        ["最終デプロイ", formatAdminDateTime(document.lastModified)],
+        ["最新通知", formatAdminDateTime(overview?.latestNotificationAt)],
+        ["サーバー時刻", formatAdminDateTime(overview?.serverTime)],
+      ];
+      // Keep the card nodes and row geometry stable while a request completes.
+      if (content.dataset.ready !== "true") {
+        content.innerHTML = `
         <div class="admin-overview-metrics">
-          ${metrics.map(([label, value]) => `
-            <article><span>${escapeHtml(label)}</span><strong>${Number(value || 0).toLocaleString("ja-JP")}</strong></article>
+          ${metrics.map(([label, key]) => `
+            <article><span>${escapeHtml(label)}</span><strong data-admin-metric="${key}">取得中</strong></article>
           `).join("")}
         </div>
         <dl class="admin-overview-system">
-          <div><dt>運用状態</dt><dd data-state="${overview.maintenance ? "warning" : "ok"}">${maintenanceLabel}</dd></div>
-          <div><dt>Worker API</dt><dd data-state="${overview.workerStatus === "ok" ? "ok" : "warning"}">${workerLabel}</dd></div>
-          <div><dt>データベース</dt><dd data-state="${overview.databaseStatus === "ok" ? "ok" : "warning"}">${databaseLabel}</dd></div>
-          <div><dt>メディア保存</dt><dd data-state="${overview.mediaStorageStatus === "connected" ? "ok" : "warning"}">${mediaLabel}</dd></div>
-          <div><dt>アプリバージョン</dt><dd>${escapeHtml(getClientVersion())}</dd></div>
-          <div><dt>最終デプロイ</dt><dd>${escapeHtml(formatAdminDateTime(document.lastModified))}</dd></div>
-          <div><dt>最新通知</dt><dd>${escapeHtml(formatAdminDateTime(overview.latestNotificationAt))}</dd></div>
-          <div><dt>サーバー時刻</dt><dd>${escapeHtml(formatAdminDateTime(overview.serverTime))}</dd></div>
+          ${system.map(([label], index) => `<div><dt>${escapeHtml(label)}</dt><dd data-admin-system="${index}">取得中</dd></div>`).join("")}
         </dl>
-        ${overview.maintenanceReason ? `<p class="admin-overview-maintenance-reason">${escapeHtml(overview.maintenanceReason)}</p>` : ""}
       `;
+        content.dataset.ready = "true";
+      }
+      const pendingLabel = failed ? "取得失敗" : "取得中";
+      metrics.forEach(([, key]) => {
+        content.querySelector(`[data-admin-metric="${key}"]`).textContent = overview
+          ? Number(overview[key] || 0).toLocaleString("ja-JP") : pendingLabel;
+      });
+      system.forEach(([, value, state], index) => {
+        const field = content.querySelector(`[data-admin-system="${index}"]`);
+        field.textContent = overview ? value : pendingLabel;
+        field.dataset.state = overview ? state || "" : "";
+      });
+      const overviewStatus = menu.querySelector(".admin-overview-status");
+      if (overviewStatus) overviewStatus.textContent = overview?.maintenanceReason || "";
+      content.setAttribute("aria-busy", String(!overview && !failed));
     };
+    let overviewRequestPending = false;
     const refreshAdminOverview = async () => {
+      if (overviewRequestPending) return;
+      overviewRequestPending = true;
       const refreshButton = menu.querySelector("[data-admin-overview-refresh]");
       const status = menu.querySelector(".admin-overview-status");
       if (refreshButton) refreshButton.disabled = true;
       if (status) status.textContent = "";
+      renderAdminOverview();
       try {
         if (communityAccount?.localOnly) {
           renderAdminOverview({
@@ -4334,8 +4363,10 @@ function setupTabs() {
         }
         renderAdminOverview(body.overview || {});
       } catch (error) {
+        renderAdminOverview(null, { failed: true });
         if (status) status.textContent = error?.message || "管理概要を読み込めませんでした。";
       } finally {
+        overviewRequestPending = false;
         if (refreshButton) refreshButton.disabled = false;
       }
     };
@@ -4394,7 +4425,6 @@ function setupTabs() {
     };
 
     menu.querySelector('[data-admin-section="accounts"]')?.addEventListener("click", () => {
-      showMenu();
       els.settingsAdminPanel?.classList.add("admin-subpage-open");
       openCommunityAccountScreen("accounts");
     });
@@ -4505,14 +4535,21 @@ function setupTabs() {
   };
 
   els.settingsMenuSheet?.addEventListener("pointerdown", (event) => {
-    if (!activeSettingsDetailPanel) {
+    settingsDetailSwipeStart = null;
+    if (!activeSettingsDetailPanel || !event.isPrimary
+      || event.target.closest("button, input, textarea, select, a, label")) {
       return;
     }
-    settingsDetailSwipeStart = { x: event.clientX, y: event.clientY };
+    settingsDetailSwipeStart = { x: event.clientX, y: event.clientY, pointerId: event.pointerId };
+  });
+
+  els.settingsMenuSheet?.addEventListener("pointercancel", () => {
+    settingsDetailSwipeStart = null;
   });
 
   els.settingsMenuSheet?.addEventListener("pointerup", (event) => {
-    if (!settingsDetailSwipeStart || !activeSettingsDetailPanel) {
+    if (!settingsDetailSwipeStart || !activeSettingsDetailPanel
+      || event.pointerId !== settingsDetailSwipeStart.pointerId) {
       settingsDetailSwipeStart = null;
       return;
     }
@@ -6220,6 +6257,9 @@ function ensureCommunityMapLayer() {
       paint: {
         "raster-opacity": 1,
         "raster-contrast": 0,
+        "raster-saturation": -1,
+        "raster-brightness-min": 0.9,
+        "raster-brightness-max": 0.08,
         "raster-fade-duration": 0,
       },
     }, beforeId);
@@ -7692,7 +7732,7 @@ function ensureSimulationScenarioButton() {
     scenarioButton = document.createElement("button");
     const button = scenarioButton;
     button.type = "button";
-    button.className = "simulation-scenario-button fault-scenario-open-button";
+    button.className = "simulation-scenario-button fault-scenario-open-button liquid-glass-action";
     button.dataset.simulationScenarioOpen = "";
     button.textContent = "シナリオを保存・読み込み";
     scenarioSection.append(button);
@@ -7705,7 +7745,7 @@ function ensureSimulationScenarioButton() {
   if (faultMenu && !faultMenu.querySelector(".fault-scenario-open-button")) {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "fault-scenario-open-button";
+    button.className = "fault-scenario-open-button liquid-glass-action";
     button.textContent = "シナリオを保存・読み込み";
     button.addEventListener("click", openSimulationScenarioManager);
     faultMenu.querySelector(".fault-simulation-exit-hint")?.insertAdjacentElement("beforebegin", button);
@@ -7725,11 +7765,11 @@ function ensureSimulationScenarioOverlay() {
       <header><button type="button" data-simulation-scenario-close aria-label="閉じる">‹</button><h2 id="simulation-scenario-title">シナリオ保存・共有</h2><span aria-hidden="true"></span></header>
       <form class="simulation-scenario-save-form" data-simulation-scenario-save-form>
         <label><span>シナリオ名</span><input name="name" type="text" maxlength="60" placeholder="震源地名／詳細" required /></label>
-        <button type="submit">現在の設定を保存</button>
+        <button class="liquid-glass-action" type="submit">現在の設定を保存</button>
       </form>
       <form class="simulation-scenario-import-form" data-simulation-scenario-import-form>
         <label><span>共有されたシナリオURL</span><input name="sharedUrl" type="url" inputmode="url" autocomplete="off" placeholder="https://…?scenarioId=…" required /></label>
-        <button type="submit">URLから読み込む</button>
+        <button class="liquid-glass-action" type="submit">URLから読み込む</button>
       </form>
       <p class="simulation-scenario-status" role="status" aria-live="polite"></p>
       <section class="simulation-scenario-list-section"><h3>保存済みのシナリオ</h3><div class="simulation-scenario-list"></div></section>
@@ -7853,7 +7893,7 @@ async function renderSimulationScenarioList(overlay = ensureSimulationScenarioOv
           <div><strong>${escapeHtml(record.name)}</strong><span>${escapeHtml(modelLabel)}</span></div>
           <dl><div><dt>震源</dt><dd>${escapeHtml(scenario.epicenter.name)}</dd></div><div><dt>規模</dt><dd>M${Number(scenarioMagnitude).toFixed(1)}・深さ${Number(scenarioDepthKm)}km</dd></div></dl>
           <div class="simulation-scenario-item-actions">
-            <button type="button" data-scenario-action="load" data-scenario-id="${escapeHtml(record.id)}">読み込む</button>
+            <button class="liquid-glass-action" type="button" data-scenario-action="load" data-scenario-id="${escapeHtml(record.id)}">読み込む</button>
             <button type="button" data-scenario-action="share" data-scenario-id="${escapeHtml(record.id)}">共有</button>
             <button type="button" data-scenario-action="delete" data-scenario-id="${escapeHtml(record.id)}">削除</button>
           </div>
@@ -9928,6 +9968,18 @@ function applyIntensityColorScheme(schemeId, options = {}) {
   updateIntensityLayer();
 }
 
+function getIntensityLegendDisplayLabel(label) {
+  return String(label).replace(/\+$/, "強").replace(/-$/, "弱");
+}
+
+function buildIntensityLegendSymbolHtml(label) {
+  const displayLabel = getIntensityLegendDisplayLabel(label);
+  const split = displayLabel.match(/^([56])(強|弱)$/);
+  const number = split ? split[1] : displayLabel;
+  const qualifier = split ? `<small class="intensity-symbol-qualifier">${split[2]}</small>` : "";
+  return `<b class="intensity-symbol"><em class="intensity-symbol-number">${escapeHtml(number)}</em>${qualifier}</b>`;
+}
+
 function updateLegendColors() {
   const legendScale = document.querySelector(".intensity-scale");
   if (!legendScale) {
@@ -9942,13 +9994,15 @@ function updateLegendColors() {
   legendScale.replaceChildren(
     ...labels.map((label) => {
       const item = document.createElement("span");
-      item.textContent = label;
+      item.dataset.intensity = label;
+      item.innerHTML = buildIntensityLegendSymbolHtml(label);
+      item.title = `震度${item.textContent}`;
       return item;
     }),
   );
 
   document.querySelectorAll(".intensity-scale span").forEach((legendItem) => {
-    const label = legendItem.textContent.trim();
+    const label = legendItem.dataset.intensity;
     const intensityClass = getLegendIntensityClass(label);
 
     if (!intensityClass) {
@@ -13957,7 +14011,7 @@ function buildAcknowledgementsHtml() {
       </section>
       <section class="source-info-section">
         <h3>世界地図・背景地図</h3>
-        <p>Natural Earthの貢献者、OpenStreetMapのマッパーとコミュニティ、CARTOおよび地図タイルの提供に関わる皆さまに感謝いたします。世界中の継続的な編集・整備活動によって、地域の位置関係を直感的に把握できる地図表示が可能になっています。</p>
+        <p>Natural Earthの貢献者、OpenStreetMapのマッパーとコミュニティおよび地図タイルの提供に関わる皆さまに感謝いたします。世界中の継続的な編集・整備活動によって、地域の位置関係を直感的に把握できる地図表示が可能になっています。</p>
       </section>
       <section class="source-info-section">
         <h3>プレート境界資料</h3>

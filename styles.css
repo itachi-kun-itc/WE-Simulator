@@ -13830,7 +13830,7 @@ body[data-active-bottom-tab="bottom-info-tab"].tool-source-search-mode #info-ful
 }
 
 body.community-map-mode #map::after {
-  content: "© OpenStreetMap contributors © CARTO";
+  content: "© OpenStreetMap contributors";
   position: absolute;
   right: max(8px, env(safe-area-inset-right));
   bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 2px);
@@ -23356,6 +23356,45 @@ html[data-resolved-theme="light"] .community-account-list-dates {
   max-width: 44px !important;
   padding-right: 0 !important;
   padding-left: 0 !important;
+}
+
+/* Reserve the completed overview layout before its values arrive. */
+#settings-admin-panel .admin-overview-metrics strong {
+  min-height: 1.15em;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+#settings-admin-panel .admin-overview-system dt,
+#settings-admin-panel .admin-overview-system dd {
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+#settings-admin-panel .admin-overview-maintenance-reason,
+#settings-admin-panel .admin-overview-status {
+  box-sizing: content-box;
+  height: 3em;
+  min-height: 3em;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+
+#settings-admin-panel .admin-section-menu > [data-admin-section] {
+  position: relative !important;
+  z-index: 1;
+  width: 100% !important;
+  min-height: 54px !important;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+#settings-admin-panel .admin-section-menu > [data-admin-section] > span {
+  pointer-events: none;
+}
+
+#settings-admin-panel:not(.admin-subpage-open) .settings-admin-embedded {
+  scroll-padding-block: 12px;
 }
 
 /* The planned maximum-intensity observation line needs a wider luminous dash on dark TL. */

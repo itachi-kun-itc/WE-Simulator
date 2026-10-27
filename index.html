@@ -7,6 +7,7 @@
       content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
     />
     <title>WE-Simulator</title>
+    <meta name="application-version" content="2.0.00" />
     <meta
       name="description"
       content="震源や断層、規模、深さを設定し、地震の揺れと広がりを地図上で再現・比較・共有できる防災学習シミュレーターです。過去の地震の再現や防災学習にも対応しています。"
@@ -48,13 +49,15 @@
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta name="twitter:image" content="https://itachi-kun-itc.github.io/WE-Simulator/og-image.png" />
-    <link rel="manifest" href="./manifest.webmanifest?v=0.1.41" />
-    <link rel="icon" type="image/png" sizes="32x32" href="./favicon.png?v=0.1.41" />
-    <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=0.1.41" />
+    <link rel="manifest" href="./manifest.webmanifest?v=2.0.00" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./favicon.png?v=2.0.00" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=2.0.00" />
     <link rel="preconnect" href="https://we-simulator-push.h6fgpg2zht.workers.dev" crossorigin />
     <link rel="preconnect" href="https://unpkg.com" crossorigin />
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.css" />
-    <link rel="stylesheet" href="./styles.css?v=0.1.41" />
+    <link rel="stylesheet" href="./styles.css?v=2.0.00" />
+    <link rel="stylesheet" href="./bottom-navigation.css?v=2" />
+    <link rel="stylesheet" href="./interface-appearance.css?v=8" />
   </head>
   <body>
     <main class="app-shell">
@@ -197,7 +200,7 @@
                     <select id="fault-dip-input" aria-label="矩形断層の傾斜角"><option value="45" selected>45°</option></select>
                   </label>
                 </div>
-                <button class="fault-epicenter-edit-button" id="fault-epicenter-edit-button" type="button" aria-pressed="false">
+                <button class="fault-epicenter-edit-button liquid-glass-action" id="fault-epicenter-edit-button" type="button" aria-pressed="false">
                   震源地を設定
                 </button>
                 <p class="fault-epicenter-edit-hint" id="fault-epicenter-edit-hint">地図上の配置地点をタップするか、震源マーカーを移動してください。</p>
@@ -249,11 +252,11 @@
               </button>
             </label>
             <div class="toggle-grid setup-primary-toggles setup-epicenter-actions">
-              <label class="toggle-row layer-toggle-full">
+              <label class="toggle-row layer-toggle-full liquid-glass-action">
                 <input id="epicenter-edit-toggle" type="checkbox" />
                 <span>震源地を設定</span>
               </label>
-              <button class="setup-current-location-button" id="request-current-location" type="button">
+              <button class="setup-current-location-button liquid-glass-action" id="request-current-location" type="button">
                 位置情報を取得
               </button>
             </div>
@@ -303,7 +306,7 @@
             </section>
 
             <section class="settings-section simulation-scenario-menu-section" id="simulation-scenario-menu-section" aria-label="シナリオ保存・共有">
-              <button class="simulation-scenario-button fault-scenario-open-button" type="button" data-simulation-scenario-open>
+              <button class="simulation-scenario-button fault-scenario-open-button liquid-glass-action" type="button" data-simulation-scenario-open>
                 シナリオを保存・読み込み
               </button>
             </section>
@@ -552,15 +555,15 @@
           <section class="intensity-legend" aria-label="震度凡例">
             <h2>震度</h2>
             <div class="intensity-scale">
-              <span style="--color: #5f007e">7</span>
-              <span style="--color: #a50034">6+</span>
-              <span style="--color: #e60012">6-</span>
-              <span style="--color: #ff8a00; --text-color: #111827">5+</span>
-              <span style="--color: #ffd400; --text-color: #111827">5-</span>
-              <span style="--color: #fff2a8; --text-color: #111827">4</span>
-              <span style="--color: #0068b7">3</span>
-              <span style="--color: #74d7ff; --text-color: #111827">2</span>
-              <span style="--color: #ffffff; --text-color: #111827">1</span>
+              <span data-intensity="7" style="--color: #5f007e"><b class="intensity-symbol"><em class="intensity-symbol-number">7</em></b></span>
+              <span data-intensity="6+" style="--color: #a50034"><b class="intensity-symbol"><em class="intensity-symbol-number">6</em><small class="intensity-symbol-qualifier">強</small></b></span>
+              <span data-intensity="6-" style="--color: #e60012"><b class="intensity-symbol"><em class="intensity-symbol-number">6</em><small class="intensity-symbol-qualifier">弱</small></b></span>
+              <span data-intensity="5+" style="--color: #ff8a00; --text-color: #111827"><b class="intensity-symbol"><em class="intensity-symbol-number">5</em><small class="intensity-symbol-qualifier">強</small></b></span>
+              <span data-intensity="5-" style="--color: #ffd400; --text-color: #111827"><b class="intensity-symbol"><em class="intensity-symbol-number">5</em><small class="intensity-symbol-qualifier">弱</small></b></span>
+              <span data-intensity="4" style="--color: #fff2a8; --text-color: #111827"><b class="intensity-symbol"><em class="intensity-symbol-number">4</em></b></span>
+              <span data-intensity="3" style="--color: #0068b7"><b class="intensity-symbol"><em class="intensity-symbol-number">3</em></b></span>
+              <span data-intensity="2" style="--color: #74d7ff; --text-color: #111827"><b class="intensity-symbol"><em class="intensity-symbol-number">2</em></b></span>
+              <span data-intensity="1" style="--color: #ffffff; --text-color: #111827"><b class="intensity-symbol"><em class="intensity-symbol-number">1</em></b></span>
             </div>
           </section>
 
@@ -621,6 +624,8 @@
     </script>
     <script src="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.js"></script>
     <script src="./vendor/pmtiles.js?v=0.1.1"></script>
-    <script src="./app.js?v=0.1.41"></script>
+    <script src="./liquid-glass.js?v=1"></script>
+    <script src="./app.js?v=2.0.00"></script>
+    <script src="./bottom-navigation.js?v=2"></script>
   </body>
 </html>
