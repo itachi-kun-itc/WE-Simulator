@@ -1831,7 +1831,7 @@ function setupTabs() {
     else slideMenuPage(outgoing, { back: true, onFinish: finish });
   };
 
-  const ensureToolPageHeader = (panel, title, onBack) => {
+  const ensureToolPageHeader = (panel, title, onBack, { swipeBack = true } = {}) => {
     if (!panel || panel.querySelector(".tool-page-head")) {
       return;
     }
@@ -1844,7 +1844,7 @@ function setupTabs() {
     `;
     head.querySelector(".tool-page-back")?.addEventListener("click", onBack);
     panel.insertAdjacentElement("afterbegin", head);
-    bindMenuBackSwipe(panel, ".tool-page-back");
+    if (swipeBack) bindMenuBackSwipe(panel, ".tool-page-back");
   };
 
   const openInfoSourceSearchPage = () => {
@@ -1857,7 +1857,7 @@ function setupTabs() {
     setMenuUnderlayCovered(els.infoFullPanel, true);
     hidePageAndResetScroll(els.learningFullPanel);
     const panel = ensureHistoryFullPanel();
-    ensureToolPageHeader(panel, "震源地検索", showInfoToolHome);
+    ensureToolPageHeader(panel, "震源地検索", showInfoToolHome, { swipeBack: false });
     panel?.classList.remove("hidden");
     document.body.classList.add("tool-source-search-mode");
     slideMenuPage(panel);

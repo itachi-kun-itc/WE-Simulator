@@ -200,3 +200,30 @@ test("rebinding a reused account screen does not duplicate the Back action", () 
   f.rightSwipe(page);
   assert.equal(page.backCount, 1);
 });
+
+test("tool headers allow swipe opt-out without disabling their Back button", () => {
+  let swipeBindings = 0;
+  const context = vm.createContext({
+    bindMenuBackSwipe() { swipeBindings++; },
+    document: { createElement() {
+      const back = { addEventListener(type, callback) { this.click = callback; } };
+      return { back, querySelector: () => back };
+    } },
+  });
+  const headerStart = source.indexOf("  const ensureToolPageHeader =");
+  const headerEnd = source.indexOf("\n  const openInfoSourceSearchPage =", headerStart);
+  assert.ok(headerStart >= 0 && headerEnd > headerStart);
+  vm.runInContext(source.slice(headerStart, headerEnd) + "\nglobalThis.ensureHeader = ensureToolPageHeader;", context);
+  const panel = () => ({ querySelector: () => null,
+    insertAdjacentElement(position, head) { this.head = head; } });
+  let backs = 0;
+  const station = panel();
+  context.ensureHeader(station, "Station", () => { backs++; });
+  assert.equal(swipeBindings, 1);
+  const epicenter = panel();
+  context.ensureHeader(epicenter, "Epicenter", () => { backs++; }, { swipeBack: false });
+  assert.equal(swipeBindings, 1, "Only the map page opts out of swipe navigation");
+  station.head.back.click();
+  epicenter.head.back.click();
+  assert.equal(backs, 2);
+});

@@ -244,11 +244,13 @@ test("epicenter search exposes the map instead of the Tools home, and late loadi
   let resolveAreas;
   const areas = new Promise(resolve => { resolveAreas = resolve; });
   const mapChanges = [];
+  let sourceHeaderOptions;
   const noop = () => {};
   Object.assign(context, {
     els: { infoFullPanel: info, historyFullPanel: history, learningFullPanel: new Element("hidden") },
     document: { body }, ensureInfoToolShell: noop, closeEarthquakePresetPicker: noop,
-    closeSettingsMenuSheet: noop, setSetupMenuOpen: noop, ensureToolPageHeader: noop,
+    closeSettingsMenuSheet: noop, setSetupMenuOpen: noop,
+    ensureToolPageHeader(panel, title, onBack, options) { sourceHeaderOptions = options; },
     ensureHistoryFullPanel: () => history, renderPastEarthquakeStatsPanel: noop,
     loadLocalAreas: () => areas, loadEpicenterAreas: () => Promise.resolve(), console,
     setHistoryMapModeActive(active) {
@@ -263,6 +265,7 @@ test("epicenter search exposes the map instead of the Tools home, and late loadi
   const openEnd = source.indexOf("\n  const openInfoStationSearchPage =", openStart);
   vm.runInContext(source.slice(openStart, openEnd), context);
   vm.runInContext("openInfoSourceSearchPage()", context);
+  assert.equal(sourceHeaderOptions.swipeBack, false, "Map search must leave horizontal gestures to the map");
   assert.equal(info.classList.contains("menu-underlay-covered"), true);
   assert.equal(info.classList.contains("hidden"), false, "The parent must retain layout and scroll offsets");
   assert.equal(info.scrollTop, 150);
