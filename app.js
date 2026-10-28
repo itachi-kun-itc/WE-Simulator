@@ -156,15 +156,8 @@ const EARTHQUAKE_MODEL = {
   sWaveVelocityKmPerSec: 3.8,
   eewProcessingDelaySec: 2.0,
   defaultSiteAmplification: 0,
-  intensityMagnitudeSlope: 1.43,
-  intensityDistanceLogAttenuation: 2.12,
-  intensityDistanceLinearAttenuation: 0.0042,
-  intensityBaselineDamping: 0.95,
-  giantMagnitudeSaturationStart: 7.4,
-  giantMagnitudeSaturationFactor: 0.32,
-  finiteFaultReductionBase: 0.075,
-  finiteFaultReductionOffshore: 0.03,
 };
+const GROUND_MOTION_MODEL = globalThis.WeEarthquakeModel;
 const EEW_BLINK_INTERVAL_SEC = 0.7;
 const EEW_BLINK_PHASES = 6;
 const SIMULATION_END_GRACE_SEC = 8;
@@ -537,6 +530,8 @@ const state = {
   longitude: 139.767,
   depthKm: 10,
   magnitude: 3.5,
+  magnitudeType: "Mj",
+  earthquakeType: "crustal",
   epicenterName: "",
   municipalityName: "",
   maxIntensityLabel: "-",
@@ -581,6 +576,7 @@ const state = {
 
 const els = {
   status: document.querySelector("#map-status"),
+  mapEditingStatus: document.querySelector("#map-editing-status"),
   epicenterRegion: document.querySelector("#epicenter-region"),
   latitude: document.querySelector("#latitude-input"),
   longitude: document.querySelector("#longitude-input"),
@@ -898,6 +894,16 @@ const SOURCE_SECTIONS = [
     ],
   },
   {
+    title: "震度推定の計算モデル",
+    description: "司・翠川の距離減衰式で最大速度を求め、J-SHISの速度増幅率を掛けて震度へ換算します。気象庁の現行予測そのものではありません。細分区域は区域内の代表最大震度を表示します。",
+    links: [
+      { label: "気象庁：緊急地震速報の技術的参考資料（2024年、12〜15頁）", href: "https://www.jma.go.jp/jma/kishou/know/jishin/eew/katsuyou/reference.pdf" },
+      { label: "防災科研：距離減衰式・地震タイプ・基盤速度の補正", href: "https://www.j-map.bosai.go.jp/j-map/result/tn_257/html/html/2-4-1.html" },
+      { label: "気象庁：計測震度の算出方法・階級の境界", href: "https://www.jma.go.jp/jma/kishou/know/jishin/kyoshin/kaisetsu/calc_sindo.html" },
+      { label: "気象庁：2025年の地盤増幅度変更（本アプリには未導入）", href: "https://www.data.jma.go.jp/suishin/jyouhou/pdf/653.pdf" },
+    ],
+  },
+  {
     title: "地図・地盤データ",
     description: "行政区域、海岸線、周辺陸地、地盤補正、海底観測点などの表示・計算用データ。",
     links: [
@@ -1128,7 +1134,7 @@ function setupTabs() {
       locationCard.innerHTML = `
         <div class="settings-notification-row">
           <span>位置情報</span>
-          <strong id="settings-location-status">OFF</strong>
+          <strong class="liquid-glass-action" id="settings-location-status">OFF</strong>
         </div>
       `;
       notificationCard.insertAdjacentElement("afterend", locationCard);
@@ -3562,6 +3568,9 @@ function setupTabs() {
   };
 
   const resetSimulationMenuState = () => {
+    els.epicenterEditToggle.checked = false;
+    updateEpicenterEditMode();
+    closeEpicenterInfoPopups();
     resetSimulationLayersToDefaults();
     activateSettingsTab("primary");
     setSetupMenuOpen(false);
@@ -3690,6 +3699,9 @@ function setupTabs() {
 
     document.body.classList.toggle("fault-simulation-mode", enabled);
     state.sourceModel = enabled ? "fault" : "point";
+    state.magnitudeType = enabled ? "Mw" : "Mj";
+    state.earthquakeType = enabled && getSelectedFaultModelPreset() ? "interface" : "crustal";
+    syncGroundMotionControls();
     setupPanel?.classList.toggle("fault-simulation-mode", enabled);
     faultMenu?.classList.toggle("hidden", !enabled);
     simulationTab?.setAttribute(
@@ -3739,7 +3751,7 @@ function setupTabs() {
     simulationTab?.classList.remove("is-long-pressing");
   };
   simulationTab?.addEventListener("pointerdown", (event) => {
-    if (event.button !== 0) {
+    if (event.button !== 0 || document.body.classList.contains("simulation-result-report-visible")) {
       return;
     }
     cancelSimulationTabLongPress();
@@ -3752,8 +3764,9 @@ function setupTabs() {
     simulationTab.classList.add("is-long-pressing");
     simulationTabLongPressTimer = window.setTimeout(() => {
       simulationTabLongPressTimer = 0;
-      suppressSimulationTabClick = true;
       simulationTab.classList.remove("is-long-pressing");
+      if (document.body.classList.contains("simulation-result-report-visible")) return;
+      suppressSimulationTabClick = true;
       if (
         state.simulationRunning
         || state.simulationCompleted
@@ -4678,6 +4691,9 @@ function setupTabs() {
   document.querySelectorAll(".tab").forEach((tab) => {
     tab.addEventListener("click", () => {
       if (!tab.dataset.panel) {
+        return;
+      }
+      if (tab.id === "earthquake-tab" && document.body.classList.contains("simulation-result-report-visible")) {
         return;
       }
 
@@ -6587,18 +6603,26 @@ function scheduleStartupFaultModeHint() {
   startupFaultModeHintTimer = window.setTimeout(() => {
     startupFaultModeHintTimer = 0;
     startupFaultModeHintShown = true;
-    const simulationTab = document.querySelector("#earthquake-tab");
-    simulationTab?.classList.add("show-long-press-hint");
     showFaultModeSwitchNotice(
       "下の「シミュレーション」を長押し → 断層モード",
       { durationMs: 2400, startupHint: true },
     );
-    window.setTimeout(() => simulationTab?.classList.remove("show-long-press-hint"), 2400);
   }, 700);
 }
 
 function bindSimulationControls() {
   els.settingsMenuButton?.addEventListener("click", () => toggleSetupMenu());
+  document.querySelectorAll("[data-ground-motion-scale], [data-ground-motion-type]").forEach((control) => {
+    control.addEventListener("change", () => {
+      if (control.hasAttribute("data-ground-motion-scale")) state.magnitudeType = control.value;
+      else state.earthquakeType = control.value;
+      clearSelectedPreset();
+      invalidateIntensityEstimateCache();
+      syncInputs();
+      updateIntensityLayer();
+      updateSimulationAvailability();
+    });
+  });
 
   const faultModelSelect = document.querySelector("#fault-model-type");
   const faultModelProfile = document.querySelector("#fault-model-profile");
@@ -6817,6 +6841,11 @@ function bindSimulationControls() {
       state.faultNankaiCase = faultNankaiCaseSelect.value || "full";
     }
     const preset = getSelectedFaultModelPreset();
+    if (isFaultSimulationActive()) {
+      state.magnitudeType = "Mw";
+      state.earthquakeType = preset ? "interface" : "crustal";
+      syncGroundMotionControls();
+    }
     faultNankaiCasePicker?.classList.toggle("hidden", state.faultModelId !== "nankai-trough");
     if (state.faultModelId !== "rectangle" && els.epicenterEditToggle?.checked) {
       els.epicenterEditToggle.checked = false;
@@ -6917,6 +6946,7 @@ function bindSimulationControls() {
       || control === faultDepthInput
       || control === activeFaultSearch
       || control === activeFaultSelect
+      || control.matches("[data-ground-motion-scale], [data-ground-motion-type]")
     ) {
       return;
     }
@@ -7493,6 +7523,8 @@ function captureCurrentSimulationScenario() {
       name: String(state.epicenterName || els.epicenterRegion?.value || ""),
     },
     magnitude: Number(state.magnitude),
+    magnitudeType: state.magnitudeType,
+    earthquakeType: state.earthquakeType,
     depthKm: Number(state.depthKm),
     fault: isFault ? {
       modelId: getSimulationScenarioControlValue("#fault-model-type", state.faultModelId || "rectangle"),
@@ -7538,6 +7570,10 @@ function normalizeSimulationScenario(rawScenario) {
     },
     magnitude,
     depthKm,
+    magnitudeType: ["Mj", "Mw"].includes(raw.magnitudeType) ? raw.magnitudeType : mode === "fault" ? "Mw" : "Mj",
+    earthquakeType: ["crustal", "interface", "intraslab"].includes(raw.earthquakeType)
+      ? raw.earthquakeType
+      : mode === "fault" && ["nankai-trough", "kuril-trench", "japan-trench"].includes(fault.modelId) ? "interface" : "crustal",
     fault: mode === "fault" ? {
       modelId: ["rectangle", "nankai-trough", "kuril-trench", "japan-trench", "active-fault"].includes(fault.modelId)
         ? fault.modelId
@@ -7690,6 +7726,8 @@ async function applySimulationScenario(scenario, options = {}) {
   state.epicenterName = normalized.epicenter.name;
   state.magnitude = normalized.mode === "fault" ? normalized.fault.magnitude : normalized.magnitude;
   state.depthKm = normalized.mode === "fault" ? normalized.fault.depthKm : normalized.depthKm;
+  state.magnitudeType = normalized.magnitudeType;
+  state.earthquakeType = normalized.earthquakeType;
   if (els.latitude) els.latitude.value = state.latitude.toFixed(3);
   if (els.longitude) els.longitude.value = state.longitude.toFixed(3);
   if (els.magnitude) els.magnitude.value = state.magnitude.toFixed(1);
@@ -8477,6 +8515,8 @@ function resetEpicenterToInitialState(options = {}) {
   state.longitude = 139.767;
   state.depthKm = 10;
   state.magnitude = 3.5;
+  state.magnitudeType = isFaultSimulationActive() ? "Mw" : "Mj";
+  state.earthquakeType = "crustal";
   state.selectedPresetId = "";
   resetCheckboxesToDefaults();
   updateEarthquakePresetButtonLabel();
@@ -8543,7 +8583,7 @@ async function setupPushNotifications() {
   }
 
   try {
-    const registration = await navigator.serviceWorker.register("./sw.js");
+    const registration = await navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" });
 
     if (!("PushManager" in window) || !("Notification" in window)) {
       setPushNotificationStatus("このブラウザはPush通知に対応していません。", { disabled: true });
@@ -8656,11 +8696,13 @@ function openCommunityPostOverlay() {
   ui.overlay.querySelector(".community-post-sheet")?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
   ui.form?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
   updateCommunityPostLocationStatus();
+  updateMapEditingStatus();
   ui.overlay.querySelector(".community-post-close")?.focus?.({ preventScroll: true });
 }
 
 function closeCommunityPostOverlay() {
   document.body.classList.remove("community-post-overlay-open", "community-pick-mode");
+  updateMapEditingStatus();
   hidePageAndResetScroll(communityPostOverlayElements?.overlay);
 }
 
@@ -8684,6 +8726,7 @@ function beginCommunityPostMapPick() {
   ui.status.textContent = "地図をタップして投稿場所を指定してください。";
   document.body.classList.add("community-pick-mode");
   ui.overlay.classList.add("hidden");
+  updateMapEditingStatus();
 }
 
 
@@ -9052,10 +9095,10 @@ function ensureCommunityPostUi() {
   mapControls.className = "community-map-controls";
   mapControls.setAttribute("aria-label", "投稿マップ操作");
   mapControls.innerHTML = `
-    <button class="community-map-control community-map-refresh" type="button" aria-label="投稿を更新" title="投稿を更新">
+    <button class="community-map-control community-map-refresh liquid-glass-action" type="button" aria-label="投稿を更新" title="投稿を更新">
       <span aria-hidden="true"></span>
     </button>
-    <button class="community-map-control community-map-current-location" type="button" aria-label="現在地付近を表示" title="現在地付近を表示">
+    <button class="community-map-control community-map-current-location liquid-glass-action" type="button" aria-label="現在地付近を表示" title="現在地付近を表示">
       <span aria-hidden="true"></span>
     </button>
   `;
@@ -9123,12 +9166,12 @@ function ensureCommunityPostUi() {
   const overlay = document.createElement("section");
   overlay.id = "community-post-overlay";
   overlay.className = "community-post-overlay hidden";
-  overlay.setAttribute("aria-label", "投稿");
+  overlay.setAttribute("aria-label", "投稿設定");
   overlay.innerHTML = `
     <div class="community-post-sheet" role="dialog" aria-modal="false">
       <div class="community-post-head">
         <button class="community-post-close" type="button" aria-label="戻る">‹</button>
-        <h2>投稿する</h2>
+        <h2>投稿設定</h2>
         <span></span>
       </div>
       <form id="community-post-form" class="community-post-form">
@@ -11140,7 +11183,7 @@ async function refreshPushInfoButtonState(button) {
   }
 
   try {
-    const registration = await navigator.serviceWorker.register("./sw.js");
+    const registration = await navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" });
     const subscription = await registration.pushManager.getSubscription();
     state.pushSubscribed = Boolean(subscription);
     button.classList.toggle("is-enabled", state.pushSubscribed);
@@ -11416,7 +11459,7 @@ async function enablePushNotificationsFromOverlay(statusElement = null) {
     }
 
     const workerUrl = config.workerUrl.replace(/\/+$/, "");
-    const registration = await navigator.serviceWorker.register("./sw.js");
+    const registration = await navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" });
     const publicKeyResponse = await fetch(`${workerUrl}/vapid-public-key`, { cache: "no-store" });
     if (!publicKeyResponse.ok) {
       throw new Error(`VAPID public key request failed: ${publicKeyResponse.status}`);
@@ -11517,7 +11560,7 @@ async function disablePushNotificationsFromOverlay(statusElement = null) {
   }
 
   try {
-    const registration = await navigator.serviceWorker.register("./sw.js");
+    const registration = await navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" });
     const subscription = await registration.pushManager.getSubscription();
     if (!subscription) {
       state.pushSubscribed = false;
@@ -12533,6 +12576,7 @@ function getCurrentLocationSpeechText() {
   }
 
   const forecast = getCurrentLocationForecast();
+  if (!isGroundMotionPredictionAvailable()) return "";
   if (!forecast || forecast.intensityClass.rank < 1) {
     return "";
   }
@@ -16032,13 +16076,31 @@ function scheduleLocationResolve(options = {}) {
   }, 180);
 }
 
+function updateMapEditingStatus() {
+  if (!els.mapEditingStatus) {
+    return;
+  }
+  const message = document.body.classList.contains("community-pick-mode")
+    ? "投稿場所を設定中"
+    : state.epicenterEditEnabled && document.body.dataset.activeBottomTab === "earthquake-tab"
+      ? "震源地を設定中"
+      : "";
+  if (els.mapEditingStatus.textContent !== message) {
+    els.mapEditingStatus.textContent = message;
+  }
+}
+
 function updateEpicenterEditMode() {
-  state.epicenterEditEnabled = state.simulationRunning ? false : els.epicenterEditToggle.checked;
+  state.epicenterEditEnabled = !state.simulationRunning
+    && document.body.dataset.activeBottomTab === "earthquake-tab"
+    && els.epicenterEditToggle.checked;
   const faultEditButton = document.querySelector("#fault-epicenter-edit-button");
   const faultEditHint = document.querySelector("#fault-epicenter-edit-hint");
   const rectangleEditActive = isFaultSimulationActive()
     && state.faultModelId === "rectangle"
     && state.epicenterEditEnabled;
+
+  updateMapEditingStatus();
 
   if (map) {
     map.getCanvas().classList.toggle("epicenter-edit-enabled", state.epicenterEditEnabled);
@@ -16954,6 +17016,12 @@ function updateCurrentLocationForecast(elapsedSec = 0) {
 
   setTextContentIfChanged(els.currentLocationName, state.currentLocationName || "-");
 
+  if (!isGroundMotionPredictionAvailable()) {
+    setTextContentIfChanged(els.currentLocationIntensity, "推定対象外");
+    applySimulationIntensityCard(els.currentLocationIntensity, null);
+    setTextContentIfChanged(els.currentLocationArrival, "-");
+    return;
+  }
   const forecast = getCurrentLocationForecast();
   if (!forecast) {
     setTextContentIfChanged(els.currentLocationIntensity, "計算中");
@@ -18248,7 +18316,8 @@ function updateSimulationSummary(elapsedSec = getSimulationStationElapsedSec()) 
 
   setTextContentIfChanged(
     els.simulationMaxIntensity,
-    state.simulationRunning && Number.isFinite(elapsedSec) && !hasObservedIntensity ? "-" : displayMaxClass.label,
+    !getSelectedPreset() && !isGroundMotionPredictionAvailable() ? "推定対象外"
+      : state.simulationRunning && Number.isFinite(elapsedSec) && !hasObservedIntensity ? "-" : displayMaxClass.label,
   );
   applySimulationIntensityCard(
     els.simulationMaxIntensity,
@@ -19220,6 +19289,7 @@ function invalidateIntensityEstimateCache(options = {}) {
 }
 
 function syncInputs() {
+  syncGroundMotionControls();
   if (els.magnitude && els.magnitude.options.length === 0) {
     renderMagnitudeOptions();
   }
@@ -19325,6 +19395,12 @@ function updateSimulationAvailability() {
     return;
   }
 
+  if (!getSelectedPreset() && !isGroundMotionPredictionAvailable()) {
+    els.simulationStart.disabled = true;
+    els.simulationStart.textContent = "震度推定の対象外";
+    els.simulationStart.title = "深さ150km超には対応する予測モデルが必要です";
+    return;
+  }
   const predictedMaximum = getPredictedMaximumIntensity();
   const canStart =
     Number.isFinite(predictedMaximum.value) && predictedMaximum.rank >= 1;
@@ -19347,6 +19423,7 @@ function updateSetupResultOutputs() {
 }
 
 function formatSetupMaxIntensityLabel(label) {
+  if (!getSelectedPreset() && !isGroundMotionPredictionAvailable()) return "推定対象外";
   return String(label ?? "").trim() === "0" ? "-" : (label || "-");
 }
 
@@ -19732,6 +19809,8 @@ function getIntensitySourceCacheKey(elapsedSec = Infinity) {
     Number(state.latitude).toFixed(4),
     Number(state.depthKm).toFixed(1),
     Number(state.magnitude).toFixed(1),
+    state.magnitudeType,
+    state.earthquakeType,
     getSelectedPreset()?.id ?? "",
     state.sourceModel,
     state.faultModelId,
@@ -20044,7 +20123,7 @@ function buildIntensityAreaData(geojson, elapsedSec = Infinity) {
   const stableDisplayedMaxClass = Number.isFinite(elapsedSec) && (state.simulationRunning || state.simulationCompleted)
     ? (INTENSITY_CLASSES.find((item) => item.rank === simulationObservedMaxRank) ?? displayedMaxClass)
     : displayedMaxClass;
-  state.maxIntensityLabel = stableDisplayedMaxClass.label;
+  state.maxIntensityLabel = !selectedPreset && !isGroundMotionPredictionAvailable() ? "推定対象外" : stableDisplayedMaxClass.label;
 
   const data = {
     ...geojson,
@@ -20938,8 +21017,8 @@ function getCurrentIntensityProperties(properties, elapsedSec = Infinity) {
     observed,
     waveState,
     riseProgress: Number(riseProgress.toFixed(3)),
-    currentIntensityValue: Number(currentIntensityValue.toFixed(2)),
-    intensityValue: Number(currentIntensityValue.toFixed(2)),
+    currentIntensityValue,
+    intensityValue: currentIntensityValue,
     intensityLabel: currentClass.label,
     intensityShortLabel: currentClass.shortLabel,
     intensityRank: currentClass.rank,
@@ -21234,7 +21313,7 @@ function buildStationIntensityFeatures(data) {
           name: station.name,
           areaName: station.areaName,
           address: station.address,
-          predictedIntensityValue: Number(intensityValue.toFixed(2)),
+          predictedIntensityValue: intensityValue,
           predictedIntensityLabel: intensityClass.label,
           predictedIntensityShortLabel: intensityClass.shortLabel,
           predictedIntensityRank: intensityClass.rank,
@@ -21332,7 +21411,7 @@ function buildSubmarineObservationIntensityFeatures(data) {
           id: `submarine-${id}`,
           displaySortStableKey: `submarine|${id}|${lon.toFixed(4)}|${lat.toFixed(4)}`,
           name: feature.properties?.name || feature.properties?.code || "海底観測点",
-          predictedIntensityValue: Number(intensityValue.toFixed(2)),
+          predictedIntensityValue: intensityValue,
           predictedIntensityLabel: intensityClass.label,
           predictedIntensityShortLabel: intensityClass.shortLabel,
           predictedIntensityRank: intensityClass.rank,
@@ -21579,7 +21658,7 @@ function buildOldScaleSyntheticStationFeatures(preset, existingFeatures) {
         name: stationDisplayName,
         areaName: municipalityName,
         address: `${observation.prefecture ?? ""}${municipalityName}`,
-        predictedIntensityValue: Number(intensityValue.toFixed(2)),
+        predictedIntensityValue: intensityValue,
         predictedIntensityLabel: intensityLabel,
         predictedIntensityShortLabel: intensityShortLabel,
         predictedIntensityRank: intensityClass.rank,
@@ -22214,10 +22293,12 @@ async function syncFaultEpicenterName() {
 }
 
 function getFaultTravelMetrics(longitude, latitude) {
+  const ruptureDistanceKm = getFaultShakingDistanceKm(longitude, latitude);
   const samples = getFaultSourceSamples();
   if (!samples.length) {
     const surfaceDistanceKm = haversineKilometers([state.longitude, state.latitude], [longitude, latitude]);
     return {
+      ruptureDistanceKm,
       surfaceDistanceKm,
       hypocentralDistanceKm: Math.hypot(surfaceDistanceKm, state.depthKm),
       pArrivalSec: surfaceDistanceKm / EARTHQUAKE_MODEL.pWaveVelocityKmPerSec,
@@ -22228,6 +22309,7 @@ function getFaultTravelMetrics(longitude, latitude) {
     const surfaceDistanceKm = haversineKilometers(sample.coordinates, [longitude, latitude]);
     const hypocentralDistanceKm = Math.hypot(surfaceDistanceKm, state.depthKm);
     return {
+      ruptureDistanceKm,
       surfaceDistanceKm: Math.min(best.surfaceDistanceKm, surfaceDistanceKm),
       hypocentralDistanceKm: Math.min(best.hypocentralDistanceKm, hypocentralDistanceKm),
       pArrivalSec: Math.min(
@@ -22245,6 +22327,48 @@ function getFaultTravelMetrics(longitude, latitude) {
     pArrivalSec: Infinity,
     sArrivalSec: Infinity,
   });
+}
+
+function getFaultShakingDistanceKm(longitude, latitude) {
+  const path = getActiveFaultPath();
+  if (path.length < 2) {
+    return Math.hypot(haversineKilometers([state.longitude, state.latitude], [longitude, latitude]), state.depthKm);
+  }
+  const { origin, direction } = getResolvedFaultRuptureSettings();
+  if (state.faultModelId === "rectangle") {
+    const lengthKm = getFaultControlNumber("#fault-length-input", 30, 1, 520);
+    const originAlongKm = origin === "start" ? -lengthKm / 2 : origin === "end" ? lengthKm / 2 : 0;
+    const startKm = direction === "forward" ? originAlongKm : -lengthKm / 2;
+    const endKm = direction === "reverse" ? originAlongKm : lengthKm / 2;
+    const [eastKm, northKm] = toLocalKilometers([longitude, latitude], [state.longitude, state.latitude]);
+    const strike = toRadians(getFaultControlNumber("#fault-strike-input", 0, 0, 359));
+    return GROUND_MOTION_MODEL.rectangularFaultDistanceKm({
+      alongKm: eastKm * Math.sin(strike) + northKm * Math.cos(strike) - (startKm + endKm) / 2,
+      acrossKm: eastKm * Math.cos(strike) - northKm * Math.sin(strike),
+      lengthKm: Math.max(endKm - startKm, 0.001),
+      widthKm: getFaultControlNumber("#fault-width-input", 15, 1, 200),
+      dipDegrees: getFaultControlNumber("#fault-dip-input", 45, 1, 90),
+      centerDepthKm: state.depthKm,
+    });
+  }
+  // These paths approximate source lines, not published 3-D fault meshes.
+  // Use continuous segments so sample spacing cannot change peak intensity.
+  const lengths = path.slice(1).map((point, index) => haversineKilometers(path[index], point));
+  const total = lengths.reduce((sum, length) => sum + length, 0);
+  const originKm = origin === "start" ? 0 : origin === "end" ? total : total / 2;
+  const firstKm = direction === "forward" ? originKm : 0;
+  const lastKm = direction === "reverse" ? originKm : total;
+  let traversed = 0, minimum = Infinity;
+  lengths.forEach((length) => {
+    const startKm = Math.max(traversed, firstKm), endKm = Math.min(traversed + length, lastKm);
+    if (startKm <= endKm) {
+      const start = getPointAlongFaultPath(path, lengths, startKm);
+      const end = getPointAlongFaultPath(path, lengths, endKm);
+      minimum = Math.min(minimum, distanceToSegmentKilometers([longitude, latitude], start, end));
+    }
+    traversed += length;
+  });
+  return Math.hypot(minimum, state.depthKm);
 }
 
 function buildFaultAreaGeometry(path, widthKm) {
@@ -22337,10 +22461,20 @@ function buildSimulationFaultGeoJson(elapsedSec = null) {
   const usesSelectedActiveFault = state.faultModelId === "active-fault" && selectedActiveFaultPath.length >= 2;
   const usesRectangleFault = state.faultModelId === "rectangle";
   if (preset || usesSelectedActiveFault || usesRectangleFault) {
-    const areaPath = usesSelectedActiveFault ? [path[0], path[path.length - 1]] : path;
-    const areaWidthKm = usesRectangleFault
+    let areaPath = usesSelectedActiveFault ? [path[0], path[path.length - 1]] : path;
+    let areaWidthKm = usesRectangleFault
       ? getFaultControlNumber("#fault-width-input", 15, 1, 200)
       : preset?.areaWidthKm ?? ACTIVE_FAULT_AREA_WIDTH_KM;
+    if (usesRectangleFault) {
+      const dip = toRadians(getFaultControlNumber("#fault-dip-input", 45, 1, 90));
+      const minDownDip = -Math.min(areaWidthKm / 2, state.depthKm / Math.sin(dip));
+      const maxDownDip = areaWidthKm / 2;
+      const shiftKm = (minDownDip + maxDownDip) / 2 * Math.cos(dip);
+      const bearing = getFaultControlNumber("#fault-strike-input", 0, 0, 359) + 90;
+      areaPath = path.map((point) => destinationPointKilometers(point, shiftKm, bearing));
+      // Keep a vertical fault visible as a 10m-wide cartographic line.
+      areaWidthKm = Math.max((maxDownDip - minDownDip) * Math.cos(dip), 0.01);
+    }
     const { areaRing, cells, totalLengthKm } = (
       buildPresetFaultAreaGeometry(preset)
       ?? buildFaultAreaGeometry(areaPath, areaWidthKm)
@@ -22443,77 +22577,52 @@ function estimateIntensityAtPoint(
   knownEpicentralDistanceKm = null,
   knownFaultTravelMetrics = null,
 ) {
+  // Unsupported predictions are kept out of map classes. The source controls,
+  // maximum label and start button explicitly show the unavailable state.
+  if (!isGroundMotionPredictionAvailable()) return 0;
+  const ground = getGroundModelAt(longitude, latitude);
+  const site = ground ?? GROUND_MOTION_MODEL.siteParameters();
+  let ruptureDistanceKm;
   if (isFaultSimulationActive()) {
     const metrics = knownFaultTravelMetrics ?? getFaultTravelMetrics(longitude, latitude);
-    const ground = getGroundModelAt(longitude, latitude);
-    return estimateInstrumentalIntensity({
-      magnitude: state.magnitude,
-      hypocentralDistanceKm: metrics.hypocentralDistanceKm,
-      siteAmplification: ground?.intensityAmplification ?? EARTHQUAKE_MODEL.defaultSiteAmplification,
+    ruptureDistanceKm = metrics.ruptureDistanceKm;
+  } else {
+    const epicentralDistanceKm = knownEpicentralDistanceKm
+      ?? haversineKilometers([state.longitude, state.latitude], [longitude, latitude]);
+    ruptureDistanceKm = GROUND_MOTION_MODEL.pointSourceDistanceKm({
+      epicentralDistanceKm, depthKm: state.depthKm,
     });
   }
-  const epicenter = [state.longitude, state.latitude];
-  const epicentralDistanceKm =
-    knownEpicentralDistanceKm ?? haversineKilometers(epicenter, [longitude, latitude]);
-  const effectiveEpicentralDistanceKm = getEffectiveEpicentralDistance(epicentralDistanceKm);
-  const hypocentralDistanceKm = Math.hypot(effectiveEpicentralDistanceKm, state.depthKm);
-  const ground = getGroundModelAt(longitude, latitude);
+  return GROUND_MOTION_MODEL.predict({
+    magnitude: state.magnitude, magnitudeType: state.magnitudeType,
+    depthKm: state.depthKm, ruptureDistanceKm,
+    earthquakeType: state.earthquakeType,
+    sourceModel: isFaultSimulationActive() ? "finite-fault" : "point",
+    velocityAmplification: site.velocityAmplification, referenceVs: site.referenceVs,
+  }).displayIntensity ?? 0;
+}
 
-  return estimateInstrumentalIntensity({
-    magnitude: state.magnitude,
-    hypocentralDistanceKm,
-    siteAmplification: ground?.intensityAmplification ?? EARTHQUAKE_MODEL.defaultSiteAmplification,
+function isGroundMotionPredictionAvailable() {
+  return state.depthKm <= GROUND_MOTION_MODEL.MAX_DEPTH_KM;
+}
+
+function syncGroundMotionControls() {
+  document.querySelectorAll("[data-ground-motion-scale]").forEach((control) => {
+    control.value = state.magnitudeType;
   });
-}
-
-function getEffectiveEpicentralDistance(epicentralDistanceKm) {
-  const ruptureLengthKm = estimateRuptureLengthKm();
-  const finiteFaultReductionKm =
-    ruptureLengthKm *
-    (EARTHQUAKE_MODEL.finiteFaultReductionBase +
-      getOffshoreEpicenterFactor() * EARTHQUAKE_MODEL.finiteFaultReductionOffshore);
-  return Math.max(epicentralDistanceKm - finiteFaultReductionKm, 1);
-}
-
-function estimateRuptureLengthKm() {
-  if (state.magnitude < 6.6) {
-    return 0;
-  }
-
-  return clamp(10 ** (-2.44 + 0.59 * state.magnitude), 0, 520);
-}
-
-function estimateInstrumentalIntensity({
-  magnitude,
-  hypocentralDistanceKm,
-  siteAmplification = EARTHQUAKE_MODEL.defaultSiteAmplification,
-}) {
-  const distance = Math.max(hypocentralDistanceKm, 1);
-  const magnitudeTerm = getMagnitudeIntensityTerm(magnitude);
-  const giantMagnitudeSaturation =
-    EARTHQUAKE_MODEL.giantMagnitudeSaturationFactor *
-    Math.max(magnitude - EARTHQUAKE_MODEL.giantMagnitudeSaturationStart, 0) ** 2;
-  return clamp(
-    magnitudeTerm -
-      giantMagnitudeSaturation -
-      EARTHQUAKE_MODEL.intensityDistanceLogAttenuation * Math.log10(distance + 20) -
-      EARTHQUAKE_MODEL.intensityDistanceLinearAttenuation * distance +
-      siteAmplification -
-      EARTHQUAKE_MODEL.intensityBaselineDamping,
-    0,
-    7,
-  );
-}
-
-function getMagnitudeEnergyLog10(magnitude) {
-  // Magnitude represents log-scaled earthquake energy: log10E = 4.8 + 1.5M.
-  // Ground shaking is compressed back to an intensity contribution below.
-  return 4.8 + 1.5 * magnitude;
-}
-
-function getMagnitudeIntensityTerm(magnitude) {
-  const energyLog10 = getMagnitudeEnergyLog10(magnitude);
-  return (EARTHQUAKE_MODEL.intensityMagnitudeSlope / 1.5) * (energyLog10 - 4.8);
+  document.querySelectorAll("[data-ground-motion-type]").forEach((control) => {
+    control.value = state.earthquakeType;
+  });
+  const mw = GROUND_MOTION_MODEL.toMomentMagnitude(state.magnitude, state.magnitudeType);
+  const sourceNote = isFaultSimulationActive()
+    ? mw > 8.3 ? "断層モデルではMw8.3超の振幅を頭打ちとして計算。" : ""
+    : mw > 8.2 ? "点震源の参考計算です。巨大地震の震源域の広がりは断層モードで設定してください。" : "";
+  const note = !isGroundMotionPredictionAvailable()
+    ? "深さ150km超は震度推定の対象外です。過去地震の観測震度は再生できます。"
+    : `${sourceNote}小規模地震・深さ50km超・遠方・震度4未満などは適用範囲外の参考値です。計算法は設定の「出典」を参照。`;
+  document.querySelectorAll("[data-ground-motion-note]").forEach((element) => {
+    element.textContent = note;
+  });
 }
 
 function toJmaIntensityClass(instrumentalIntensity) {
@@ -22539,7 +22648,9 @@ function getGroundModelAt(longitude, latitude) {
 
   const [arv, avs, s0, maxDepthM, wm2020Avs, wm2020Jcode] = values;
   const effectiveAvs = Number.isFinite(wm2020Avs) && wm2020Avs > 0 ? wm2020Avs : avs;
+  const site = GROUND_MOTION_MODEL.siteParameters({ arv, avs: effectiveAvs });
   return {
+    ...site,
     code,
     arv,
     avs,
@@ -22548,28 +22659,7 @@ function getGroundModelAt(longitude, latitude) {
     wm2020Avs,
     wm2020Jcode,
     effectiveAvs,
-    intensityAmplification: groundToIntensityAmplification({ arv, avs: effectiveAvs, maxDepthM }),
   };
-}
-
-function groundToIntensityAmplification({ arv, avs, maxDepthM }) {
-  const velocityAmplification = arvToIntensityAmplification(arv);
-  const shallowSoftness = Number.isFinite(avs) ? clamp((420 - avs) / 360, -0.28, 0.45) : 0;
-  const basinAmplification = Number.isFinite(maxDepthM)
-    ? clamp(Math.log10(Math.max(maxDepthM, 100) / 900) * 0.18, -0.08, 0.16)
-    : 0;
-
-  return clamp(velocityAmplification + shallowSoftness * 0.45 + basinAmplification, -0.45, 0.75);
-}
-
-function arvToIntensityAmplification(arv) {
-  if (!Number.isFinite(arv) || arv <= 0) {
-    return EARTHQUAKE_MODEL.defaultSiteAmplification;
-  }
-
-  // ARV is a peak velocity amplification factor. JMA instrumental intensity is
-  // logarithmic, so use a modest log10 correction to avoid over-amplifying.
-  return clamp(1.05 * Math.log10(arv), -0.35, 0.62);
 }
 
 function meshCode1km(longitude, latitude) {
@@ -23048,12 +23138,12 @@ function updateCommunityAccountSettingsCard() {
         </div>
       </div>
       <div class="community-account-button-row">
-        <button type="button" data-community-account-screen="name">名前を編集</button>
-        <button type="button" data-community-account-screen="icon">アイコンを編集</button>
+        <button class="liquid-glass-action" type="button" data-community-account-screen="name">名前を編集</button>
+        <button class="liquid-glass-action" type="button" data-community-account-screen="icon">アイコンを編集</button>
       </div>
       <div class="community-account-danger-actions">
-        <button type="button" data-community-account-action="logout">ログアウト</button>
-        <button type="button" data-community-account-action="delete">アカウント削除</button>
+        <button class="liquid-glass-action" type="button" data-community-account-action="logout">ログアウト</button>
+        <button class="liquid-glass-action" type="button" data-community-account-action="delete">アカウント削除</button>
       </div>
       <p class="community-account-status" aria-live="polite"></p>
     `;
@@ -23068,8 +23158,8 @@ function updateCommunityAccountSettingsCard() {
       </div>
       <p class="community-account-note">アカウント名は投稿時にほかの人からも見えます。</p>
       <div class="community-account-button-row">
-        <button type="button" data-community-account-screen="login">ログイン</button>
-        <button type="button" data-community-account-screen="create">アカウント作成</button>
+        <button class="liquid-glass-action" type="button" data-community-account-screen="login">ログイン</button>
+        <button class="liquid-glass-action" type="button" data-community-account-screen="create">アカウント作成</button>
       </div>
       <p class="community-account-status" aria-live="polite"></p>
     `;

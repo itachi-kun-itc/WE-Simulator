@@ -49,15 +49,15 @@
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta name="twitter:image" content="https://itachi-kun-itc.github.io/WE-Simulator/og-image.png" />
-    <link rel="manifest" href="./manifest.webmanifest?v=2.0.00" />
-    <link rel="icon" type="image/png" sizes="32x32" href="./favicon.png?v=2.0.00" />
-    <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=2.0.00" />
+    <link rel="manifest" href="./manifest.webmanifest?v=ae62126f9e55" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./favicon.png?v=ae62126f9e55" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=ae62126f9e55" />
     <link rel="preconnect" href="https://we-simulator-push.h6fgpg2zht.workers.dev" crossorigin />
     <link rel="preconnect" href="https://unpkg.com" crossorigin />
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.css" />
-    <link rel="stylesheet" href="./styles.css?v=2.0.00" />
-    <link rel="stylesheet" href="./bottom-navigation.css?v=3" />
-    <link rel="stylesheet" href="./interface-appearance.css?v=13" />
+    <link rel="stylesheet" href="./styles.css?v=ae62126f9e55" />
+    <link rel="stylesheet" href="./bottom-navigation.css?v=ae62126f9e55" />
+    <link rel="stylesheet" href="./interface-appearance.css?v=ae62126f9e55" />
   </head>
   <body>
     <main class="app-shell">
@@ -71,6 +71,7 @@
         </header>
 
         <div class="map-wrap">
+          <p class="map-editing-status" id="map-editing-status" role="status" aria-atomic="true"></p>
           <div id="map" aria-label="地震地域区分の日本地図"></div>
           <button class="settings-menu-button is-active" id="settings-menu-button" type="button" aria-controls="setup-panel" aria-expanded="true" aria-label="設定メニューを閉じる">
             <span aria-hidden="true">⚙</span>
@@ -107,24 +108,7 @@
             </div>
 
             <div class="sim-panel-scroll">
-            <section class="source-simulation-menu-intro" id="source-simulation-menu-intro" aria-labelledby="source-simulation-menu-title">
-              <div class="fault-simulation-heading">
-                <div>
-                  <span class="fault-simulation-kicker">Earthquake simulation</span>
-                  <h3 id="source-simulation-menu-title">震源設定</h3>
-                </div>
-              </div>
-              <p class="fault-simulation-description">震源地、深さ、マグニチュードを設定して地震の揺れをシミュレーションします。</p>
-            </section>
-            <section class="fault-simulation-menu hidden" id="fault-simulation-menu" aria-labelledby="fault-simulation-title">
-              <div class="fault-simulation-heading">
-                <div>
-                  <span class="fault-simulation-kicker">Fault simulation</span>
-                  <h3 id="fault-simulation-title">断層シミュレーション</h3>
-                </div>
-              </div>
-              <p class="fault-simulation-description">断層を複数の小震源に分け、破壊の進行、波の到達時間、断層からの距離を使って揺れを計算します。</p>
-
+            <section class="fault-simulation-menu hidden" id="fault-simulation-menu" aria-label="断層シミュレーション">
               <section class="fault-simulation-card" aria-labelledby="fault-geometry-title">
                 <h4 id="fault-geometry-title">断層形状</h4>
                 <label class="field">
@@ -175,6 +159,11 @@
                     <select id="fault-depth-input" aria-label="断層地震の震源の深さ"></select>
                   </label>
                 </div>
+                <div class="field-grid">
+                  <label class="field"><span>Mの種類</span><select data-ground-motion-scale aria-label="断層地震のMの種類"><option value="Mj">気象庁M（Mj）</option><option value="Mw" selected>モーメントM（Mw）</option></select></label>
+                  <label class="field"><span>地震の種類</span><select data-ground-motion-type aria-label="断層地震の種類"><option value="crustal">地殻内</option><option value="interface">プレート間</option><option value="intraslab">プレート内</option></select></label>
+                </div>
+                <p class="ground-motion-model-note" data-ground-motion-note></p>
                 <p class="fault-source-parameters-hint">公式想定モデルを選ぶと代表値を自動入力します。入力後の変更も可能です。</p>
               </section>
 
@@ -339,6 +328,11 @@
                 <select id="magnitude-input"></select>
               </label>
             </div>
+            <div class="field-grid">
+              <label class="field"><span>Mの種類</span><select data-ground-motion-scale aria-label="地震のMの種類"><option value="Mj" selected>気象庁M（Mj）</option><option value="Mw">モーメントM（Mw）</option></select></label>
+              <label class="field"><span>地震の種類</span><select data-ground-motion-type aria-label="地震の種類"><option value="crustal">地殻内</option><option value="interface">プレート間</option><option value="intraslab">プレート内</option></select></label>
+            </div>
+            <p class="ground-motion-model-note" data-ground-motion-note></p>
             </section>
 
             <section class="settings-section setup-result-section" aria-labelledby="setup-result-title" data-settings-section="result" hidden>
@@ -529,7 +523,7 @@
               <section class="settings-notification-card" aria-label="通知設定">
                 <div class="settings-notification-row">
                   <span>通知設定</span>
-                  <strong id="settings-push-status">OFF</strong>
+                  <strong class="liquid-glass-action" id="settings-push-status">OFF</strong>
                 </div>
                 <button class="settings-switch" id="settings-push-toggle" type="button" aria-pressed="false">
                   <span>ON/OFF</span>
@@ -576,7 +570,7 @@
 
     </main>
 
-    <nav class="bottom-tabs" aria-label="メインメニュー">
+    <nav class="bottom-tabs liquid-glass-nav" aria-label="メインメニュー">
       <button class="tab active" id="earthquake-tab" type="button" data-panel="earthquake-panel">
         <span class="bottom-tab-icon" aria-hidden="true">▶</span>
         <span>シミュレーション</span>
@@ -599,33 +593,11 @@
       </button>
     </nav>
 
-<script>
-      (function () {
-        try {
-          const bootstrapKey = 'ws_bootstrap_checked';
-          const url = new URL(location.href);
-          const hasBootstrapParam = url.searchParams.has('_wsv');
-
-          if (!sessionStorage.getItem(bootstrapKey) && !hasBootstrapParam) {
-            sessionStorage.setItem(bootstrapKey, '1');
-            url.searchParams.set('_wsv', Date.now());
-            location.replace(url.toString());
-            return;
-          }
-
-          if (hasBootstrapParam) {
-            url.searchParams.delete('_wsv');
-            history.replaceState(null, '', url.toString());
-          }
-        } catch (e) {
-          console.warn('bootstrap refresh failed', e);
-        }
-      })();
-    </script>
     <script src="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.js"></script>
-    <script src="./vendor/pmtiles.js?v=0.1.1"></script>
-    <script src="./liquid-glass.js?v=3"></script>
-    <script src="./app.js?v=2.0.00"></script>
-    <script src="./bottom-navigation.js?v=2"></script>
+    <script src="./vendor/pmtiles.js?v=ae62126f9e55"></script>
+    <script src="./liquid-glass.js?v=ae62126f9e55"></script>
+    <script src="./earthquake-model.js?v=ae62126f9e55"></script>
+    <script src="./app.js?v=ae62126f9e55"></script>
+    <script src="./bottom-navigation.js?v=ae62126f9e55"></script>
   </body>
 </html>

@@ -20279,20 +20279,6 @@ body.fault-simulation-mode #setup-panel .sim-panel-scroll > .settings-menu-row {
   display: none !important;
 }
 
-body.fault-simulation-mode #source-simulation-menu-intro {
-  display: none !important;
-}
-
-#source-simulation-menu-intro {
-  display: grid;
-  gap: 8px;
-  padding: 4px 8px 10px;
-}
-
-#source-simulation-menu-intro h3 {
-  margin: 0;
-}
-
 body.fault-simulation-mode #earthquake-tab span:last-child {
   width: auto !important;
   max-width: none !important;
@@ -20304,39 +20290,19 @@ body.fault-simulation-mode #earthquake-tab span:last-child {
 #fault-simulation-menu {
   display: grid;
   gap: 14px;
-  padding: 4px 8px 18px;
+  padding: 0 8px 18px;
 }
 
 #fault-simulation-menu.hidden {
   display: none !important;
 }
 
-.fault-simulation-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.fault-simulation-heading h3,
 .fault-simulation-card h4,
-.fault-simulation-description,
 .fault-simulation-note,
 .fault-simulation-exit-hint {
   margin: 0;
 }
 
-.fault-simulation-kicker {
-  display: block;
-  margin-bottom: 3px;
-  color: #b45309;
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.fault-simulation-description,
 .fault-simulation-note,
 .fault-simulation-exit-hint {
   color: #475569;
@@ -20560,8 +20526,7 @@ html[data-resolved-theme="light"] .fault-simulation-card {
 
 html[data-resolved-theme="light"] .fault-simulation-card h4,
 html[data-resolved-theme="light"] .fault-simulation-card .field,
-html[data-resolved-theme="light"] .fault-model-profile-head strong,
-html[data-resolved-theme="light"] .fault-simulation-heading h3 {
+html[data-resolved-theme="light"] .fault-model-profile-head strong {
   color: #0f172a;
 }
 
@@ -20594,7 +20559,6 @@ html[data-resolved-theme="light"] .fault-model-profile dt {
 
 html[data-resolved-theme="light"] .fault-model-profile dd,
 html[data-resolved-theme="light"] .fault-model-profile p,
-html[data-resolved-theme="light"] .fault-simulation-description,
 html[data-resolved-theme="light"] .fault-simulation-note,
 html[data-resolved-theme="light"] .fault-simulation-exit-hint {
   color: #334155;
@@ -20606,13 +20570,11 @@ html[data-resolved-theme="dark"] .fault-simulation-card {
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.035);
 }
 
-html[data-resolved-theme="dark"] .fault-simulation-description,
 html[data-resolved-theme="dark"] .fault-simulation-note,
 html[data-resolved-theme="dark"] .fault-simulation-exit-hint {
   color: #cbd5e1;
 }
 
-html[data-resolved-theme="dark"] .fault-simulation-heading h3,
 html[data-resolved-theme="dark"] .fault-simulation-card h4,
 html[data-resolved-theme="dark"] .fault-simulation-card .field {
   color: #f1f5f9;
@@ -20629,10 +20591,6 @@ html[data-resolved-theme="dark"] .fault-simulation-card input:focus,
 html[data-resolved-theme="dark"] .fault-simulation-card select:focus {
   border-color: #38bdf8;
   box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
-}
-
-html[data-resolved-theme="dark"] .fault-simulation-kicker {
-  color: #fbbf24;
 }
 
 html[data-resolved-theme="dark"] .fault-model-profile {
@@ -23476,17 +23434,6 @@ html[data-resolved-theme="light"] .source-info-panel a[href]:focus-visible {
   border-color: rgba(14, 165, 233, 0.42);
   background: rgba(15, 23, 42, 0.96);
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.28);
-}
-
-#earthquake-tab.show-long-press-hint {
-  border-radius: 14px;
-  background: rgba(14, 165, 233, 0.18) !important;
-  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.28), 0 0 18px rgba(14, 165, 233, 0.34);
-}
-
-#earthquake-tab.show-long-press-hint .bottom-tab-icon,
-#earthquake-tab.show-long-press-hint span:last-child {
-  color: #0ea5e9 !important;
 }
 
 html[data-resolved-theme="light"] .fault-mode-switch-notice.is-startup-hint {
