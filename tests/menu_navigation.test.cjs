@@ -144,13 +144,72 @@ test("settings details leave the menu scroll coordinates and Back reveals the ex
   vm.runInContext("openSettingsDetailPanel(button, page, () => {}, 'Details')", context);
   assert.equal(sheet.children.includes(page), true);
   assert.equal(menu.scrollTop, 150);
+  assert.equal(menu.inert, true);
+  assert.equal(menu.classList.contains("menu-underlay-covered"), false);
   page.animations[0].finish();
+  assert.equal(menu.classList.contains("menu-underlay-covered"), true);
   vm.runInContext("closeSettingsDetailPanel()", context);
+  assert.equal(menu.classList.contains("menu-underlay-covered"), false);
+  assert.equal(menu.inert, false);
   assert.equal(menu.classList.contains("hidden"), false);
   assert.equal(menu.scrollTop, 150);
   page.animations[1].finish();
   assert.equal(page.classList.contains("hidden"), true);
   assert.equal(sheet.classList.contains("settings-detail-open"), false);
+});
+
+test("menu descendants cannot escape above sibling detail pages with their positive z-index", () => {
+  const css = fs.readFileSync(path.join(__dirname, "../web/interface-appearance.css"), "utf8");
+  const group = css.match(/#settings-menu-sheet > \.settings-menu-list,\s*#info-full-panel > \.tool-home-page\s*\{([^}]+)\}/);
+  assert.ok(group, "Both parent menus must establish their own stacking context");
+  assert.match(group[1], /position:\s*relative\s*!important/);
+  assert.match(group[1], /z-index:\s*0\s*!important/);
+  assert.match(group[1], /isolation:\s*isolate\s*!important/);
+});
+
+test("epicenter search exposes the map instead of the Tools home, and late loading cannot reopen it after Back", async () => {
+  const { context, Element } = fixture();
+  const info = new Element();
+  const home = new Element();
+  const station = new Element("hidden");
+  const quiz = new Element("hidden");
+  const history = new Element("hidden");
+  const body = new Element();
+  info.querySelector = selector => ({ "#tool-home-page": home, "#tool-station-page": station,
+    "#tool-weather-quiz-page": quiz })[selector];
+  let resolveAreas;
+  const areas = new Promise(resolve => { resolveAreas = resolve; });
+  const mapChanges = [];
+  const noop = () => {};
+  Object.assign(context, {
+    els: { infoFullPanel: info, historyFullPanel: history, learningFullPanel: new Element("hidden") },
+    document: { body }, ensureInfoToolShell: noop, closeEarthquakePresetPicker: noop,
+    closeSettingsMenuSheet: noop, setSetupMenuOpen: noop, ensureToolPageHeader: noop,
+    ensureHistoryFullPanel: () => history, renderPastEarthquakeStatsPanel: noop,
+    loadLocalAreas: () => areas, loadEpicenterAreas: () => Promise.resolve(), console,
+    setHistoryMapModeActive(active) {
+      if (active) assert.equal(info.classList.contains("hidden"), true, "The opaque menu must not cover the map");
+      mapChanges.push(active);
+    },
+  });
+  const homeStart = source.indexOf("  const showInfoToolHome =");
+  const homeEnd = source.indexOf("\n  const ensureToolPageHeader =", homeStart);
+  vm.runInContext(source.slice(homeStart, homeEnd), context);
+  const openStart = source.indexOf("  const openInfoSourceSearchPage =");
+  const openEnd = source.indexOf("\n  const openInfoStationSearchPage =", openStart);
+  vm.runInContext(source.slice(openStart, openEnd), context);
+  vm.runInContext("openInfoSourceSearchPage()", context);
+  assert.equal(info.classList.contains("hidden"), true);
+  assert.equal(info.scrollTop, 150);
+  assert.equal(history.classList.contains("hidden"), false);
+  vm.runInContext("showInfoToolHome()", context);
+  assert.equal(info.classList.contains("hidden"), false, "Back must reveal the previous screen immediately");
+  assert.equal(home.classList.contains("hidden"), false);
+  history.animations.at(-1).finish();
+  assert.equal(history.classList.contains("hidden"), true);
+  resolveAreas();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(mapChanges, [true, false]);
 });
 
 test("administrator Back restores the scrolled menu before the nested page finishes exiting", () => {

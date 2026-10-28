@@ -23,6 +23,20 @@ html[data-resolved-theme="light"] {
 /* Submenus cover their parent with an opaque page. Only the short-lived Web
    Animation translates them; resting scroll containers have no transform. */
 @layer app-menu-navigation {
+  /* Menu rows have their own positive z-index. Keep those descendants below
+     sibling detail pages, including throughout the slide animation. */
+  #settings-menu-sheet > .settings-menu-list,
+  #info-full-panel > .tool-home-page {
+    position: relative !important;
+    z-index: 0 !important;
+    isolation: isolate !important;
+  }
+
+  #settings-menu-sheet > .settings-menu-list.menu-underlay-covered {
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+
   #info-full-panel :is(.tool-station-page, .tool-weather-quiz-page) {
     position: absolute !important;
     inset: 0 !important;
