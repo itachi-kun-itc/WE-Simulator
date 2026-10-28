@@ -7275,9 +7275,9 @@ function slideMenuPage(page, { back = false, onFinish = () => {} } = {}) {
   }
   page.classList.add("menu-page-sliding");
   const animation = page.animate(
-    back ? [{ translate: "0 0" }, { translate: "-100% 0" }]
-      : [{ translate: "-100% 0" }, { translate: "0 0" }],
-    { duration: 240, easing: "cubic-bezier(0.22, 0.9, 0.24, 1)", fill: "both" },
+    back ? [{ translate: "0 0" }, { translate: "100% 0" }]
+      : [{ translate: "100% 0" }, { translate: "0 0" }],
+    { duration: 300, easing: "cubic-bezier(0.22, 0.9, 0.24, 1)", fill: "both" },
   );
   menuPageTransitions.set(page, animation);
   animation.onfinish = () => {

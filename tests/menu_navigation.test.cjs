@@ -43,12 +43,13 @@ function fixture({ reducedMotion = false } = {}) {
   return { context, Element };
 }
 
-test("a submenu enters from the left and releases its animation and compositing state", () => {
+test("a submenu enters from the right and releases its animation and compositing state", () => {
   const { context, Element } = fixture();
   const page = new Element();
   context.slideMenuPage(page);
   const animation = page.animations[0];
-  assert.deepEqual(Array.from(animation.frames, frame => frame.translate), ["-100% 0", "0 0"]);
+  assert.deepEqual(Array.from(animation.frames, frame => frame.translate), ["100% 0", "0 0"]);
+  assert.equal(animation.options.duration, 300);
   assert.equal(page.classList.contains("menu-page-sliding"), true);
   animation.finish();
   assert.equal(animation.cancelled, true);
@@ -56,12 +57,13 @@ test("a submenu enters from the left and releases its animation and compositing 
   assert.equal(page.classList.contains("menu-page-sliding"), false);
 });
 
-test("Back exits to the left without resetting or hiding the page mid-animation", () => {
+test("Back exits to the right without resetting or hiding the page mid-animation", () => {
   const { context, Element } = fixture();
   const page = new Element();
   context.slideMenuPage(page, { back: true, onFinish: () => context.hidePageAndResetScroll(page) });
   const animation = page.animations[0];
-  assert.deepEqual(Array.from(animation.frames, frame => frame.translate), ["0 0", "-100% 0"]);
+  assert.deepEqual(Array.from(animation.frames, frame => frame.translate), ["0 0", "100% 0"]);
+  assert.equal(animation.options.duration, 300);
   assert.equal(page.classList.contains("hidden"), false);
   assert.equal(page.scrollTop, 150);
   animation.finish();
