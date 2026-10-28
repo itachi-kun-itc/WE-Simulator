@@ -9203,12 +9203,8 @@ body.community-map-mode .community-post-button {
   color: #ffd3a0 !important;
 }
 
-/* Settings detail scroll isolation: keep the page fixed and let only each detail body scroll. */
-.settings-menu-sheet.settings-detail-open .settings-menu-list {
-  overflow: hidden !important;
-  overscroll-behavior: none !important;
-}
-
+/* Details sit outside the menu scroller. Its overflow and scrollbar must stay
+   unchanged while inert so the parent does not reflow during the slide. */
 .settings-menu-sheet.settings-detail-open .settings-inline-panel.settings-detail-panel {
   display: grid !important;
   grid-template-rows: auto minmax(0, 1fr) !important;

@@ -247,9 +247,9 @@ html[data-resolved-theme="light"] {
     padding-bottom: 0 !important;
   }
 
-  /* Content can scroll under the glass, with enough trailing space to bring
-     the final item back above the navigation. */
-  #settings-menu-sheet:not(.settings-detail-open):not(.community-account-screen-open) > .settings-menu-list,
+  /* Keep the parent's clearance even under a submenu: removing it would
+     shrink the scroll range and clamp its offset during the entry slide. */
+  #settings-menu-sheet > .settings-menu-list,
   #settings-menu-sheet .settings-detail-panel :is(
     .source-info-overlay-content, .settings-privacy-content, .settings-feedback-form,
     .push-confirm-panel:not([data-push-panel="history"]), .push-history-list,

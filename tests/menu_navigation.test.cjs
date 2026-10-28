@@ -201,6 +201,36 @@ test("submenu scroll bodies have a bounded height and the embedded admin overlay
     "A child scrollport cannot restore panning blocked by the old overlay ancestor");
 });
 
+test("opening settings or account details does not remove the parent's scroll clearance or scrollbar", () => {
+  const css = fs.readFileSync(path.join(__dirname, "../web/interface-appearance.css"), "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "");
+  const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)];
+  const clearance = states => {
+    let padding = "0";
+    for (const [, selectors, declarations] of rules) {
+      for (const selector of selectors.split(",").map(value => value.trim())) {
+        const menu = selector.match(/^#settings-menu-sheet((?::not\(\.[\w-]+\)|\.[\w-]+)*)\s*>\s*\.settings-menu-list$/);
+        if (!menu) continue;
+        const excluded = [...menu[1].matchAll(/:not\(\.([\w-]+)\)/g)].map(match => match[1]);
+        const required = [...menu[1].replace(/:not\([^)]*\)/g, "").matchAll(/\.([\w-]+)/g)].map(match => match[1]);
+        if (excluded.some(state => states.includes(state)) || required.some(state => !states.includes(state))) continue;
+        const value = declarations.match(/(?:^|;)\s*padding-bottom:\s*([^;]+)/);
+        if (value) padding = value[1];
+      }
+    }
+    return padding;
+  };
+  const closed = clearance([]);
+  assert.match(closed, /--bottom-nav-height/, "The final row must clear the floating navigation");
+  for (const states of [["settings-detail-open"], ["community-account-screen-open"],
+    ["settings-detail-open", "community-account-screen-open"]]) {
+    assert.equal(clearance(states), closed, "Entry must not shrink the parent's scroll range");
+  }
+  const legacy = fs.readFileSync(path.join(__dirname, "../web/styles.css"), "utf8");
+  assert.doesNotMatch(legacy, /\.settings-menu-sheet\.settings-detail-open\s+\.settings-menu-list\s*\{[^}]*overflow:\s*hidden/,
+    "Removing the scrollbar would change the underlying menu's width and wrapping");
+});
+
 test("epicenter search exposes the map instead of the Tools home, and late loading cannot reopen it after Back", async () => {
   const { context, Element } = fixture();
   const info = new Element();
