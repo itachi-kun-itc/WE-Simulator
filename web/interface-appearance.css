@@ -86,6 +86,8 @@ html[data-resolved-theme="light"] {
 /* Keep the post settings background free of dark scrims and shadows. */
 #community-post-overlay {
   background: transparent !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
 }
 
 #community-post-overlay .community-post-sheet {
