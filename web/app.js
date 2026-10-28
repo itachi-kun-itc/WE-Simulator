@@ -746,6 +746,10 @@ let startupLocationResolved = false;
 let startupOverlayReleasePending = false;
 let startupBackgroundDataScheduled = false;
 let startupFaultModeHintShown = false;
+let startupLocationPromptPending = Boolean(
+  els.currentLocationToggle && navigator.geolocation
+  && localStorage.getItem(CURRENT_LOCATION_ENABLED_KEY) !== "true"
+);
 let maintenanceStatusReady = false;
 let simulationStartedAt;
 let simulationPausedAt;
@@ -989,7 +993,8 @@ async function bootstrapApplication() {
   void restoreCurrentLocationPreference()
     .catch((error) => {
       console.warn("location preference restore failed", error);
-    });
+    })
+    .finally(finishStartupLocationPromptCheck);
   recoverPmtilesByteServingIfNeeded().catch((error) => {
     console.warn("PMTiles byte serving recovery failed", error);
   });
@@ -6596,12 +6601,18 @@ function showFaultModeSwitchNotice(message, options = {}) {
 }
 
 function showStartupFaultModeHint() {
-  if (startupFaultModeHintShown) return;
+  if (startupFaultModeHintShown || startupLocationPromptPending
+    || document.querySelector("#startup-location-permission-overlay")) return;
   startupFaultModeHintShown = true;
   showFaultModeSwitchNotice(
     "下の「シミュレーション」を長押し → 断層モード",
     { durationMs: 3000, startupHint: true },
   );
+}
+
+function finishStartupLocationPromptCheck() {
+  startupLocationPromptPending = false;
+  showStartupFaultModeHint();
 }
 
 function bindSimulationControls() {
@@ -16782,7 +16793,10 @@ function showStartupLocationPermissionPrompt(permissionState = "prompt") {
 }
 
 function closeStartupLocationPermissionPrompt() {
-  document.querySelector("#startup-location-permission-overlay")?.remove();
+  const overlay = document.querySelector("#startup-location-permission-overlay");
+  if (!overlay) return;
+  overlay.remove();
+  finishStartupLocationPromptCheck();
 }
 
 async function refreshSystemPermissionStates() {
