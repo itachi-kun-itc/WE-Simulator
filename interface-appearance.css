@@ -20,6 +20,47 @@ html[data-resolved-theme="light"] {
   --app-glass-shadow: rgba(30, 53, 80, 0.14);
 }
 
+/* Full pages continue behind the floating navigation. Keep the navigation
+   height token intact: map actions and pull-up sheets still use that offset. */
+@layer app-page-layout {
+  /* Containment alone still allows elastic scrolling at the page edges. */
+  #settings-menu-sheet,
+  #settings-menu-sheet *,
+  #info-full-panel,
+  #info-full-panel *,
+  body.tool-source-search-mode #history-full-panel,
+  body.tool-source-search-mode #history-full-panel * {
+    overscroll-behavior-y: none !important;
+  }
+
+  #settings-menu-sheet,
+  #info-full-panel,
+  #learning-full-panel,
+  #community-account-required {
+    bottom: 0 !important;
+  }
+
+  #settings-menu-sheet,
+  #info-full-panel,
+  #learning-full-panel {
+    padding-bottom: 0 !important;
+  }
+
+  /* Content can scroll under the glass, with enough trailing space to bring
+     the final item back above the navigation. */
+  #settings-menu-sheet:not(.settings-detail-open):not(.community-account-screen-open) > .settings-menu-list,
+  #settings-menu-sheet .settings-detail-panel :is(
+    .source-info-overlay-content, .settings-privacy-content, .settings-feedback-form,
+    .push-confirm-panel:not([data-push-panel="history"]), .push-history-list,
+    .settings-admin-embedded, .settings-appearance-content
+  ),
+  #settings-menu-sheet .community-account-screen-content,
+  #info-full-panel .weather-quiz-content {
+    padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 18px) !important;
+    scroll-padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 18px) !important;
+  }
+}
+
 /* Layered important declarations give the shared shape tokens precedence over
    the older per-screen important rules without changing control geometry. */
 @layer app-shapes {
@@ -116,21 +157,24 @@ html[data-resolved-theme="light"] {
   font-size: 12px !important;
 }
 
-/* Settings menu cards follow the notification status card above them. */
-#settings-menu-sheet {
+/* Settings and tool menus share the same flat cards in both themes. */
+#settings-menu-sheet,
+#tool-home-page {
   --settings-menu-card-border: rgba(255, 255, 255, 0.11);
   --settings-menu-card-background: rgba(255, 255, 255, 0.045);
   --settings-menu-card-text: rgba(255, 255, 255, 0.86);
 }
 
-html[data-resolved-theme="light"] #settings-menu-sheet {
+html[data-resolved-theme="light"] #settings-menu-sheet,
+html[data-resolved-theme="light"] #tool-home-page {
   --settings-menu-card-border: rgba(71, 85, 105, 0.24);
   --settings-menu-card-background: rgba(255, 255, 255, 0.76);
   --settings-menu-card-text: #111827;
 }
 
 #settings-menu-sheet .settings-status-card,
-#settings-menu-sheet .settings-menu-list > button.settings-menu-row {
+#settings-menu-sheet .settings-menu-list > button.settings-menu-row,
+#info-full-panel #tool-home-page .tool-menu-list > button.tool-menu-row {
   border: 1px solid var(--settings-menu-card-border) !important;
   background: var(--settings-menu-card-background) !important;
 }
@@ -139,7 +183,9 @@ html[data-resolved-theme="light"] #settings-menu-sheet {
   margin-bottom: 10px !important;
 }
 
-#settings-menu-sheet .settings-menu-list > button.settings-menu-row {
+#settings-menu-sheet .settings-menu-list > button.settings-menu-row,
+#info-full-panel #tool-home-page .tool-menu-list > button.tool-menu-row,
+#settings-menu-sheet #settings-admin-panel .admin-section-menu > button[data-admin-section] {
   grid-template-columns: minmax(0, 1fr) auto !important;
   gap: 12px !important;
   width: calc(100% - 28px) !important;
@@ -151,13 +197,55 @@ html[data-resolved-theme="light"] #settings-menu-sheet {
   letter-spacing: 0 !important;
 }
 
-#settings-menu-sheet .settings-menu-list > button.settings-menu-row > span:first-child {
+/* A minimum alone lets grid rows grow. Fix both single-line menus to the
+   same outer height, including padding and borders. Tool cards stay flexible. */
+#settings-menu-sheet .settings-menu-list > button.settings-menu-row,
+#settings-menu-sheet #settings-admin-panel .admin-section-menu > button[data-admin-section] {
+  box-sizing: border-box !important;
+  height: 56px !important;
+  max-height: 56px !important;
+  flex-shrink: 0;
+  align-self: start;
+}
+
+#settings-menu-sheet .settings-menu-list > button.settings-menu-row > span:first-child,
+#info-full-panel #tool-home-page .tool-menu-row > span {
   color: var(--settings-menu-card-text) !important;
 }
 
-#settings-menu-sheet .settings-menu-list > button.settings-menu-row:focus-visible {
+#settings-menu-sheet .settings-menu-list > button.settings-menu-row:focus-visible,
+#info-full-panel #tool-home-page .tool-menu-row:focus-visible {
   outline: 2px solid var(--app-glass-selected) !important;
   outline-offset: 2px;
+}
+
+#info-full-panel #tool-home-page .tool-menu-list {
+  gap: 0 !important;
+  padding: 10px 0 0 !important;
+}
+
+#info-full-panel #tool-home-page .tool-menu-row {
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+#info-full-panel #tool-home-page .tool-menu-copy,
+#info-full-panel #tool-home-page .tool-menu-copy strong {
+  color: inherit !important;
+  font-size: inherit !important;
+  font-weight: inherit !important;
+}
+
+/* Keep administrator rows separated while using the shared menu sizing. */
+#settings-menu-sheet #settings-admin-panel .admin-section-menu {
+  gap: 10px !important;
+  align-content: start;
+  grid-auto-rows: max-content;
+}
+
+#settings-menu-sheet #settings-admin-panel .admin-section-menu > button[data-admin-section] {
+  margin: 0 14px !important;
 }
 
 /* Learning uses a single moving lens underneath the two labels. */
@@ -349,6 +437,7 @@ html .settings-menu-sheet #community-account-panel .community-profile-card.is-em
   .sheet-speech-toggle strong { color: inherit !important; }
 
   .liquid-glass-action { cursor: pointer; }
+  input.liquid-glass-action[type="search"] { cursor: text; }
   .liquid-glass-action > span { color: inherit !important; }
 
   .liquid-glass-action:has(> input:focus-visible) {
@@ -415,9 +504,11 @@ html .settings-menu-sheet #community-account-panel .community-profile-card.is-em
   }
 }
 
-/* The result header uses a bare chevron with its existing 40px hit area. */
+/* Result and search headers use bare chevrons with their existing hit areas. */
 @layer app-glass-controls {
-  [data-simulation-result-back] {
+  [data-simulation-result-back],
+  #history-full-panel .tool-page-back,
+  #tool-station-page .tool-page-back {
     --app-control-radius: 0;
     border: 0 !important;
     background: transparent !important;
@@ -426,13 +517,15 @@ html .settings-menu-sheet #community-account-panel .community-profile-card.is-em
     backdrop-filter: none !important;
   }
 
-  [data-simulation-result-back]:focus-visible {
+  [data-simulation-result-back]:focus-visible,
+  #history-full-panel .tool-page-back:focus-visible,
+  #tool-station-page .tool-page-back:focus-visible {
     outline: 2px solid currentColor !important;
     outline-offset: -2px;
   }
 }
 
-:is(#simulation-start, #simulation-result, #community-post-button) {
+:is(#simulation-start, #simulation-result, #community-post-button, [data-location-permission-allow]) {
   --glass-control-surface: color-mix(in srgb, var(--app-glass-surface) 78%, #0891b2 22%);
   --glass-control-text: var(--app-glass-selected);
 }

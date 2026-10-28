@@ -1,4 +1,4 @@
-const CACHE_NAME = "we-simulator-pwa-ae62126f9e55";
+const CACHE_NAME = "we-simulator-pwa-739a778e5354";
 const PUSH_METADATA_CACHE_NAME = "we-simulator-push-metadata";
 const LOCAL_DEV_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
 const IS_LOCAL_DEV = isLocalDevelopmentHostname(new URL(self.location.href).hostname);
@@ -10,17 +10,17 @@ const NOTIFICATION_HISTORY_RETENTION_DAYS = 30;
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./manifest.webmanifest?v=ae62126f9e55",
-  "./favicon.png?v=ae62126f9e55",
-  "./apple-touch-icon.png?v=ae62126f9e55",
-  "./styles.css?v=ae62126f9e55",
-  "./bottom-navigation.css?v=ae62126f9e55",
-  "./interface-appearance.css?v=ae62126f9e55",
-  "./vendor/pmtiles.js?v=ae62126f9e55",
-  "./liquid-glass.js?v=ae62126f9e55",
-  "./earthquake-model.js?v=ae62126f9e55",
-  "./app.js?v=ae62126f9e55",
-  "./bottom-navigation.js?v=ae62126f9e55",
+  "./manifest.webmanifest?v=739a778e5354",
+  "./favicon.png?v=739a778e5354",
+  "./apple-touch-icon.png?v=739a778e5354",
+  "./styles.css?v=739a778e5354",
+  "./bottom-navigation.css?v=739a778e5354",
+  "./interface-appearance.css?v=739a778e5354",
+  "./vendor/pmtiles.js?v=739a778e5354",
+  "./liquid-glass.js?v=739a778e5354",
+  "./earthquake-model.js?v=739a778e5354",
+  "./app.js?v=739a778e5354",
+  "./bottom-navigation.js?v=739a778e5354",
   "./push-config.json"
 ];
 const APP_SHELL_PATHS = new Set(APP_SHELL.map((asset) => new URL(asset, self.location.href).pathname));
