@@ -83,6 +83,15 @@ html[data-resolved-theme="light"] {
   opacity: 0.8;
 }
 
+/* Keep the post settings background free of dark scrims and shadows. */
+#community-post-overlay {
+  background: transparent !important;
+}
+
+#community-post-overlay .community-post-sheet {
+  box-shadow: none !important;
+}
+
 /* Match the custom tag entry controls to the permanent optional tag chips. */
 .community-post-optional-tag-section {
   --community-optional-tag-height: 32px;
