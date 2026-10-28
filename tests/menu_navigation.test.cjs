@@ -35,7 +35,7 @@ function fixture({ reducedMotion = false } = {}) {
   }
   const context = vm.createContext({ Element, menuPageTransitions: new WeakMap(),
     window: { matchMedia: () => ({ matches: reducedMotion }) } });
-  for (const name of ["resetPageScrollPosition", "cancelMenuPageSlide", "slideMenuPage", "hidePageAndResetScroll",
+  for (const name of ["resetPageScrollPosition", "setMenuUnderlayCovered", "cancelMenuPageSlide", "slideMenuPage", "hidePageAndResetScroll",
     "closeCommunityAccountScreen"]) {
     const index = declarations.findIndex(match => match[1] === name);
     vm.runInContext(source.slice(declarations[index].index, declarations[index + 1].index), context);
@@ -137,7 +137,7 @@ test("settings details leave the menu scroll coordinates and Back reveals the ex
   const prepareStart = source.indexOf("  const prepareSettingsDetailPanel =", start);
   vm.runInContext(source.slice(start, prepareStart), context);
   const openStart = source.indexOf("  const openSettingsDetailPanel =", prepareStart);
-  const openEnd = source.indexOf('\n  els.settingsMenuSheet?.addEventListener("pointerdown"', openStart);
+  const openEnd = source.indexOf("\n  setSettingsRowLabels();", openStart);
   vm.runInContext(source.slice(openStart, openEnd), context);
   context.page = page;
   context.button = button;
@@ -167,6 +167,40 @@ test("menu descendants cannot escape above sibling detail pages with their posit
   assert.match(group[1], /isolation:\s*isolate\s*!important/);
 });
 
+test("covering a parent preserves its scroll, form values and selections without removing its layout", () => {
+  const { context, Element } = fixture();
+  const parent = new Element();
+  const content = new Element();
+  const form = new Element();
+  form.value = "unfinished feedback";
+  form.selectedIndex = 2;
+  parent.children.push(content, form);
+  context.setMenuUnderlayCovered(parent, true);
+  assert.equal(parent.classList.contains("hidden"), false);
+  assert.equal(parent.inert, true);
+  assert.equal(parent.scrollTop, 150);
+  assert.equal(content.scrollTop, 150);
+  context.setMenuUnderlayCovered(parent, false);
+  assert.equal(parent.inert, false);
+  assert.equal(parent.scrollTop, 150);
+  assert.equal(content.scrollTop, 150);
+  assert.equal(form.value, "unfinished feedback");
+  assert.equal(form.selectedIndex, 2);
+});
+
+test("submenu scroll bodies have a bounded height and the embedded admin overlay permits vertical touch", () => {
+  const css = fs.readFileSync(path.join(__dirname, "../web/interface-appearance.css"), "utf8");
+  const body = css.match(/#settings-menu-sheet \.settings-detail-panel > :is\([\s\S]*?\)\s*,[\s\S]*?#info-full-panel \.weather-quiz-content\s*\{([^}]+)\}/);
+  assert.ok(body);
+  assert.match(body[1], /height:\s*100%\s*!important/);
+  assert.match(body[1], /min-height:\s*0\s*!important/);
+  assert.match(body[1], /overflow-y:\s*auto\s*!important/);
+  const admin = css.match(/#settings-menu-sheet #settings-admin-panel \.settings-admin-embedded,\s*#settings-menu-sheet #settings-admin-panel \.admin-mode-dialog\s*\{([^}]+)\}/);
+  assert.ok(admin);
+  assert.match(admin[1], /touch-action:\s*pan-y\s*!important/,
+    "A child scrollport cannot restore panning blocked by the old overlay ancestor");
+});
+
 test("epicenter search exposes the map instead of the Tools home, and late loading cannot reopen it after Back", async () => {
   const { context, Element } = fixture();
   const info = new Element();
@@ -188,7 +222,7 @@ test("epicenter search exposes the map instead of the Tools home, and late loadi
     ensureHistoryFullPanel: () => history, renderPastEarthquakeStatsPanel: noop,
     loadLocalAreas: () => areas, loadEpicenterAreas: () => Promise.resolve(), console,
     setHistoryMapModeActive(active) {
-      if (active) assert.equal(info.classList.contains("hidden"), true, "The opaque menu must not cover the map");
+      if (active) assert.equal(info.classList.contains("menu-underlay-covered"), true, "The opaque menu must not cover the map");
       mapChanges.push(active);
     },
   });
@@ -199,11 +233,13 @@ test("epicenter search exposes the map instead of the Tools home, and late loadi
   const openEnd = source.indexOf("\n  const openInfoStationSearchPage =", openStart);
   vm.runInContext(source.slice(openStart, openEnd), context);
   vm.runInContext("openInfoSourceSearchPage()", context);
-  assert.equal(info.classList.contains("hidden"), true);
+  assert.equal(info.classList.contains("menu-underlay-covered"), true);
+  assert.equal(info.classList.contains("hidden"), false, "The parent must retain layout and scroll offsets");
   assert.equal(info.scrollTop, 150);
   assert.equal(history.classList.contains("hidden"), false);
   vm.runInContext("showInfoToolHome()", context);
   assert.equal(info.classList.contains("hidden"), false, "Back must reveal the previous screen immediately");
+  assert.equal(info.classList.contains("menu-underlay-covered"), false);
   assert.equal(home.classList.contains("hidden"), false);
   history.animations.at(-1).finish();
   assert.equal(history.classList.contains("hidden"), true);
@@ -239,9 +275,10 @@ test("administrator Back restores the scrolled menu before the nested page finis
     menu.scrollTop = 430 + index * 50;
     rows[pages[index].dataset.adminSectionPage].listeners.click();
     pages[index].animations.at(-1).finish();
-    assert.equal(menu.classList.contains("hidden"), true);
-    backs[index].listeners.click();
+    assert.equal(menu.classList.contains("menu-underlay-covered"), true);
     assert.equal(menu.classList.contains("hidden"), false);
+    backs[index].listeners.click();
+    assert.equal(menu.classList.contains("menu-underlay-covered"), false);
     assert.equal(menu.scrollTop, 430 + index * 50);
     pages[index].animations.at(-1).finish();
     assert.equal(pages[index].classList.contains("hidden"), true);

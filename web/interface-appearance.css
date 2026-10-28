@@ -23,6 +23,10 @@ html[data-resolved-theme="light"] {
 /* Submenus cover their parent with an opaque page. Only the short-lived Web
    Animation translates them; resting scroll containers have no transform. */
 @layer app-menu-navigation {
+  [data-menu-back-swipe] {
+    touch-action: pan-y !important;
+  }
+
   /* Menu rows have their own positive z-index. Keep those descendants below
      sibling detail pages, including throughout the slide animation. */
   #settings-menu-sheet > .settings-menu-list,
@@ -32,9 +36,43 @@ html[data-resolved-theme="light"] {
     isolation: isolate !important;
   }
 
-  #settings-menu-sheet > .settings-menu-list.menu-underlay-covered {
+  #settings-menu-sheet .menu-underlay-covered,
+  #info-full-panel.menu-underlay-covered,
+  #info-full-panel .menu-underlay-covered {
+    opacity: 0 !important;
     visibility: hidden !important;
     pointer-events: none !important;
+  }
+
+  /* Give each body the remaining, definite grid height. Content must scroll
+     inside that body rather than grow past a frame whose overflow is hidden. */
+  #settings-menu-sheet > .settings-detail-panel:not(.hidden) {
+    display: grid !important;
+    grid-template-rows: 48px minmax(0, 1fr) !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  #settings-menu-sheet .settings-detail-panel > :is(
+    .source-info-overlay-content, .settings-feedback-form,
+    .push-confirm-panel:not([data-push-panel="history"]), .settings-appearance-content
+  ),
+  #settings-menu-sheet .community-account-screen-content,
+  #settings-menu-sheet .admin-section-body,
+  #settings-menu-sheet .push-history-list,
+  #info-full-panel .station-info-list,
+  #info-full-panel .weather-quiz-content {
+    box-sizing: border-box !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: 100% !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    touch-action: pan-y !important;
+  }
+
+  #settings-menu-sheet .settings-detail-panel > .source-info-overlay-content {
+    contain: none !important;
   }
 
   #info-full-panel :is(.tool-station-page, .tool-weather-quiz-page) {
@@ -105,6 +143,7 @@ html[data-resolved-theme="light"] {
   #settings-menu-sheet #settings-admin-panel .admin-mode-dialog {
     position: static !important;
     transform: none !important;
+    touch-action: pan-y !important;
     box-sizing: border-box !important;
     height: 100% !important;
     max-height: 100% !important;

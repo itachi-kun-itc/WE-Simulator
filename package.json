@@ -23,7 +23,7 @@
     "check:encoding": "node scripts/check_text_encoding.js",
     "check:glass": "node --test tests/liquid_glass.test.cjs",
     "check:cache": "node --test tests/app_cache.test.cjs",
-    "check:startup": "node --test tests/startup_ui.test.cjs tests/page_navigation.test.cjs tests/menu_navigation.test.cjs",
+    "check:startup": "node --test tests/startup_ui.test.cjs tests/page_navigation.test.cjs tests/menu_navigation.test.cjs tests/menu_swipe.test.cjs",
     "check:earthquake": "node --test tests/earthquake_model.test.cjs tests/earthquake_integration.test.cjs",
     "audit:earthquake": "node scripts/audit_earthquake_model.js",
     "check:app": "npm run check:encoding && node --check web/app.js && node --check web/earthquake-model.js && node --check web/liquid-glass.js && node --check web/bottom-navigation.js && node --check web/sw.js && npm run check:glass && npm run check:cache && npm run check:startup && npm run check:earthquake",
