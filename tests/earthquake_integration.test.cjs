@@ -60,6 +60,26 @@ test("M9 point preview sends physical source distance and the point-source polic
     ruptureDistanceKm: Math.hypot(200, 10), velocityAmplification: 2, sourceModel: "point" }).displayIntensity);
 });
 
+test("M9 and M9.9 keep distinct values above 7 while both use JMA class 7", () => {
+  const { context: c, state } = harness(["estimateIntensityAtPoint", "isGroundMotionPredictionAvailable", "toJmaIntensityClass"], {
+    getGroundModelAt: () => model.siteParameters({ arv: 4 }),
+  });
+  Object.assign(state, { magnitude: 9, magnitudeType: "Mw" });
+  const m9 = c.estimateIntensityAtPoint(135, 35, 0);
+  state.magnitude = 9.9;
+  const m99 = c.estimateIntensityAtPoint(135, 35, 0);
+  const expected = model.predict({ magnitude: 9.9, depthKm: 10, ruptureDistanceKm: 10,
+    velocityAmplification: 4, sourceModel: "point" });
+  assert.ok(m9 > 7);
+  assert.ok(m99 > m9);
+  assert.equal(m99, expected.instrumentalIntensity);
+  assert.equal(c.toJmaIntensityClass(m9).rank, 9);
+  assert.equal(c.toJmaIntensityClass(m99).rank, 9);
+  state.sourceModel = "fault";
+  const fault = c.estimateIntensityAtPoint(135, 35, null, { ruptureDistanceKm: 10 });
+  assert.ok(fault > 7, "Finite-fault predictions must not be clipped at 7 either");
+});
+
 test("rectangular geometry changes peak distances when width and dip change", () => {
   const { context: c, controls } = harness(["toRadians", "toLocalKilometers", "getFaultShakingDistanceKm"]);
   controls.set("#fault-width-input", 10);
@@ -159,6 +179,17 @@ test("station prediction keeps a just-below-threshold value through serialisatio
   assert.equal(properties.predictedIntensityValue, 4.49999);
   assert.equal(properties.predictedIntensityRank, 4);
   assert.equal(c.toJmaIntensityClass(properties.predictedIntensityValue).rank, 4);
+});
+
+test("station and regional peaks retain values above 7 through serialisation", () => {
+  const { context: c } = stationHarness({ estimateIntensityAtPoint: () => 7.45327 });
+  const features = JSON.parse(JSON.stringify(c.buildStationIntensityFeatures(stationData)));
+  assert.equal(features[0].properties.predictedIntensityValue, 7.45327);
+  assert.equal(features[0].properties.predictedIntensityRank, 9);
+  const { context: regions } = harness(["getLocalAreaStationSnapshot"], {
+    localAreaStationSnapshotCache: null, getLocalAreaStationMembership: () => [["a"]],
+  });
+  assert.equal(regions.getLocalAreaStationSnapshot({}, features).predictedMaxValues[0], 7.45327);
 });
 
 test("deep-event replay uses its observations instead of the unavailable prediction", () => {

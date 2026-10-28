@@ -1249,7 +1249,7 @@ function setupTabs() {
     panel.setAttribute("aria-label", "過去の地震");
     panel.innerHTML = `
       <div class="history-stats-toolbar">
-        <input id="history-area-filter" type="search" inputmode="search" autocomplete="off" list="history-area-suggestions" placeholder="細分区域・震源地を検索" aria-label="過去の地震回数を検索" />
+        <input class="liquid-glass-action" id="history-area-filter" type="search" inputmode="search" autocomplete="off" list="history-area-suggestions" placeholder="細分区域・震源地を検索" aria-label="過去の地震回数を検索" />
         <datalist id="history-area-suggestions"></datalist>
       </div>
       <div class="history-stats-list" id="history-stats-list" role="list"></div>
@@ -1271,10 +1271,10 @@ function setupTabs() {
     const row = document.createElement("div");
     row.className = "history-stats-sort-row";
     row.innerHTML = `
-      <label><span>期間</span><select id="history-start-year" aria-label="開始年"></select></label>
+      <label><span>期間</span><select class="liquid-glass-action" id="history-start-year" aria-label="開始年"></select></label>
       <span aria-hidden="true">〜</span>
-      <label><select id="history-end-year" aria-label="終了年"></select></label>
-      <button id="history-statistics-load" type="button">取得</button>
+      <label><select class="liquid-glass-action" id="history-end-year" aria-label="終了年"></select></label>
+      <button class="liquid-glass-action" id="history-statistics-load" type="button">取得</button>
     `;
     toolbar.append(row);
     const startSelect = row.querySelector("#history-start-year");
@@ -1361,8 +1361,8 @@ function setupTabs() {
         <h2>取得範囲が大きいです</h2>
         <p>${Math.min(startYear, endYear)}年〜${Math.max(startYear, endYear)}年の統計を取得します。期間が長いほど通信容量が大きくなります。</p>
         <div class="statistics-confirm-actions">
-          <button type="button" data-statistics-confirm-back>戻る</button>
-          <button type="button" data-statistics-confirm-continue>続行</button>
+          <button class="liquid-glass-action" type="button" data-statistics-confirm-back>戻る</button>
+          <button class="liquid-glass-action" type="button" data-statistics-confirm-continue>続行</button>
         </div>
       </section>
     `;
@@ -1690,7 +1690,7 @@ function setupTabs() {
       return;
     }
     panel.innerHTML = values
-      .map((value) => `<button type="button" data-station-suggestion="${escapeHtml(value)}">${escapeHtml(value)}</button>`)
+      .map((value) => `<button class="liquid-glass-action" type="button" data-station-suggestion="${escapeHtml(value)}">${escapeHtml(value)}</button>`)
       .join("");
     panel.classList.remove("hidden");
   };
@@ -3044,7 +3044,7 @@ function setupTabs() {
     stationHost.innerHTML = `
       <div class="station-info-toolbar">
         <div class="station-info-search-wrap">
-          <input id="station-info-filter" type="search" inputmode="search" autocomplete="off" placeholder="観測点名・地域・機関で検索" aria-label="観測点を検索" />
+          <input class="liquid-glass-action" id="station-info-filter" type="search" inputmode="search" autocomplete="off" placeholder="観測点名・地域・機関で検索" aria-label="観測点を検索" />
           <div class="station-info-suggestions hidden" id="station-info-suggestions"></div>
         </div>
         <span id="station-info-count">-</span>
@@ -3055,10 +3055,12 @@ function setupTabs() {
     if (toolbar && !toolbar.querySelector("#station-info-region")) {
       const regionSelect = document.createElement("select");
       regionSelect.id = "station-info-region";
+      regionSelect.classList.add("liquid-glass-action");
       regionSelect.setAttribute("aria-label", "都道府県");
       regionSelect.setAttribute("aria-label", "都道府県・海域を選択");
       const affiliationSelect = document.createElement("select");
       affiliationSelect.id = "station-info-affiliation";
+      affiliationSelect.classList.add("liquid-glass-action");
       affiliationSelect.setAttribute("aria-label", "機関で絞り込み");
       affiliationSelect.innerHTML = `
         <option value="">すべての機関</option>
@@ -16627,8 +16629,8 @@ function showStartupLocationPermissionPrompt(permissionState = "prompt") {
         <p>現在地をシミュレーションマップと投稿マップに表示します。現在地を震源地として設定することはありません。</p>
         <p class="startup-location-permission-status" aria-live="polite"></p>
         <div class="startup-location-permission-actions">
-          <button type="button" data-location-permission-later>後で</button>
-          <button type="button" data-location-permission-allow>位置情報を許可</button>
+          <button class="liquid-glass-action" type="button" data-location-permission-later>後で</button>
+          <button class="liquid-glass-action" type="button" data-location-permission-allow>位置情報を許可</button>
         </div>
       </section>
     `;
@@ -22593,13 +22595,16 @@ function estimateIntensityAtPoint(
       epicentralDistanceKm, depthKm: state.depthKm,
     });
   }
-  return GROUND_MOTION_MODEL.predict({
+  const prediction = GROUND_MOTION_MODEL.predict({
     magnitude: state.magnitude, magnitudeType: state.magnitudeType,
     depthKm: state.depthKm, ruptureDistanceKm,
     earthquakeType: state.earthquakeType,
     sourceModel: isFaultSimulationActive() ? "finite-fault" : "point",
     velocityAmplification: site.velocityAmplification, referenceVs: site.referenceVs,
-  }).displayIntensity ?? 0;
+  });
+  // Class 7 has no upper bound. Keep the continuous prediction through the
+  // station/area calculations and wave animation instead of flattening it at 7.
+  return Math.max(prediction.instrumentalIntensity ?? 0, 0);
 }
 
 function isGroundMotionPredictionAvailable() {
@@ -22617,9 +22622,12 @@ function syncGroundMotionControls() {
   const sourceNote = isFaultSimulationActive()
     ? mw > 8.3 ? "断層モデルではMw8.3超の振幅を頭打ちとして計算。" : ""
     : mw > 8.2 ? "点震源の参考計算です。巨大地震の震源域の広がりは断層モードで設定してください。" : "";
+  const highMagnitudeNote = mw > 8.2
+    ? "Mw8.2超は元データの範囲外です。計算値6.5以上は同じ「震度7」の色で表示します。"
+    : "";
   const note = !isGroundMotionPredictionAvailable()
     ? "深さ150km超は震度推定の対象外です。過去地震の観測震度は再生できます。"
-    : `${sourceNote}小規模地震・深さ50km超・遠方・震度4未満などは適用範囲外の参考値です。計算法は設定の「出典」を参照。`;
+    : `${sourceNote}${highMagnitudeNote}小規模地震・深さ50km超・遠方・震度4未満などは適用範囲外の参考値です。計算法は設定の「出典」を参照。`;
   document.querySelectorAll("[data-ground-motion-note]").forEach((element) => {
     element.textContent = note;
   });

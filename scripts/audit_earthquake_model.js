@@ -66,7 +66,7 @@ const lines = [
   "断層距離モデルのMw、深さ10km、地殻内、ARV400=1。列は震央距離ではなく断層最短距離。各セルは連続震度推定値／震度階級。", "",
   "| Mw | 10km | 30km | 100km | 200km |", "| --- | --- | --- | --- | --- |",
 ];
-for (const magnitude of [4, 5, 6, 7, 8, 8.3, 9]) {
+for (const magnitude of [4, 5, 6, 7, 8, 8.3, 9, 9.9]) {
   const cells = [10, 30, 100, 200].map((ruptureDistanceKm) => {
     const prediction = model.predict({ magnitude, depthKm: 10, ruptureDistanceKm });
     return `${prediction.instrumentalIntensity.toFixed(2)}／${labels[prediction.intensityRank]}`;
@@ -86,6 +86,22 @@ for (const epicentralDistanceKm of [0, 10, 50, 100, 150, 200, 250, 300]) {
   lines.push(`| ${epicentralDistanceKm} | ${oldDistance.toFixed(1)} | ${pointDistance.toFixed(1)} | ${previous.instrumentalIntensity.toFixed(3)} | ${current.instrumentalIntensity.toFixed(3)} |`);
 }
 lines.push("", "同じ地盤では震央からの距離に応じて減衰する。異なる地盤では遠方の地点が近傍より強くなる場合があり、その差は維持する。M9の点震源は外挿による参考値で、実際の巨大地震の震源域は断層モードで表す。", "",
+  "## Mw9.9と対数スケールの確認", "",
+  "Mw差からの地震モーメント比は10^(1.5ΔMw)。Mw9→9.9は約22.4倍だが、同じ地点の最大速度や震度が22.4倍になるという意味ではない。", "",
+  "深さ10km、地殻内、ARV400=4。距離は式に入力する点震源距離／断層距離。計算値は7.0で切り詰めない。Mw8.2超は元データ範囲外の参考外挿であり、以下の値は現実のM9.9の妥当性確認ではない。", "",
+  "| モード | Mw | 地震モーメント比（Mw9比） | 距離10km | 距離100km | 距離200km |", "| --- | --- | --- | --- | --- | --- |",
+);
+for (const sourceModel of ["point", "finite-fault"]) {
+  for (const magnitude of [9, 9.9]) {
+    const cells = [10, 100, 200].map((ruptureDistanceKm) => {
+      const p = model.predict({ magnitude, depthKm: 10, ruptureDistanceKm, sourceModel, velocityAmplification: 4 });
+      return `${p.instrumentalIntensity.toFixed(3)}／${labels[p.intensityRank]}`;
+    });
+    lines.push(`| ${sourceModel === "point" ? "通常・点震源" : "断層距離"} | ${magnitude} | ${(10 ** (1.5 * (magnitude - 9))).toFixed(2)} | ${cells.join(" | ")} |`);
+  }
+}
+lines.push("", "断層距離モデルは振幅項のMw8.3上限を維持する。Mだけ変更しても矩形の長さ・幅やプリセットの破壊域は自動拡大しない。地震モーメント比を地点の最大速度へ直接掛ける変更はしない。推定値6.5以上はすべて同じ震度7として表示する。", "",
+  "根拠: [USGS: Mwと地震モーメント・断層面積](https://earthquake.usgs.gov/data/finitefault/)、[気象庁: 震度階級](https://www.jma.go.jp/jma/kishou/know/jishin/kyoshin/kaisetsu/calc_sindo.html)、[司ほか(2016): 断層距離による巨大地震の振幅飽和](https://www.jstage.jst.go.jp/article/jaee/16/1/16_1_96/_article/-char/ja/)。", "",
   "## 観測値を直接計算に使わない比較", "",
   `[気象庁の計測震度・震央距離（表3-1）](${event.observationsSource}) と [防災科研の比較用矩形モデル](${event.faultSource})を使用。`, "",
   "能登半島地震の強震12地点を選んだ診断例。現行観測点リストの座標と1km集約地盤を使用しており、当時の設置位置・観測点補正係数は再現していない。旧値も同じ矩形中心線・地盤による旧式の局所平面近似であり、過去版全体の再実行ではない。", "",
