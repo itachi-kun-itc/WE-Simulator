@@ -1,7 +1,5 @@
 /* Floating navigation: one glass surface and one spring-driven selection lens. */
-:root {
-  --bottom-nav-height: 88px !important;
-}
+/* Initial layout lives in index.html so it is available before script loading. */
 
 html .bottom-tabs.liquid-glass-nav {
   --glass-tint: rgba(26, 34, 47, 0.64);
@@ -9,15 +7,6 @@ html .bottom-tabs.liquid-glass-nav {
   --glass-text: #d7e0ec;
   --glass-active: #8cdcff;
   --glass-lens: rgba(208, 235, 255, 0.14);
-  position: fixed !important;
-  inset: auto 0 calc(10px + env(safe-area-inset-bottom)) !important;
-  width: calc(100% - 24px) !important;
-  max-width: 680px !important;
-  height: 68px !important;
-  min-height: 0 !important;
-  margin: 0 auto !important;
-  padding: 5px !important;
-  gap: 2px !important;
   border: 1px solid var(--glass-edge) !important;
   border-radius: 36px !important;
   background: linear-gradient(160deg, rgba(255,255,255,0.15), transparent 44%, rgba(255,255,255,0.045)), var(--glass-tint) !important;
@@ -68,13 +57,6 @@ html .bottom-tabs.liquid-glass-nav .tab {
   position: relative !important;
   z-index: 1;
   width: 100% !important;
-  min-width: 0 !important;
-  min-height: 44px !important;
-  margin: 0 !important;
-  padding: 4px 0 !important;
-  grid-template-rows: 27px auto !important;
-  align-content: center !important;
-  gap: 3px !important;
   border: 0 !important;
   border-radius: 29px !important;
   background: transparent !important;

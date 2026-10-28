@@ -20,9 +20,155 @@ html[data-resolved-theme="light"] {
   --app-glass-shadow: rgba(30, 53, 80, 0.14);
 }
 
+/* Submenus cover their parent with an opaque page. Only the short-lived Web
+   Animation translates them; resting scroll containers have no transform. */
+@layer app-menu-navigation {
+  #info-full-panel :is(.tool-station-page, .tool-weather-quiz-page) {
+    position: absolute !important;
+    inset: 0 !important;
+    z-index: 2;
+    height: 100% !important;
+    box-sizing: border-box;
+  }
+
+  #info-full-panel .tool-station-page {
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  body.tool-source-search-mode #history-full-panel {
+    z-index: 2401 !important;
+    background: #0a0e16 !important;
+  }
+
+  html[data-resolved-theme="light"] body.tool-source-search-mode #history-full-panel {
+    background: #f4f7fa !important;
+  }
+
+  #settings-menu-sheet .settings-detail-panel,
+  #settings-menu-sheet .community-account-screen,
+  #settings-menu-sheet .admin-section-page {
+    transform: none !important;
+    transition: none !important;
+    border-radius: 0 !important;
+    background: #0a0e16 !important;
+    isolation: isolate;
+  }
+
+  #settings-menu-sheet .community-account-screen {
+    top: max(8px, env(safe-area-inset-top)) !important;
+    bottom: 0 !important;
+    height: auto !important;
+  }
+
+  html[data-resolved-theme="light"] #settings-menu-sheet :is(
+    .settings-detail-panel, .community-account-screen, .admin-section-page
+  ) {
+    background: #f4f7fa !important;
+  }
+
+  #settings-menu-sheet.settings-detail-open :is(
+    .settings-notification-card, .settings-menu-row
+  ) {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+    pointer-events: none !important;
+  }
+
+  .menu-page-sliding {
+    will-change: translate;
+    pointer-events: none !important;
+  }
+
+  #settings-menu-sheet .settings-menu-list,
+  #settings-menu-sheet .settings-admin-embedded {
+    overflow-x: clip !important;
+  }
+
+  #settings-menu-sheet #settings-admin-panel .settings-admin-embedded,
+  #settings-menu-sheet #settings-admin-panel .admin-mode-dialog {
+    position: static !important;
+    transform: none !important;
+    box-sizing: border-box !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+
+  #settings-menu-sheet #settings-admin-panel .admin-mode-dialog {
+    display: block !important;
+  }
+
+  /* The nested page covers the header too. Keeping the parent's header in
+     layout makes Back reveal the same menu immediately without a 48px jump. */
+  #settings-menu-sheet #settings-admin-panel.admin-subpage-open > .settings-detail-head {
+    display: grid !important;
+  }
+
+  #settings-menu-sheet #settings-admin-panel .admin-section-menu {
+    box-sizing: border-box !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    touch-action: pan-y !important;
+    padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 18px) !important;
+    scroll-padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 18px) !important;
+  }
+
+  #settings-menu-sheet #settings-admin-panel .admin-section-page {
+    position: absolute !important;
+    inset: 0 !important;
+    z-index: 3;
+    height: 100% !important;
+    overflow: hidden !important;
+  }
+
+  #settings-menu-sheet #settings-admin-panel .admin-section-body {
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    touch-action: pan-y !important;
+    padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 18px) !important;
+  }
+}
+
 /* Full pages continue behind the floating navigation. Keep the navigation
    height token intact: map actions and pull-up sheets still use that offset. */
 @layer app-page-layout {
+  /* A hidden page must leave rendering immediately, including when an older
+     component rule sets display with higher selector specificity. */
+  #settings-menu-sheet.hidden,
+  #history-full-panel.hidden,
+  #info-full-panel.hidden,
+  #learning-full-panel.hidden,
+  #info-full-panel .tool-home-page.hidden,
+  #info-full-panel .tool-station-page.hidden,
+  #info-full-panel .tool-weather-quiz-page.hidden,
+  #learning-full-panel .learning-category-panel.hidden,
+  #settings-menu-sheet .settings-inline-panel.hidden,
+  body[data-active-bottom-tab]:not([data-active-bottom-tab="earthquake-tab"]) #setup-panel,
+  body:not([data-active-bottom-tab="bottom-learning-tab"]) #learning-full-panel,
+  body:not([data-active-bottom-tab="bottom-info-tab"]) #info-full-panel,
+  body:not([data-active-bottom-tab="bottom-history-tab"]):not([data-active-bottom-tab="bottom-info-tab"].tool-source-search-mode) #history-full-panel,
+  body:not([data-active-bottom-tab="bottom-settings-tab"]) #settings-menu-sheet {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+
+  /* Bottom-tab pages replace one another without page entry/exit overlap. */
+  #settings-menu-sheet,
+  #history-full-panel,
+  #info-full-panel,
+  #learning-full-panel {
+    transition: none !important;
+    animation: none !important;
+  }
+
   /* Containment alone still allows elastic scrolling at the page edges. */
   #settings-menu-sheet,
   #settings-menu-sheet *,
@@ -81,7 +227,7 @@ html[data-resolved-theme="light"] {
   }
 
   body :where(
-    .settings-menu-row, .tool-menu-row, .learning-menu-row,
+    .settings-menu-row, .admin-menu-row, .tool-menu-row, .learning-menu-row,
     .settings-theme-options label, .settings-section, .toggle-row,
     .settings-status-card, .settings-notification-card, .settings-appearance-section,
     .community-profile-card, .community-account-required-card, .community-post-card,
@@ -176,9 +322,18 @@ html[data-resolved-theme="light"] #tool-home-page {
 
 #settings-menu-sheet .settings-status-card,
 #settings-menu-sheet .settings-menu-list > button.settings-menu-row,
+#settings-menu-sheet .admin-section-menu > button.admin-menu-row,
 #info-full-panel #tool-home-page .tool-menu-list > button.tool-menu-row {
   border: 1px solid var(--settings-menu-card-border) !important;
   background: var(--settings-menu-card-background) !important;
+}
+
+#settings-menu-sheet .admin-section-menu > button.admin-menu-row {
+  display: grid;
+  align-items: center;
+  text-align: left;
+  color: var(--settings-menu-card-text) !important;
+  box-shadow: none;
 }
 
 #settings-menu-sheet .settings-status-group {
@@ -216,6 +371,7 @@ html[data-resolved-theme="light"] #tool-home-page {
 }
 
 #settings-menu-sheet .settings-menu-list > button.settings-menu-row:focus-visible,
+#settings-menu-sheet .admin-section-menu > button.admin-menu-row:focus-visible,
 #info-full-panel #tool-home-page .tool-menu-row:focus-visible {
   outline: 2px solid var(--app-glass-selected) !important;
   outline-offset: 2px;
@@ -552,6 +708,21 @@ html .settings-menu-sheet #community-account-panel .community-profile-card.is-em
 }
 
 html[data-resolved-theme="light"] #simulation-stop { --glass-control-text: #a32035; }
+
+/* Keep the existing action colours on the shared glass material. */
+.admin-mode-maintenance {
+  --glass-control-surface: #e11d48;
+}
+
+.feedback-submit {
+  --glass-control-surface: #e60033;
+}
+
+.admin-mode-maintenance,
+.feedback-submit {
+  --glass-control-text: #ffffff;
+  --glass-control-edge: rgba(255, 255, 255, 0.22);
+}
 
 /* Keep state and destructive-action colours on the shared glass material. */
 :is(#settings-push-status, #settings-location-status)[data-state="on"],
