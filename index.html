@@ -49,15 +49,50 @@
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta name="twitter:image" content="https://itachi-kun-itc.github.io/WE-Simulator/og-image.png" />
-    <link rel="manifest" href="./manifest.webmanifest?v=f138b7622f9b" />
-    <link rel="icon" type="image/png" sizes="32x32" href="./favicon.png?v=f138b7622f9b" />
-    <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=f138b7622f9b" />
+    <link rel="manifest" href="./manifest.webmanifest?v=1c11840ec710" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./favicon.png?v=1c11840ec710" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=1c11840ec710" />
     <link rel="preconnect" href="https://we-simulator-push.h6fgpg2zht.workers.dev" crossorigin />
     <link rel="preconnect" href="https://unpkg.com" crossorigin />
+    <style>
+      /* Keep navigation geometry in the initial document, before cached assets
+         or the map scripts load. Older menu rules must not change this layout. */
+      @layer bottom-navigation-layout {
+        :root { --bottom-nav-height: 88px !important; }
+
+        .bottom-tabs.liquid-glass-nav {
+          box-sizing: border-box !important;
+          position: fixed !important;
+          inset: auto 0 calc(10px + env(safe-area-inset-bottom)) !important;
+          display: grid !important;
+          grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+          grid-template-rows: minmax(0, 1fr) !important;
+          width: calc(100% - 24px) !important;
+          max-width: 680px !important;
+          height: 68px !important;
+          min-height: 0 !important;
+          margin: 0 auto !important;
+          padding: 5px !important;
+          gap: 2px !important;
+          transform: none !important;
+          translate: none !important;
+        }
+
+        .bottom-tabs.liquid-glass-nav .tab {
+          min-width: 0 !important;
+          min-height: 44px !important;
+          margin: 0 !important;
+          padding: 4px 0 !important;
+          grid-template-rows: 27px auto !important;
+          align-content: center !important;
+          gap: 3px !important;
+        }
+      }
+    </style>
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.css" />
-    <link rel="stylesheet" href="./styles.css?v=f138b7622f9b" />
-    <link rel="stylesheet" href="./bottom-navigation.css?v=f138b7622f9b" />
-    <link rel="stylesheet" href="./interface-appearance.css?v=f138b7622f9b" />
+    <link rel="stylesheet" href="./styles.css?v=1c11840ec710" />
+    <link rel="stylesheet" href="./bottom-navigation.css?v=1c11840ec710" />
+    <link rel="stylesheet" href="./interface-appearance.css?v=1c11840ec710" />
   </head>
   <body>
     <main class="app-shell">
@@ -453,12 +488,12 @@
             </div>
             </section>
 
+            <div class="simulation-quick-actions"></div>
+            <div class="simulation-start-sheet-host">
+              <button class="simulation-start sheet-simulation-start" id="simulation-start" type="button" disabled>開始</button>
+            </div>
             </div>
           </section>
-
-          <button class="simulation-start map-simulation-start" id="simulation-start" type="button" disabled>
-              メンテナンス確認中...
-            </button>
 
           <section class="preset-picker-overlay hidden" id="preset-picker-overlay" aria-modal="true" role="dialog" aria-labelledby="preset-picker-title">
             <div class="preset-picker-dialog">
@@ -572,7 +607,7 @@
 
     <nav class="bottom-tabs liquid-glass-nav" aria-label="メインメニュー">
       <button class="tab active" id="earthquake-tab" type="button" data-panel="earthquake-panel">
-        <span class="bottom-tab-icon" aria-hidden="true">▶</span>
+        <span class="bottom-tab-icon" aria-hidden="true"></span>
         <span>シミュレーション</span>
       </button>
       <button class="tab" id="bottom-history-tab" type="button">
@@ -584,7 +619,7 @@
         <span>ツール</span>
       </button>
       <button class="tab" id="bottom-learning-tab" type="button">
-        <span class="bottom-tab-icon" aria-hidden="true">⌁</span>
+        <span class="bottom-tab-icon" aria-hidden="true"></span>
         <span>学習</span>
       </button>
       <button class="tab" id="bottom-settings-tab" type="button">
@@ -593,11 +628,11 @@
       </button>
     </nav>
 
+    <script src="./liquid-glass.js?v=1c11840ec710"></script>
+    <script src="./bottom-navigation.js?v=1c11840ec710"></script>
     <script src="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.js"></script>
-    <script src="./vendor/pmtiles.js?v=f138b7622f9b"></script>
-    <script src="./liquid-glass.js?v=f138b7622f9b"></script>
-    <script src="./earthquake-model.js?v=f138b7622f9b"></script>
-    <script src="./app.js?v=f138b7622f9b"></script>
-    <script src="./bottom-navigation.js?v=f138b7622f9b"></script>
+    <script src="./vendor/pmtiles.js?v=1c11840ec710"></script>
+    <script src="./earthquake-model.js?v=1c11840ec710"></script>
+    <script src="./app.js?v=1c11840ec710"></script>
   </body>
 </html>

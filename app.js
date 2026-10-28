@@ -1,3 +1,4 @@
+const menuPageTransitions = new WeakMap();
 const JMA_LOCAL_AREAS_URL = "./data/jma_local_areas_simplified_10.geojson";
 const JMA_EEW_FORECAST_AREAS_URL = "./data/jma_eew_forecast_areas.json";
 const JMA_EPICENTER_AREAS_URL = "./data/jma_epicenter_areas.geojson";
@@ -745,8 +746,6 @@ let startupLocationResolved = false;
 let startupOverlayReleasePending = false;
 let startupBackgroundDataScheduled = false;
 let startupFaultModeHintShown = false;
-let startupFaultModeHintTimer = 0;
-let startupLocationPermissionCheckPending = true;
 let maintenanceStatusReady = false;
 let simulationStartedAt;
 let simulationPausedAt;
@@ -955,6 +954,7 @@ let lastManagedEpicenter = {
   longitude: state.longitude,
 };
 
+showStartupFaultModeHint();
 setupGlobalOverlays();
 setupTabs();
 renderDepthOptions();
@@ -964,7 +964,6 @@ renderIntensityColorSchemeOptions();
 setStartupInteractionLocked(true);
 setInitialSimulationStartLoadingState();
 bindSimulationControls();
-scheduleStartupFaultModeHint();
 applyIntensityColorScheme(state.intensityColorScheme, { refreshLayers: false });
 applyAppearanceTheme();
 window.matchMedia?.("(prefers-color-scheme: dark)")?.addEventListener?.("change", () => {
@@ -990,10 +989,6 @@ async function bootstrapApplication() {
   void restoreCurrentLocationPreference()
     .catch((error) => {
       console.warn("location preference restore failed", error);
-    })
-    .finally(() => {
-      startupLocationPermissionCheckPending = false;
-      scheduleStartupFaultModeHint();
     });
   recoverPmtilesByteServingIfNeeded().catch((error) => {
     console.warn("PMTiles byte serving recovery failed", error);
@@ -1441,11 +1436,6 @@ function setupTabs() {
     if (quickHost.parentElement !== scrollHost || quickHost.nextElementSibling !== host) {
       host.insertAdjacentElement("beforebegin", quickHost);
     }
-    if (!host.contains(els.simulationStart)) {
-      host.append(els.simulationStart);
-      els.simulationStart.classList.remove("map-simulation-start");
-      els.simulationStart.classList.add("sheet-simulation-start");
-    }
     if (!state.simulationRunning) {
       els.simulationStart.textContent = "開始";
     }
@@ -1820,17 +1810,23 @@ function setupTabs() {
     delete els.infoFullPanel.dataset.stationReady;
   };
 
-  const showInfoToolHome = () => {
+  const showInfoToolHome = ({ immediate = false } = {}) => {
     ensureInfoToolShell();
-    document.body.classList.remove("tool-source-search-mode", "tool-station-search-mode", "tool-weather-quiz-mode");
-    setHistoryMapModeActive(false);
-    hidePageAndResetScroll(els.historyFullPanel);
-    resetPageScrollPosition(els.infoFullPanel?.querySelector("#tool-station-page"));
-    resetPageScrollPosition(els.infoFullPanel?.querySelector("#tool-weather-quiz-page"));
+    const pages = [els.infoFullPanel?.querySelector("#tool-station-page"),
+      els.infoFullPanel?.querySelector("#tool-weather-quiz-page")];
+    const outgoing = document.body.classList.contains("tool-source-search-mode")
+      ? els.historyFullPanel : pages.find((page) => page && !page.classList.contains("hidden"));
+    // Reveal the previous menu now, rather than waiting for the exit animation.
     els.infoFullPanel?.querySelector("#tool-home-page")?.classList.remove("hidden");
-    els.infoFullPanel?.querySelector("#tool-station-page")?.classList.add("hidden");
-    els.infoFullPanel?.querySelector("#tool-weather-quiz-page")?.classList.add("hidden");
     els.infoFullPanel?.classList.remove("hidden");
+    const finish = () => {
+      document.body.classList.remove("tool-source-search-mode", "tool-station-search-mode", "tool-weather-quiz-mode");
+      setHistoryMapModeActive(false);
+      hidePageAndResetScroll(els.historyFullPanel);
+      pages.forEach(hidePageAndResetScroll);
+    };
+    if (immediate || !outgoing || outgoing.classList.contains("hidden")) finish();
+    else slideMenuPage(outgoing, { back: true, onFinish: finish });
   };
 
   const ensureToolPageHeader = (panel, title, onBack) => {
@@ -1853,12 +1849,12 @@ function setupTabs() {
     closeEarthquakePresetPicker({ restoreTab: false, skipFocus: true });
     closeSettingsMenuSheet();
     setSetupMenuOpen(false);
-    hidePageAndResetScroll(els.infoFullPanel);
     hidePageAndResetScroll(els.learningFullPanel);
     const panel = ensureHistoryFullPanel();
     ensureToolPageHeader(panel, "震源地検索", showInfoToolHome);
     panel?.classList.remove("hidden");
     document.body.classList.add("tool-source-search-mode");
+    slideMenuPage(panel);
     setHistoryMapModeActive(true);
     renderPastEarthquakeStatsPanel();
     Promise.all([loadLocalAreas(), loadEpicenterAreas()])
@@ -1889,10 +1885,12 @@ function setupTabs() {
     const stationPage = els.infoFullPanel?.querySelector("#tool-station-page");
     ensureInfoStationPanel();
     ensureToolPageHeader(stationPage, "観測点検索", showInfoToolHome);
-    hidePageAndResetScroll(els.infoFullPanel?.querySelector("#tool-home-page"));
     hidePageAndResetScroll(els.infoFullPanel?.querySelector("#tool-weather-quiz-page"));
     stationPage?.classList.remove("hidden");
     els.infoFullPanel?.classList.remove("hidden");
+    slideMenuPage(stationPage, { onFinish: () => {
+      els.infoFullPanel?.querySelector("#tool-home-page")?.classList.add("hidden");
+    } });
     renderInfoStationList();
     Promise.resolve(loadShindoStations())
       .then(() => renderInfoStationList())
@@ -3010,11 +3008,13 @@ function setupTabs() {
     document.body.classList.add("tool-weather-quiz-mode");
     const page = ensureInfoWeatherQuizPanel();
     ensureToolPageHeader(page, "気象予報士試験 対策問題集", handleWeatherQuizPageBack);
-    hidePageAndResetScroll(els.infoFullPanel?.querySelector("#tool-home-page"));
     hidePageAndResetScroll(els.infoFullPanel?.querySelector("#tool-station-page"));
     page?.classList.remove("hidden");
     page?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
     els.infoFullPanel?.classList.remove("hidden");
+    slideMenuPage(page, { onFinish: () => {
+      els.infoFullPanel?.querySelector("#tool-home-page")?.classList.add("hidden");
+    } });
     const loading = page?.querySelector(".weather-quiz-loading");
     const hasCachedQuestions = Boolean(weatherForecasterQuizItems?.length);
     if (!hasCachedQuestions) {
@@ -3640,8 +3640,9 @@ function setupTabs() {
 
   const setActiveBottomTab = (selector) => {
     const previousTabId = document.body.dataset.activeBottomTab || "";
-    document.querySelectorAll(".tab").forEach((item) => item.classList.remove("active"));
     const activeTab = document.querySelector(selector);
+    if (previousTabId !== activeTab?.id) hideBottomTabPages();
+    document.querySelectorAll(".tab").forEach((item) => item.classList.remove("active"));
     activeTab?.classList.add("active");
     document.body.dataset.activeBottomTab = activeTab?.id || "";
     if (previousTabId && previousTabId !== activeTab?.id) {
@@ -3856,7 +3857,7 @@ function setupTabs() {
 
   const closeSettingsMenuSheet = () => {
     closeSettingsDetailPanel({ immediate: true });
-    closeCommunityAccountScreen();
+    closeCommunityAccountScreen({ immediate: true });
     hidePageAndResetScroll(els.settingsMenuSheet);
     showMaintenanceBlockingScreen();
   };
@@ -3898,7 +3899,7 @@ function setupTabs() {
     closeSettingsMenuSheet();
     setSetupMenuOpen(false);
     hidePageAndResetScroll(els.learningFullPanel);
-    showInfoToolHome();
+    showInfoToolHome({ immediate: true });
   };
 
   const openLearningFullPanel = () => {
@@ -4182,7 +4183,7 @@ function setupTabs() {
           <textarea id="settings-feedback-message" rows="8" maxlength="4000" aria-label="フィードバック内容"></textarea>
         </label>
         <p class="feedback-status" role="status" aria-live="polite"></p>
-        <button class="feedback-submit" type="submit">送信</button>
+        <button class="feedback-submit liquid-glass-action" type="submit">送信</button>
       </form>
     `;
     const form = els.settingsFeedbackPanel.querySelector(".settings-feedback-form");
@@ -4269,9 +4270,9 @@ function setupTabs() {
         <div class="admin-overview-content" aria-live="polite" aria-busy="true"></div>
         <p class="admin-overview-status" role="status"></p>
       </section>
-      <button class="settings-menu-row" type="button" data-admin-section="accounts"><span>アカウント情報</span><span aria-hidden="true">›</span></button>
-      <button class="settings-menu-row" type="button" data-admin-section="notification"><span>通知</span><span aria-hidden="true">›</span></button>
-      <button class="settings-menu-row" type="button" data-admin-section="maintenance"><span>メンテナンス</span><span aria-hidden="true">›</span></button>
+      <button class="admin-menu-row" type="button" data-admin-section="accounts"><span>アカウント情報</span><span aria-hidden="true">›</span></button>
+      <button class="admin-menu-row" type="button" data-admin-section="notification"><span>通知</span><span aria-hidden="true">›</span></button>
+      <button class="admin-menu-row" type="button" data-admin-section="maintenance"><span>メンテナンス</span><span aria-hidden="true">›</span></button>
     `;
 
     const formatAdminDateTime = (value) => {
@@ -4433,13 +4434,14 @@ function setupTabs() {
     };
     const showPage = (id) => {
       els.settingsAdminPanel?.classList.add("admin-subpage-open");
-      hidePageAndResetScroll(menu);
+      menu.classList.remove("hidden");
       adminPanel.querySelectorAll("[data-admin-section-page]").forEach((page) => {
         const willHide = page.dataset.adminSectionPage !== id;
         if (willHide) {
           hidePageAndResetScroll(page);
         } else {
           page.classList.remove("hidden");
+          slideMenuPage(page, { onFinish: () => menu.classList.add("hidden") });
         }
       });
       adminPanel.scrollTop = 0;
@@ -4451,7 +4453,11 @@ function setupTabs() {
     });
     menu.querySelector('[data-admin-section="notification"]')?.addEventListener("click", () => showPage("notification"));
     menu.querySelector('[data-admin-section="maintenance"]')?.addEventListener("click", () => showPage("maintenance"));
-    adminPanel.querySelectorAll(".admin-section-back").forEach((button) => button.addEventListener("click", showMenu));
+    adminPanel.querySelectorAll(".admin-section-back").forEach((button) => button.addEventListener("click", () => {
+      const page = button.closest("[data-admin-section-page]");
+      menu.classList.remove("hidden");
+      slideMenuPage(page, { back: true, onFinish: showMenu });
+    }));
     adminPanel.addEventListener("admin-menu-reset", showMenu);
     showMenu();
   };
@@ -4472,7 +4478,6 @@ function setupTabs() {
   };
 
   let activeSettingsDetailPanel = null;
-  let settingsDetailCloseTimer = 0;
   let settingsDetailSwipeStart = null;
 
   const hideSettingsDetailPanel = (panel) => {
@@ -4488,10 +4493,6 @@ function setupTabs() {
     if (!panel) {
       return;
     }
-    resetPageScrollPosition(panel);
-    window.clearTimeout(settingsDetailCloseTimer);
-    activeSettingsDetailPanel = null;
-    els.settingsMenuSheet?.classList.remove("settings-detail-open");
     [
       els.settingsSourceButton,
       els.settingsPrivacyButton,
@@ -4503,13 +4504,18 @@ function setupTabs() {
       els.settingsPushHistoryButton,
     ].forEach((button) => button?.setAttribute("aria-expanded", "false"));
 
-    if (immediate) {
+    const finish = () => {
       hideSettingsDetailPanel(panel);
-      return;
+      if (activeSettingsDetailPanel === panel) {
+        activeSettingsDetailPanel = null;
+        els.settingsMenuSheet?.classList.remove("settings-detail-open");
+      }
+    };
+    if (immediate) {
+      finish();
+    } else {
+      slideMenuPage(panel, { back: true, onFinish: finish });
     }
-    panel.classList.remove("is-active");
-    panel.classList.add("is-leaving");
-    settingsDetailCloseTimer = window.setTimeout(() => hideSettingsDetailPanel(panel), 220);
   };
 
   const prepareSettingsDetailPanel = (panel, title) => {
@@ -4534,24 +4540,22 @@ function setupTabs() {
     if (!panel) {
       return;
     }
-    window.clearTimeout(settingsDetailCloseTimer);
     if (activeSettingsDetailPanel && activeSettingsDetailPanel !== panel) {
       hideSettingsDetailPanel(activeSettingsDetailPanel);
     }
     prepareSettingsDetailPanel(panel, title);
     closeSettingsInlinePanels(panel);
+    // Keep detail pages outside the menu's scrolling coordinate space. The
+    // previous menu retains its scroll position and is ready as soon as Back
+    // starts, without moving a transformed ancestor of its buttons.
+    els.settingsMenuSheet?.append(panel);
     activeSettingsDetailPanel = panel;
     els.settingsMenuSheet?.classList.add("settings-detail-open");
     panel.classList.remove("hidden", "is-leaving");
     panel.classList.add("settings-detail-panel", "is-active");
     panel.scrollTop = 0;
     panel.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
-    els.settingsMenuSheet?.querySelector(".settings-menu-list")?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
-    requestAnimationFrame(() => {
-      panel.scrollTop = 0;
-      panel.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
-      panel.classList.add("is-active");
-    });
+    slideMenuPage(panel);
     button?.setAttribute("aria-expanded", "true");
   };
 
@@ -4577,7 +4581,7 @@ function setupTabs() {
     const deltaX = event.clientX - settingsDetailSwipeStart.x;
     const deltaY = event.clientY - settingsDetailSwipeStart.y;
     settingsDetailSwipeStart = null;
-    if (deltaX > 68 && Math.abs(deltaY) < 76) {
+    if (deltaX < -68 && Math.abs(deltaY) < 76) {
       closeSettingsDetailPanel();
     }
   });
@@ -4703,10 +4707,11 @@ function setupTabs() {
         closeMapLayerControlPanel();
       }
 
+      const previousTabId = document.body.dataset.activeBottomTab || "";
+      if (previousTabId !== tab.id) hideBottomTabPages();
       document.querySelectorAll(".tab").forEach((item) => item.classList.remove("active"));
       document.querySelectorAll(".panel").forEach((panel) => panel.classList.remove("panel-active"));
 
-      const previousTabId = document.body.dataset.activeBottomTab || "";
       tab.classList.add("active");
       document.body.dataset.activeBottomTab = tab.id || "";
       if (previousTabId === "bottom-history-tab" && previousTabId !== tab.id) {
@@ -6586,30 +6591,22 @@ function showFaultModeSwitchNotice(message, options = {}) {
   notice.setAttribute("role", "status");
   notice.textContent = message;
   document.body.append(notice);
-  requestAnimationFrame(() => notice.classList.add("is-visible"));
-  window.setTimeout(() => {
-    notice.classList.remove("is-visible");
-    window.setTimeout(() => notice.remove(), 220);
-  }, Number(options.durationMs) || 1200);
+  requestAnimationFrame(() => {
+    notice.classList.add("is-visible");
+    window.setTimeout(() => {
+      notice.classList.remove("is-visible");
+      window.setTimeout(() => notice.remove(), 220);
+    }, Number(options.durationMs) || 1200);
+  });
 }
 
-function scheduleStartupFaultModeHint() {
-  if (
-    startupFaultModeHintShown
-    || startupFaultModeHintTimer
-    || startupLocationPermissionCheckPending
-    || document.querySelector("#startup-location-permission-overlay")
-  ) {
-    return;
-  }
-  startupFaultModeHintTimer = window.setTimeout(() => {
-    startupFaultModeHintTimer = 0;
-    startupFaultModeHintShown = true;
-    showFaultModeSwitchNotice(
-      "下の「シミュレーション」を長押し → 断層モード",
-      { durationMs: 2400, startupHint: true },
-    );
-  }, 700);
+function showStartupFaultModeHint() {
+  if (startupFaultModeHintShown) return;
+  startupFaultModeHintShown = true;
+  showFaultModeSwitchNotice(
+    "下の「シミュレーション」を長押し → 断層モード",
+    { durationMs: 3000, startupHint: true },
+  );
 }
 
 function bindSimulationControls() {
@@ -7187,9 +7184,56 @@ function resetPageScrollPosition(page) {
   });
 }
 
+function cancelMenuPageSlide(page) {
+  const animation = page && menuPageTransitions.get(page);
+  if (!animation) return;
+  animation.onfinish = null;
+  animation.oncancel = null;
+  menuPageTransitions.delete(page);
+  animation.cancel();
+  page.classList.remove("menu-page-sliding");
+}
+
+function slideMenuPage(page, { back = false, onFinish = () => {} } = {}) {
+  if (!page) return;
+  cancelMenuPageSlide(page);
+  if (typeof page.animate !== "function"
+    || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+    onFinish();
+    return;
+  }
+  page.classList.add("menu-page-sliding");
+  const animation = page.animate(
+    back ? [{ translate: "0 0" }, { translate: "-100% 0" }]
+      : [{ translate: "-100% 0" }, { translate: "0 0" }],
+    { duration: 240, easing: "cubic-bezier(0.22, 0.9, 0.24, 1)", fill: "both" },
+  );
+  menuPageTransitions.set(page, animation);
+  animation.onfinish = () => {
+    if (menuPageTransitions.get(page) !== animation) return;
+    cancelMenuPageSlide(page);
+    onFinish();
+  };
+  animation.oncancel = () => {
+    if (menuPageTransitions.get(page) !== animation) return;
+    menuPageTransitions.delete(page);
+    page.classList.remove("menu-page-sliding");
+  };
+}
+
 function hidePageAndResetScroll(page) {
-  resetPageScrollPosition(page);
+  cancelMenuPageSlide(page);
+  page?.querySelectorAll(".menu-page-sliding").forEach(cancelMenuPageSlide);
   page?.classList.add("hidden");
+  resetPageScrollPosition(page);
+}
+
+function hideBottomTabPages() {
+  // Remove the previous page from rendering before scroll/state resets can
+  // expose it through the incoming page's rounded corners or glass surface.
+  document.querySelectorAll(
+    "#settings-menu-sheet, #history-full-panel, #info-full-panel, #learning-full-panel",
+  ).forEach(hidePageAndResetScroll);
 }
 
 function activateSettingsTab(tabId) {
@@ -10889,7 +10933,9 @@ async function initEarthquakeMap() {
   scheduleMapResize();
 
   addZoomOnlyControl();
-  addSourceInfoControl();
+  // The map's old source/speech/push toolbar is permanently hidden by CSS.
+  // Current actions are wired independently in the sheet and Settings.
+  setupNotificationHistoryMessages();
   updateEpicenterEditMode();
   map.on("movestart", () => {
     state.mapInteracting = true;
@@ -12966,7 +13012,7 @@ function createAdminModeOverlay() {
     <div class="admin-mode-dialog" id="admin-mode-form">
       <h2>管理者用設定</h2>
       <div class="admin-mode-actions">
-        <button class="admin-mode-maintenance" id="admin-maintenance-toggle" type="button" disabled>メンテナンス開始</button>
+        <button class="admin-mode-maintenance liquid-glass-action" id="admin-maintenance-toggle" type="button" disabled>メンテナンス開始</button>
       </div>
       <section class="admin-notification-panel" aria-label="通知送信">
         <h3>通知送信</h3>
@@ -13893,7 +13939,7 @@ function buildFeedbackOverlayHtml() {
       </p>
     </form>
     <div class="feedback-actions">
-      <button class="feedback-submit" type="submit" form="feedback-form">送信</button>
+      <button class="feedback-submit liquid-glass-action" type="submit" form="feedback-form">送信</button>
     </div>
   `;
 }
@@ -14411,7 +14457,6 @@ function releaseStartupMapOverlay() {
   document.body.classList.remove("map-core-loading");
   updateSimulationAvailability();
   scheduleStartupBackgroundData();
-  scheduleStartupFaultModeHint();
 }
 
 function schedulePostMunicipalityDataHydration() {
@@ -16678,8 +16723,6 @@ function showStartupLocationPermissionPrompt(permissionState = "prompt") {
 
 function closeStartupLocationPermissionPrompt() {
   document.querySelector("#startup-location-permission-overlay")?.remove();
-  startupLocationPermissionCheckPending = false;
-  scheduleStartupFaultModeHint();
 }
 
 async function refreshSystemPermissionStates() {
@@ -23254,19 +23297,21 @@ function openCommunityAccountScreen(type) {
   screen.classList.remove("hidden");
   screen.scrollTop = 0;
   screen.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
-  sheet.querySelector(".settings-menu-list")?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
-  requestAnimationFrame(() => {
-    screen.scrollTop = 0;
-    screen.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
-  });
-  screen.querySelector(".community-account-screen-back")?.addEventListener("click", closeCommunityAccountScreen);
+  slideMenuPage(screen);
+  screen.querySelector(".community-account-screen-back")?.addEventListener("click", () => closeCommunityAccountScreen());
   bindCommunityAccountScreen(type, screen);
 }
 
-function closeCommunityAccountScreen() {
+function closeCommunityAccountScreen({ immediate = false } = {}) {
+  const screen = els.settingsMenuSheet?.querySelector("#community-account-screen");
+  // Reveal the existing menu before the outgoing screen starts moving.
   els.settingsMenuSheet?.classList.remove("community-account-screen-open");
-  hidePageAndResetScroll(els.settingsMenuSheet?.querySelector("#community-account-screen"));
   els.settingsAdminPanel?.classList.remove("admin-subpage-open");
+  const finish = () => {
+    hidePageAndResetScroll(screen);
+  };
+  if (immediate || !screen || screen.classList.contains("hidden")) finish();
+  else slideMenuPage(screen, { back: true, onFinish: finish });
 }
 
 function getCommunityAccountScreenTitle(type) {
