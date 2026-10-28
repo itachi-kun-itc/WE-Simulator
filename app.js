@@ -1818,6 +1818,8 @@ function setupTabs() {
       ? els.historyFullPanel : pages.find((page) => page && !page.classList.contains("hidden"));
     // Reveal the previous menu now, rather than waiting for the exit animation.
     els.infoFullPanel?.querySelector("#tool-home-page")?.classList.remove("hidden");
+    setMenuUnderlayCovered(els.infoFullPanel?.querySelector("#tool-home-page"), false);
+    setMenuUnderlayCovered(els.infoFullPanel, false);
     els.infoFullPanel?.classList.remove("hidden");
     const finish = () => {
       document.body.classList.remove("tool-source-search-mode", "tool-station-search-mode", "tool-weather-quiz-mode");
@@ -1842,6 +1844,7 @@ function setupTabs() {
     `;
     head.querySelector(".tool-page-back")?.addEventListener("click", onBack);
     panel.insertAdjacentElement("afterbegin", head);
+    bindMenuBackSwipe(panel, ".tool-page-back");
   };
 
   const openInfoSourceSearchPage = () => {
@@ -1851,7 +1854,7 @@ function setupTabs() {
     setSetupMenuOpen(false);
     // This page is a map with a bottom sheet, so no opaque Tools page may
     // remain behind the sheet. Preserve its scroll position for Back.
-    els.infoFullPanel?.classList.add("hidden");
+    setMenuUnderlayCovered(els.infoFullPanel, true);
     hidePageAndResetScroll(els.learningFullPanel);
     const panel = ensureHistoryFullPanel();
     ensureToolPageHeader(panel, "震源地検索", showInfoToolHome);
@@ -1893,8 +1896,10 @@ function setupTabs() {
     hidePageAndResetScroll(els.infoFullPanel?.querySelector("#tool-weather-quiz-page"));
     stationPage?.classList.remove("hidden");
     els.infoFullPanel?.classList.remove("hidden");
+    const home = els.infoFullPanel?.querySelector("#tool-home-page");
+    if (home) home.inert = true;
     slideMenuPage(stationPage, { onFinish: () => {
-      els.infoFullPanel?.querySelector("#tool-home-page")?.classList.add("hidden");
+      setMenuUnderlayCovered(home, true);
     } });
     renderInfoStationList();
     Promise.resolve(loadShindoStations())
@@ -3017,8 +3022,10 @@ function setupTabs() {
     page?.classList.remove("hidden");
     page?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
     els.infoFullPanel?.classList.remove("hidden");
+    const home = els.infoFullPanel?.querySelector("#tool-home-page");
+    if (home) home.inert = true;
     slideMenuPage(page, { onFinish: () => {
-      els.infoFullPanel?.querySelector("#tool-home-page")?.classList.add("hidden");
+      setMenuUnderlayCovered(home, true);
     } });
     const loading = page?.querySelector(".weather-quiz-loading");
     const hasCachedQuestions = Boolean(weatherForecasterQuizItems?.length);
@@ -4411,6 +4418,7 @@ function setupTabs() {
         </header>
         <div class="admin-section-body"></div>
       `;
+      bindMenuBackSwipe(page, ".admin-section-back");
       return page;
     };
 
@@ -4433,6 +4441,7 @@ function setupTabs() {
     const showMenu = () => {
       els.settingsAdminPanel?.classList.remove("admin-subpage-open");
       menu.classList.remove("hidden");
+      setMenuUnderlayCovered(menu, false);
       adminPanel.querySelectorAll("[data-admin-section-page]").forEach(hidePageAndResetScroll);
       adminPanel.scrollTop = 0;
       void refreshAdminOverview();
@@ -4440,13 +4449,14 @@ function setupTabs() {
     const showPage = (id) => {
       els.settingsAdminPanel?.classList.add("admin-subpage-open");
       menu.classList.remove("hidden");
+      menu.inert = true;
       adminPanel.querySelectorAll("[data-admin-section-page]").forEach((page) => {
         const willHide = page.dataset.adminSectionPage !== id;
         if (willHide) {
           hidePageAndResetScroll(page);
         } else {
           page.classList.remove("hidden");
-          slideMenuPage(page, { onFinish: () => menu.classList.add("hidden") });
+          slideMenuPage(page, { onFinish: () => setMenuUnderlayCovered(menu, true) });
         }
       });
       adminPanel.scrollTop = 0;
@@ -4461,6 +4471,7 @@ function setupTabs() {
     adminPanel.querySelectorAll(".admin-section-back").forEach((button) => button.addEventListener("click", () => {
       const page = button.closest("[data-admin-section-page]");
       menu.classList.remove("hidden");
+      setMenuUnderlayCovered(menu, false);
       slideMenuPage(page, { back: true, onFinish: showMenu });
     }));
     adminPanel.addEventListener("admin-menu-reset", showMenu);
@@ -4483,7 +4494,6 @@ function setupTabs() {
   };
 
   let activeSettingsDetailPanel = null;
-  let settingsDetailSwipeStart = null;
 
   const hideSettingsDetailPanel = (panel) => {
     if (!panel) {
@@ -4500,8 +4510,7 @@ function setupTabs() {
     }
     // Restore the previous menu before moving the detail page off it.
     const menu = els.settingsMenuSheet?.querySelector(".settings-menu-list");
-    menu?.classList.remove("menu-underlay-covered");
-    if (menu) menu.inert = false;
+    setMenuUnderlayCovered(menu, false);
     [
       els.settingsSourceButton,
       els.settingsPrivacyButton,
@@ -4542,6 +4551,7 @@ function setupTabs() {
       panel.prepend(header);
       header.querySelector(".settings-detail-back")?.addEventListener("click", () => closeSettingsDetailPanel());
     }
+    bindMenuBackSwipe(panel, ".settings-detail-back");
   };
 
   const openSettingsDetailPanel = (button, panel, ensurePanel, title) => {
@@ -4567,36 +4577,9 @@ function setupTabs() {
     const menu = els.settingsMenuSheet?.querySelector(".settings-menu-list");
     menu?.classList.remove("menu-underlay-covered");
     if (menu) menu.inert = true;
-    slideMenuPage(panel, { onFinish: () => menu?.classList.add("menu-underlay-covered") });
+    slideMenuPage(panel, { onFinish: () => setMenuUnderlayCovered(menu, true) });
     button?.setAttribute("aria-expanded", "true");
   };
-
-  els.settingsMenuSheet?.addEventListener("pointerdown", (event) => {
-    settingsDetailSwipeStart = null;
-    if (!activeSettingsDetailPanel || !event.isPrimary
-      || event.target.closest("button, input, textarea, select, a, label")) {
-      return;
-    }
-    settingsDetailSwipeStart = { x: event.clientX, y: event.clientY, pointerId: event.pointerId };
-  });
-
-  els.settingsMenuSheet?.addEventListener("pointercancel", () => {
-    settingsDetailSwipeStart = null;
-  });
-
-  els.settingsMenuSheet?.addEventListener("pointerup", (event) => {
-    if (!settingsDetailSwipeStart || !activeSettingsDetailPanel
-      || event.pointerId !== settingsDetailSwipeStart.pointerId) {
-      settingsDetailSwipeStart = null;
-      return;
-    }
-    const deltaX = event.clientX - settingsDetailSwipeStart.x;
-    const deltaY = event.clientY - settingsDetailSwipeStart.y;
-    settingsDetailSwipeStart = null;
-    if (deltaX < -68 && Math.abs(deltaY) < 76) {
-      closeSettingsDetailPanel();
-    }
-  });
 
   setSettingsRowLabels();
   document.querySelector("#bottom-history-tab span:last-child")?.replaceChildren("投稿");
@@ -7194,6 +7177,71 @@ function resetPageScrollPosition(page) {
       element.scrollLeft = 0;
     }
   });
+}
+
+function setMenuUnderlayCovered(menu, covered) {
+  if (!menu) return;
+  // Keep the parent laid out so scroll offsets, input values and selections
+  // survive. It must never receive input through the page covering it.
+  menu.classList[covered ? "add" : "remove"]("menu-underlay-covered");
+  menu.inert = covered;
+}
+
+function bindMenuBackSwipe(page, backButtonSelector) {
+  if (!page || page.dataset.menuBackSwipe === "true") return;
+  page.dataset.menuBackSwipe = "true";
+  let gesture = null;
+  let suppressClick = false;
+  const isUnavailable = () => page.closest(".hidden, .menu-page-sliding") || page.inert;
+
+  page.addEventListener("pointerdown", (event) => {
+    gesture = null;
+    suppressClick = false;
+    if (!event.isPrimary || event.button !== 0 || isUnavailable()
+      || event.target.closest("[data-menu-back-swipe]") !== page
+      || event.target.closest("button, input, textarea, select, a, label, [contenteditable]:not([contenteditable=false]), [role=slider]")) {
+      return;
+    }
+    gesture = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, horizontal: false };
+  });
+
+  page.addEventListener("pointermove", (event) => {
+    if (!gesture || event.pointerId !== gesture.pointerId) return;
+    const dx = event.clientX - gesture.x;
+    const dy = Math.abs(event.clientY - gesture.y);
+    if (!gesture.horizontal && ((dy >= 12 && dy > Math.abs(dx)) || dx < -12)) {
+      gesture = null;
+      return;
+    }
+    if (!gesture.horizontal && dx >= 12 && dx > dy * 1.5) {
+      gesture.horizontal = true;
+      page.setPointerCapture?.(event.pointerId);
+    }
+  });
+
+  page.addEventListener("pointercancel", () => { gesture = null; });
+  page.addEventListener("lostpointercapture", (event) => {
+    // Ignore capture handed over by a child when the horizontal swipe starts.
+    if (event.target === page) gesture = null;
+  });
+  page.addEventListener("pointerup", (event) => {
+    const current = gesture;
+    gesture = null;
+    if (!current || event.pointerId !== current.pointerId || isUnavailable()) return;
+    const dx = event.clientX - current.x;
+    const dy = Math.abs(event.clientY - current.y);
+    if (dx < 68 || dx <= dy * 1.5) return;
+    suppressClick = true;
+    // Use the visible page's Back action, so nested admin/account/quiz pages
+    // return exactly one level and preserve the same state as the Back button.
+    page.querySelector(backButtonSelector)?.click();
+  });
+  page.addEventListener("click", (event) => {
+    if (!suppressClick || event.detail === 0) return;
+    suppressClick = false;
+    event.preventDefault();
+    event.stopPropagation();
+  }, true);
 }
 
 function cancelMenuPageSlide(page) {
@@ -23311,6 +23359,7 @@ function openCommunityAccountScreen(type) {
   screen.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
   slideMenuPage(screen);
   screen.querySelector(".community-account-screen-back")?.addEventListener("click", () => closeCommunityAccountScreen());
+  bindMenuBackSwipe(screen, ".community-account-screen-back");
   bindCommunityAccountScreen(type, screen);
 }
 
