@@ -1819,7 +1819,8 @@ function setupTabs() {
     ensureInfoToolShell();
     const pages = [els.infoFullPanel?.querySelector("#tool-station-page"),
       els.infoFullPanel?.querySelector("#tool-weather-quiz-page")];
-    const outgoing = document.body.classList.contains("tool-source-search-mode")
+    const sourceSearchOpen = document.body.classList.contains("tool-source-search-mode");
+    const outgoing = sourceSearchOpen
       ? els.historyFullPanel : pages.find((page) => page && !page.classList.contains("hidden"));
     // Reveal the previous menu now, rather than waiting for the exit animation.
     els.infoFullPanel?.querySelector("#tool-home-page")?.classList.remove("hidden");
@@ -1832,7 +1833,9 @@ function setupTabs() {
       hidePageAndResetScroll(els.historyFullPanel);
       pages.forEach(hidePageAndResetScroll);
     };
-    if (immediate || !outgoing || outgoing.classList.contains("hidden")) finish();
+    // The source-search map is exposed outside its bottom sheet. Close both
+    // in this turn rather than leaving the sheet sliding over the Tools page.
+    if (immediate || sourceSearchOpen || !outgoing || outgoing.classList.contains("hidden")) finish();
     else slideMenuPage(outgoing, { back: true, onFinish: finish });
   };
 
@@ -7275,9 +7278,9 @@ function slideMenuPage(page, { back = false, onFinish = () => {} } = {}) {
   }
   page.classList.add("menu-page-sliding");
   const animation = page.animate(
-    back ? [{ translate: "0 0" }, { translate: "-100% 0" }]
-      : [{ translate: "-100% 0" }, { translate: "0 0" }],
-    { duration: 240, easing: "cubic-bezier(0.22, 0.9, 0.24, 1)", fill: "both" },
+    back ? [{ translate: "0 0" }, { translate: "100% 0" }]
+      : [{ translate: "100% 0" }, { translate: "0 0" }],
+    { duration: 300, easing: "cubic-bezier(0.22, 0.9, 0.24, 1)", fill: "both" },
   );
   menuPageTransitions.set(page, animation);
   animation.onfinish = () => {
