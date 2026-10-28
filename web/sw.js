@@ -1,4 +1,4 @@
-const CACHE_NAME = "we-simulator-pwa-v57";
+const CACHE_NAME = "we-simulator-pwa-e9ddfb3479f5";
 const PUSH_METADATA_CACHE_NAME = "we-simulator-push-metadata";
 const LOCAL_DEV_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
 const IS_LOCAL_DEV = isLocalDevelopmentHostname(new URL(self.location.href).hostname);
@@ -10,15 +10,24 @@ const NOTIFICATION_HISTORY_RETENTION_DAYS = 30;
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css",
-  "./app.js",
-  "./bottom-navigation.css?v=3",
-  "./bottom-navigation.js?v=2",
-  "./liquid-glass.js?v=3",
-  "./interface-appearance.css?v=13",
-  "./manifest.webmanifest",
-  "./push-config.json",
+  "./manifest.webmanifest?v=e9ddfb3479f5",
+  "./favicon.png?v=e9ddfb3479f5",
+  "./apple-touch-icon.png?v=e9ddfb3479f5",
+  "./styles.css?v=e9ddfb3479f5",
+  "./bottom-navigation.css?v=e9ddfb3479f5",
+  "./interface-appearance.css?v=e9ddfb3479f5",
+  "./vendor/pmtiles.js?v=e9ddfb3479f5",
+  "./liquid-glass.js?v=e9ddfb3479f5",
+  "./earthquake-model.js?v=e9ddfb3479f5",
+  "./app.js?v=e9ddfb3479f5",
+  "./bottom-navigation.js?v=e9ddfb3479f5",
+  "./push-config.json"
 ];
+const APP_SHELL_PATHS = new Set(APP_SHELL.map((asset) => new URL(asset, self.location.href).pathname));
+
+function isAppCache(key) {
+  return key.startsWith("we-simulator-pwa-");
+}
 
 function isLocalDevelopmentHostname(hostname) {
   const normalized = String(hostname || "").trim().toLowerCase();
@@ -36,7 +45,11 @@ self.addEventListener("install", (event) => {
   }
 
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()),
+    caches.open(CACHE_NAME)
+      .then((cache) => cache.addAll(APP_SHELL.map((asset) => new Request(
+        new URL(asset, self.location.href), { cache: "reload" },
+      ))))
+      .then(() => self.skipWaiting()),
   );
 });
 
@@ -45,7 +58,7 @@ self.addEventListener("activate", (event) => {
     event.waitUntil(
       caches
         .keys()
-        .then((keys) => Promise.all(keys.map((key) => caches.delete(key))))
+        .then((keys) => Promise.all(keys.filter(isAppCache).map((key) => caches.delete(key))))
         .then(() => self.registration.unregister())
         .then(() => self.clients.claim()),
     );
@@ -58,7 +71,7 @@ self.addEventListener("activate", (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((key) => key !== CACHE_NAME && key !== PUSH_METADATA_CACHE_NAME)
+            .filter((key) => isAppCache(key) && key !== CACHE_NAME)
             .map((key) => caches.delete(key)),
         ),
       )
@@ -90,22 +103,29 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Revalidate the UI even when the browser's HTTP cache considers it fresh.
+  const isAppShell = requestUrl.origin === self.location.origin
+    && (event.request.mode === "navigate" || APP_SHELL_PATHS.has(requestUrl.pathname));
   event.respondWith(
-    fetch(event.request)
+    fetch(event.request, isAppShell ? { cache: "no-cache" } : undefined)
       .then((response) => {
         const copy = response.clone();
         if (response.status === 200) {
-          caches.open(CACHE_NAME)
+          event.waitUntil(caches.open(CACHE_NAME)
             .then((cache) => cache.put(event.request, copy))
-            .catch((error) => console.warn("cache put failed", error));
+            .catch((error) => console.warn("cache put failed", error)));
         }
         return response;
       })
-      .catch(() =>
-        caches.match(event.request).then((cachedResponse) =>
-          cachedResponse || new Response("Offline", { status: 503, statusText: "Service Unavailable" }),
-        ),
-      ),
+      .catch(async () => {
+        const cache = await caches.open(CACHE_NAME);
+        const cachedResponse = await cache.match(event.request);
+        const offlinePage = !cachedResponse && event.request.mode === "navigate"
+          ? await cache.match(new URL("./index.html", self.location.href))
+          : null;
+        return cachedResponse || offlinePage
+          || new Response("Offline", { status: 503, statusText: "Service Unavailable" });
+      }),
   );
 });
 

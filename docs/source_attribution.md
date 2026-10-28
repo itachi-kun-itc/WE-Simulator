@@ -1,6 +1,6 @@
 # データ出典
 
-最終更新：2026-07-11
+最終更新：2026-10-28
 
 このプロジェクトの地図・地震シミュレーション表示で利用している主なデータ出典です。
 
@@ -48,6 +48,17 @@
 - `web/data/world_coastline.geojson`
 - `web/data/ground_model.json`
 - `web/data/submarine_observation_points.geojson`
+
+## 震度推定式と検証資料
+
+- [気象庁：緊急地震速報の技術的参考資料（2024年）](https://www.jma.go.jp/jma/kishou/know/jishin/eew/katsuyou/reference.pdf)
+- [防災科研：最大速度の距離減衰式・タイプ係数・Vs400への補正](https://www.j-map.bosai.go.jp/j-map/result/tn_257/html/html/2-4-1.html)
+- [気象庁：計測震度の算出方法・階級境界](https://www.jma.go.jp/jma/kishou/know/jishin/kyoshin/kaisetsu/calc_sindo.html)
+- [気象庁：2025年の地盤増幅度変更](https://www.data.jma.go.jp/suishin/jyouhou/pdf/653.pdf)
+- [気象庁：2024年能登半島地震の強震観測、表3-1](https://www.data.jma.go.jp/svd/eqev/data/gaikyo/monthly/202401/202401tokushuu_1_3.pdf)
+- [防災科研：同地震の比較用暫定矩形断層](https://www.jishin.go.jp/main/suihon/erc394/erc394-4.pdf)
+
+採用式、基盤速度、既存地盤データとの接続、未導入の補正は[震度推定モデル](earthquake_intensity_model.md)に記載。気象庁の現行システムの再現ではない。
 
 ## プレート境界データ
 

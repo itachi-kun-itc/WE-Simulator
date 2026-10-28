@@ -4,6 +4,8 @@
 
 現段階では教育・可視化用の簡易モデルとして扱い、実際の防災判断には使わない。
 
+2026-10-28に震度推定を改訂した。係数・単位・基盤条件・適用範囲の正本は[震度推定モデル](earthquake_intensity_model.md)。以下の走時は従来の簡略演出についての設計メモで、気象庁の走時表を実装したものではない。
+
 ## 参照した知識
 
 - P波はS波より速く、気象庁の説明ではP波は約7 km/s、S波は約4 km/sとして説明される。
@@ -30,7 +32,7 @@
       name,
       latitude,
       longitude,
-      siteAmplification      // 任意。地盤補正。未指定なら 0
+      velocityAmplification  // 任意。Vs400m/s基盤に対する速度倍率。未指定なら1
     }
   ]
 }
@@ -88,22 +90,9 @@ const warningArrivesInTime = warningLeadTimeSec > 0;
 
 6. 推定震度を求める。
 
-まずは仮式でよい。あとで観測震度・距離減衰式・地盤データに合わせて調整する。
+Mj/Mwを区別し、断層最短距離を司・翠川(1999)の最大速度の距離減衰式へ入力する。Vs600→Vs400の基盤補正後にJ-SHISのARV400を掛け、地表最大速度を震度へ換算する。深さ150km超は推定対象外。
 
-```js
-function estimateInstrumentalIntensity({ magnitude, hypocentralDistanceKm, siteAmplification = 0 }) {
-  const distance = Math.max(hypocentralDistanceKm, 1);
-  return clamp(
-    1.55 * magnitude -
-      2.05 * Math.log10(distance + 20) -
-      0.0028 * distance +
-      siteAmplification -
-      1.2,
-    0,
-    7,
-  );
-}
-```
+実装は`web/earthquake-model.js`。[数式と適用範囲](earthquake_intensity_model.md)、[数値監査](earthquake_model_audit.md)を参照。
 
 7. 計測震度を震度階級へ変換する。
 
@@ -161,11 +150,11 @@ function toJmaIntensityLabel(instrumentalIntensity) {
 
 ## 次に精度を上げる時の候補
 
-- 地盤増幅率をJ-SHISなどから取得して `siteAmplification` に入れる。
-- 距離減衰式を観測値に合わせて調整する。
+- 1km集約より細かな地盤と観測点固有の補正を用意する。
+- 複数地震・全域の観測点で、観測値を入力に使わず予測誤差を検証する。
 - 観測点を複数使い、最初のP波だけでなく複数点検知後に震源推定が安定する表現を入れる。
-- 深発地震では震央付近より離れた地点の揺れが強く見える場合があるため、深さ別の補正を入れる。
-- 海溝型地震など震源域が広い地震は点震源ではなく断層面モデルに拡張する。
+- 深発地震は現行式へ任意の係数を加えるのではなく、異常震域・プレート・速度構造を扱うモデルと入力データを揃えて対応する。
+- 海溝型の代表線による近似を、公表された詳細断層面・すべり分布による計算へ置き換える。
 
 ## 参照URL
 

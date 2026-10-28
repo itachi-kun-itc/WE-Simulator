@@ -75,6 +75,80 @@ html[data-resolved-theme="light"] {
   --app-control-radius: 999px;
 }
 
+.ground-motion-model-note {
+  margin: 8px 0 0;
+  color: inherit;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  opacity: 0.8;
+}
+
+/* Match the custom tag entry controls to the permanent optional tag chips. */
+.community-post-optional-tag-section {
+  --community-optional-tag-height: 32px;
+}
+
+#community-post-overlay .community-post-optional-tags > label,
+#community-post-overlay .community-post-custom-tag-entry > input,
+#community-post-overlay .community-post-custom-tag-entry > button {
+  box-sizing: border-box;
+  height: var(--community-optional-tag-height) !important;
+  min-height: var(--community-optional-tag-height) !important;
+}
+
+#community-post-overlay .community-post-custom-tag-entry > input {
+  padding-block: 0 !important;
+}
+
+#community-post-overlay .community-post-custom-tag-entry > input,
+#community-post-overlay .community-post-custom-tag-entry > button {
+  font-size: 12px !important;
+}
+
+/* Settings menu cards follow the notification status card above them. */
+#settings-menu-sheet {
+  --settings-menu-card-border: rgba(255, 255, 255, 0.11);
+  --settings-menu-card-background: rgba(255, 255, 255, 0.045);
+  --settings-menu-card-text: rgba(255, 255, 255, 0.86);
+}
+
+html[data-resolved-theme="light"] #settings-menu-sheet {
+  --settings-menu-card-border: rgba(71, 85, 105, 0.24);
+  --settings-menu-card-background: rgba(255, 255, 255, 0.76);
+  --settings-menu-card-text: #111827;
+}
+
+#settings-menu-sheet .settings-status-card,
+#settings-menu-sheet .settings-menu-list > button.settings-menu-row {
+  border: 1px solid var(--settings-menu-card-border) !important;
+  background: var(--settings-menu-card-background) !important;
+}
+
+#settings-menu-sheet .settings-status-group {
+  margin-bottom: 10px !important;
+}
+
+#settings-menu-sheet .settings-menu-list > button.settings-menu-row {
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  gap: 12px !important;
+  width: calc(100% - 28px) !important;
+  min-height: 56px !important;
+  margin: 0 14px 10px !important;
+  padding: 10px 14px !important;
+  font-size: 0.94rem !important;
+  font-weight: 850 !important;
+  letter-spacing: 0 !important;
+}
+
+#settings-menu-sheet .settings-menu-list > button.settings-menu-row > span:first-child {
+  color: var(--settings-menu-card-text) !important;
+}
+
+#settings-menu-sheet .settings-menu-list > button.settings-menu-row:focus-visible {
+  outline: 2px solid var(--app-glass-selected) !important;
+  outline-offset: 2px;
+}
+
 /* Learning uses a single moving lens underneath the two labels. */
 html #learning-full-panel .learning-category-switch {
   position: sticky !important;
@@ -209,7 +283,7 @@ html .settings-menu-sheet #community-account-panel .community-profile-card.is-em
   body :where(
     #historical-earthquake-button, .sheet-speech-toggle,
     #simulation-start, #simulation-pause, #simulation-stop, #simulation-result,
-    .simulation-result-report-actions button, [data-simulation-result-back],
+    .simulation-result-report-actions button,
     #community-post-button, .liquid-glass-action
   ) {
     --app-control-radius: 999px;
@@ -232,7 +306,7 @@ html .settings-menu-sheet #community-account-panel .community-profile-card.is-em
   body :where(
     #historical-earthquake-button, .sheet-speech-toggle,
     #simulation-start, #simulation-pause, #simulation-stop, #simulation-result,
-    .simulation-result-report-actions button, [data-simulation-result-back],
+    .simulation-result-report-actions button,
     #community-post-button, .liquid-glass-action
   ):active:not(:disabled) {
     scale: 0.97;
@@ -243,7 +317,7 @@ html .settings-menu-sheet #community-account-panel .community-profile-card.is-em
   body :where(
     #historical-earthquake-button, .sheet-speech-toggle,
     #simulation-start, #simulation-pause, #simulation-stop, #simulation-result,
-    .simulation-result-report-actions button, [data-simulation-result-back],
+    .simulation-result-report-actions button,
     #community-post-button, .liquid-glass-action
   ):focus-visible {
     outline: 2px solid var(--glass-control-text, var(--app-glass-selected)) !important;
@@ -253,7 +327,7 @@ html .settings-menu-sheet #community-account-panel .community-profile-card.is-em
   body :where(
     #historical-earthquake-button, .sheet-speech-toggle,
     #simulation-start, #simulation-pause, #simulation-stop, #simulation-result,
-    .simulation-result-report-actions button, [data-simulation-result-back],
+    .simulation-result-report-actions button,
     #community-post-button, .liquid-glass-action
   ):disabled {
     opacity: 0.48 !important;
@@ -282,7 +356,7 @@ html .settings-menu-sheet #community-account-panel .community-profile-card.is-em
     body :where(
       #historical-earthquake-button, .sheet-speech-toggle,
       #simulation-start, #simulation-pause, #simulation-stop, #simulation-result,
-      .simulation-result-report-actions button, [data-simulation-result-back],
+      .simulation-result-report-actions button,
       #community-post-button, .liquid-glass-action
     ):hover:not(:disabled) {
       border-color: var(--app-glass-highlight) !important;
@@ -294,7 +368,7 @@ html .settings-menu-sheet #community-account-panel .community-profile-card.is-em
     body :where(
       #historical-earthquake-button, .sheet-speech-toggle,
       #simulation-start, #simulation-pause, #simulation-stop, #simulation-result,
-      .simulation-result-report-actions button, [data-simulation-result-back],
+      .simulation-result-report-actions button,
       #community-post-button, .liquid-glass-action
     ) {
       transition: none !important;
@@ -307,7 +381,7 @@ html .settings-menu-sheet #community-account-panel .community-profile-card.is-em
     body :where(
       #historical-earthquake-button, .sheet-speech-toggle,
       #simulation-start, #simulation-pause, #simulation-stop, #simulation-result,
-      .simulation-result-report-actions button, [data-simulation-result-back],
+      .simulation-result-report-actions button,
       #community-post-button, .liquid-glass-action
     ) {
       background: var(--glass-control-surface, var(--app-glass-surface)) !important;
@@ -320,13 +394,30 @@ html .settings-menu-sheet #community-account-panel .community-profile-card.is-em
     body :where(
       #historical-earthquake-button, .sheet-speech-toggle,
       #simulation-start, #simulation-pause, #simulation-stop, #simulation-result,
-      .simulation-result-report-actions button, [data-simulation-result-back],
+      .simulation-result-report-actions button,
       #community-post-button, .liquid-glass-action
     ) {
       border-color: ButtonText !important;
       background: ButtonFace !important;
       color: ButtonText !important;
     }
+  }
+}
+
+/* The result header uses a bare chevron with its existing 40px hit area. */
+@layer app-glass-controls {
+  [data-simulation-result-back] {
+    --app-control-radius: 0;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  [data-simulation-result-back]:focus-visible {
+    outline: 2px solid currentColor !important;
+    outline-offset: -2px;
   }
 }
 
@@ -342,6 +433,43 @@ html .settings-menu-sheet #community-account-panel .community-profile-card.is-em
 }
 
 html[data-resolved-theme="light"] #simulation-stop { --glass-control-text: #a32035; }
+
+/* Keep state and destructive-action colours on the shared glass material. */
+:is(#settings-push-status, #settings-location-status)[data-state="on"],
+.community-map-control.is-success {
+  --glass-control-surface: color-mix(in srgb, var(--app-glass-surface) 80%, #16a34a 20%);
+  --glass-control-text: #8cf0b1;
+  --glass-control-edge: rgba(74, 222, 128, 0.6);
+}
+
+:is(#settings-push-status, #settings-location-status)[data-state="off"],
+.community-map-control.is-error,
+.community-account-danger-actions [data-community-account-action="delete"] {
+  --glass-control-surface: color-mix(in srgb, var(--app-glass-surface) 80%, #e11d48 20%);
+  --glass-control-text: #ffb0bd;
+  --glass-control-edge: rgba(251, 113, 133, 0.62);
+}
+
+html[data-resolved-theme="light"] :is(#settings-push-status, #settings-location-status)[data-state="on"],
+html[data-resolved-theme="light"] .community-map-control.is-success {
+  --glass-control-text: #087443;
+  --glass-control-edge: rgba(8, 116, 67, 0.6);
+}
+
+html[data-resolved-theme="light"] :is(#settings-push-status, #settings-location-status)[data-state="off"],
+html[data-resolved-theme="light"] .community-map-control.is-error,
+html[data-resolved-theme="light"] .community-account-danger-actions [data-community-account-action="delete"] {
+  --glass-control-text: #a32035;
+  --glass-control-edge: rgba(163, 32, 53, 0.55);
+}
+
+.community-map-current-location.is-marker-hidden:not(.is-success):not(.is-error) {
+  --glass-control-text: #94a3b8;
+}
+
+html[data-resolved-theme="light"] .community-map-current-location.is-marker-hidden:not(.is-success):not(.is-error) {
+  --glass-control-text: #64748b;
+}
 
 .sheet-speech-toggle:not(.is-muted) {
   --glass-control-text: var(--app-glass-selected);
@@ -393,6 +521,36 @@ html[data-resolved-theme="light"] #simulation-stop { --glass-control-text: #a320
 }
 
 /* Leave space below the top browser treatment in both simulation modes. */
+body[data-active-bottom-tab]:not([data-active-bottom-tab="earthquake-tab"]) .epicenter-marker-shell {
+  display: none !important;
+}
+
+.map-editing-status {
+  position: fixed;
+  top: calc(max(8px, env(safe-area-inset-top)) + 68px);
+  left: 50%;
+  z-index: 14630;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  margin: 0;
+  padding: 5px 12px;
+  border: 1px solid var(--app-glass-border);
+  border-radius: 999px;
+  background: var(--app-glass-surface);
+  color: var(--app-glass-text);
+  box-shadow: 0 2px 10px var(--app-glass-shadow);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  pointer-events: none;
+}
+
+.map-editing-status:empty {
+  display: none;
+}
+
 @layer app-map-controls {
   body[data-active-bottom-tab="earthquake-tab"] {
     --simulation-map-controls-top: calc(max(8px, env(safe-area-inset-top)) + 20px);

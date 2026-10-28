@@ -1,0 +1,24 @@
+{
+  "event": "2024-01-01T16:10:00+09:00",
+  "name": "令和6年能登半島地震",
+  "observationsSource": "https://www.data.jma.go.jp/svd/eqev/data/gaikyo/monthly/202401/202401tokushuu_1_3.pdf",
+  "observationsTable": "表3-1から選んだ強震12地点。全観測点を代表する標本ではない。",
+  "faultSource": "https://www.jishin.go.jp/main/suihon/erc394/erc394-4.pdf",
+  "faultNote": "防災科研の比較用暫定矩形：Mw7.6、深さ16km、110km×25km、走向38度、傾斜52度。気象庁震源を断層面中央とする。",
+  "latitude": 37.495, "longitude": 137.27, "magnitude": 7.6, "magnitudeType": "Mw", "depthKm": 16,
+  "lengthKm": 110, "widthKm": 25, "strikeDegrees": 38, "dipDegrees": 52,
+  "observations": [
+    { "name": "輪島市門前町走出", "intensity": 6.5, "epicentralDistanceKm": 50.2 },
+    { "name": "志賀町香能", "intensity": 6.6, "epicentralDistanceKm": 63.6 },
+    { "name": "七尾市垣吉町", "intensity": 6.1, "epicentralDistanceKm": 58.8 },
+    { "name": "七尾市能登島向田町", "intensity": 6.2, "epicentralDistanceKm": 47.7 },
+    { "name": "輪島市鳳至町", "intensity": 6.2, "epicentralDistanceKm": 35.2 },
+    { "name": "輪島市河井町", "intensity": 6.2, "epicentralDistanceKm": 34.1 },
+    { "name": "珠洲市三崎町", "intensity": 6.1, "epicentralDistanceKm": 9.3 },
+    { "name": "珠洲市正院町", "intensity": 6.2, "epicentralDistanceKm": 5.6 },
+    { "name": "珠洲市大谷町", "intensity": 6.2, "epicentralDistanceKm": 8.3 },
+    { "name": "穴水町大町", "intensity": 6.3, "epicentralDistanceKm": 43.9 },
+    { "name": "能登町松波", "intensity": 6.2, "epicentralDistanceKm": 16.0 },
+    { "name": "長岡市中之島", "intensity": 5.5, "epicentralDistanceKm": 142.2 }
+  ]
+}
