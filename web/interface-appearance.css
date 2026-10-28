@@ -28,6 +28,8 @@ html[data-resolved-theme="light"] {
   #settings-menu-sheet *,
   #info-full-panel,
   #info-full-panel *,
+  #learning-full-panel,
+  #learning-full-panel *,
   body.tool-source-search-mode #history-full-panel,
   body.tool-source-search-mode #history-full-panel * {
     overscroll-behavior-y: none !important;
@@ -230,11 +232,24 @@ html[data-resolved-theme="light"] #tool-home-page {
   backdrop-filter: none !important;
 }
 
+#info-full-panel #tool-home-page .tool-menu-row > span[aria-hidden="true"] {
+  visibility: hidden;
+}
+
 #info-full-panel #tool-home-page .tool-menu-copy,
 #info-full-panel #tool-home-page .tool-menu-copy strong {
   color: inherit !important;
   font-size: inherit !important;
   font-weight: inherit !important;
+}
+
+/* Align the search field with the two selectors instead of insetting it
+   again inside its wrapper. */
+#info-full-panel #tool-station-page .station-info-search-wrap {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
 /* Keep administrator rows separated while using the shared menu sizing. */
