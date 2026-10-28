@@ -233,7 +233,7 @@ test("opening settings or account details does not remove the parent's scroll cl
     "Removing the scrollbar would change the underlying menu's width and wrapping");
 });
 
-test("epicenter search exposes the map instead of the Tools home, and late loading cannot reopen it after Back", async () => {
+test("epicenter Back closes the map and search sheet together, and late loading cannot reopen them", async () => {
   const { context, Element } = fixture();
   const info = new Element();
   const home = new Element();
@@ -276,8 +276,11 @@ test("epicenter search exposes the map instead of the Tools home, and late loadi
   assert.equal(info.classList.contains("hidden"), false, "Back must reveal the previous screen immediately");
   assert.equal(info.classList.contains("menu-underlay-covered"), false);
   assert.equal(home.classList.contains("hidden"), false);
-  history.animations.at(-1).finish();
-  assert.equal(history.classList.contains("hidden"), true);
+  assert.equal(history.classList.contains("hidden"), true, "The sheet must close in the same turn as the map");
+  assert.equal(body.classList.contains("tool-source-search-mode"), false);
+  assert.deepEqual(mapChanges, [true, false]);
+  assert.equal(history.animations.length, 1, "There must be no delayed sheet-only exit animation");
+  assert.equal(history.animations[0].cancelled, true);
   resolveAreas();
   await new Promise(resolve => setImmediate(resolve));
   assert.deepEqual(mapChanges, [true, false]);
