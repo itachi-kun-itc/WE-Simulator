@@ -1849,6 +1849,9 @@ function setupTabs() {
     closeEarthquakePresetPicker({ restoreTab: false, skipFocus: true });
     closeSettingsMenuSheet();
     setSetupMenuOpen(false);
+    // This page is a map with a bottom sheet, so no opaque Tools page may
+    // remain behind the sheet. Preserve its scroll position for Back.
+    els.infoFullPanel?.classList.add("hidden");
     hidePageAndResetScroll(els.learningFullPanel);
     const panel = ensureHistoryFullPanel();
     ensureToolPageHeader(panel, "震源地検索", showInfoToolHome);
@@ -1859,11 +1862,13 @@ function setupTabs() {
     renderPastEarthquakeStatsPanel();
     Promise.all([loadLocalAreas(), loadEpicenterAreas()])
       .then(() => {
+        if (!document.body.classList.contains("tool-source-search-mode")) return;
         setHistoryMapModeActive(true);
         renderPastEarthquakeStatsPanel();
       })
       .catch((error) => {
-        if (error?.name === "AbortError") {
+        if (error?.name === "AbortError"
+          || !document.body.classList.contains("tool-source-search-mode")) {
           return;
         }
         console.warn("Failed to prepare local area history stats", error);
@@ -4493,6 +4498,10 @@ function setupTabs() {
     if (!panel) {
       return;
     }
+    // Restore the previous menu before moving the detail page off it.
+    const menu = els.settingsMenuSheet?.querySelector(".settings-menu-list");
+    menu?.classList.remove("menu-underlay-covered");
+    if (menu) menu.inert = false;
     [
       els.settingsSourceButton,
       els.settingsPrivacyButton,
@@ -4555,7 +4564,10 @@ function setupTabs() {
     panel.classList.add("settings-detail-panel", "is-active");
     panel.scrollTop = 0;
     panel.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
-    slideMenuPage(panel);
+    const menu = els.settingsMenuSheet?.querySelector(".settings-menu-list");
+    menu?.classList.remove("menu-underlay-covered");
+    if (menu) menu.inert = true;
+    slideMenuPage(panel, { onFinish: () => menu?.classList.add("menu-underlay-covered") });
     button?.setAttribute("aria-expanded", "true");
   };
 
