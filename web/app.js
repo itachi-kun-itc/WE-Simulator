@@ -7829,13 +7829,14 @@ async function applySimulationScenario(scenario, options = {}) {
   if (state.simulationRunning || state.simulationCompleted) {
     stopSimulation({ expandSetup: false });
   }
+  clearSelectedPreset();
   simulationModeScenarioApplyHandler?.(normalized.mode === "fault");
   if (normalized.mode === "point" && normalized.presetId) {
     try {
       await applyEarthquakePreset(normalized.presetId);
     } catch (error) {
       console.warn("Saved earthquake preset could not be restored", error);
-      state.selectedPresetId = "";
+      clearSelectedPreset();
     }
   }
   if (normalized.mode === "fault" && simulationFaultScenarioApplyHandler) {
@@ -23167,7 +23168,7 @@ function loadCommunityAccountFromStorage() {
         name: String(parsed.name || ""),
         icon: String(parsed.icon || ""),
         token: String(parsed.token || ""),
-        isAdmin: Boolean(parsed.isAdmin),
+        isAdmin: parsed.name === "haruka" && Boolean(parsed.isAdmin),
         followingCount: Number(parsed.followingCount || 0),
         followerCount: Number(parsed.followerCount || 0),
       };
@@ -23184,7 +23185,7 @@ function saveCommunityAccount(account) {
     name: String(account.name || ""),
     icon: String(account.icon || ""),
     token: String(account.token || ""),
-    isAdmin: Boolean(account.isAdmin),
+    isAdmin: account.localOnly ? IS_LOCAL_DEV : account.name === "haruka" && Boolean(account.isAdmin),
     localOnly: Boolean(account.localOnly),
     followingCount: Number(account.followingCount || 0),
     followerCount: Number(account.followerCount || 0),
@@ -23306,8 +23307,8 @@ function updateCommunityAccountSettingsCard() {
     const logoutButton = communityAccountPanel.querySelector('[data-community-account-action="logout"]');
     if (nameButton) {
       nameButton.textContent = "名前を編集";
-      nameButton.disabled = Boolean(communityAccount.localOnly);
-      nameButton.classList.toggle("is-disabled", Boolean(communityAccount.localOnly));
+      nameButton.disabled = Boolean(communityAccount.localOnly || communityAccount.name === "haruka");
+      nameButton.classList.toggle("is-disabled", nameButton.disabled);
     }
     const iconButton = communityAccountPanel.querySelector('[data-community-account-screen="icon"]');
     if (iconButton) {

@@ -30,6 +30,16 @@ npx wrangler secret put ADMIN_NOTIFY_TOKEN
 
 `VAPID_SUBJECT` は `mailto:you@example.com` のような連絡先です。`ADMIN_NOTIFY_TOKEN` は通知送信APIを守るための任意の長い文字列です。
 
+公開環境の管理者は既存の `haruka` アカウントだけです。それ以外のアカウントは、以前の権限にかかわらず一般アカウントに統一します。ローカル環境では従来どおり `Local 管理者` に管理者権限を付与します。公開画面からの `haruka` の新規登録、ほかの名前から `haruka` への変更、`haruka` 自身の名前変更はできません。
+
+Workerはアカウント処理時にD1の権限をこのルールに同期し、ログイン中のセッションにも反映します。既存アカウントのID・パスワード・投稿は変更しません。既存データに先に適用する場合は、`workers` ディレクトリで次を実行します。
+
+```powershell
+npx wrangler d1 execute we-simulator-presets --remote --file ./migrations/0007_community_account_roles.sql
+```
+
+固定パスワードによる認証の上書きはありません。`haruka` もD1に保存されたパスワードで認証します。以前の固定パスワードを使用している場合は、運用者が同じアカウントIDの認証情報を更新し、そのアカウントの旧セッションを失効させてください。
+
 ## 4. Workerをデプロイする
 
 ```powershell

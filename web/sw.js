@@ -1,4 +1,4 @@
-const CACHE_NAME = "we-simulator-pwa-862c5b50e20d";
+const CACHE_NAME = "we-simulator-pwa-c9f64869f612";
 const PUSH_METADATA_CACHE_NAME = "we-simulator-push-metadata";
 const LOCAL_DEV_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
 const IS_LOCAL_DEV = isLocalDevelopmentHostname(new URL(self.location.href).hostname);
@@ -10,17 +10,17 @@ const NOTIFICATION_HISTORY_RETENTION_DAYS = 30;
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./manifest.webmanifest?v=862c5b50e20d",
-  "./favicon.png?v=862c5b50e20d",
-  "./apple-touch-icon.png?v=862c5b50e20d",
-  "./styles.css?v=862c5b50e20d",
-  "./bottom-navigation.css?v=862c5b50e20d",
-  "./interface-appearance.css?v=862c5b50e20d",
-  "./liquid-glass.js?v=862c5b50e20d",
-  "./bottom-navigation.js?v=862c5b50e20d",
-  "./vendor/pmtiles.js?v=862c5b50e20d",
-  "./earthquake-model.js?v=862c5b50e20d",
-  "./app.js?v=862c5b50e20d",
+  "./manifest.webmanifest?v=c9f64869f612",
+  "./favicon.png?v=c9f64869f612",
+  "./apple-touch-icon.png?v=c9f64869f612",
+  "./styles.css?v=c9f64869f612",
+  "./bottom-navigation.css?v=c9f64869f612",
+  "./interface-appearance.css?v=c9f64869f612",
+  "./liquid-glass.js?v=c9f64869f612",
+  "./bottom-navigation.js?v=c9f64869f612",
+  "./vendor/pmtiles.js?v=c9f64869f612",
+  "./earthquake-model.js?v=c9f64869f612",
+  "./app.js?v=c9f64869f612",
   "./push-config.json"
 ];
 const APP_SHELL_PATHS = new Set(APP_SHELL.map((asset) => new URL(asset, self.location.href).pathname));
@@ -348,9 +348,10 @@ async function pruneNotificationHistory(existingDb = null) {
     request.onsuccess = () => resolve(request.result || []);
     request.onerror = () => reject(request.error);
   });
-  const expiredItems = items.filter(isNotificationHistoryExpired);
+  const now = Date.now();
+  const expiredItems = items.filter((item) => isNotificationHistoryExpired(item, now));
   const extraItems = items
-    .filter((item) => !isNotificationHistoryExpired(item))
+    .filter((item) => !isNotificationHistoryExpired(item, now))
     .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
     .slice(NOTIFICATION_HISTORY_LIMIT);
   const removeIds = [...expiredItems, ...extraItems].map((item) => item.id).filter(Boolean);

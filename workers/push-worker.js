@@ -11,6 +11,7 @@ const NOTIFICATION_HISTORY_RETENTION_DAYS = 30;
 const SUBSCRIPTION_PREFIX = "subscription:";
 const TARGETED_NOTIFICATION_PREFIX = "subscription-notification:";
 const MAINTENANCE_STATE_ID = "global";
+const COMMUNITY_ADMIN_ACCOUNT_NAME = "haruka";
 const JSHIS_ACTIVE_FAULT_EPOCH = "Y2024";
 const JSHIS_ACTIVE_FAULT_CATALOG_URL = `https://www.j-shis.bosai.go.jp/cgi-bin/JSHIS2/LteTable.cgi?GROUP=98F&CASE=AVR&EPOCH=${JSHIS_ACTIVE_FAULT_EPOCH}&OFFSET=0&LIMIT=700&FLANG=jp`;
 const JSHIS_ACTIVE_FAULT_GEOJSON_URL = `https://www.j-shis.bosai.go.jp/JSHIS2/GeoJSON/F-${JSHIS_ACTIVE_FAULT_EPOCH}-SHP-98F_TTL_TTL.geojson`;
@@ -1828,7 +1829,7 @@ async function createCommunityAccount(request, env) {
     throw httpError("name is required", 400);
   }
   validateCommunityPassword(password);
-  if (name.toLowerCase() === "local 管理者".toLowerCase()) {
+  if (name === COMMUNITY_ADMIN_ACCOUNT_NAME || name.toLowerCase() === "local 管理者".toLowerCase()) {
     throw httpError("reserved account name", 400);
   }
   const existing = await db.prepare("SELECT id FROM community_accounts WHERE name = ?").bind(name).first();
@@ -1840,7 +1841,7 @@ async function createCommunityAccount(request, env) {
   const passwordHash = await hashPassword(password, salt);
   const token = randomBase64Url(32);
   const createdAt = new Date().toISOString();
-  const isAdmin = isDefaultCommunityAdminCredential(name, password) ? 1 : 0;
+  const isAdmin = 0;
   await db
     .prepare(
       `INSERT INTO community_accounts (
@@ -1873,21 +1874,7 @@ async function loginCommunityAccount(request, env) {
   if (!account) {
     throw httpError("invalid account", 401);
   }
-  let expectedHash = await hashPassword(password, account.password_salt);
-  if (!safeEqual(expectedHash, String(account.password_hash || ""))) {
-    if (!isDefaultCommunityAdminCredential(name, password)) {
-      throw httpError("invalid account", 401);
-    }
-    const salt = randomBase64Url(16);
-    expectedHash = await hashPassword(password, salt);
-    await db
-      .prepare("UPDATE community_accounts SET password_salt = ?, password_hash = ?, is_admin = 1, updated_at = ? WHERE id = ?")
-      .bind(salt, expectedHash, new Date().toISOString(), account.id)
-      .run();
-    account.password_salt = salt;
-    account.password_hash = expectedHash;
-    account.is_admin = 1;
-  }
+  const expectedHash = await hashPassword(password, account.password_salt);
   if (!safeEqual(expectedHash, String(account.password_hash || ""))) {
     throw httpError("invalid account", 401);
   }
@@ -1922,6 +1909,12 @@ async function updateCommunityAccount(request, env) {
   const icon = normalizeCommunityAccountIcon(body.icon ?? account.icon);
   if (!name) {
     throw httpError("name is required", 400);
+  }
+  if (name !== account.name && (
+    name === COMMUNITY_ADMIN_ACCOUNT_NAME || account.name === COMMUNITY_ADMIN_ACCOUNT_NAME
+    || name.toLowerCase() === "local 管理者".toLowerCase()
+  )) {
+    throw httpError("reserved account name", 400);
   }
   const existing = await db
     .prepare("SELECT id FROM community_accounts WHERE name = ? AND id <> ?")
@@ -2344,10 +2337,6 @@ function validateCommunityPassword(password) {
   }
 }
 
-function isDefaultCommunityAdminCredential(name, password) {
-  return String(name || "").toLowerCase() === "haruka" && password === "haru23";
-}
-
 async function createCommunitySession(db, accountId, token) {
   const now = new Date().toISOString();
   await db
@@ -2477,7 +2466,15 @@ async function ensureCommunityAccountsSchema(db) {
     .prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_community_accounts_name ON community_accounts(name)")
     .run();
   await ensureCommunitySessionsSchema(db);
-  await ensureDefaultCommunityAdminAccount(db);
+  await syncCommunityAccountRoles(db);
+}
+
+async function syncCommunityAccountRoles(db) {
+  await db.prepare(`
+    UPDATE community_accounts
+    SET is_admin = CASE WHEN name COLLATE BINARY = ? THEN 1 ELSE 0 END
+    WHERE is_admin <> CASE WHEN name COLLATE BINARY = ? THEN 1 ELSE 0 END
+  `).bind(COMMUNITY_ADMIN_ACCOUNT_NAME, COMMUNITY_ADMIN_ACCOUNT_NAME).run();
 }
 
 async function ensureCommunitySessionsSchema(db) {
@@ -2494,35 +2491,6 @@ async function ensureCommunitySessionsSchema(db) {
     .run();
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_community_sessions_account_id ON community_sessions(account_id)").run();
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_community_sessions_token_hash ON community_sessions(token_hash)").run();
-}
-
-async function ensureDefaultCommunityAdminAccount(db) {
-  const name = "haruka";
-  const password = "haru23";
-  const existing = await db.prepare("SELECT id, is_admin AS isAdmin FROM community_accounts WHERE name = ?").bind(name).first();
-  if (existing) {
-    if (!existing.isAdmin) {
-      await db.prepare("UPDATE community_accounts SET is_admin = 1, updated_at = ? WHERE id = ?")
-        .bind(new Date().toISOString(), existing.id)
-        .run();
-    }
-    return;
-  }
-  const id = crypto.randomUUID();
-  const salt = randomBase64Url(16);
-  const now = new Date().toISOString();
-  await db.prepare(
-    `INSERT INTO community_accounts (
-      id,
-      name,
-      icon,
-      password_salt,
-      password_hash,
-      is_admin,
-      created_at,
-      updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).bind(id, name, "", salt, await hashPassword(password, salt), 1, now, now).run();
 }
 
 async function ensureCommunityPostsSchema(db) {

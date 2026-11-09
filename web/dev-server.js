@@ -22,7 +22,16 @@ const server = http.createServer((request, response) => {
     console.warn("response error", error);
   });
 
-  const url = new URL(request.url, `http://${request.headers.host}`);
+  let url;
+  let requestPath;
+  try {
+    url = new URL(request.url, `http://${request.headers.host}`);
+    requestPath = url.pathname === "/" ? "index.html" : decodeURIComponent(url.pathname).replace(/^\/+/, "");
+  } catch {
+    response.writeHead(400);
+    response.end("Bad request");
+    return;
+  }
 
   if (url.pathname === "/api/notify") {
     handleNotificationProxy(request, response);
@@ -34,8 +43,6 @@ const server = http.createServer((request, response) => {
     return;
   }
 
-  const requestPath =
-    url.pathname === "/" ? "index.html" : decodeURIComponent(url.pathname).replace(/^\/+/, "");
   const filePath = path.resolve(root, requestPath);
 
   if (!filePath.startsWith(root)) {
