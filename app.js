@@ -4219,10 +4219,6 @@ function setupTabs() {
         textarea?.focus();
         return;
       }
-      if (!FEEDBACK_ENDPOINT_URL) {
-        setFeedbackStatus(status, "送信用URLが未設定です。", true);
-        return;
-      }
       submitButton.disabled = true;
       setFeedbackStatus(status, "送信中...", false);
       try {
@@ -13952,15 +13948,6 @@ function createFeedbackOverlay() {
       return;
     }
 
-    if (!FEEDBACK_ENDPOINT_URL) {
-      setFeedbackStatus(
-        status,
-        "送信用URLが未設定です。Apps ScriptのWebアプリURLをFEEDBACK_ENDPOINT_URLに設定してください。",
-        true,
-      );
-      return;
-    }
-
     if (submitButton) {
       submitButton.disabled = true;
     }
@@ -14020,6 +14007,10 @@ function buildFeedbackOverlayHtml() {
 }
 
 async function sendFeedbackMessage(message) {
+  const workerUrl = await getWorkerBaseUrl();
+  if (!workerUrl) {
+    throw new Error("フィードバック送信先が未設定です。");
+  }
   const payload = {
     message,
     page: location.href,
@@ -14028,14 +14019,17 @@ async function sendFeedbackMessage(message) {
     sheet: FEEDBACK_SHEET_URL,
   };
 
-  await fetch(FEEDBACK_ENDPOINT_URL, {
+  const response = await fetch(`${workerUrl}/feedback`, {
     method: "POST",
-    mode: "no-cors",
     headers: {
-      "Content-Type": "text/plain;charset=utf-8",
+      "Content-Type": "application/json; charset=utf-8",
     },
     body: JSON.stringify(payload),
   });
+  const data = await response.json();
+  if (!response.ok || data?.ok !== true) {
+    throw new Error(data?.message || "フィードバックを保存できませんでした。");
+  }
 }
 
 function setFeedbackStatus(element, message, isError) {
