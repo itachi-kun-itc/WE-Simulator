@@ -3978,8 +3978,8 @@ function setupTabs() {
     setRecentEarthquakeMapModeActive(true);
     if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       els.recentEarthquakesPanel?.animate?.([
-        { translate: "0 48px", opacity: 0 }, { translate: "0 0", opacity: 1 },
-      ], { duration: 240, easing: "cubic-bezier(.2,.8,.2,1)" });
+        { translate: "0 100%", opacity: 0 }, { translate: "0 0", opacity: 1 },
+      ], { duration: 260, easing: "cubic-bezier(0.2,0.82,0.2,1)" });
     }
     refreshRecentEarthquakes();
   };
@@ -7598,8 +7598,11 @@ function fitRecentEarthquakeMap() {
   const anchor = coordinates[0][0];
   const longitudes = coordinates.map(([longitude]) => anchor + ((longitude - anchor + 540) % 360) - 180);
   const latitudes = coordinates.map(([, latitude]) => clamp(latitude, -85, 85));
-  const sheet = els.recentEarthquakesPanel?.getBoundingClientRect();
-  const bottom = Math.min(sheet ? Math.max(0, window.innerHeight - sheet.top) + 20 : 160, window.innerHeight - 100);
+  const sheet = els.recentEarthquakesPanel;
+  const sheetBottom = sheet ? Number.parseFloat(window.getComputedStyle(sheet).bottom) || 0 : 0;
+  const sheetHeight = sheet?.dataset.sheetState === "open"
+    ? Math.min(window.innerHeight * 0.67, window.innerHeight - sheetBottom - 14) : 42;
+  const bottom = Math.min(sheet ? sheetBottom + sheetHeight + 20 : 160, window.innerHeight - 100);
   map.fitBounds([[Math.min(...longitudes), Math.min(...latitudes)], [Math.max(...longitudes), Math.max(...latitudes)]], {
     padding: { top: 48, right: 32, bottom, left: 32 }, maxZoom: SIMULATION_MAP_MAX_ZOOM, duration: 650,
   });
