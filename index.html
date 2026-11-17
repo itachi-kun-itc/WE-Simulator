@@ -49,9 +49,9 @@
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta name="twitter:image" content="https://itachi-kun-itc.github.io/WE-Simulator/og-image.png" />
-    <link rel="manifest" href="./manifest.webmanifest?v=0d7c96f1c917" />
-    <link rel="icon" type="image/png" sizes="32x32" href="./favicon.png?v=0d7c96f1c917" />
-    <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=0d7c96f1c917" />
+    <link rel="manifest" href="./manifest.webmanifest?v=a297693244d1" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./favicon.png?v=a297693244d1" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=a297693244d1" />
     <link rel="preconnect" href="https://we-simulator-push.h6fgpg2zht.workers.dev" crossorigin />
     <link rel="preconnect" href="https://unpkg.com" crossorigin />
     <style>
@@ -90,9 +90,9 @@
       }
     </style>
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.css" />
-    <link rel="stylesheet" href="./styles.css?v=0d7c96f1c917" />
-    <link rel="stylesheet" href="./bottom-navigation.css?v=0d7c96f1c917" />
-    <link rel="stylesheet" href="./interface-appearance.css?v=0d7c96f1c917" />
+    <link rel="stylesheet" href="./styles.css?v=a297693244d1" />
+    <link rel="stylesheet" href="./bottom-navigation.css?v=a297693244d1" />
+    <link rel="stylesheet" href="./interface-appearance.css?v=a297693244d1" />
   </head>
   <body>
     <main class="app-shell">
@@ -122,6 +122,7 @@
           </button>
           <section class="map-layer-control-panel hidden" id="map-layer-control-panel" aria-label="レイヤー表示">
             <strong>レイヤー表示</strong>
+            <label><input id="simulation-auto-zoom-toggle" type="checkbox" checked />自動ズーム</label>
             <label><input type="checkbox" data-map-layer-target="station-layer-toggle" />観測点</label>
             <label><input type="checkbox" data-map-layer-target="submarine-station-layer-toggle" />観測点（海底）</label>
             <label><input type="checkbox" data-map-layer-target="region-layer-toggle" checked />細分区域</label>
@@ -636,11 +637,11 @@
       </button>
     </nav>
 
-    <script src="./liquid-glass.js?v=0d7c96f1c917"></script>
-    <script src="./bottom-navigation.js?v=0d7c96f1c917"></script>
+    <script src="./liquid-glass.js?v=a297693244d1"></script>
+    <script src="./bottom-navigation.js?v=a297693244d1"></script>
     <script src="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.js"></script>
-    <script src="./vendor/pmtiles.js?v=0d7c96f1c917"></script>
-    <script src="./earthquake-model.js?v=0d7c96f1c917"></script>
-    <script src="./app.js?v=0d7c96f1c917"></script>
+    <script src="./vendor/pmtiles.js?v=a297693244d1"></script>
+    <script src="./earthquake-model.js?v=a297693244d1"></script>
+    <script src="./app.js?v=a297693244d1"></script>
   </body>
 </html>

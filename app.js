@@ -114,6 +114,7 @@ const MAINTENANCE_STATUS_POLL_MS = 60000;
 const APPEARANCE_THEME_KEY = "weather-earthquake-appearance-theme";
 const DEFAULT_APPEARANCE_THEME = "dark";
 const INTENSITY_COLOR_SCHEME_KEY = "weather-earthquake-intensity-color-scheme";
+const SIMULATION_AUTO_ZOOM_STORAGE_KEY = "weather-earthquake-simulation-auto-zoom-enabled-v1";
 const LOCAL_PARENT_UNAVAILABLE_LABEL = "Localサーバーでは\n親端末に設定できません";
 
 const INITIAL_CENTER = [139.767, 35.681];
@@ -565,6 +566,7 @@ const state = {
   showEewWarningLayer: false,
   showPlateBoundaryLayer: false,
   showFaultLayer: false,
+  simulationAutoZoomEnabled: getStoredSimulationAutoZoomEnabled(),
   selectedPresetId: "",
   presetFilterText: "",
   presetSortKey: null,
@@ -652,6 +654,7 @@ const els = {
   settingsMenuButton: document.querySelector("#settings-menu-button"),
   mapLayerControlButton: document.querySelector("#map-layer-control-button"),
   mapLayerControlPanel: document.querySelector("#map-layer-control-panel"),
+  simulationAutoZoomToggle: document.querySelector("#simulation-auto-zoom-toggle"),
   setupSheetToggle: document.querySelector("#setup-sheet-toggle"),
   simulationSheetToggle: document.querySelector("#simulation-sheet-toggle"),
   setupPanel: document.querySelector("#setup-panel"),
@@ -775,6 +778,9 @@ let startupLocationPromptPending = Boolean(
 );
 let maintenanceStatusReady = false;
 let simulationStartedAt;
+let simulationAutoZoomLastUpdateAt = -Infinity;
+let simulationAutoZoomResumeAt = 0;
+let simulationAutoZoomCameraActive = false;
 let simulationPausedAt;
 let simulationPlaybackRate = 1;
 let simulationPreviousEpicenterEditEnabled = false;
@@ -7145,6 +7151,25 @@ function bindSimulationControls() {
   els.eewWarningToggle.addEventListener("change", () => updateDisplayMode());
   els.plateBoundaryLayerToggle?.addEventListener("change", () => updateDisplayMode());
   els.faultLayerToggle?.addEventListener("change", () => updateDisplayMode());
+  if (els.simulationAutoZoomToggle) {
+    els.simulationAutoZoomToggle.checked = state.simulationAutoZoomEnabled;
+    els.simulationAutoZoomToggle.addEventListener("change", () => {
+      state.simulationAutoZoomEnabled = els.simulationAutoZoomToggle.checked;
+      try {
+        localStorage.setItem(SIMULATION_AUTO_ZOOM_STORAGE_KEY, String(state.simulationAutoZoomEnabled));
+      } catch (error) {
+        console.warn("Failed to save simulation auto zoom setting", error);
+      }
+      simulationAutoZoomLastUpdateAt = -Infinity;
+      simulationAutoZoomResumeAt = 0;
+      if (state.simulationAutoZoomEnabled) {
+        updateSimulationAutoZoom(getSimulationStationElapsedSec(), { force: true });
+      } else if (simulationAutoZoomCameraActive) {
+        map?.stop();
+        simulationAutoZoomCameraActive = false;
+      }
+    });
+  }
   const syncMapLayerControlPanel = () => {
     els.mapLayerControlPanel?.querySelectorAll("[data-map-layer-target]").forEach((control) => {
       const target = document.getElementById(control.dataset.mapLayerTarget || "");
@@ -11449,14 +11474,20 @@ async function initEarthquakeMap() {
   // Current actions are wired independently in the sheet and Settings.
   setupNotificationHistoryMessages();
   updateEpicenterEditMode();
-  map.on("movestart", () => {
+  map.on("movestart", (event) => {
     state.mapInteracting = true;
+    if (event.originalEvent) {
+      simulationAutoZoomCameraActive = false;
+      simulationAutoZoomResumeAt = performance.now() + 1800;
+    }
   });
   map.on("move", () => {
     constrainMapToPanRange();
   });
-  map.on("moveend", () => {
+  map.on("moveend", (event) => {
     state.mapInteracting = false;
+    simulationAutoZoomCameraActive = false;
+    if (event.originalEvent) simulationAutoZoomResumeAt = performance.now() + 1800;
     constrainMapToPanRange();
     scheduleStationCanvasRender({ force: true });
     schedulePostMapInteractionRender();
@@ -16529,6 +16560,83 @@ function resetMapViewToInitial() {
   });
 }
 
+function getStoredSimulationAutoZoomEnabled() {
+  try {
+    return localStorage.getItem(SIMULATION_AUTO_ZOOM_STORAGE_KEY) !== "false";
+  } catch {
+    return true;
+  }
+}
+
+function getSimulationAutoZoomBounds(elapsedSec) {
+  const { stationFeatures } = getObservedStationSummaryForElapsed(elapsedSec);
+  if (!stationFeatures.length) return null;
+  const faultMode = isFaultSimulationActive();
+  const faultArea = faultMode ? sourceDataRefs.get("simulation-fault-source")?.features
+    ?.find((feature) => feature.properties?.kind === "fault-area")?.geometry?.coordinates?.[0] : null;
+  const coordinates = [
+    simulationEpicenter,
+    ...(faultMode ? getActiveFaultPath() : []),
+    ...(faultArea || []),
+    ...stationFeatures.map((feature) => feature.geometry?.coordinates),
+  ];
+  let west = Infinity;
+  let east = -Infinity;
+  let south = Infinity;
+  let north = -Infinity;
+  for (const coordinate of coordinates) {
+    if (!Array.isArray(coordinate) || !Number.isFinite(coordinate[0]) || !Number.isFinite(coordinate[1])) continue;
+    const longitude = simulationEpicenter[0] + normalizeLongitude(coordinate[0] - simulationEpicenter[0]);
+    west = Math.min(west, longitude);
+    east = Math.max(east, longitude);
+    south = Math.min(south, clamp(coordinate[1], -85, 85));
+    north = Math.max(north, clamp(coordinate[1], -85, 85));
+  }
+  return Number.isFinite(west) ? [[west, south], [east, north]] : null;
+}
+
+function getSimulationAutoZoomPadding() {
+  const mapRect = map.getContainer().getBoundingClientRect();
+  const hudRect = document.querySelector(".simulation-runtime-hud")?.getBoundingClientRect();
+  const navRect = document.querySelector(".bottom-tabs")?.getBoundingClientRect();
+  const legendRect = document.querySelector(".intensity-legend")?.getBoundingClientRect();
+  const bottomEdge = [hudRect, navRect]
+    .filter((rect) => rect?.height > 0 && rect.top > mapRect.top)
+    .reduce((edge, rect) => Math.min(edge, rect.top), mapRect.bottom);
+  const verticalLegend = legendRect && legendRect.height > legendRect.width * 2;
+  return normalizeMapPaddingForViewport({
+    top: legendRect?.height > 0 && !verticalLegend ? Math.max(28, legendRect.bottom - mapRect.top + 16) : 28,
+    right: verticalLegend ? Math.max(28, mapRect.right - legendRect.left + 16) : 28,
+    bottom: Math.max(28, mapRect.bottom - bottomEdge + 20),
+    left: 28,
+  });
+}
+
+function updateSimulationAutoZoom(elapsedSec, { force = false } = {}) {
+  if (!map || !state.simulationAutoZoomEnabled || (!state.simulationRunning && !state.simulationCompleted)
+    || document.body.dataset.activeBottomTab !== "earthquake-tab") return;
+  const now = performance.now();
+  if (!force && (state.simulationPaused || state.mapInteracting || now < simulationAutoZoomResumeAt
+    || now - simulationAutoZoomLastUpdateAt < 700)) return;
+  simulationAutoZoomLastUpdateAt = now;
+  const bounds = getSimulationAutoZoomBounds(elapsedSec);
+  if (!bounds) return;
+  const padding = getSimulationAutoZoomPadding();
+  const camera = map.cameraForBounds(bounds, { padding, maxZoom: SIMULATION_MAP_MAX_ZOOM });
+  if (!camera || !Number.isFinite(camera.zoom)) return;
+  const center = Array.isArray(camera.center) ? camera.center : [camera.center.lng, camera.center.lat];
+  const current = map.getCenter();
+  const zoom = clamp(camera.zoom, map.getMinZoom(), SIMULATION_MAP_MAX_ZOOM);
+  if (Math.abs(zoom - map.getZoom()) < 0.03 && Math.abs(normalizeLongitude(center[0] - current.lng)) < 0.001
+    && Math.abs(center[1] - current.lat) < 0.001) return;
+  simulationAutoZoomCameraActive = true;
+  map.fitBounds(bounds, {
+    padding, maxZoom: SIMULATION_MAP_MAX_ZOOM,
+    duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 500,
+    easing: smoothResetMapEasing,
+  });
+}
+
 function alignMapToSimulationEpicenter() {
   if (!map) {
     return Promise.resolve();
@@ -17672,7 +17780,7 @@ async function startSimulation() {
   resetViewAnimating = true;
   updateSimulationAvailability();
   try {
-    await alignMapToSimulationEpicenter();
+    if (state.simulationAutoZoomEnabled) await alignMapToSimulationEpicenter();
   } finally {
     resetViewAnimating = false;
   }
@@ -17713,6 +17821,8 @@ async function startSimulation() {
   cancelPendingMaxStationListRender();
   simulationTimeTextCache = "";
   state.simulationRunning = true;
+  simulationAutoZoomLastUpdateAt = -Infinity;
+  simulationAutoZoomResumeAt = 0;
   state.simulationPaused = false;
   state.simulationCompleted = false;
   simulationPlaybackRate = 1;
@@ -17807,6 +17917,8 @@ async function startSimulation() {
 }
 
 function stopSimulation(options = {}) {
+  if (simulationAutoZoomCameraActive) map?.stop();
+  simulationAutoZoomCameraActive = false;
   const expandSetup = Boolean(options.expandSetup);
   closeSimulationResultReport({ activatePrimary: false, returnToCompleted: false });
   restoreSimulationSetupMagnitude();
@@ -17910,6 +18022,8 @@ function pauseSimulation() {
   }
 
   state.simulationPaused = true;
+  if (simulationAutoZoomCameraActive) map?.stop();
+  simulationAutoZoomCameraActive = false;
   simulationPausedAt = performance.now();
   cancelAnimationFrame(simulationFrame);
   simulationFrame = null;
@@ -18089,6 +18203,7 @@ function renderSimulationAtElapsed(elapsedSec) {
     syncVisibleAreaSourceData(modelElapsedSec);
     updateSimulationSummary(modelElapsedSec);
     updateSimulationProgress(elapsedSec);
+    updateSimulationAutoZoom(modelElapsedSec, { force: true });
   } finally {
     simulationSeeking = false;
   }
@@ -18144,6 +18259,8 @@ function tickSimulation(now) {
   }
 
   updateSimulationProgress(elapsedSec);
+
+  updateSimulationAutoZoom(modelElapsedSec);
 
   if (isSimulationComplete(elapsedSec)) {
     updateSimulationMagnitudeForElapsed(Infinity, { force: true });
