@@ -4849,6 +4849,12 @@ function setupTabs() {
   });
 
   document.querySelector("#bottom-info-tab")?.addEventListener("click", () => {
+    if (document.body.dataset.activeBottomTab === "bottom-info-tab"
+      && !els.recentEarthquakesPanel?.classList.contains("hidden")) {
+      const stateName = els.recentEarthquakesPanel.dataset.sheetState === "open" ? "collapsed" : "open";
+      setSheetState(els.recentEarthquakesPanel, stateName);
+      return;
+    }
     setActiveBottomTab("#bottom-info-tab");
     activateEarthquakePanel();
     openInfoFullPanel();

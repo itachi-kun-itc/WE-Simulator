@@ -70,7 +70,8 @@ body:not(.tool-station-search-mode):not(.tool-weather-quiz-mode) #learning-full-
 
 #recent-earthquakes-panel > .sheet-handle::after { background: var(--app-glass-text) !important; }
 
-body.recent-earthquake-map-mode :is(.station-canvas-overlay, .epicenter-marker-shell, .eew-forecast-panel, .simulation-runtime-hud, #map-layer-control-button) {
+body.recent-earthquake-map-mode :is(.station-canvas-overlay, .eew-forecast-panel, .simulation-runtime-hud, #map-layer-control-button),
+body.recent-earthquake-map-mode .epicenter-marker-shell:not(.recent-earthquake-epicenter-marker) {
   display: none !important;
 }
 
