@@ -49,9 +49,9 @@
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta name="twitter:image" content="https://itachi-kun-itc.github.io/WE-Simulator/og-image.png" />
-    <link rel="manifest" href="./manifest.webmanifest?v=0daa58e462dd" />
-    <link rel="icon" type="image/png" sizes="32x32" href="./favicon.png?v=0daa58e462dd" />
-    <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=0daa58e462dd" />
+    <link rel="manifest" href="./manifest.webmanifest?v=a906d4cafa71" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./favicon.png?v=a906d4cafa71" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=a906d4cafa71" />
     <link rel="preconnect" href="https://we-simulator-push.h6fgpg2zht.workers.dev" crossorigin />
     <link rel="preconnect" href="https://unpkg.com" crossorigin />
     <style>
@@ -90,9 +90,9 @@
       }
     </style>
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.css" />
-    <link rel="stylesheet" href="./styles.css?v=0daa58e462dd" />
-    <link rel="stylesheet" href="./bottom-navigation.css?v=0daa58e462dd" />
-    <link rel="stylesheet" href="./interface-appearance.css?v=0daa58e462dd" />
+    <link rel="stylesheet" href="./styles.css?v=a906d4cafa71" />
+    <link rel="stylesheet" href="./bottom-navigation.css?v=a906d4cafa71" />
+    <link rel="stylesheet" href="./interface-appearance.css?v=a906d4cafa71" />
   </head>
   <body>
     <main class="app-shell">
@@ -535,6 +535,14 @@
             </div>
           </section>
 
+          <section class="sim-panel recent-earthquakes-sheet hidden" id="recent-earthquakes-panel" aria-label="地震" data-sheet-state="open">
+            <button class="sheet-handle" type="button" aria-label="地震一覧を開閉" aria-expanded="true"></button>
+            <div class="recent-earthquakes-content">
+              <div id="recent-earthquakes-list" class="recent-earthquakes-list"></div>
+              <a href="https://www.jma.go.jp/bosai/map.html#contents=earthquake_map" target="_blank" rel="noopener noreferrer">出典　気象庁「地震情報」</a>
+            </div>
+          </section>
+
           <section class="nerv-full-panel hidden" id="learning-full-panel" aria-label="学習">
             <header class="nerv-full-head">
               <h2>学習</h2>
@@ -610,13 +618,13 @@
         <span class="bottom-tab-icon" aria-hidden="true"></span>
         <span>シミュレーション</span>
       </button>
+      <button class="tab" id="bottom-info-tab" type="button">
+        <span class="bottom-tab-icon" aria-hidden="true"></span>
+        <span>地震</span>
+      </button>
       <button class="tab" id="bottom-history-tab" type="button">
         <span class="bottom-tab-icon" aria-hidden="true"></span>
         <span>投稿</span>
-      </button>
-      <button class="tab" id="bottom-info-tab" type="button">
-        <span class="bottom-tab-icon" aria-hidden="true"></span>
-        <span>ツール</span>
       </button>
       <button class="tab" id="bottom-learning-tab" type="button">
         <span class="bottom-tab-icon" aria-hidden="true"></span>
@@ -628,11 +636,11 @@
       </button>
     </nav>
 
-    <script src="./liquid-glass.js?v=0daa58e462dd"></script>
-    <script src="./bottom-navigation.js?v=0daa58e462dd"></script>
+    <script src="./liquid-glass.js?v=a906d4cafa71"></script>
+    <script src="./bottom-navigation.js?v=a906d4cafa71"></script>
     <script src="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.js"></script>
-    <script src="./vendor/pmtiles.js?v=0daa58e462dd"></script>
-    <script src="./earthquake-model.js?v=0daa58e462dd"></script>
-    <script src="./app.js?v=0daa58e462dd"></script>
+    <script src="./vendor/pmtiles.js?v=a906d4cafa71"></script>
+    <script src="./earthquake-model.js?v=a906d4cafa71"></script>
+    <script src="./app.js?v=a906d4cafa71"></script>
   </body>
 </html>

@@ -7749,7 +7749,7 @@ body:not([data-active-bottom-tab="bottom-history-tab"]) #history-full-panel {
   pointer-events: none !important;
 }
 
-body:not([data-active-bottom-tab="bottom-info-tab"]) #info-full-panel {
+body:not([data-active-bottom-tab="bottom-learning-tab"]) #info-full-panel {
   display: none !important;
   pointer-events: none !important;
 }
@@ -10639,7 +10639,7 @@ html[data-resolved-theme="light"] .community-post-retention-options label:has(in
 /* Current request: allow the simulation sheet to be pulled higher and layer it above the legend. */
 
 /* Tools tab: source-search and station-search pages live under the Tools tab. */
-body[data-active-bottom-tab="bottom-info-tab"].tool-source-search-mode #history-full-panel {
+body[data-active-bottom-tab="bottom-learning-tab"].tool-source-search-mode #history-full-panel {
   display: grid !important;
   pointer-events: auto !important;
 }
@@ -11468,8 +11468,8 @@ body.community-pick-mode .community-post-button {
 }
 
 #earthquake-tab .bottom-tab-icon::before {
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 12h4l2.2-6 3.2 12 3-9 2.2 6H22'/%3E%3C/svg%3E") !important;
-  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 12h4l2.2-6 3.2 12 3-9 2.2 6H22'/%3E%3C/svg%3E") !important;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2' y='3' width='20' height='14' rx='2'/%3E%3Cpath d='m10 7 5 3-5 3V7ZM12 17v4M8 21h8'/%3E%3C/svg%3E") !important;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2' y='3' width='20' height='14' rx='2'/%3E%3Cpath d='m10 7 5 3-5 3V7ZM12 17v4M8 21h8'/%3E%3C/svg%3E") !important;
 }
 
 #bottom-history-tab .bottom-tab-icon::before {
@@ -13163,7 +13163,8 @@ body.simulation-session-complete .simulation-runtime-hud .simulation-timeline-co
   transform: none !important;
 }
 
-#setup-panel .sheet-handle::after {
+#setup-panel .sheet-handle::after,
+#recent-earthquakes-panel > .sheet-handle::after {
   content: "" !important;
   position: absolute !important;
   top: 7px !important;
@@ -15186,8 +15187,8 @@ html[data-resolved-theme="light"] .weather-quiz-note {
 }
 
 #bottom-info-tab .bottom-tab-icon::before {
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.1' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M3 12h18M12 3c3 3.5 3 14 0 18M12 3c-3 3.5-3 14 0 18'/%3E%3C/svg%3E") !important;
-  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.1' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M3 12h18M12 3c3 3.5 3 14 0 18M12 3c-3 3.5-3 14 0 18'/%3E%3C/svg%3E") !important;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.1' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 12h4l2-5 3 11 3-15 3 12 2-3h3'/%3E%3C/svg%3E") !important;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.1' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 12h4l2-5 3 11 3-15 3 12 2-3h3'/%3E%3C/svg%3E") !important;
 }
 
 #bottom-settings-tab .bottom-tab-icon::before {

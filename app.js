@@ -29,6 +29,28 @@ const JAPAN_PMTILES_BYTE_SERVING_RECOVERY_KEY = "ws_pmtiles_byte_serving_recover
 const JAPAN_PMTILES_BYTE_SERVING_PROBE_TIMEOUT_MS = 1200;
 const GROUND_MODEL_URL = "./data/ground_model.json";
 const SHINDO_STATIONS_URL = "./data/jma_shindo_stations.json";
+const RECENT_EARTHQUAKES_STORAGE_KEY = "weather-earthquake-recent-jma-earthquakes-v1";
+const RECENT_EARTHQUAKES_LIMIT = 30;
+let recentEarthquakes = [];
+let recentEarthquakesUpdatedAt = "";
+let recentEarthquakesLoadPromise = null;
+let selectedRecentEarthquakeId = "";
+let recentEarthquakeDetail = null;
+let recentEarthquakeDetailController = null;
+let recentEarthquakeSelectionRequestId = 0;
+let recentEarthquakePopup = null;
+let recentEarthquakeEpicenterMarker = null;
+const recentEarthquakeDetailCache = new Map();
+const RECENT_EARTHQUAKE_HIDDEN_LAYERS = new Set([
+  "shindo-station-points", "shindo-station-points-light-outline", "shindo-station-labels",
+  "submarine-observation-fill", "eew-warning-fill", "plate-boundaries",
+  "jma-intensity-fill", "jma-intensity-area-boundaries", "jma-intensity-area-boundaries-light",
+  "jma-eew-warning-boundaries", "history-local-area-fill", "history-epicenter-area-fill",
+  "jshis-active-fault-model-lines", "jshis-active-fault-model-fills",
+  "jshis-subduction-detail-lines", "jshis-active-fault-traces",
+  "p-wave-fill", "p-wave-line", "s-wave-fill", "s-wave-line",
+  "simulation-fault-line-casing", "simulation-fault-line", "simulation-fault-endpoints",
+]);
 const FEEDBACK_SHEET_URL =
   "https://docs.google.com/spreadsheets/d/1cmR_OGml5ngLuq0zAi_gAs_qgrBNqTSlWZ5-H7tLWV0/edit?usp=sharing";
 const FEEDBACK_ENDPOINT_URL =
@@ -607,6 +629,7 @@ const els = {
   historyAreaFilter: document.querySelector("#history-area-filter"),
   historyStatsList: document.querySelector("#history-stats-list"),
   infoFullPanel: document.querySelector("#info-full-panel"),
+  recentEarthquakesPanel: document.querySelector("#recent-earthquakes-panel"),
   learningFullPanel: document.querySelector("#learning-full-panel"),
   intensityColorScheme: document.querySelector("#intensity-color-scheme"),
   municipalityOutput: document.querySelector("#municipality-output"),
@@ -1827,6 +1850,7 @@ function setupTabs() {
     setMenuUnderlayCovered(els.infoFullPanel?.querySelector("#tool-home-page"), false);
     setMenuUnderlayCovered(els.infoFullPanel, false);
     els.infoFullPanel?.classList.remove("hidden");
+    els.learningFullPanel?.classList.remove("hidden");
     const finish = () => {
       document.body.classList.remove("tool-source-search-mode", "tool-station-search-mode", "tool-weather-quiz-mode");
       setHistoryMapModeActive(false);
@@ -1894,7 +1918,6 @@ function setupTabs() {
     setSetupMenuOpen(false);
     setHistoryMapModeActive(false);
     hidePageAndResetScroll(els.historyFullPanel);
-    hidePageAndResetScroll(els.learningFullPanel);
     document.body.classList.remove("tool-source-search-mode");
     document.body.classList.remove("tool-weather-quiz-mode");
     document.body.classList.add("tool-station-search-mode");
@@ -3021,7 +3044,6 @@ function setupTabs() {
     setSetupMenuOpen(false);
     setHistoryMapModeActive(false);
     hidePageAndResetScroll(els.historyFullPanel);
-    hidePageAndResetScroll(els.learningFullPanel);
     document.body.classList.remove("tool-source-search-mode", "tool-station-search-mode");
     document.body.classList.add("tool-weather-quiz-mode");
     const page = ensureInfoWeatherQuizPanel();
@@ -3212,6 +3234,7 @@ function setupTabs() {
     categorySwitch.innerHTML = `
       <button type="button" role="tab" id="learning-category-earthquake-tab" aria-controls="learning-category-earthquake" aria-selected="true" data-learning-category="earthquake">地震</button>
       <button type="button" role="tab" id="learning-category-weather-tab" aria-controls="learning-category-weather" aria-selected="false" data-learning-category="weather">気象</button>
+      <button type="button" role="tab" id="learning-category-tools-tab" aria-controls="learning-category-tools" aria-selected="false" data-learning-category="tools">ツール</button>
     `;
 
     const earthquakePanel = document.createElement("div");
@@ -3232,12 +3255,29 @@ function setupTabs() {
     if (weatherSection) weatherPanel.append(weatherSection);
     if (typhoonSection) weatherPanel.append(typhoonSection);
 
+    const toolsPanel = document.createElement("div");
+    toolsPanel.className = "learning-category-panel hidden";
+    toolsPanel.id = "learning-category-tools";
+    toolsPanel.setAttribute("role", "tabpanel");
+    toolsPanel.setAttribute("aria-labelledby", "learning-category-tools-tab");
+    ensureInfoToolShell();
+    toolsPanel.append(els.infoFullPanel);
+
     const selectCategory = (category) => {
-      const showWeather = category === "weather";
       resetPageScrollPosition(content);
       resetPageScrollPosition(els.learningFullPanel);
-      earthquakePanel.classList.toggle("hidden", showWeather);
-      weatherPanel.classList.toggle("hidden", !showWeather);
+      earthquakePanel.classList.toggle("hidden", category !== "earthquake");
+      weatherPanel.classList.toggle("hidden", category !== "weather");
+      toolsPanel.classList.toggle("hidden", category !== "tools");
+      if (category === "tools") {
+        showInfoToolHome({ immediate: true });
+      } else {
+        resetInfoTabState();
+        weatherQuizSession = null;
+        setHistoryMapModeActive(false);
+        hidePageAndResetScroll(els.historyFullPanel);
+        hidePageAndResetScroll(els.infoFullPanel);
+      }
       categorySwitch.querySelectorAll("[data-learning-category]").forEach((button) => {
         const selected = button.dataset.learningCategory === category;
         button.setAttribute("aria-selected", String(selected));
@@ -3247,20 +3287,32 @@ function setupTabs() {
       content.dataset.learningCategory = category;
     };
 
+    const requestCategory = (category) => {
+      if (category === content.dataset.learningCategory) return;
+      if (isWeatherQuizInProgress()) {
+        showWeatherQuizLeaveConfirm({ click: () => selectCategory(category) });
+        return;
+      }
+      selectCategory(category);
+    };
+
     categorySwitch.addEventListener("click", (event) => {
       const button = event.target.closest("[data-learning-category]");
-      if (button) selectCategory(button.dataset.learningCategory);
+      if (button) requestCategory(button.dataset.learningCategory);
     });
     categorySwitch.addEventListener("keydown", (event) => {
       const current = event.target.closest("[data-learning-category]");
       if (!current || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
       event.preventDefault();
-      const category = event.key === "Home" ? "earthquake" : event.key === "End" ? "weather"
-        : current.dataset.learningCategory === "earthquake" ? "weather" : "earthquake";
-      selectCategory(category);
+      const categories = ["earthquake", "weather", "tools"];
+      const index = categories.indexOf(current.dataset.learningCategory);
+      const nextIndex = event.key === "Home" ? 0 : event.key === "End" ? categories.length - 1
+        : (index + (event.key === "ArrowRight" ? 1 : -1) + categories.length) % categories.length;
+      const category = categories[nextIndex];
+      requestCategory(category);
       categorySwitch.querySelector(`[data-learning-category="${category}"]`)?.focus();
     });
-    content.replaceChildren(categorySwitch, earthquakePanel, weatherPanel);
+    content.replaceChildren(categorySwitch, earthquakePanel, weatherPanel, toolsPanel);
     selectCategory("earthquake");
     window.setupLiquidGlassSelector(categorySwitch, {
       buttonSelector: "[data-learning-category]",
@@ -3622,6 +3674,11 @@ function setupTabs() {
         ".community-post-detail-body",
       ],
       "bottom-info-tab": [
+        "#recent-earthquakes-panel",
+      ],
+      "bottom-learning-tab": [
+        "#learning-full-panel",
+        "#learning-full-panel .learning-content",
         "#info-full-panel",
         "#info-full-panel .tool-home-page",
         "#info-full-panel .tool-station-page",
@@ -3630,10 +3687,6 @@ function setupTabs() {
         "#info-full-panel .station-info-list",
         "#history-full-panel",
         "#history-full-panel .history-stats-list",
-      ],
-      "bottom-learning-tab": [
-        "#learning-full-panel",
-        "#learning-full-panel .learning-content",
       ],
       "bottom-settings-tab": [
         "#settings-menu-sheet",
@@ -3704,7 +3757,7 @@ function setupTabs() {
       setCommunityMapModeActive(false);
       closeCommunityAccountRequiredPanel();
     }
-    if (activeTab?.id !== "bottom-info-tab") {
+    if (activeTab?.id !== "bottom-learning-tab") {
       resetInfoTabState();
     }
     updateSimulationFaultSource();
@@ -3883,11 +3936,13 @@ function setupTabs() {
   };
 
   const closeFullPanels = () => {
+    if (document.body.classList.contains("recent-earthquake-map-mode")) setRecentEarthquakeMapModeActive(false);
     setHistoryMapModeActive(false);
     document.body.classList.remove("tool-source-search-mode", "tool-station-search-mode", "tool-weather-quiz-mode");
     hidePageAndResetScroll(els.historyFullPanel);
     hidePageAndResetScroll(els.infoFullPanel);
     hidePageAndResetScroll(els.learningFullPanel);
+    hidePageAndResetScroll(els.recentEarthquakesPanel);
   };
 
   const openHistoryFullPanel = () => {
@@ -3918,8 +3973,15 @@ function setupTabs() {
     closeEarthquakePresetPicker({ restoreTab: false, skipFocus: true });
     closeSettingsMenuSheet();
     setSetupMenuOpen(false);
-    hidePageAndResetScroll(els.learningFullPanel);
-    showInfoToolHome({ immediate: true });
+    closeFullPanels();
+    els.recentEarthquakesPanel?.classList.remove("hidden");
+    setRecentEarthquakeMapModeActive(true);
+    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      els.recentEarthquakesPanel?.animate?.([
+        { translate: "0 48px", opacity: 0 }, { translate: "0 0", opacity: 1 },
+      ], { duration: 240, easing: "cubic-bezier(.2,.8,.2,1)" });
+    }
+    refreshRecentEarthquakes();
   };
 
   const openLearningFullPanel = () => {
@@ -3929,8 +3991,12 @@ function setupTabs() {
     setHistoryMapModeActive(false);
     hidePageAndResetScroll(els.historyFullPanel);
     hidePageAndResetScroll(els.infoFullPanel);
+    hidePageAndResetScroll(els.recentEarthquakesPanel);
     ensureLearningPanel();
     els.learningFullPanel?.classList.remove("hidden");
+    if (els.learningFullPanel?.querySelector(".learning-content")?.dataset.learningCategory === "tools") {
+      showInfoToolHome({ immediate: true });
+    }
   };
 
   const setSettingsRowLabels = () => {
@@ -4587,7 +4653,7 @@ function setupTabs() {
 
   setSettingsRowLabels();
   document.querySelector("#bottom-history-tab span:last-child")?.replaceChildren("投稿");
-  document.querySelector("#bottom-info-tab span:last-child")?.replaceChildren("ツール");
+  document.querySelector("#bottom-info-tab span:last-child")?.replaceChildren("地震");
   document.querySelector("#bottom-learning-tab span:last-child")?.replaceChildren("学習");
   document.querySelector("#bottom-settings-tab span:last-child")?.replaceChildren("設定");
   document.querySelector("#earthquake-tab span:last-child")?.replaceChildren("シミュレーション");
@@ -4640,7 +4706,7 @@ function setupTabs() {
     const close = () => {
       overlay.remove();
       document.body.classList.remove("weather-quiz-leave-open");
-      document.querySelector("#bottom-info-tab")?.focus?.({ preventScroll: true });
+      document.querySelector("#learning-category-tools-tab")?.focus?.({ preventScroll: true });
     };
     overlay.querySelector("[data-weather-quiz-leave-no]")?.addEventListener("click", close);
     overlay.querySelector("[data-weather-quiz-leave-yes]")?.addEventListener("click", () => {
@@ -4735,7 +4801,7 @@ function setupTabs() {
         setCommunityMapModeActive(false);
         closeCommunityAccountRequiredPanel();
       }
-      if (tab.id !== "bottom-info-tab") {
+      if (tab.id !== "bottom-learning-tab") {
         resetInfoTabState();
       }
       document.querySelector(`#${tab.dataset.panel}`).classList.add("panel-active");
@@ -4787,6 +4853,8 @@ function setupTabs() {
     activateEarthquakePanel();
     openInfoFullPanel();
   });
+
+  initializeRecentEarthquakes();
 
   document.querySelector("#bottom-learning-tab")?.addEventListener("click", () => {
     setActiveBottomTab("#bottom-learning-tab");
@@ -6597,6 +6665,7 @@ function showFaultModeSwitchNotice(message, options = {}) {
       window.setTimeout(() => notice.remove(), 220);
     }, Number(options.durationMs) || 1200);
   });
+  return notice;
 }
 
 function showStartupFaultModeHint() {
@@ -7298,12 +7367,369 @@ function hidePageAndResetScroll(page) {
   resetPageScrollPosition(page);
 }
 
+function mergeRecentEarthquakes(records) {
+  const titles = new Set([
+    "震度速報", "震源に関する情報", "震源・震度情報",
+    "遠地地震に関する情報", "顕著な地震の震源要素更新のお知らせ",
+  ]);
+  const valid = records.filter((item) => item && titles.has(item.ttl)
+    && /^\d{14}$/.test(String(item.eid)) && Number.isFinite(Date.parse(item.at))
+    && Number.isFinite(Date.parse(item.rdt)));
+  valid.sort((a, b) => Date.parse(a.rdt) - Date.parse(b.rdt));
+  const events = new Map();
+  for (const item of valid) {
+    const previous = events.get(item.eid) || {};
+    const event = { ...previous };
+    for (const field of ["eid", "at", "rdt", "ttl", "ift", "anm", "mag", "maxi", "cod", "json", "observationJson"]) {
+      if (typeof item[field] === "string" && item[field]) event[field] = item[field];
+    }
+    events.set(item.eid, event);
+  }
+  return [...events.values()]
+    .filter((item) => !String(item.ift).includes("取消"))
+    .sort((a, b) => Date.parse(b.at) - Date.parse(a.at) || b.eid.localeCompare(a.eid))
+    .slice(0, RECENT_EARTHQUAKES_LIMIT);
+}
+
+function formatRecentEarthquakeTime(value) {
+  if (!Number.isFinite(Date.parse(value))) return "不明";
+  return new Date(value).toLocaleString("ja-JP", {
+    timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  });
+}
+
+function getRecentEarthquakeDetailKey(earthquake) {
+  return `${earthquake.eid}|${earthquake.json || earthquake.rdt}|${earthquake.observationJson || ""}`;
+}
+
+function parseRecentEarthquakeCoordinate(value) {
+  const match = String(value || "").match(/^([+-]\d+(?:\.\d+)?)([+-]\d+(?:\.\d+)?)([+-]\d+(?:\.\d+)?)\/$/);
+  if (!match) return null;
+  const latitude = Number(match[1]);
+  const longitude = Number(match[2]);
+  if (Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return null;
+  return { latitude, longitude, depthKm: Math.max(0, -Number(match[3]) / 1000) };
+}
+
+function showRecentEarthquakeNotice(message, channel = "list") {
+  if (document.body.dataset.activeBottomTab !== "bottom-info-tab") return;
+  if (!message) {
+    document.querySelector(`.fault-mode-switch-notice[data-earthquake-status="${channel}"]`)?.remove();
+    return;
+  }
+  const notice = showFaultModeSwitchNotice(message, { durationMs: 3000, startupHint: true });
+  notice.dataset.earthquakeStatus = channel;
+}
+
+function setRecentEarthquakeSelectionStatus(message) {
+  showRecentEarthquakeNotice(message, "selection");
+}
+
+function syncRecentEarthquakeSelection() {
+  const currentKeys = new Set(recentEarthquakes.map(getRecentEarthquakeDetailKey));
+  for (const key of recentEarthquakeDetailCache.keys()) {
+    if (!currentKeys.has(key)) recentEarthquakeDetailCache.delete(key);
+  }
+  if (!selectedRecentEarthquakeId) return;
+  const selected = recentEarthquakes.find((item) => item.eid === selectedRecentEarthquakeId);
+  if (!selected) {
+    recentEarthquakeSelectionRequestId += 1;
+    recentEarthquakeDetailController?.abort();
+    selectedRecentEarthquakeId = "";
+    recentEarthquakeDetail = null;
+    recentEarthquakePopup?.remove();
+    setRecentEarthquakeSelectionStatus("選択した地震は直近30件の一覧から外れました。");
+    updateRecentEarthquakeMapLayers();
+    return;
+  }
+  if (recentEarthquakeDetail && getRecentEarthquakeDetailKey(recentEarthquakeDetail.earthquake) !== getRecentEarthquakeDetailKey(selected)) {
+    recentEarthquakeDetail = null;
+    updateRecentEarthquakeMapLayers();
+    if (document.body.classList.contains("recent-earthquake-map-mode")) {
+      selectRecentEarthquake(selected.eid, { collapse: false });
+    }
+  }
+}
+
+async function selectRecentEarthquake(id, { collapse = true } = {}) {
+  const earthquake = recentEarthquakes.find((item) => item.eid === id);
+  if (!earthquake || !document.body.classList.contains("recent-earthquake-map-mode")) return;
+  const requestId = ++recentEarthquakeSelectionRequestId;
+  recentEarthquakeDetailController?.abort();
+  const controller = new AbortController();
+  recentEarthquakeDetailController = controller;
+  selectedRecentEarthquakeId = id;
+  recentEarthquakeDetail = null;
+  recentEarthquakePopup?.remove();
+  updateRecentEarthquakeMapLayers();
+  renderRecentEarthquakes();
+  setRecentEarthquakeSelectionStatus("観測点の震度情報を取得しています…");
+  const timeout = window.setTimeout(() => controller.abort(), 15000);
+  try {
+    const key = getRecentEarthquakeDetailKey(earthquake);
+    let detail = recentEarthquakeDetailCache.get(key);
+    if (!detail) {
+      const workerUrl = await getWorkerBaseUrl();
+      const response = await fetch(`${workerUrl}/recent-earthquakes/${encodeURIComponent(id)}`, {
+        cache: "no-store", signal: controller.signal,
+      });
+      if (!response.ok) throw new Error(`JMA earthquake detail: ${response.status}`);
+      detail = await response.json();
+      if (detail?.earthquake?.eid !== id || !Array.isArray(detail.stations)) {
+        throw new Error("Invalid earthquake observations");
+      }
+    }
+    if (requestId !== recentEarthquakeSelectionRequestId || controller.signal.aborted
+      || !document.body.classList.contains("recent-earthquake-map-mode")) return;
+    recentEarthquakeDetailCache.set(getRecentEarthquakeDetailKey(detail.earthquake), detail);
+    recentEarthquakeDetail = detail;
+    updateRecentEarthquakeMapLayers();
+    setRecentEarthquakeSelectionStatus(detail.stations.length ? "" : "この地震の観測点情報はまだ発表されていません。");
+    if (collapse && detail.stations.length) {
+      setSheetState(els.recentEarthquakesPanel, "collapsed");
+      els.recentEarthquakesPanel?.querySelector(".sheet-handle")?.focus({ preventScroll: true });
+    }
+    requestAnimationFrame(fitRecentEarthquakeMap);
+  } catch (error) {
+    if (requestId !== recentEarthquakeSelectionRequestId) return;
+    console.warn("Failed to load recent earthquake observations", error);
+    setRecentEarthquakeSelectionStatus("観測点の震度情報を取得できませんでした。地震を選び直すと再取得します。");
+  } finally {
+    window.clearTimeout(timeout);
+    if (requestId === recentEarthquakeSelectionRequestId) recentEarthquakeDetailController = null;
+  }
+}
+
+function buildRecentEarthquakeStationData(detail) {
+  const features = (detail?.stations || []).flatMap((station) => {
+    const intensity = INTENSITY_CLASSES.find((item) => item.shortLabel === station.intensity);
+    if (!intensity || !Number.isFinite(station.longitude) || !Number.isFinite(station.latitude)) return [];
+    return [{
+      type: "Feature", geometry: { type: "Point", coordinates: [station.longitude, station.latitude] },
+      properties: {
+        name: station.name, intensityLabel: intensity.label, intensityShortLabel: intensity.shortLabel,
+        intensityColor: intensity.color, intensityTextColor: intensity.textColor, intensityRank: intensity.rank,
+        observed: true, stationDisplaySortKey: getStationDisplaySortKey(intensity.rank, station.code || station.name),
+      },
+    }];
+  });
+  return { type: "FeatureCollection", features };
+}
+
+function updateRecentEarthquakeMapLayers() {
+  if (!document.body.classList.contains("recent-earthquake-map-mode") || !map?.getSource("jma-local-areas")) return;
+  if (!map.getSource("recent-earthquake-stations")) {
+    addGeoJsonSource("recent-earthquake-stations", emptyFeatureCollection());
+    map.on("click", "recent-earthquake-stations", (event) => {
+      if (!document.body.classList.contains("recent-earthquake-map-mode")) return;
+      const feature = event.features?.[0];
+      if (feature) openRecentEarthquakePopup(feature.properties, feature.geometry.coordinates);
+    });
+    map.once("idle", () => ensureStationIntensityLabelImages());
+  }
+  const stationLayers = map.getStyle().layers;
+  for (const [id, templateId] of [
+    ["recent-earthquake-stations", "shindo-station-points"],
+    ["recent-earthquake-station-labels", "shindo-station-labels"],
+  ]) {
+    const template = stationLayers.find((layer) => layer.id === templateId);
+    if (template) {
+      addLayerIfMissing({
+        ...template, id, source: "recent-earthquake-stations",
+        layout: { ...template.layout, visibility: "visible" },
+      });
+    }
+  }
+  ensureStationIntensityLabelImages();
+  setGeoJsonSourceData("recent-earthquake-stations", buildRecentEarthquakeStationData(recentEarthquakeDetail));
+  const earthquake = recentEarthquakeDetail?.earthquake || recentEarthquakes.find((item) => item.eid === selectedRecentEarthquakeId);
+  const coordinate = parseRecentEarthquakeCoordinate(earthquake?.cod);
+  if (coordinate) {
+    if (!recentEarthquakeEpicenterMarker) {
+      const element = createEpicenterMarkerElement();
+      element.classList.add("recent-earthquake-epicenter-marker");
+      element.setAttribute("role", "button");
+      element.addEventListener("click", () => {
+        const selected = recentEarthquakeDetail?.earthquake || recentEarthquakes.find((item) => item.eid === selectedRecentEarthquakeId);
+        const position = recentEarthquakeEpicenterMarker.getLngLat();
+        openRecentEarthquakePopup({ name: `震源地　${selected?.anm || ""}` }, [position.lng, position.lat]);
+      });
+      element.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          element.click();
+        }
+      });
+      recentEarthquakeEpicenterMarker = new maplibregl.Marker({ element });
+    }
+    recentEarthquakeEpicenterMarker.setLngLat([coordinate.longitude, coordinate.latitude]).addTo(map);
+  } else {
+    recentEarthquakeEpicenterMarker?.remove();
+    recentEarthquakeEpicenterMarker = null;
+  }
+  for (const layer of ["recent-earthquake-stations", "recent-earthquake-station-labels"]) {
+    updateLayerVisibility(layer, true);
+    moveLayerToTop(layer);
+  }
+}
+
+function openRecentEarthquakePopup(properties, coordinates) {
+  recentEarthquakePopup?.remove();
+  recentEarthquakePopup = new maplibregl.Popup({ anchor: "bottom", offset: 10, className: "station-popup" })
+    .setLngLat(coordinates)
+    .setHTML(`<strong>${escapeHtml(properties.name)}</strong>${properties.intensityLabel ? `<div>震度 ${escapeHtml(properties.intensityLabel)}</div>` : ""}`)
+    .addTo(map);
+}
+
+function fitRecentEarthquakeMap() {
+  if (!map || !document.body.classList.contains("recent-earthquake-map-mode")) return;
+  const coordinates = buildRecentEarthquakeStationData(recentEarthquakeDetail).features.map((feature) => feature.geometry.coordinates);
+  const earthquake = recentEarthquakeDetail?.earthquake || recentEarthquakes.find((item) => item.eid === selectedRecentEarthquakeId);
+  const epicenter = parseRecentEarthquakeCoordinate(earthquake?.cod);
+  if (epicenter) coordinates.push([epicenter.longitude, epicenter.latitude]);
+  if (!coordinates.length) return;
+  const anchor = coordinates[0][0];
+  const longitudes = coordinates.map(([longitude]) => anchor + ((longitude - anchor + 540) % 360) - 180);
+  const latitudes = coordinates.map(([, latitude]) => clamp(latitude, -85, 85));
+  const sheet = els.recentEarthquakesPanel?.getBoundingClientRect();
+  const bottom = Math.min(sheet ? Math.max(0, window.innerHeight - sheet.top) + 20 : 160, window.innerHeight - 100);
+  map.fitBounds([[Math.min(...longitudes), Math.min(...latitudes)], [Math.max(...longitudes), Math.max(...latitudes)]], {
+    padding: { top: 48, right: 32, bottom, left: 32 }, maxZoom: SIMULATION_MAP_MAX_ZOOM, duration: 650,
+  });
+}
+
+function setRecentEarthquakeMapModeActive(active) {
+  document.body.classList.toggle("recent-earthquake-map-mode", active);
+  updateLegendColors();
+  recentEarthquakePopup?.remove();
+  if (!active) {
+    recentEarthquakeEpicenterMarker?.remove();
+    recentEarthquakeEpicenterMarker = null;
+    document.querySelector(".fault-mode-switch-notice[data-earthquake-status]")?.remove();
+    recentEarthquakeSelectionRequestId += 1;
+    recentEarthquakeDetailController?.abort();
+    recentEarthquakeDetailController = null;
+    for (const layer of ["recent-earthquake-stations", "recent-earthquake-station-labels"]) {
+      updateLayerVisibility(layer, false);
+    }
+    if (map?.getSource("jma-local-areas")) updateDisplayMode();
+    updateMapPanConstraints();
+    return;
+  }
+  closeInactiveStationPopups();
+  RECENT_EARTHQUAKE_HIDDEN_LAYERS.forEach((layer) => updateLayerVisibility(layer, false));
+  updateRecentEarthquakeMapLayers();
+  updateMapPanConstraints();
+  if (selectedRecentEarthquakeId && !recentEarthquakeDetail) {
+    selectRecentEarthquake(selectedRecentEarthquakeId, { collapse: false });
+  }
+  requestAnimationFrame(() => {
+    if (!document.body.classList.contains("recent-earthquake-map-mode")) return;
+    safelyResizeMap();
+    if (selectedRecentEarthquakeId) fitRecentEarthquakeMap();
+    else fitInitialMapBounds(getInitialJapanBounds());
+  });
+}
+
+function renderRecentEarthquakes(message = "") {
+  const list = document.querySelector("#recent-earthquakes-list");
+  if (!list) return;
+  list.innerHTML = recentEarthquakes.map((item) => {
+    const intensity = String(item.maxi || "").replace("-", "弱").replace("+", "強");
+    const intensityClass = INTENSITY_CLASSES.find((entry) => entry.shortLabel === item.maxi);
+    const depthKm = parseRecentEarthquakeCoordinate(item.cod)?.depthKm ?? null;
+    const depth = depthKm === null ? "不明" : depthKm === 0 ? "ごく浅い" : `${depthKm} km`;
+    const magnitude = /^\d+(?:\.\d+)?$/.test(item.mag || "") ? `M${item.mag}` : "規模不明";
+    return `
+      <button class="recent-earthquake-card" type="button" data-recent-earthquake-id="${escapeHtml(item.eid)}" aria-pressed="${item.eid === selectedRecentEarthquakeId}">
+        <span class="recent-earthquake-summary">
+          <time datetime="${escapeHtml(item.at)}">${escapeHtml(formatRecentEarthquakeTime(item.at))}</time>
+          <strong class="recent-earthquake-name">${escapeHtml(item.anm || "震源調査中")}</strong>
+          <span class="recent-earthquake-meta">${escapeHtml(magnitude)}　深さ ${escapeHtml(depth)}</span>
+        </span>
+        <span class="recent-earthquake-intensity" style="--recent-intensity-color: ${intensityClass?.color || "#64748b"}; --recent-intensity-text: ${intensityClass?.textColor || "#fff"}">
+          <span>最大震度</span><strong>${escapeHtml(intensity || "不明")}</strong>
+        </span>
+      </button>
+    `;
+  }).join("");
+  showRecentEarthquakeNotice(message);
+}
+
+function refreshRecentEarthquakes() {
+  if (recentEarthquakesLoadPromise) {
+    showRecentEarthquakeNotice("地震情報を取得しています…");
+    return recentEarthquakesLoadPromise;
+  }
+  recentEarthquakesLoadPromise = (async () => {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 15000);
+    try {
+      const workerUrl = await getWorkerBaseUrl();
+      if (!workerUrl) throw new Error("Cloudflare Worker is not configured");
+      const response = await fetch(`${workerUrl}/recent-earthquakes`, { cache: "no-store", signal: controller.signal });
+      if (!response.ok) throw new Error(`JMA earthquake list: ${response.status}`);
+      const data = await response.json();
+      if (!Array.isArray(data.earthquakes) || !mergeRecentEarthquakes(data.earthquakes).length
+        || !Number.isFinite(Date.parse(data.updatedAt))) {
+        throw new Error("Invalid JMA earthquake list");
+      }
+      recentEarthquakes = mergeRecentEarthquakes(data.earthquakes);
+      recentEarthquakesUpdatedAt = data.updatedAt;
+      syncRecentEarthquakeSelection();
+      try {
+        localStorage.setItem(RECENT_EARTHQUAKES_STORAGE_KEY, JSON.stringify({
+          earthquakes: recentEarthquakes, updatedAt: recentEarthquakesUpdatedAt,
+        }));
+      } catch (error) {
+        console.warn("Failed to cache recent JMA earthquakes", error);
+      }
+      renderRecentEarthquakes(data.stale ? "地震情報を更新できませんでした。前回の情報を表示しています。" : "");
+    } catch (error) {
+      console.warn("Failed to load recent JMA earthquakes", error);
+      renderRecentEarthquakes(recentEarthquakes.length
+        ? "取得に失敗しました。前回の情報を表示しています。"
+        : "地震情報を取得できませんでした。自動で再取得します。");
+    } finally {
+      window.clearTimeout(timeout);
+      recentEarthquakesLoadPromise = null;
+    }
+  })();
+  renderRecentEarthquakes("地震情報を取得しています…");
+  return recentEarthquakesLoadPromise;
+}
+
+function initializeRecentEarthquakes() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(RECENT_EARTHQUAKES_STORAGE_KEY) || "null");
+    if (Array.isArray(saved?.earthquakes)) {
+      recentEarthquakes = mergeRecentEarthquakes(saved.earthquakes);
+      recentEarthquakesUpdatedAt = Number.isFinite(Date.parse(saved.updatedAt)) ? saved.updatedAt : "";
+    }
+  } catch (error) {
+    console.warn("Failed to read saved JMA earthquakes", error);
+  }
+  document.querySelector("#recent-earthquakes-list")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-recent-earthquake-id]");
+    if (button) selectRecentEarthquake(button.dataset.recentEarthquakeId);
+  });
+  const refreshWhenVisible = () => {
+    if (!document.hidden) refreshRecentEarthquakes();
+  };
+  document.addEventListener("visibilitychange", refreshWhenVisible);
+  window.addEventListener("online", refreshWhenVisible);
+  window.setInterval(refreshWhenVisible, 60000);
+  refreshRecentEarthquakes();
+}
+
 function hideBottomTabPages() {
   // Remove the previous page from rendering before scroll/state resets can
   // expose it through the incoming page's rounded corners or glass surface.
   document.querySelectorAll(
-    "#settings-menu-sheet, #history-full-panel, #info-full-panel, #learning-full-panel",
+    "#settings-menu-sheet, #history-full-panel, #info-full-panel, #learning-full-panel, #recent-earthquakes-panel",
   ).forEach(hidePageAndResetScroll);
+  if (document.body.classList.contains("recent-earthquake-map-mode")) setRecentEarthquakeMapModeActive(false);
 }
 
 function activateSettingsTab(tabId) {
@@ -10152,7 +10578,8 @@ function updateLegendColors() {
     return;
   }
 
-  const usesOldJmaScale = isOldJmaScaleSyntheticPreset(getSelectedPreset());
+  const usesOldJmaScale = !document.body.classList.contains("recent-earthquake-map-mode")
+    && isOldJmaScaleSyntheticPreset(getSelectedPreset());
   legendScale.closest(".intensity-legend")?.classList.toggle("is-old-jma-scale", usesOldJmaScale);
   const labels = usesOldJmaScale
     ? ["7", "6", "5", "4", "3", "2", "1"]
@@ -10412,9 +10839,10 @@ function setupMobileSheets() {
       return;
     }
 
-    setSheetState(panel, panel.id === "setup-panel" ? "open" : "collapsed");
+    setSheetState(panel, panel.id === "setup-panel" || panel.id === "recent-earthquakes-panel" ? "open" : "collapsed");
     const handle = panel.querySelector(".sheet-handle");
-    const toggleButtons = [els.setupSheetToggle, els.simulationSheetToggle].filter(Boolean);
+    const toggleButtons = panel.id === "recent-earthquakes-panel"
+      ? [] : [els.setupSheetToggle, els.simulationSheetToggle].filter(Boolean);
 
     const toggleSheet = (event) => {
       event?.preventDefault();
@@ -10783,6 +11211,10 @@ function setSheetState(panel, stateName) {
   }
 
   panel.dataset.sheetState = stateName;
+  if (panel.id === "recent-earthquakes-panel") {
+    const content = panel.querySelector(".recent-earthquakes-content");
+    if (content) content.inert = stateName !== "open";
+  }
   if (isCompactViewport() && stateName === "collapsed") {
     panel.scrollTop = 0;
   }
@@ -11037,6 +11469,7 @@ async function initEarthquakeMap() {
   });
 
   map.on("click", (event) => {
+    if (document.body.classList.contains("recent-earthquake-map-mode")) return;
     if (document.body.classList.contains("community-pick-mode")) {
       event.originalEvent?.preventDefault?.();
       setCommunityPostMapLocation(event.lngLat);
@@ -14253,11 +14686,16 @@ async function showMapLayers() {
   addGeoJsonSource("s-wave", emptyFeatureCollection());
 
   addMapLayers();
+  updateRecentEarthquakeMapLayers();
   setupStationHoverPopup();
   keepWaveAndStationLayerOrder();
   // 地図本体と並行して細分区域線を読み込み、起動後の遅れて現れる状態を短縮する。
   hydrateStartupLocalAreaBoundaries().catch((error) => console.warn(error));
-  fitInitialMapBounds(getInitialJapanBounds());
+  if (document.body.classList.contains("recent-earthquake-map-mode") && selectedRecentEarthquakeId) {
+    fitRecentEarthquakeMap();
+  } else {
+    fitInitialMapBounds(getInitialJapanBounds());
+  }
   startupLocationResolved = true;
   municipalityBoundaryVisible = true;
   scheduleStartupReadyAfterIntensityPaint();
@@ -15600,6 +16038,9 @@ function keepWaveAndStationLayerOrder() {
 }
 
 function updateLayerVisibility(layerId, visible) {
+  if (document.body.classList.contains("recent-earthquake-map-mode") && RECENT_EARTHQUAKE_HIDDEN_LAYERS.has(layerId)) {
+    visible = false;
+  }
   if (map?.getLayer(layerId)) {
     map.setLayoutProperty(layerId, "visibility", visible ? "visible" : "none");
   }
@@ -15747,7 +16188,8 @@ function renderStationCanvasOverlay() {
 
   const { context, width, height } = canvasState;
   context.clearRect(0, 0, width, height);
-  if (document.body.dataset.activeBottomTab === "bottom-history-tab") {
+  if (document.body.dataset.activeBottomTab === "bottom-history-tab"
+    || document.body.classList.contains("recent-earthquake-map-mode")) {
     return;
   }
 
@@ -16125,13 +16567,13 @@ function alignMapToSimulationEpicenter() {
 }
 
 function getActiveMenuHandleRect() {
-  const panels = [els.setupPanel, els.simulationPanel].filter(Boolean);
+  const panels = [els.recentEarthquakesPanel, els.setupPanel, els.simulationPanel].filter(Boolean);
   const activePanel = panels.find((panel) => !panel.classList.contains("hidden")) ?? els.setupPanel;
   return activePanel?.querySelector(".sheet-handle")?.getBoundingClientRect() ?? null;
 }
 
 function getActiveBottomSheetRect() {
-  const panels = [els.setupPanel, els.simulationPanel].filter(Boolean);
+  const panels = [els.recentEarthquakesPanel, els.setupPanel, els.simulationPanel].filter(Boolean);
   const activePanel = panels.find((panel) => !panel.classList.contains("hidden")) ?? els.setupPanel;
   return activePanel?.getBoundingClientRect() ?? null;
 }
@@ -18940,6 +19382,10 @@ function updateMapPanConstraints() {
   if (!map) {
     return;
   }
+  if (document.body.classList.contains("recent-earthquake-map-mode")) {
+    map.setMinZoom(1);
+    return;
+  }
 
   const minZoom = Math.max(BASE_MAP_MIN_ZOOM, getViewportContainedMinZoom());
   if (Number.isFinite(minZoom)) {
@@ -18996,7 +19442,7 @@ function getMapConstraintViewport(rect) {
 }
 
 function constrainMapToPanRange() {
-  if (!map || mapPanConstraintApplying) {
+  if (!map || mapPanConstraintApplying || document.body.classList.contains("recent-earthquake-map-mode")) {
     return;
   }
 
@@ -19589,6 +20035,20 @@ function schedulePostMapInteractionRender() {
   }, 90);
 }
 
+function createEpicenterMarkerElement() {
+  const element = document.createElement("span");
+  element.className = "epicenter-marker-shell";
+  element.tabIndex = 0;
+  element.setAttribute("role", "img");
+  element.setAttribute("aria-label", "震源地");
+  element.innerHTML = `
+    <svg class="epicenter-marker" viewBox="0 0 48 48" aria-hidden="true">
+      <path d="M10 15 L15 10 L24 19 L33 10 L38 15 L29 24 L38 33 L33 38 L24 29 L15 38 L10 33 L19 24 Z" />
+    </svg>
+  `;
+  return element;
+}
+
 function syncEpicenterMarkerPosition() {
   const lngLat = getDisplayedEpicenterCoordinates();
   if (epicenterMarker) {
@@ -19652,16 +20112,7 @@ async function updateEpicenter(options = {}) {
   const lngLat = getDisplayedEpicenterCoordinates();
 
   if (!epicenterMarker) {
-    const markerElement = document.createElement("span");
-    markerElement.className = "epicenter-marker-shell";
-    markerElement.tabIndex = 0;
-    markerElement.setAttribute("role", "img");
-    markerElement.setAttribute("aria-label", "震源地");
-    markerElement.innerHTML = `
-      <svg class="epicenter-marker" viewBox="0 0 48 48" aria-hidden="true">
-        <path d="M10 15 L15 10 L24 19 L33 10 L38 15 L29 24 L38 33 L33 38 L24 29 L15 38 L10 33 L19 24 Z" />
-      </svg>
-    `;
+    const markerElement = createEpicenterMarkerElement();
 
     epicenterMarker = new maplibregl.Marker({
       element: markerElement,

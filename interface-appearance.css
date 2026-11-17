@@ -1,3 +1,147 @@
+/* The Tools home shares the learning category's document flow. Detail pages
+   retain their full-height frame and existing scrolling behavior. */
+body:not(.tool-station-search-mode):not(.tool-weather-quiz-mode) #learning-full-panel #info-full-panel {
+  position: relative !important;
+  inset: auto !important;
+  z-index: 0 !important;
+  display: block !important;
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+}
+
+#recent-earthquakes-panel {
+  --recent-earthquakes-surface: #0a0e16;
+  position: fixed !important;
+  top: auto !important;
+  left: 50% !important;
+  right: auto !important;
+  width: min(460px, calc(100% - 24px)) !important;
+  max-width: 460px !important;
+  max-height: none !important;
+  min-height: 0 !important;
+  height: min(67svh, calc(100svh - var(--bottom-nav-height) - env(safe-area-inset-bottom) - 24px)) !important;
+  display: grid !important;
+  grid-template-rows: 42px minmax(0, 1fr) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 1px solid var(--app-glass-border) !important;
+  border-radius: 24px !important;
+  background: var(--recent-earthquakes-surface) !important;
+  color: var(--app-glass-text) !important;
+  box-shadow: 0 14px 40px var(--app-glass-shadow) !important;
+  transform: translateX(-50%) !important;
+  z-index: 2400 !important;
+  overflow: hidden !important;
+  overscroll-behavior-y: none !important;
+}
+
+#recent-earthquakes-panel:is([data-sheet-state="collapsed"], [data-sheet-state="closed"]) {
+  height: 42px !important;
+}
+
+#recent-earthquakes-panel.is-dragging {
+  height: var(--sheet-drag-height) !important;
+  transition: none !important;
+}
+
+#recent-earthquakes-panel > .sheet-handle {
+  position: relative !important;
+  inset: auto !important;
+  width: 100% !important;
+  height: 42px !important;
+  min-height: 42px !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: transparent !important;
+  font-size: 0 !important;
+  transform: none !important;
+  touch-action: none;
+  cursor: grab;
+}
+
+#recent-earthquakes-panel > .sheet-handle::before {
+  content: none !important;
+}
+
+#recent-earthquakes-panel > .sheet-handle::after { background: var(--app-glass-text) !important; }
+
+body.recent-earthquake-map-mode :is(.station-canvas-overlay, .epicenter-marker-shell, .eew-forecast-panel, .simulation-runtime-hud, #map-layer-control-button) {
+  display: none !important;
+}
+
+body.recent-earthquake-map-mode .intensity-legend {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+body[data-active-bottom-tab="bottom-info-tab"].recent-earthquake-map-mode .epicenter-marker-shell.recent-earthquake-epicenter-marker {
+  display: grid !important;
+}
+
+html[data-resolved-theme="light"] #recent-earthquakes-panel {
+  --recent-earthquakes-surface: #f4f7fa;
+}
+
+.recent-earthquakes-content {
+  box-sizing: border-box;
+  min-height: 0;
+  width: 100%;
+  padding: 0 12px 18px;
+  overflow-y: auto;
+  touch-action: pan-y;
+}
+
+.recent-earthquakes-list { display: grid; gap: 10px; margin: 4px 0 16px; }
+
+.fault-mode-switch-notice[data-earthquake-status] {
+  top: calc(12px + env(safe-area-inset-top));
+  bottom: auto;
+  width: max-content;
+  max-width: min(420px, calc(100vw - 32px));
+  box-sizing: border-box;
+  white-space: normal;
+  text-align: center;
+}
+
+.recent-earthquake-card {
+  width: 100%;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 68px;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 16px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.recent-earthquake-card[aria-pressed="true"] { border-color: var(--app-glass-selected); background: var(--app-glass-lens); }
+.recent-earthquake-card:focus-visible { outline: 2px solid var(--app-glass-selected); outline-offset: 2px; }
+.recent-earthquake-summary { min-width: 0; }
+.recent-earthquake-summary time { font-size: 0.8rem; opacity: 0.8; }
+.recent-earthquake-name { display: block; margin: 6px 0; font-size: 1rem; overflow-wrap: anywhere; }
+.recent-earthquake-meta { display: block; font-size: 0.83rem; }
+#recent-earthquakes-panel .recent-earthquake-intensity {
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  padding: 8px 3px;
+  border-radius: 12px;
+  background: var(--recent-intensity-color);
+  color: var(--recent-intensity-text) !important;
+}
+#recent-earthquakes-panel .recent-earthquake-intensity span { font-size: 0.68rem; color: inherit !important; }
+#recent-earthquakes-panel .recent-earthquake-intensity strong { font-size: 1.5rem; line-height: 1.2; color: inherit !important; }
+
 :root {
   --app-control-radius: 16px;
   --app-surface-radius: 24px;
@@ -192,12 +336,17 @@ html[data-resolved-theme="light"] {
 /* Full pages continue behind the floating navigation. Keep the navigation
    height token intact: map actions and pull-up sheets still use that offset. */
 @layer app-page-layout {
+  #recent-earthquakes-panel {
+    bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 10px) !important;
+  }
+
   /* A hidden page must leave rendering immediately, including when an older
      component rule sets display with higher selector specificity. */
   #settings-menu-sheet.hidden,
   #history-full-panel.hidden,
   #info-full-panel.hidden,
   #learning-full-panel.hidden,
+  #recent-earthquakes-panel.hidden,
   #info-full-panel .tool-home-page.hidden,
   #info-full-panel .tool-station-page.hidden,
   #info-full-panel .tool-weather-quiz-page.hidden,
@@ -205,8 +354,9 @@ html[data-resolved-theme="light"] {
   #settings-menu-sheet .settings-inline-panel.hidden,
   body[data-active-bottom-tab]:not([data-active-bottom-tab="earthquake-tab"]) #setup-panel,
   body:not([data-active-bottom-tab="bottom-learning-tab"]) #learning-full-panel,
-  body:not([data-active-bottom-tab="bottom-info-tab"]) #info-full-panel,
-  body:not([data-active-bottom-tab="bottom-history-tab"]):not([data-active-bottom-tab="bottom-info-tab"].tool-source-search-mode) #history-full-panel,
+  body:not([data-active-bottom-tab="bottom-learning-tab"]) #info-full-panel,
+  body:not([data-active-bottom-tab="bottom-info-tab"]) #recent-earthquakes-panel,
+  body:not([data-active-bottom-tab="bottom-history-tab"]):not([data-active-bottom-tab="bottom-learning-tab"].tool-source-search-mode) #history-full-panel,
   body:not([data-active-bottom-tab="bottom-settings-tab"]) #settings-menu-sheet {
     display: none !important;
     visibility: hidden !important;
@@ -217,6 +367,7 @@ html[data-resolved-theme="light"] {
   #settings-menu-sheet,
   #history-full-panel,
   #info-full-panel,
+  #recent-earthquakes-panel,
   #learning-full-panel {
     transition: none !important;
     animation: none !important;
@@ -227,6 +378,8 @@ html[data-resolved-theme="light"] {
   #settings-menu-sheet *,
   #info-full-panel,
   #info-full-panel *,
+  #recent-earthquakes-panel,
+  #recent-earthquakes-panel *,
   #learning-full-panel,
   #learning-full-panel *,
   body.tool-source-search-mode #history-full-panel,
@@ -472,12 +625,12 @@ html[data-resolved-theme="light"] #tool-home-page {
   margin: 0 14px !important;
 }
 
-/* Learning uses a single moving lens underneath the two labels. */
+/* Learning uses a single moving lens underneath the three labels. */
 html #learning-full-panel .learning-category-switch {
   position: sticky !important;
   isolation: isolate;
   box-sizing: border-box;
-  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   gap: 4px !important;
   padding: 4px !important;
   border: 1px solid var(--app-glass-border) !important;
@@ -499,7 +652,7 @@ html #learning-full-panel .learning-category-switch::before {
   top: 4px;
   bottom: 4px;
   left: 4px;
-  width: calc((100% - 12px) / 2);
+  width: calc((100% - 16px) / 3);
   box-sizing: border-box;
   border: 1px solid var(--app-glass-border);
   border-radius: inherit;
@@ -512,6 +665,10 @@ html #learning-full-panel .learning-category-switch::before {
 
 html #learning-full-panel .learning-category-switch[data-active-category="weather"]::before {
   transform: translateX(calc(100% + 4px));
+}
+
+html #learning-full-panel .learning-category-switch[data-active-category="tools"]::before {
+  transform: translateX(calc(200% + 8px));
 }
 
 html #learning-full-panel .learning-category-switch.glass-selector-ready::before {
@@ -895,7 +1052,7 @@ body[data-active-bottom-tab]:not([data-active-bottom-tab="earthquake-tab"]) .epi
 }
 
 @layer app-map-controls {
-  body[data-active-bottom-tab="earthquake-tab"] {
+  body:is([data-active-bottom-tab="earthquake-tab"], [data-active-bottom-tab="bottom-info-tab"]) {
     --simulation-map-controls-top: calc(max(8px, env(safe-area-inset-top)) + 20px);
   }
 
@@ -903,8 +1060,13 @@ body[data-active-bottom-tab]:not([data-active-bottom-tab="earthquake-tab"]) .epi
     top: var(--simulation-map-controls-top) !important;
   }
 
-  body[data-active-bottom-tab="earthquake-tab"] .intensity-legend {
+  body:is([data-active-bottom-tab="earthquake-tab"], [data-active-bottom-tab="bottom-info-tab"]) .intensity-legend {
+    position: fixed !important;
     top: var(--simulation-map-controls-top) !important;
+    right: max(8px, env(safe-area-inset-right)) !important;
+    left: auto !important;
+    bottom: auto !important;
+    transform: none !important;
   }
 
   body[data-active-bottom-tab="earthquake-tab"] .map-layer-control-panel {
