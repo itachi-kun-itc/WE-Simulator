@@ -7628,8 +7628,11 @@ function fitRecentEarthquakeMap() {
   const sheetHeight = sheet?.dataset.sheetState === "open"
     ? Math.min(window.innerHeight * 0.67, window.innerHeight - sheetBottom - 14) : 42;
   const bottom = Math.min(sheet ? sheetBottom + sheetHeight + 20 : 160, window.innerHeight - 100);
+  const card = document.querySelector("#recent-earthquake-map-card");
+  const top = card && !card.hidden
+    ? Math.min(Math.max(48, card.getBoundingClientRect().bottom + 12), Math.max(48, window.innerHeight - bottom - 80)) : 48;
   map.fitBounds([[Math.min(...longitudes), Math.min(...latitudes)], [Math.max(...longitudes), Math.max(...latitudes)]], {
-    padding: { top: 48, right: 32, bottom, left: 32 }, maxZoom: SIMULATION_MAP_MAX_ZOOM, duration: 650,
+    padding: { top, right: 32, bottom, left: 32 }, maxZoom: SIMULATION_MAP_MAX_ZOOM, duration: 650,
   });
 }
 
@@ -7661,9 +7664,17 @@ function setRecentEarthquakeMapModeActive(active) {
   requestAnimationFrame(() => {
     if (!document.body.classList.contains("recent-earthquake-map-mode")) return;
     safelyResizeMap();
+    positionRecentEarthquakeMapCard();
     if (selectedRecentEarthquakeId) fitRecentEarthquakeMap();
     else fitInitialMapBounds(getInitialJapanBounds());
   });
+}
+
+function positionRecentEarthquakeMapCard() {
+  const card = document.querySelector("#recent-earthquake-map-card");
+  const legend = document.querySelector(".intensity-legend");
+  if (!card || card.hidden || !legend || !document.body.classList.contains("recent-earthquake-map-mode")) return;
+  card.style.setProperty("--recent-earthquake-card-top", `${legend.getBoundingClientRect().bottom + 8}px`);
 }
 
 function renderRecentEarthquakes(message = "") {
@@ -7680,7 +7691,6 @@ function renderRecentEarthquakes(message = "") {
         <span class="recent-earthquake-summary">
           <span class="recent-earthquake-card-top">
             <time datetime="${escapeHtml(item.at)}">${escapeHtml(formatRecentEarthquakeTime(item.at))}</time>
-            ${item.eid === selectedRecentEarthquakeId ? '<span class="recent-earthquake-selected">✓ 選択中</span>' : ""}
           </span>
           <strong class="recent-earthquake-name">${escapeHtml(item.anm || "震源調査中")}</strong>
           <span class="recent-earthquake-meta">${escapeHtml(magnitude)}　深さ ${escapeHtml(depth)}</span>
@@ -7692,13 +7702,30 @@ function renderRecentEarthquakes(message = "") {
     `;
   }).join("");
   const selected = recentEarthquakes.find((item) => item.eid === selectedRecentEarthquakeId);
-  const summary = document.querySelector("#recent-earthquake-selection-summary");
-  if (summary) {
-    summary.hidden = !selected;
-    summary.textContent = selected
-      ? `選択中　${formatRecentEarthquakeTime(selected.at).replace(/^\d{4}\//, "")}　${selected.anm || "震源調査中"}` : "";
-    summary.title = summary.textContent;
+  const card = document.querySelector("#recent-earthquake-map-card");
+  if (card) {
+    card.hidden = !selected;
+    if (selected) {
+      const intensity = INTENSITY_CLASSES.find((entry) => entry.shortLabel === selected.maxi);
+      const depthKm = parseRecentEarthquakeCoordinate(selected.cod)?.depthKm ?? null;
+      const depth = depthKm === null ? "深さ不明" : depthKm === 0 ? "ごく浅い" : `${depthKm} km`;
+      const magnitude = /^\d+(?:\.\d+)?$/.test(selected.mag || "") ? `M${selected.mag}` : "規模不明";
+      card.style.setProperty("--simulation-ticket-intensity-color", intensity?.color || "#64748b");
+      card.style.setProperty("--simulation-ticket-intensity-text", intensity?.textColor || "#fff");
+      card.innerHTML = `
+        <div class="recent-earthquake-map-intensity">
+          <span>最大震度</span>
+          <strong data-intensity="${escapeHtml(selected.maxi || "")}">${escapeHtml(String(selected.maxi || "−").replace("-", "弱").replace("+", "強"))}</strong>
+        </div>
+        <strong class="recent-earthquake-map-name">${escapeHtml(selected.anm || "震源調査中")}</strong>
+        <div class="recent-earthquake-map-parameters"><span>${escapeHtml(depth)}</span><span>${escapeHtml(magnitude)}</span></div>
+        <time datetime="${escapeHtml(selected.at)}">${escapeHtml(formatRecentEarthquakeTime(selected.at))}</time>
+      `;
+    } else {
+      card.replaceChildren();
+    }
   }
+  positionRecentEarthquakeMapCard();
   showRecentEarthquakeNotice(message);
 }
 
@@ -7746,6 +7773,11 @@ function refreshRecentEarthquakes() {
 }
 
 function initializeRecentEarthquakes() {
+  const legend = document.querySelector(".intensity-legend");
+  if (legend && typeof ResizeObserver === "function") {
+    new ResizeObserver(positionRecentEarthquakeMapCard).observe(legend);
+  }
+  window.addEventListener("resize", positionRecentEarthquakeMapCard, { passive: true });
   try {
     const saved = JSON.parse(localStorage.getItem(RECENT_EARTHQUAKES_STORAGE_KEY) || "null");
     if (Array.isArray(saved?.earthquakes)) {

@@ -85,22 +85,67 @@ body:not(.tool-station-search-mode):not(.tool-weather-quiz-mode) #learning-full-
 
 #recent-earthquakes-panel > .sheet-handle::after { background: var(--app-glass-text) !important; }
 
-#recent-earthquake-selection-summary {
-  position: absolute;
-  top: 14px;
-  right: 16px;
-  left: 16px;
-  z-index: 6;
-  overflow: hidden;
-  color: var(--app-glass-selected);
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 14px;
-  text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.recent-earthquake-map-card { display: none; }
+
+body.recent-earthquake-map-mode .recent-earthquake-map-card:not([hidden]) {
+  position: fixed;
+  top: var(--recent-earthquake-card-top, calc(var(--simulation-map-controls-top) + 36px));
+  right: max(8px, env(safe-area-inset-right));
+  z-index: 2390;
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr);
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  align-items: center;
+  column-gap: 10px;
+  box-sizing: border-box;
+  width: min(380px, calc(100vw - 16px - env(safe-area-inset-right)));
+  min-height: 90px;
+  padding: 6px 12px;
+  border: 1px solid color-mix(in srgb, var(--simulation-ticket-intensity-color) 72%, #475569 28%);
+  border-radius: 15px;
+  background: linear-gradient(145deg,
+    color-mix(in srgb, var(--simulation-ticket-intensity-color) 78%, #f1f5f9 22%),
+    color-mix(in srgb, var(--simulation-ticket-intensity-color) 62%, #e2e8f0 38%));
+  color: var(--simulation-ticket-intensity-text);
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.15;
   pointer-events: none;
 }
+
+.recent-earthquake-map-intensity {
+  grid-column: 1;
+  grid-row: 1 / 4;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+}
+.recent-earthquake-map-intensity > span { font-size: 0.78rem; font-weight: 900; }
+.recent-earthquake-map-intensity > strong {
+  display: grid;
+  place-items: center;
+  width: 70px;
+  height: 50px;
+  border-radius: 12px;
+  background: var(--simulation-ticket-intensity-color);
+  font-size: 2.65rem;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+.recent-earthquake-map-intensity > strong:is([data-intensity="5-"], [data-intensity="5+"], [data-intensity="6-"], [data-intensity="6+"]) { font-size: 1.8rem; }
+.recent-earthquake-map-name {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 1.1rem;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recent-earthquake-map-parameters { grid-column: 2; grid-row: 2; display: flex; gap: 10px; }
+.recent-earthquake-map-card > time { grid-column: 2; grid-row: 3; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
 
 body.recent-earthquake-map-mode :is(.station-canvas-overlay, .eew-forecast-panel, .simulation-runtime-hud, #map-layer-control-button),
 body.recent-earthquake-map-mode .epicenter-marker-shell:not(.recent-earthquake-epicenter-marker) {
@@ -166,16 +211,6 @@ html[data-resolved-theme="light"] #recent-earthquakes-panel {
 .recent-earthquake-summary { display: grid; min-width: 0; gap: 3px; }
 .recent-earthquake-card-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 16px; }
 .recent-earthquake-summary time { min-width: 0; overflow: hidden; font-size: 0.72rem; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; opacity: 0.8; }
-.recent-earthquake-selected {
-  flex-shrink: 0;
-  padding: 1px 5px;
-  border-radius: 999px;
-  background: var(--app-glass-selected);
-  color: var(--recent-earthquakes-surface);
-  font-size: 10px;
-  font-weight: 750;
-  line-height: 12px;
-}
 .recent-earthquake-name { display: block; margin: 0; font-size: 0.94rem; line-height: 1.25; overflow-wrap: anywhere; }
 .recent-earthquake-meta { display: block; font-size: 0.75rem; line-height: 1.25; }
 #recent-earthquakes-panel .recent-earthquake-intensity {
