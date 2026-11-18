@@ -7517,6 +7517,7 @@ async function transferRecentEarthquakeToSimulation() {
       magnitudeType: "Mj", earthquakeType: "crustal",
       epicenter: { latitude: coordinate.latitude, longitude: coordinate.longitude, name: selected.anm || "震源調査中" },
     }, { silent: true, originTime: selected.at });
+    setSetupMenuOpen(false);
     resetRecentEarthquakeTab();
     syncMapLayerControlPanel();
     requestAnimationFrame(() => {
@@ -7682,20 +7683,41 @@ function updateRecentEarthquakeMapLayers() {
 function updateRecentEarthquakeAreaLayers() {
   const observed = new Map((recentEarthquakeDetail?.areas || []).map((area) => [area.name, area.intensity]));
   const warnings = new Set(recentEarthquakeDetail?.eew?.areas || []);
+  const observedPaint = (value) => {
+    if (Array.isArray(value)) return value[0] === "feature-state" ? ["get", value[1]] : value.map(observedPaint);
+    if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, observedPaint(item)]));
+    return value;
+  };
+  const simulationLayers = map.getStyle().layers;
   for (const [source, warning] of [["recent-earthquake-areas", false], ["recent-earthquake-eew", true]]) {
     if (!map.getSource(source)) {
       addGeoJsonSource(source, emptyFeatureCollection());
-      addLayerIfMissing({ id: source, type: "fill", source, paint: {
-        "fill-color": warning ? "#ef4444" : ["get", "recentIntensityColor"], "fill-opacity": warning ? 0.35 : 0.45,
-      } });
+    }
+    if (warning) {
+      addLayerIfMissing({ id: source, type: "fill", source, paint: { "fill-color": "#ef4444", "fill-opacity": 0.35 } });
+    } else {
+      for (const [id, templateId] of [
+        [source, "jma-intensity-fill"],
+        ["recent-earthquake-area-boundaries", "jma-intensity-area-boundaries"],
+        ["recent-earthquake-area-boundaries-light", "jma-intensity-area-boundaries-light"],
+      ]) {
+        const template = simulationLayers.find((layer) => layer.id === templateId);
+        if (template) addLayerIfMissing({ ...template, id, source, paint: observedPaint(template.paint), layout: { ...template.layout, visibility: "visible" } });
+      }
     }
     const features = (localAreaData?.features || []).flatMap((feature) => {
       const intensity = INTENSITY_CLASSES.find((item) => item.shortLabel === observed.get(feature.properties.name));
       if (warning ? !warnings.has(feature.properties.name) : !intensity) return [];
-      return [{ ...feature, properties: { ...feature.properties, recentIntensityColor: intensity?.color } }];
+      return [{ ...feature, properties: { ...feature.properties,
+        intensityColor: intensity?.color, intensityRank: intensity?.rank || 0,
+        intensityBoundaryColor: getIntensityBoundaryColor(intensity), eewWarning: false,
+      } }];
     });
     setGeoJsonSourceData(source, { type: "FeatureCollection", features });
     updateLayerVisibility(source, Boolean(recentEarthquakeLayers[warning ? "eew-warning-toggle" : "region-layer-toggle"]));
+  }
+  for (const layer of ["recent-earthquake-area-boundaries", "recent-earthquake-area-boundaries-light"]) {
+    updateLayerVisibility(layer, Boolean(recentEarthquakeLayers["region-layer-toggle"]));
   }
   for (const [key, layers] of [
     ["plate-boundary-layer-toggle", ["plate-boundaries"]],
@@ -7774,7 +7796,7 @@ function setRecentEarthquakeMapModeActive(active) {
     recentEarthquakeSelectionRequestId += 1;
     recentEarthquakeDetailController?.abort();
     recentEarthquakeDetailController = null;
-    for (const layer of ["recent-earthquake-stations", "recent-earthquake-station-labels", "recent-earthquake-areas", "recent-earthquake-eew"]) {
+    for (const layer of ["recent-earthquake-stations", "recent-earthquake-station-labels", "recent-earthquake-areas", "recent-earthquake-area-boundaries", "recent-earthquake-area-boundaries-light", "recent-earthquake-eew"]) {
       updateLayerVisibility(layer, false);
     }
     if (map?.getSource("jma-local-areas")) updateDisplayMode();
