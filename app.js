@@ -7772,7 +7772,7 @@ function fitRecentEarthquakeMap() {
   const sheet = els.recentEarthquakesPanel;
   const sheetBottom = sheet ? Number.parseFloat(window.getComputedStyle(sheet).bottom) || 0 : 0;
   const sheetHeight = sheet?.dataset.sheetState === "open"
-    ? Math.min(window.innerHeight * 0.67, window.innerHeight - sheetBottom - 14) : 42;
+    ? sheet.dataset.sheetExpanded === "true" ? getSetupSheetOpenHeight() : getSetupSheetDefaultHeight(window.innerHeight, sheet) : 42;
   const bottom = Math.min(sheet ? sheetBottom + sheetHeight + 20 : 160, window.innerHeight - 100);
   const card = document.querySelector("#recent-earthquake-map-card");
   const top = card && !card.hidden
@@ -11197,17 +11197,12 @@ function setupMobileSheets() {
       const deltaY = dragCurrentY - dragStartY;
       suppressHandleClick = Math.abs(deltaY) > 8;
       const viewportHeight = window.visualViewport?.height || window.innerHeight || 720;
-      const closedHeight = 42;
       const collapsedHeight = 42;
+      const defaultHeight = getSetupSheetDefaultHeight(viewportHeight, panel);
       const openHeight = getSetupSheetOpenHeight(viewportHeight);
       const finalHeight = dragCurrentHeight || dragStartHeight;
-      let nextState = "collapsed";
-      if (finalHeight >= (collapsedHeight + openHeight) / 2 || deltaY < -48) {
-        nextState = "open";
-      } else if (finalHeight <= (closedHeight + collapsedHeight) / 2 || deltaY > 48) {
-        nextState = "closed";
-      }
-      setSheetState(panel, nextState);
+      const nextState = finalHeight < (collapsedHeight + defaultHeight) / 2 ? "collapsed" : "open";
+      setSheetState(panel, nextState, { expanded: finalHeight > (defaultHeight + openHeight) / 2 });
       settleRenderFrame = requestAnimationFrame(() => {
         settleRenderFrame = 0;
         panel.classList.remove("is-dragging");
@@ -11346,6 +11341,11 @@ function getSetupSheetOpenHeight(viewportHeight = window.visualViewport?.height 
   return Math.max(56, Math.min(availableHeight, preferredHeight));
 }
 
+function getSetupSheetDefaultHeight(viewportHeight = window.visualViewport?.height || window.innerHeight || 720, panel = els.setupPanel) {
+  const bottom = panel ? Number.parseFloat(window.getComputedStyle(panel).bottom) || 0 : 80;
+  return Math.max(42, Math.min(getSetupSheetOpenHeight(viewportHeight), viewportHeight * 0.45 - bottom));
+}
+
 function setupTransientPanelScrollbars() {
   const scrollTimers = new WeakMap();
   const scrollContainers = document.querySelectorAll(
@@ -11451,12 +11451,13 @@ function isCompactViewport() {
 }
 
 
-function setSheetState(panel, stateName) {
+function setSheetState(panel, stateName, { expanded = false } = {}) {
   if (!panel) {
     return;
   }
 
   panel.dataset.sheetState = stateName;
+  panel.dataset.sheetExpanded = String(stateName === "open" && expanded);
   if (panel.id === "recent-earthquakes-panel") {
     const content = panel.querySelector(".recent-earthquakes-content");
     if (content) content.inert = stateName !== "open";

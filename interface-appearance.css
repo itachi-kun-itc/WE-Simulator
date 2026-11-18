@@ -20,7 +20,26 @@ body:not(.tool-station-search-mode):not(.tool-weather-quiz-mode) #learning-full-
   margin-inline: 0 !important;
 }
 
+#setup-panel,
 #recent-earthquakes-panel {
+  --sheet-bottom-gap: 8px;
+  --sheet-default-height: max(42px, calc(45svh - var(--bottom-nav-height) - env(safe-area-inset-bottom) - var(--sheet-bottom-gap)));
+  --sheet-expanded-height: min(67svh, calc(100svh - var(--bottom-nav-height) - env(safe-area-inset-bottom) - 24px));
+  --sheet-open-height: var(--sheet-default-height);
+}
+
+#setup-panel[data-sheet-expanded="true"],
+#recent-earthquakes-panel[data-sheet-expanded="true"] {
+  --sheet-open-height: var(--sheet-expanded-height);
+}
+
+#setup-panel.sim-panel:not(.simulation-result-report-open):not(.is-dragging)[data-sheet-state="open"] {
+  height: var(--sheet-open-height) !important;
+  max-height: var(--sheet-expanded-height) !important;
+}
+
+#recent-earthquakes-panel {
+  --sheet-bottom-gap: 10px;
   --recent-earthquakes-surface: #0a0e16;
   position: fixed !important;
   top: auto !important;
@@ -30,7 +49,7 @@ body:not(.tool-station-search-mode):not(.tool-weather-quiz-mode) #learning-full-
   max-width: 460px !important;
   max-height: none !important;
   min-height: 0 !important;
-  height: min(67svh, calc(100svh - var(--bottom-nav-height) - env(safe-area-inset-bottom) - 24px)) !important;
+  height: var(--sheet-open-height) !important;
   display: grid !important;
   grid-template-rows: 30px minmax(0, 1fr) !important;
   margin: 0 !important;
