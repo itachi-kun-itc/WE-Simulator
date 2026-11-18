@@ -11,6 +11,15 @@ body:not(.tool-station-search-mode):not(.tool-weather-quiz-mode) #learning-full-
   overflow: visible !important;
 }
 
+#learning-full-panel .learning-content[data-learning-category="tools"] {
+  width: min(1040px, 100%) !important;
+}
+
+#learning-full-panel #info-full-panel #tool-home-page .tool-menu-list > button.tool-menu-row {
+  width: 100% !important;
+  margin-inline: 0 !important;
+}
+
 #recent-earthquakes-panel {
   --recent-earthquakes-surface: #0a0e16;
   position: fixed !important;
@@ -76,6 +85,23 @@ body:not(.tool-station-search-mode):not(.tool-weather-quiz-mode) #learning-full-
 
 #recent-earthquakes-panel > .sheet-handle::after { background: var(--app-glass-text) !important; }
 
+#recent-earthquake-selection-summary {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  left: 16px;
+  z-index: 6;
+  overflow: hidden;
+  color: var(--app-glass-selected);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 body.recent-earthquake-map-mode :is(.station-canvas-overlay, .eew-forecast-panel, .simulation-runtime-hud, #map-layer-control-button),
 body.recent-earthquake-map-mode .epicenter-marker-shell:not(.recent-earthquake-epicenter-marker) {
   display: none !important;
@@ -103,7 +129,7 @@ html[data-resolved-theme="light"] #recent-earthquakes-panel {
   touch-action: pan-y;
 }
 
-.recent-earthquakes-list { display: grid; gap: 10px; margin: 0 0 16px; }
+.recent-earthquakes-list { display: grid; gap: 7px; margin: 0 0 16px; }
 
 .fault-mode-switch-notice[data-earthquake-status] {
   top: calc(12px + env(safe-area-inset-top));
@@ -119,10 +145,10 @@ html[data-resolved-theme="light"] #recent-earthquakes-panel {
   width: 100%;
   box-sizing: border-box;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 68px;
+  grid-template-columns: minmax(0, 1fr) 54px;
   align-items: center;
-  gap: 12px;
-  padding: 14px;
+  gap: 10px;
+  padding: 10px 12px;
   border: 1px solid rgba(148, 163, 184, 0.3);
   border-radius: 16px;
   background: transparent;
@@ -131,23 +157,38 @@ html[data-resolved-theme="light"] #recent-earthquakes-panel {
   text-align: left;
   cursor: pointer;
 }
-.recent-earthquake-card[aria-pressed="true"] { border-color: var(--app-glass-selected); background: var(--app-glass-lens); }
+.recent-earthquake-card[aria-pressed="true"] {
+  border-color: var(--app-glass-selected);
+  background: var(--app-glass-lens);
+  box-shadow: inset 3px 0 var(--app-glass-selected);
+}
 .recent-earthquake-card:focus-visible { outline: 2px solid var(--app-glass-selected); outline-offset: 2px; }
-.recent-earthquake-summary { min-width: 0; }
-.recent-earthquake-summary time { font-size: 0.8rem; opacity: 0.8; }
-.recent-earthquake-name { display: block; margin: 6px 0; font-size: 1rem; overflow-wrap: anywhere; }
-.recent-earthquake-meta { display: block; font-size: 0.83rem; }
+.recent-earthquake-summary { display: grid; min-width: 0; gap: 3px; }
+.recent-earthquake-card-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 16px; }
+.recent-earthquake-summary time { min-width: 0; overflow: hidden; font-size: 0.72rem; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; opacity: 0.8; }
+.recent-earthquake-selected {
+  flex-shrink: 0;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--app-glass-selected);
+  color: var(--recent-earthquakes-surface);
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 12px;
+}
+.recent-earthquake-name { display: block; margin: 0; font-size: 0.94rem; line-height: 1.25; overflow-wrap: anywhere; }
+.recent-earthquake-meta { display: block; font-size: 0.75rem; line-height: 1.25; }
 #recent-earthquakes-panel .recent-earthquake-intensity {
   display: grid;
   justify-items: center;
-  gap: 5px;
-  padding: 8px 3px;
+  gap: 3px;
+  padding: 6px 3px;
   border-radius: 12px;
   background: var(--recent-intensity-color);
   color: var(--recent-intensity-text) !important;
 }
-#recent-earthquakes-panel .recent-earthquake-intensity span { font-size: 0.68rem; color: inherit !important; }
-#recent-earthquakes-panel .recent-earthquake-intensity strong { font-size: 1.5rem; line-height: 1.2; color: inherit !important; }
+#recent-earthquakes-panel .recent-earthquake-intensity span { font-size: 10px; line-height: 1.2; color: inherit !important; }
+#recent-earthquakes-panel .recent-earthquake-intensity strong { font-size: 1.3rem; line-height: 1.1; color: inherit !important; }
 
 :root {
   --app-control-radius: 16px;

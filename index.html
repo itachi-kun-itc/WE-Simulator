@@ -49,9 +49,9 @@
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta name="twitter:image" content="https://itachi-kun-itc.github.io/WE-Simulator/og-image.png" />
-    <link rel="manifest" href="./manifest.webmanifest?v=a297693244d1" />
-    <link rel="icon" type="image/png" sizes="32x32" href="./favicon.png?v=a297693244d1" />
-    <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=a297693244d1" />
+    <link rel="manifest" href="./manifest.webmanifest?v=f36755f9c0fd" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./favicon.png?v=f36755f9c0fd" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=f36755f9c0fd" />
     <link rel="preconnect" href="https://we-simulator-push.h6fgpg2zht.workers.dev" crossorigin />
     <link rel="preconnect" href="https://unpkg.com" crossorigin />
     <style>
@@ -90,9 +90,9 @@
       }
     </style>
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.css" />
-    <link rel="stylesheet" href="./styles.css?v=a297693244d1" />
-    <link rel="stylesheet" href="./bottom-navigation.css?v=a297693244d1" />
-    <link rel="stylesheet" href="./interface-appearance.css?v=a297693244d1" />
+    <link rel="stylesheet" href="./styles.css?v=f36755f9c0fd" />
+    <link rel="stylesheet" href="./bottom-navigation.css?v=f36755f9c0fd" />
+    <link rel="stylesheet" href="./interface-appearance.css?v=f36755f9c0fd" />
   </head>
   <body>
     <main class="app-shell">
@@ -538,6 +538,7 @@
 
           <section class="sim-panel recent-earthquakes-sheet hidden" id="recent-earthquakes-panel" aria-label="地震" data-sheet-state="open">
             <button class="sheet-handle" type="button" aria-label="地震一覧を開閉" aria-expanded="true"></button>
+            <span id="recent-earthquake-selection-summary" aria-live="polite" hidden></span>
             <div class="recent-earthquakes-content">
               <div id="recent-earthquakes-list" class="recent-earthquakes-list"></div>
               <a href="https://www.jma.go.jp/bosai/map.html#contents=earthquake_map" target="_blank" rel="noopener noreferrer">出典　気象庁「地震情報」</a>
@@ -637,11 +638,11 @@
       </button>
     </nav>
 
-    <script src="./liquid-glass.js?v=a297693244d1"></script>
-    <script src="./bottom-navigation.js?v=a297693244d1"></script>
+    <script src="./liquid-glass.js?v=f36755f9c0fd"></script>
+    <script src="./bottom-navigation.js?v=f36755f9c0fd"></script>
     <script src="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.js"></script>
-    <script src="./vendor/pmtiles.js?v=a297693244d1"></script>
-    <script src="./earthquake-model.js?v=a297693244d1"></script>
-    <script src="./app.js?v=a297693244d1"></script>
+    <script src="./vendor/pmtiles.js?v=f36755f9c0fd"></script>
+    <script src="./earthquake-model.js?v=f36755f9c0fd"></script>
+    <script src="./app.js?v=f36755f9c0fd"></script>
   </body>
 </html>

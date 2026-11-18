@@ -7678,7 +7678,10 @@ function renderRecentEarthquakes(message = "") {
     return `
       <button class="recent-earthquake-card" type="button" data-recent-earthquake-id="${escapeHtml(item.eid)}" aria-pressed="${item.eid === selectedRecentEarthquakeId}">
         <span class="recent-earthquake-summary">
-          <time datetime="${escapeHtml(item.at)}">${escapeHtml(formatRecentEarthquakeTime(item.at))}</time>
+          <span class="recent-earthquake-card-top">
+            <time datetime="${escapeHtml(item.at)}">${escapeHtml(formatRecentEarthquakeTime(item.at))}</time>
+            ${item.eid === selectedRecentEarthquakeId ? '<span class="recent-earthquake-selected">✓ 選択中</span>' : ""}
+          </span>
           <strong class="recent-earthquake-name">${escapeHtml(item.anm || "震源調査中")}</strong>
           <span class="recent-earthquake-meta">${escapeHtml(magnitude)}　深さ ${escapeHtml(depth)}</span>
         </span>
@@ -7688,6 +7691,14 @@ function renderRecentEarthquakes(message = "") {
       </button>
     `;
   }).join("");
+  const selected = recentEarthquakes.find((item) => item.eid === selectedRecentEarthquakeId);
+  const summary = document.querySelector("#recent-earthquake-selection-summary");
+  if (summary) {
+    summary.hidden = !selected;
+    summary.textContent = selected
+      ? `選択中　${formatRecentEarthquakeTime(selected.at).replace(/^\d{4}\//, "")}　${selected.anm || "震源調査中"}` : "";
+    summary.title = summary.textContent;
+  }
   showRecentEarthquakeNotice(message);
 }
 
