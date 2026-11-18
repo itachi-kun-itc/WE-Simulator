@@ -235,6 +235,45 @@ html[data-resolved-theme="light"] #recent-earthquakes-panel {
   touch-action: pan-y;
 }
 
+.recent-earthquakes-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  margin: 2px 0 9px;
+  padding: 3px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 12px;
+  background: var(--app-glass-lens);
+}
+.recent-earthquakes-tabs button {
+  min-width: 0;
+  border: 0;
+  border-radius: 9px;
+  padding: 7px 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.recent-earthquakes-tabs button.is-active {
+  background: var(--app-glass-selected);
+  color: #102537;
+  font-weight: 700;
+}
+.recent-earthquakes-tabs button:focus-visible { outline: 2px solid var(--app-glass-selected); outline-offset: 2px; }
+
+.earthquake-learning-content { display: grid; gap: 14px; padding: 10px 16px 24px; }
+.earthquake-learning-state { margin: 0; padding: 13px 14px; border-radius: 14px; background: var(--app-glass-lens); font-weight: 700; line-height: 1.55; }
+.earthquake-learning-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 2px; font-weight: 600; }
+.earthquake-learning-toggle input { width: 20px; height: 20px; accent-color: var(--app-glass-selected); }
+.earthquake-learning-metrics { display: grid; gap: 0; margin: 0; border: 1px solid rgba(148,163,184,.28); border-radius: 14px; overflow: hidden; }
+.earthquake-learning-metrics div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 10px 12px; }
+.earthquake-learning-metrics div + div { border-top: 1px solid rgba(148,163,184,.2); }
+.earthquake-learning-metrics dt { font-size: .82rem; opacity: .75; }
+.earthquake-learning-metrics dd { margin: 0; text-align: right; font-size: .85rem; font-variant-numeric: tabular-nums; }
+.earthquake-learning-note { margin: 0; font-size: .8rem; line-height: 1.65; opacity: .8; }
+
 .recent-earthquakes-list { display: grid; gap: 7px; margin: 0 0 16px; }
 
 .fault-mode-switch-notice[data-earthquake-status] {

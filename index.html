@@ -49,9 +49,9 @@
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta name="twitter:image" content="https://itachi-kun-itc.github.io/WE-Simulator/og-image.png" />
-    <link rel="manifest" href="./manifest.webmanifest?v=1eb8ef109b98" />
-    <link rel="icon" type="image/png" sizes="32x32" href="./favicon.png?v=1eb8ef109b98" />
-    <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=1eb8ef109b98" />
+    <link rel="manifest" href="./manifest.webmanifest?v=2b6187df5967" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./favicon.png?v=2b6187df5967" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=2b6187df5967" />
     <link rel="preconnect" href="https://we-simulator-push.h6fgpg2zht.workers.dev" crossorigin />
     <link rel="preconnect" href="https://unpkg.com" crossorigin />
     <style>
@@ -90,9 +90,9 @@
       }
     </style>
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.css" />
-    <link rel="stylesheet" href="./styles.css?v=1eb8ef109b98" />
-    <link rel="stylesheet" href="./bottom-navigation.css?v=1eb8ef109b98" />
-    <link rel="stylesheet" href="./interface-appearance.css?v=1eb8ef109b98" />
+    <link rel="stylesheet" href="./styles.css?v=2b6187df5967" />
+    <link rel="stylesheet" href="./bottom-navigation.css?v=2b6187df5967" />
+    <link rel="stylesheet" href="./interface-appearance.css?v=2b6187df5967" />
   </head>
   <body>
     <main class="app-shell">
@@ -539,6 +539,10 @@
           <section class="sim-panel recent-earthquakes-sheet hidden" id="recent-earthquakes-panel" aria-label="地震" data-sheet-state="open">
             <button class="sheet-handle" type="button" aria-label="地震一覧を開閉" aria-expanded="true"></button>
             <div class="recent-earthquakes-content">
+              <div class="recent-earthquakes-tabs" role="tablist" aria-label="地震一覧">
+                <button type="button" class="is-active" data-earthquake-list-tab="recent" role="tab" aria-selected="true">直近30件</button>
+                <button type="button" data-earthquake-list-tab="archive" role="tab" aria-selected="false">アーカイブ</button>
+              </div>
               <div id="recent-earthquakes-list" class="recent-earthquakes-list"></div>
               <a href="https://www.jma.go.jp/bosai/map.html#contents=earthquake_map" target="_blank" rel="noopener noreferrer">出典　気象庁「地震情報」</a>
             </div>
@@ -575,6 +579,10 @@
               </section>
               <section class="settings-inline-panel hidden" id="settings-source-panel" aria-label="出典"></section>
               <section class="settings-inline-panel hidden" id="settings-feedback-panel" aria-label="フィードバック"></section>
+              <button class="settings-menu-row" id="settings-earthquake-learning-button" type="button" aria-controls="settings-earthquake-learning-panel" aria-expanded="false">
+                <span>AI学習</span><span aria-hidden="true">›</span>
+              </button>
+              <section class="settings-inline-panel hidden" id="settings-earthquake-learning-panel" aria-label="AI学習"></section>
               <button class="settings-menu-row" id="settings-source-button" type="button">
                 <span>出典</span>
                 <span aria-hidden="true">›</span>
@@ -639,11 +647,12 @@
       </button>
     </nav>
 
-    <script src="./liquid-glass.js?v=1eb8ef109b98"></script>
-    <script src="./bottom-navigation.js?v=1eb8ef109b98"></script>
+    <script src="./liquid-glass.js?v=2b6187df5967"></script>
+    <script src="./bottom-navigation.js?v=2b6187df5967"></script>
     <script src="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.js"></script>
-    <script src="./vendor/pmtiles.js?v=1eb8ef109b98"></script>
-    <script src="./earthquake-model.js?v=1eb8ef109b98"></script>
-    <script src="./app.js?v=1eb8ef109b98"></script>
+    <script src="./vendor/pmtiles.js?v=2b6187df5967"></script>
+    <script src="./earthquake-model.js?v=2b6187df5967"></script>
+    <script src="./earthquake-learning.js?v=2b6187df5967"></script>
+    <script src="./app.js?v=2b6187df5967"></script>
   </body>
 </html>

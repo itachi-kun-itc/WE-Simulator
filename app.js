@@ -30,8 +30,17 @@ const JAPAN_PMTILES_BYTE_SERVING_PROBE_TIMEOUT_MS = 1200;
 const GROUND_MODEL_URL = "./data/ground_model.json";
 const SHINDO_STATIONS_URL = "./data/jma_shindo_stations.json";
 const RECENT_EARTHQUAKES_STORAGE_KEY = "weather-earthquake-recent-jma-earthquakes-v1";
+const EARTHQUAKE_LEARNING_ENABLED_KEY = "we-simulator-earthquake-learning-enabled-v1";
+let earthquakeLearningModel = null;
+let activeSimulationLearningModel = null;
+let earthquakeLearningStatus = null;
+let earthquakeLearningError = false;
+let earthquakeLearningLoadPromise = null;
 const RECENT_EARTHQUAKES_LIMIT = 30;
 let recentEarthquakes = [];
+let latestRecentEarthquakes = [];
+let archivedEarthquakes = [];
+let recentEarthquakeListTab = "recent";
 let recentEarthquakesUpdatedAt = "";
 let recentEarthquakesLoadPromise = null;
 let selectedRecentEarthquakeId = "";
@@ -555,6 +564,11 @@ function getStoredIntensityColorScheme() {
   }
 }
 
+function getStoredEarthquakeLearningEnabled() {
+  try { return localStorage.getItem(EARTHQUAKE_LEARNING_ENABLED_KEY) !== "false"; }
+  catch (_error) { return true; }
+}
+
 
 const state = {
   latitude: 35.681,
@@ -563,6 +577,7 @@ const state = {
   magnitude: 3.5,
   magnitudeType: "Mj",
   earthquakeType: "crustal",
+  earthquakeLearningEnabled: getStoredEarthquakeLearningEnabled(),
   epicenterName: "",
   municipalityName: "",
   maxIntensityLabel: "-",
@@ -624,12 +639,14 @@ const els = {
   settingsMenuClose: document.querySelector("#settings-menu-close"),
   settingsSourceButton: document.querySelector("#settings-source-button"),
   settingsFeedbackButton: document.querySelector("#settings-feedback-button"),
+  settingsEarthquakeLearningButton: document.querySelector("#settings-earthquake-learning-button"),
   settingsPushButton: document.querySelector("#settings-menu-sheet #settings-push-button"),
   settingsPushHistoryButton: document.querySelector("#settings-menu-sheet #settings-push-history-button"),
   settingsPushStatus: document.querySelector("#settings-push-status"),
   settingsPushToggle: document.querySelector("#settings-push-toggle"),
   settingsSourcePanel: document.querySelector("#settings-source-panel"),
   settingsFeedbackPanel: document.querySelector("#settings-feedback-panel"),
+  settingsEarthquakeLearningPanel: document.querySelector("#settings-earthquake-learning-panel"),
   settingsPushPanel: document.querySelector("#settings-push-panel"),
   settingsPushHistoryPanel: document.querySelector("#settings-push-history-panel"),
   settingsAppearanceButton: document.querySelector("#settings-appearance-button"),
@@ -4120,6 +4137,7 @@ function setupTabs() {
       [els.settingsSourceButton, els.settingsSourcePanel],
       [els.settingsPrivacyButton, els.settingsPrivacyPanel],
       [els.settingsFeedbackButton, els.settingsFeedbackPanel],
+      [els.settingsEarthquakeLearningButton, els.settingsEarthquakeLearningPanel],
       [els.settingsAcknowledgementsButton, els.settingsAcknowledgementsPanel],
       [els.settingsAdminButton, els.settingsAdminPanel],
       [els.settingsPushButton, els.settingsPushPanel],
@@ -4599,6 +4617,7 @@ function setupTabs() {
       els.settingsSourceButton,
       els.settingsPrivacyButton,
       els.settingsFeedbackButton,
+      els.settingsEarthquakeLearningButton,
       els.settingsAcknowledgementsButton,
       els.settingsAdminButton,
       els.settingsPushButton,
@@ -4875,6 +4894,7 @@ function setupTabs() {
   });
 
   initializeRecentEarthquakes();
+  initializeEarthquakeLearning();
 
   document.querySelector("#bottom-learning-tab")?.addEventListener("click", () => {
     setActiveBottomTab("#bottom-learning-tab");
@@ -4937,6 +4957,7 @@ function setupTabs() {
       "settings-source-button": [els.settingsSourceButton, els.settingsSourcePanel, ensureSettingsSourcePanel, "出典"],
       "settings-privacy-button": [els.settingsPrivacyButton, els.settingsPrivacyPanel, ensureSettingsPrivacyPanel, "プライバシーポリシー"],
       "settings-feedback-button": [els.settingsFeedbackButton, els.settingsFeedbackPanel, ensureSettingsFeedbackPanel, "フィードバック"],
+      "settings-earthquake-learning-button": [els.settingsEarthquakeLearningButton, els.settingsEarthquakeLearningPanel, ensureEarthquakeLearningPanel, "AI学習"],
       "settings-acknowledgements-button": [els.settingsAcknowledgementsButton, els.settingsAcknowledgementsPanel, ensureSettingsAcknowledgementsPanel, "謝辞"],
       "settings-admin-button": [els.settingsAdminButton, els.settingsAdminPanel, ensureSettingsAdminPanel, "管理者メニュー"],
       "settings-push-button": [els.settingsPushButton, els.settingsPushPanel, ensureSettingsPushPanel, "通知設定"],
@@ -7495,6 +7516,8 @@ function resetRecentEarthquakeTab() {
   recentEarthquakeEpicenterMarker = null;
   recentEarthquakeLayers = { ...RECENT_EARTHQUAKE_DEFAULT_LAYERS };
   recentEarthquakeAutoZoomEnabled = true;
+  recentEarthquakeListTab = "recent";
+  recentEarthquakes = latestRecentEarthquakes;
   for (const source of ["recent-earthquake-stations", "recent-earthquake-areas", "recent-earthquake-eew"]) {
     if (map?.getSource(source)) setGeoJsonSourceData(source, emptyFeatureCollection());
   }
@@ -7832,6 +7855,11 @@ function positionRecentEarthquakeMapCard() {
 function renderRecentEarthquakes(message = "") {
   const list = document.querySelector("#recent-earthquakes-list");
   if (!list) return;
+  document.querySelectorAll("[data-earthquake-list-tab]").forEach((button) => {
+    const active = button.dataset.earthquakeListTab === recentEarthquakeListTab;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-selected", String(active));
+  });
   list.innerHTML = recentEarthquakes.map((item) => {
     const intensity = String(item.maxi || "").replace("-", "弱").replace("+", "強");
     const intensityClass = INTENSITY_CLASSES.find((entry) => entry.shortLabel === item.maxi);
@@ -7905,12 +7933,22 @@ function refreshRecentEarthquakes() {
         || !Number.isFinite(Date.parse(data.updatedAt))) {
         throw new Error("Invalid JMA earthquake list");
       }
-      recentEarthquakes = mergeRecentEarthquakes(data.earthquakes);
+      latestRecentEarthquakes = mergeRecentEarthquakes(data.earthquakes);
       recentEarthquakesUpdatedAt = data.updatedAt;
+      try {
+        const archiveResponse = await fetch(`${workerUrl}/earthquake-archive`, { cache: "no-store", signal: controller.signal });
+        if (!archiveResponse.ok) throw new Error(`JMA archive: ${archiveResponse.status}`);
+        const archiveData = await archiveResponse.json();
+        if (!Array.isArray(archiveData.earthquakes)) throw new Error("Invalid JMA archive");
+        archivedEarthquakes = archiveData.earthquakes.filter((item) => /^\d{14}$/.test(String(item?.eid)));
+      } catch (archiveError) {
+        console.warn("Failed to load JMA earthquake archive", archiveError);
+      }
+      recentEarthquakes = recentEarthquakeListTab === "archive" ? archivedEarthquakes : latestRecentEarthquakes;
       syncRecentEarthquakeSelection();
       try {
         localStorage.setItem(RECENT_EARTHQUAKES_STORAGE_KEY, JSON.stringify({
-          earthquakes: recentEarthquakes, updatedAt: recentEarthquakesUpdatedAt,
+          earthquakes: latestRecentEarthquakes, updatedAt: recentEarthquakesUpdatedAt,
         }));
       } catch (error) {
         console.warn("Failed to cache recent JMA earthquakes", error);
@@ -7930,6 +7968,94 @@ function refreshRecentEarthquakes() {
   return recentEarthquakesLoadPromise;
 }
 
+function ensureEarthquakeLearningPanel() {
+  const panel = els.settingsEarthquakeLearningPanel;
+  if (!panel) return;
+  if (panel.dataset.ready !== "true") {
+    panel.dataset.ready = "true";
+    panel.innerHTML = `
+      <div class="source-info-overlay-content earthquake-learning-content">
+        <p class="earthquake-learning-state" data-learning-state aria-live="polite"></p>
+        <label class="earthquake-learning-toggle">
+          <span>シミュレーションに適用</span>
+          <input type="checkbox" data-learning-enabled>
+        </label>
+        <dl class="earthquake-learning-metrics">
+          <div><dt>保存中の地震</dt><dd data-learning-events>—</dd></div>
+          <div><dt>観測点</dt><dd data-learning-observations>—</dd></div>
+          <div><dt>最終収集</dt><dd data-learning-collected>—</dd></div>
+          <div><dt>独立検証の誤差</dt><dd data-learning-accuracy>—</dd></div>
+        </dl>
+        <p class="earthquake-learning-note">気象庁の観測震度から、震度の広がりを補正します。別の地震で改善が確認された場合だけ、通常の点震源シミュレーションに適用します。</p>
+      </div>`;
+    panel.querySelector("[data-learning-enabled]")?.addEventListener("change", (event) => {
+      state.earthquakeLearningEnabled = event.target.checked;
+      try { localStorage.setItem(EARTHQUAKE_LEARNING_ENABLED_KEY, String(event.target.checked)); }
+      catch (error) { console.warn("Failed to save AI learning preference", error); }
+      renderEarthquakeLearningStatus();
+      if (!state.simulationRunning) updateDisplayMode();
+    });
+  }
+  renderEarthquakeLearningStatus();
+}
+
+function renderEarthquakeLearningStatus() {
+  const panel = els.settingsEarthquakeLearningPanel;
+  if (!panel || panel.dataset.ready !== "true") return;
+  const status = earthquakeLearningStatus;
+  const active = Boolean(status?.enabled && globalThis.WeEarthquakeLearning?.validModel(status.model));
+  const stateText = earthquakeLearningError ? "学習状況を取得できません" : !status ? "学習状況を取得中" :
+    active ? (state.earthquakeLearningEnabled ? "検証済みの補正を適用中" : "検証済みの補正があります（この端末ではOFF）") :
+    status.enabled ? "観測データを収集中。改善を確認するまで従来の計算を使用" : "学習を準備中";
+  panel.querySelector("[data-learning-state]").textContent = stateText;
+  panel.querySelector("[data-learning-enabled]").checked = state.earthquakeLearningEnabled;
+  panel.querySelector("[data-learning-events]").textContent = status ? `${Number(status.archivedEvents) || 0}件` : "—";
+  panel.querySelector("[data-learning-observations]").textContent = status ? `${Number(status.observations) || 0}点` : "—";
+  panel.querySelector("[data-learning-collected]").textContent = status?.collectedAt
+    ? new Date(status.collectedAt).toLocaleString("ja-JP") : "—";
+  const validation = active ? status.model.test : null;
+  const before = Number(validation?.baseline?.intervalMae), after = Number(validation?.learned?.intervalMae);
+  panel.querySelector("[data-learning-accuracy]").textContent = Number.isFinite(before) && Number.isFinite(after)
+    ? `${before.toFixed(3)} → ${after.toFixed(3)}` : "検証待ち";
+}
+
+function refreshEarthquakeLearning() {
+  if (earthquakeLearningLoadPromise) return earthquakeLearningLoadPromise;
+  earthquakeLearningLoadPromise = (async () => {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 10000);
+    try {
+      const workerUrl = await getWorkerBaseUrl();
+      if (!workerUrl) throw new Error("Cloudflare Worker is not configured");
+      const response = await fetch(`${workerUrl}/earthquake-learning`, { cache: "no-store", signal: controller.signal });
+      if (!response.ok) throw new Error(`Earthquake learning: ${response.status}`);
+      const status = await response.json();
+      if (status.baseModel !== globalThis.WeEarthquakeLearning?.BASE_MODEL) throw new Error("Incompatible learning model");
+      earthquakeLearningStatus = status;
+      earthquakeLearningModel = status.enabled && globalThis.WeEarthquakeLearning.validModel(status.model) ? status.model : null;
+      earthquakeLearningError = false;
+    } catch (error) {
+      console.warn("Failed to load earthquake learning status", error);
+      earthquakeLearningError = true;
+      earthquakeLearningModel = null;
+    } finally {
+      window.clearTimeout(timeout);
+      earthquakeLearningLoadPromise = null;
+      renderEarthquakeLearningStatus();
+      if (!state.simulationRunning) updateDisplayMode();
+    }
+  })();
+  return earthquakeLearningLoadPromise;
+}
+
+function initializeEarthquakeLearning() {
+  const refreshWhenVisible = () => { if (!document.hidden) refreshEarthquakeLearning(); };
+  document.addEventListener("visibilitychange", refreshWhenVisible);
+  window.addEventListener("online", refreshWhenVisible);
+  window.setInterval(refreshWhenVisible, 300000);
+  refreshEarthquakeLearning();
+}
+
 function initializeRecentEarthquakes() {
   document.querySelector("#recent-earthquake-map-card")?.addEventListener("click", (event) => {
     if (event.target.closest("[data-recent-earthquake-transfer]")) {
@@ -7947,7 +8073,8 @@ function initializeRecentEarthquakes() {
   try {
     const saved = JSON.parse(localStorage.getItem(RECENT_EARTHQUAKES_STORAGE_KEY) || "null");
     if (Array.isArray(saved?.earthquakes)) {
-      recentEarthquakes = mergeRecentEarthquakes(saved.earthquakes);
+      latestRecentEarthquakes = mergeRecentEarthquakes(saved.earthquakes);
+      recentEarthquakes = latestRecentEarthquakes;
       recentEarthquakesUpdatedAt = Number.isFinite(Date.parse(saved.updatedAt)) ? saved.updatedAt : "";
     }
   } catch (error) {
@@ -7956,6 +8083,15 @@ function initializeRecentEarthquakes() {
   document.querySelector("#recent-earthquakes-list")?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-recent-earthquake-id]");
     if (button) selectRecentEarthquake(button.dataset.recentEarthquakeId);
+  });
+  document.querySelector(".recent-earthquakes-tabs")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-earthquake-list-tab]");
+    if (!button || button.dataset.earthquakeListTab === recentEarthquakeListTab) return;
+    recentEarthquakeListTab = button.dataset.earthquakeListTab;
+    recentEarthquakes = recentEarthquakeListTab === "archive" ? archivedEarthquakes : latestRecentEarthquakes;
+    syncRecentEarthquakeSelection();
+    els.recentEarthquakesPanel?.querySelector(".recent-earthquakes-content")?.scrollTo?.({ top: 0 });
+    renderRecentEarthquakes();
   });
   const refreshWhenVisible = () => {
     if (!document.hidden) refreshRecentEarthquakes();
@@ -17993,6 +18129,7 @@ async function startSimulation() {
   if (!maintenanceStatusReady || isSimulationMapDataLoading()) {
     return;
   }
+  activeSimulationLearningModel = state.earthquakeLearningEnabled ? earthquakeLearningModel : null;
 
   if (isFaultSimulationActive()) {
     await syncFaultEpicenterName();
@@ -23521,9 +23658,21 @@ function estimateIntensityAtPoint(
     sourceModel: isFaultSimulationActive() ? "finite-fault" : "point",
     velocityAmplification: site.velocityAmplification, referenceVs: site.referenceVs,
   });
+  const learningModel = state.earthquakeLearningEnabled
+    ? state.simulationRunning ? activeSimulationLearningModel : earthquakeLearningModel : null;
+  const learnedCorrection = globalThis.WeEarthquakeLearning?.correction(learningModel, {
+    sourceModel: isFaultSimulationActive() ? "finite-fault" : "point",
+    earthquakeType: state.earthquakeType,
+    momentMagnitude: prediction.momentMagnitude,
+    depthKm: state.depthKm,
+    distanceKm: ruptureDistanceKm,
+    velocityAmplification: site.velocityAmplification,
+    latitude, longitude,
+    sourceLatitude: state.latitude, sourceLongitude: state.longitude,
+  }) || 0;
   // Class 7 has no upper bound. Keep the continuous prediction through the
   // station/area calculations and wave animation instead of flattening it at 7.
-  return Math.max(prediction.instrumentalIntensity ?? 0, 0);
+  return Math.max((prediction.instrumentalIntensity ?? 0) + learnedCorrection, 0);
 }
 
 function isGroundMotionPredictionAvailable() {
