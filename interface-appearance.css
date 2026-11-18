@@ -134,10 +134,33 @@ body.recent-earthquake-map-mode .recent-earthquake-map-card:not([hidden]) {
   letter-spacing: -0.04em;
 }
 .recent-earthquake-map-intensity > strong:is([data-intensity="5-"], [data-intensity="5+"], [data-intensity="6-"], [data-intensity="6+"]) { font-size: 1.8rem; }
+.recent-earthquake-map-intensity > strong[data-intensity="1"] {
+  background: color-mix(in srgb, var(--simulation-ticket-intensity-color) 85%, #000 15%);
+}
+.recent-earthquake-transfer {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 4px;
+  border: 1px solid currentColor;
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.08);
+  color: inherit;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.recent-earthquake-transfer svg { width: 21px; height: 21px; }
+.recent-earthquake-transfer:disabled { opacity: 0.35; cursor: default; }
+.recent-earthquake-transfer:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 .recent-earthquake-map-name {
   grid-column: 2;
   grid-row: 1;
   min-width: 0;
+  padding-right: 30px;
   overflow: hidden;
   font-size: 1.1rem;
   font-weight: 900;
@@ -147,7 +170,7 @@ body.recent-earthquake-map-mode .recent-earthquake-map-card:not([hidden]) {
 .recent-earthquake-map-parameters { grid-column: 2; grid-row: 2; display: flex; gap: 10px; }
 .recent-earthquake-map-card > time { grid-column: 2; grid-row: 3; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
 
-body.recent-earthquake-map-mode :is(.station-canvas-overlay, .eew-forecast-panel, .simulation-runtime-hud, #map-layer-control-button),
+body.recent-earthquake-map-mode :is(.station-canvas-overlay, .simulation-runtime-hud),
 body.recent-earthquake-map-mode .epicenter-marker-shell:not(.recent-earthquake-epicenter-marker) {
   display: none !important;
 }
@@ -155,6 +178,25 @@ body.recent-earthquake-map-mode .epicenter-marker-shell:not(.recent-earthquake-e
 body.recent-earthquake-map-mode .intensity-legend {
   opacity: 1 !important;
   visibility: visible !important;
+}
+
+body.recent-earthquake-map-mode #map-layer-control-button {
+  display: grid !important;
+  top: var(--simulation-map-controls-top) !important;
+}
+body.recent-earthquake-map-mode #map-layer-control-panel:not(.hidden) {
+  display: grid !important;
+  top: calc(var(--simulation-map-controls-top) + 37px) !important;
+}
+body.recent-earthquake-map-mode #map-layer-control-panel > label:has([data-map-layer-target="submarine-station-layer-toggle"]) { display: none !important; }
+body.recent-earthquake-map-mode #eew-forecast-panel:not(.hidden) {
+  display: block !important;
+  position: fixed !important;
+  top: var(--recent-earthquake-eew-top, 164px) !important;
+  left: max(8px, env(safe-area-inset-left)) !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: min(300px, calc(100vw - 16px)) !important;
 }
 
 body[data-active-bottom-tab="bottom-info-tab"].recent-earthquake-map-mode .epicenter-marker-shell.recent-earthquake-epicenter-marker {

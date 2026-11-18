@@ -41,6 +41,13 @@ let recentEarthquakeSelectionRequestId = 0;
 let recentEarthquakePopup = null;
 let recentEarthquakeEpicenterMarker = null;
 const recentEarthquakeDetailCache = new Map();
+const RECENT_EARTHQUAKE_DEFAULT_LAYERS = {
+  "station-layer-toggle": true, "region-layer-toggle": true,
+  "eew-warning-toggle": true, "plate-boundary-layer-toggle": false, "fault-layer-toggle": false,
+};
+let recentEarthquakeLayers = { ...RECENT_EARTHQUAKE_DEFAULT_LAYERS };
+let recentEarthquakeAutoZoomEnabled = true;
+let recentEarthquakeTransferPending = false;
 const RECENT_EARTHQUAKE_HIDDEN_LAYERS = new Set([
   "shindo-station-points", "shindo-station-points-light-outline", "shindo-station-labels",
   "submarine-observation-fill", "eew-warning-fill", "plate-boundaries",
@@ -568,6 +575,7 @@ const state = {
   showFaultLayer: false,
   simulationAutoZoomEnabled: getStoredSimulationAutoZoomEnabled(),
   selectedPresetId: "",
+  simulationOriginTimeOverride: "",
   presetFilterText: "",
   presetSortKey: null,
   presetSortDirection: "desc",
@@ -7154,6 +7162,11 @@ function bindSimulationControls() {
   if (els.simulationAutoZoomToggle) {
     els.simulationAutoZoomToggle.checked = state.simulationAutoZoomEnabled;
     els.simulationAutoZoomToggle.addEventListener("change", () => {
+      if (document.body.classList.contains("recent-earthquake-map-mode")) {
+        recentEarthquakeAutoZoomEnabled = els.simulationAutoZoomToggle.checked;
+        if (recentEarthquakeAutoZoomEnabled) fitRecentEarthquakeMap();
+        return;
+      }
       state.simulationAutoZoomEnabled = els.simulationAutoZoomToggle.checked;
       try {
         localStorage.setItem(SIMULATION_AUTO_ZOOM_STORAGE_KEY, String(state.simulationAutoZoomEnabled));
@@ -7170,15 +7183,6 @@ function bindSimulationControls() {
       }
     });
   }
-  const syncMapLayerControlPanel = () => {
-    els.mapLayerControlPanel?.querySelectorAll("[data-map-layer-target]").forEach((control) => {
-      const target = document.getElementById(control.dataset.mapLayerTarget || "");
-      if (target instanceof HTMLInputElement) {
-        control.checked = target.checked;
-        control.disabled = target.disabled;
-      }
-    });
-  };
   els.mapLayerControlButton?.addEventListener("click", () => {
     const willOpen = els.mapLayerControlPanel?.classList.contains("hidden");
     if (willOpen) syncMapLayerControlPanel();
@@ -7187,6 +7191,11 @@ function bindSimulationControls() {
   });
   els.mapLayerControlPanel?.querySelectorAll("[data-map-layer-target]").forEach((control) => {
     control.addEventListener("change", () => {
+      if (document.body.classList.contains("recent-earthquake-map-mode")) {
+        recentEarthquakeLayers[control.dataset.mapLayerTarget] = control.checked;
+        updateRecentEarthquakeMapLayers();
+        return;
+      }
       const target = document.getElementById(control.dataset.mapLayerTarget || "");
       if (!(target instanceof HTMLInputElement)) return;
       target.checked = control.checked;
@@ -7457,6 +7466,68 @@ function setRecentEarthquakeSelectionStatus(message) {
   showRecentEarthquakeNotice(message, "selection");
 }
 
+function syncMapLayerControlPanel() {
+  const recent = document.body.classList.contains("recent-earthquake-map-mode");
+  if (els.simulationAutoZoomToggle) {
+    els.simulationAutoZoomToggle.checked = recent ? recentEarthquakeAutoZoomEnabled : state.simulationAutoZoomEnabled;
+  }
+  els.mapLayerControlPanel?.querySelectorAll("[data-map-layer-target]").forEach((control) => {
+    const key = control.dataset.mapLayerTarget;
+    const target = document.getElementById(key || "");
+    if (recent) {
+      control.checked = Boolean(recentEarthquakeLayers[key] && (key !== "eew-warning-toggle" || recentEarthquakeDetail?.eew?.issued));
+      control.disabled = key === "eew-warning-toggle" && !recentEarthquakeDetail?.eew?.issued;
+    } else if (target instanceof HTMLInputElement) {
+      control.checked = target.checked;
+      control.disabled = target.disabled;
+    }
+  });
+}
+
+function resetRecentEarthquakeTab() {
+  recentEarthquakeSelectionRequestId += 1;
+  recentEarthquakeDetailController?.abort();
+  recentEarthquakeDetailController = null;
+  selectedRecentEarthquakeId = "";
+  recentEarthquakeDetail = null;
+  recentEarthquakePopup?.remove();
+  recentEarthquakeEpicenterMarker?.remove();
+  recentEarthquakeEpicenterMarker = null;
+  recentEarthquakeLayers = { ...RECENT_EARTHQUAKE_DEFAULT_LAYERS };
+  recentEarthquakeAutoZoomEnabled = true;
+  for (const source of ["recent-earthquake-stations", "recent-earthquake-areas", "recent-earthquake-eew"]) {
+    if (map?.getSource(source)) setGeoJsonSourceData(source, emptyFeatureCollection());
+  }
+  setSheetState(els.recentEarthquakesPanel, "open");
+  els.recentEarthquakesPanel?.querySelector(".recent-earthquakes-content")?.scrollTo?.({ top: 0 });
+  renderRecentEarthquakes();
+}
+
+async function transferRecentEarthquakeToSimulation() {
+  if (recentEarthquakeTransferPending) return;
+  const selected = recentEarthquakes.find((item) => item.eid === selectedRecentEarthquakeId);
+  const coordinate = parseRecentEarthquakeCoordinate(selected?.cod);
+  const magnitude = Number(selected?.mag);
+  if (!coordinate || !Number.isFinite(magnitude) || magnitude <= 0 || magnitude > 10 || coordinate.depthKm > 700) return;
+  recentEarthquakeTransferPending = true;
+  try {
+    document.querySelector("#earthquake-tab")?.click();
+    await applySimulationScenario({
+      mode: "point", presetId: "", magnitude, depthKm: coordinate.depthKm,
+      magnitudeType: "Mj", earthquakeType: "crustal",
+      epicenter: { latitude: coordinate.latitude, longitude: coordinate.longitude, name: selected.anm || "震源調査中" },
+    }, { silent: true, originTime: selected.at });
+    resetRecentEarthquakeTab();
+    syncMapLayerControlPanel();
+    requestAnimationFrame(() => {
+      safelyResizeMap();
+      map?.easeTo({ center: [coordinate.longitude, coordinate.latitude], zoom: 6, padding: getInitialMapPaddingForViewport(), duration: 650 });
+    });
+  } finally {
+    recentEarthquakeTransferPending = false;
+  }
+}
+
 function syncRecentEarthquakeSelection() {
   const currentKeys = new Set(recentEarthquakes.map(getRecentEarthquakeDetailKey));
   for (const key of recentEarthquakeDetailCache.keys()) {
@@ -7549,6 +7620,8 @@ function buildRecentEarthquakeStationData(detail) {
 }
 
 function updateRecentEarthquakeMapLayers() {
+  syncMapLayerControlPanel();
+  updateRecentEarthquakeEewPanel();
   if (!document.body.classList.contains("recent-earthquake-map-mode") || !map?.getSource("jma-local-areas")) return;
   if (!map.getSource("recent-earthquake-stations")) {
     addGeoJsonSource("recent-earthquake-stations", emptyFeatureCollection());
@@ -7574,6 +7647,7 @@ function updateRecentEarthquakeMapLayers() {
   }
   ensureStationIntensityLabelImages();
   setGeoJsonSourceData("recent-earthquake-stations", buildRecentEarthquakeStationData(recentEarthquakeDetail));
+  updateRecentEarthquakeAreaLayers();
   const earthquake = recentEarthquakeDetail?.earthquake || recentEarthquakes.find((item) => item.eid === selectedRecentEarthquakeId);
   const coordinate = parseRecentEarthquakeCoordinate(earthquake?.cod);
   if (coordinate) {
@@ -7600,9 +7674,59 @@ function updateRecentEarthquakeMapLayers() {
     recentEarthquakeEpicenterMarker = null;
   }
   for (const layer of ["recent-earthquake-stations", "recent-earthquake-station-labels"]) {
-    updateLayerVisibility(layer, true);
+    updateLayerVisibility(layer, recentEarthquakeLayers["station-layer-toggle"]);
     moveLayerToTop(layer);
   }
+}
+
+function updateRecentEarthquakeAreaLayers() {
+  const observed = new Map((recentEarthquakeDetail?.areas || []).map((area) => [area.name, area.intensity]));
+  const warnings = new Set(recentEarthquakeDetail?.eew?.areas || []);
+  for (const [source, warning] of [["recent-earthquake-areas", false], ["recent-earthquake-eew", true]]) {
+    if (!map.getSource(source)) {
+      addGeoJsonSource(source, emptyFeatureCollection());
+      addLayerIfMissing({ id: source, type: "fill", source, paint: {
+        "fill-color": warning ? "#ef4444" : ["get", "recentIntensityColor"], "fill-opacity": warning ? 0.35 : 0.45,
+      } });
+    }
+    const features = (localAreaData?.features || []).flatMap((feature) => {
+      const intensity = INTENSITY_CLASSES.find((item) => item.shortLabel === observed.get(feature.properties.name));
+      if (warning ? !warnings.has(feature.properties.name) : !intensity) return [];
+      return [{ ...feature, properties: { ...feature.properties, recentIntensityColor: intensity?.color } }];
+    });
+    setGeoJsonSourceData(source, { type: "FeatureCollection", features });
+    updateLayerVisibility(source, Boolean(recentEarthquakeLayers[warning ? "eew-warning-toggle" : "region-layer-toggle"]));
+  }
+  for (const [key, layers] of [
+    ["plate-boundary-layer-toggle", ["plate-boundaries"]],
+    ["fault-layer-toggle", ["jshis-active-fault-model-lines", "jshis-active-fault-model-fills", "jshis-subduction-detail-lines", "jshis-active-fault-traces"]],
+  ]) {
+    for (const layer of layers) {
+      if (map.getLayer(layer)) map.setLayoutProperty(layer, "visibility", recentEarthquakeLayers[key] ? "visible" : "none");
+    }
+  }
+  if (recentEarthquakeLayers["fault-layer-toggle"]) {
+    void ensureJshisActiveFaultMapData().then(() => {
+      if (!document.body.classList.contains("recent-earthquake-map-mode")) return;
+      for (const layer of ["jshis-active-fault-model-lines", "jshis-active-fault-model-fills", "jshis-subduction-detail-lines", "jshis-active-fault-traces"]) {
+        if (map.getLayer(layer)) map.setLayoutProperty(layer, "visibility", recentEarthquakeLayers["fault-layer-toggle"] ? "visible" : "none");
+      }
+    }).catch(console.warn);
+  }
+}
+
+function updateRecentEarthquakeEewPanel() {
+  if (!document.body.classList.contains("recent-earthquake-map-mode") || !els.eewForecastPanel || !els.eewForecastList) return;
+  const eew = recentEarthquakeDetail?.eew;
+  const visible = Boolean(recentEarthquakeLayers["eew-warning-toggle"] && eew?.issued);
+  els.eewForecastPanel.classList.toggle("hidden", !visible);
+  const heading = els.eewForecastPanel.querySelector("h2");
+  if (heading) heading.textContent = "緊急地震速報（警報）";
+  els.eewForecastList.replaceChildren(...(eew?.areas?.length ? eew.areas : [eew?.comment || ""]).map((name) => {
+    const item = document.createElement("li");
+    item.textContent = name;
+    return item;
+  }));
 }
 
 function openRecentEarthquakePopup(properties, coordinates) {
@@ -7614,7 +7738,7 @@ function openRecentEarthquakePopup(properties, coordinates) {
 }
 
 function fitRecentEarthquakeMap() {
-  if (!map || !document.body.classList.contains("recent-earthquake-map-mode")) return;
+  if (!map || !recentEarthquakeAutoZoomEnabled || !document.body.classList.contains("recent-earthquake-map-mode")) return;
   const coordinates = buildRecentEarthquakeStationData(recentEarthquakeDetail).features.map((feature) => feature.geometry.coordinates);
   const earthquake = recentEarthquakeDetail?.earthquake || recentEarthquakes.find((item) => item.eid === selectedRecentEarthquakeId);
   const epicenter = parseRecentEarthquakeCoordinate(earthquake?.cod);
@@ -7638,6 +7762,9 @@ function fitRecentEarthquakeMap() {
 
 function setRecentEarthquakeMapModeActive(active) {
   document.body.classList.toggle("recent-earthquake-map-mode", active);
+  els.mapLayerControlPanel?.classList.add("hidden");
+  els.mapLayerControlButton?.setAttribute("aria-expanded", "false");
+  syncMapLayerControlPanel();
   updateLegendColors();
   recentEarthquakePopup?.remove();
   if (!active) {
@@ -7647,10 +7774,12 @@ function setRecentEarthquakeMapModeActive(active) {
     recentEarthquakeSelectionRequestId += 1;
     recentEarthquakeDetailController?.abort();
     recentEarthquakeDetailController = null;
-    for (const layer of ["recent-earthquake-stations", "recent-earthquake-station-labels"]) {
+    for (const layer of ["recent-earthquake-stations", "recent-earthquake-station-labels", "recent-earthquake-areas", "recent-earthquake-eew"]) {
       updateLayerVisibility(layer, false);
     }
     if (map?.getSource("jma-local-areas")) updateDisplayMode();
+    eewForecastPanelRenderSignature = "";
+    updateEewForecastPanel();
     updateMapPanConstraints();
     return;
   }
@@ -7675,6 +7804,7 @@ function positionRecentEarthquakeMapCard() {
   const legend = document.querySelector(".intensity-legend");
   if (!card || card.hidden || !legend || !document.body.classList.contains("recent-earthquake-map-mode")) return;
   card.style.setProperty("--recent-earthquake-card-top", `${legend.getBoundingClientRect().bottom + 8}px`);
+  els.eewForecastPanel?.style.setProperty("--recent-earthquake-eew-top", `${card.getBoundingClientRect().bottom + 8}px`);
 }
 
 function renderRecentEarthquakes(message = "") {
@@ -7707,7 +7837,10 @@ function renderRecentEarthquakes(message = "") {
     card.hidden = !selected;
     if (selected) {
       const intensity = INTENSITY_CLASSES.find((entry) => entry.shortLabel === selected.maxi);
-      const depthKm = parseRecentEarthquakeCoordinate(selected.cod)?.depthKm ?? null;
+      const coordinate = parseRecentEarthquakeCoordinate(selected.cod);
+      const depthKm = coordinate?.depthKm ?? null;
+      const magnitudeValue = Number(selected.mag);
+      const canTransfer = coordinate && coordinate.depthKm <= 700 && Number.isFinite(magnitudeValue) && magnitudeValue > 0 && magnitudeValue <= 10;
       const depth = depthKm === null ? "深さ不明" : depthKm === 0 ? "ごく浅い" : `${depthKm} km`;
       const magnitude = /^\d+(?:\.\d+)?$/.test(selected.mag || "") ? `M${selected.mag}` : "規模不明";
       card.style.setProperty("--simulation-ticket-intensity-color", intensity?.color || "#64748b");
@@ -7720,6 +7853,9 @@ function renderRecentEarthquakes(message = "") {
         <strong class="recent-earthquake-map-name">${escapeHtml(selected.anm || "震源調査中")}</strong>
         <div class="recent-earthquake-map-parameters"><span>${escapeHtml(depth)}</span><span>${escapeHtml(magnitude)}</span></div>
         <time datetime="${escapeHtml(selected.at)}">${escapeHtml(formatRecentEarthquakeTime(selected.at))}</time>
+        <button class="recent-earthquake-transfer" type="button" data-recent-earthquake-transfer aria-label="シミュレーションに転送" title="シミュレーションに転送" ${canTransfer ? "" : "disabled"}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M14 4h6v16h-6M3 12h12m-4-4 4 4-4 4"/></svg>
+        </button>
       `;
     } else {
       card.replaceChildren();
@@ -7773,6 +7909,14 @@ function refreshRecentEarthquakes() {
 }
 
 function initializeRecentEarthquakes() {
+  document.querySelector("#recent-earthquake-map-card")?.addEventListener("click", (event) => {
+    if (event.target.closest("[data-recent-earthquake-transfer]")) {
+      void transferRecentEarthquakeToSimulation().catch((error) => {
+        console.warn("Failed to transfer earthquake", error);
+        showFaultModeSwitchNotice("シミュレーションへ転送できませんでした");
+      });
+    }
+  });
   const legend = document.querySelector(".intensity-legend");
   if (legend && typeof ResizeObserver === "function") {
     new ResizeObserver(positionRecentEarthquakeMapCard).observe(legend);
@@ -8329,6 +8473,7 @@ async function applySimulationScenario(scenario, options = {}) {
     stopSimulation({ expandSetup: false });
   }
   clearSelectedPreset();
+  state.simulationOriginTimeOverride = Number.isFinite(Date.parse(options.originTime)) ? options.originTime : "";
   simulationModeScenarioApplyHandler?.(normalized.mode === "fault");
   if (normalized.mode === "point" && normalized.presetId) {
     try {
@@ -9125,6 +9270,7 @@ function updateSettingsMenuButtonVisibility() {
 }
 
 function resetEpicenterToInitialState(options = {}) {
+  state.simulationOriginTimeOverride = "";
   if (options.stopSimulation && state.simulationRunning) {
     stopSimulation();
   }
@@ -10698,6 +10844,7 @@ function getLegendIntensityClass(label) {
 }
 
 async function applyEarthquakePreset(presetId) {
+  state.simulationOriginTimeOverride = "";
   state.selectedPresetId = presetId;
   let preset = EARTHQUAKE_PRESETS.find((item) => item.id === presetId);
   updateEarthquakePresetButtonLabel();
@@ -16853,6 +17000,10 @@ function updateEpicenterEditMode() {
 }
 
 function updateDisplayMode() {
+  if (document.body.classList.contains("recent-earthquake-map-mode")) {
+    updateRecentEarthquakeMapLayers();
+    return;
+  }
   state.showStationLayer = els.stationLayerToggle.checked;
   state.showSubmarineStationLayer = Boolean(els.submarineStationLayerToggle?.checked);
   if (getSelectedPreset()) {
@@ -16993,6 +17144,10 @@ function updateFaultLayerVisibility() {
 }
 
 function updateFaultLayerToggleAvailability() {
+  if (document.body.classList.contains("recent-earthquake-map-mode")) {
+    syncMapLayerControlPanel();
+    return;
+  }
   [els.faultLayerToggle, els.simulationFaultLayerToggle].forEach((toggle) => {
     if (!toggle) {
       return;
@@ -17880,6 +18035,7 @@ async function startSimulation() {
   const selectedPreset = getSelectedPreset();
   const originTimeText = selectedPreset
     ? formatPresetDateTime(selectedPreset)
+    : state.simulationOriginTimeOverride ? formatRecentEarthquakeTime(state.simulationOriginTimeOverride)
     : new Intl.DateTimeFormat("ja-JP", {
       year: "numeric",
       month: "2-digit",
@@ -19906,6 +20062,7 @@ function shouldSuppressWorldJapanCoordinate(point) {
 }
 
 function updateStateFromInputs(options = {}) {
+  state.simulationOriginTimeOverride = "";
   if (!validateCoordinateInput(els.latitude, { report: true }) || !validateCoordinateInput(els.longitude, { report: true })) {
     return;
   }
@@ -21507,6 +21664,10 @@ function forecastAreaSortIndex(areaName) {
   return index >= 0 ? index : FORECAST_AREA_ORDER.length;
 }
 function updateEewForecastPanel() {
+  if (document.body.classList.contains("recent-earthquake-map-mode")) {
+    updateRecentEarthquakeEewPanel();
+    return;
+  }
   if (!els.eewForecastPanel || !els.eewForecastList) {
     return;
   }
