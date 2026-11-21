@@ -7464,13 +7464,31 @@ function getRecentEarthquakeDetailKey(earthquake) {
   return `${earthquake.eid}|${earthquake.json || earthquake.rdt}|${earthquake.observationJson || ""}`;
 }
 
+function parseJmaCoordinatePart(value, degreeDigits, maximum) {
+  const text = String(value || "");
+  const integer = text.slice(1).split(".")[0];
+  if (!/^[+-]\d+(?:\.\d+)?$/.test(text)) return null;
+  let coordinate;
+  if (integer.length === degreeDigits + 2) {
+    const minutes = Number(text.slice(1 + degreeDigits));
+    if (minutes >= 60) return null;
+    coordinate = Number(text[0] === "-" ? -1 : 1) * (Number(integer.slice(0, degreeDigits)) + minutes / 60);
+  } else if (integer.length <= degreeDigits) {
+    coordinate = Number(text);
+  } else {
+    return null;
+  }
+  return Number.isFinite(coordinate) && Math.abs(coordinate) <= maximum ? coordinate : null;
+}
+
 function parseRecentEarthquakeCoordinate(value) {
   const match = String(value || "").match(/^([+-]\d+(?:\.\d+)?)([+-]\d+(?:\.\d+)?)([+-]\d+(?:\.\d+)?)\/$/);
   if (!match) return null;
-  const latitude = Number(match[1]);
-  const longitude = Number(match[2]);
-  if (Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return null;
-  return { latitude, longitude, depthKm: Math.max(0, -Number(match[3]) / 1000) };
+  const latitude = parseJmaCoordinatePart(match[1], 2, 90);
+  const longitude = parseJmaCoordinatePart(match[2], 3, 180);
+  if (latitude === null || longitude === null) return null;
+  const depthKm = Math.max(0, -Number(match[3]) / 1000);
+  return { latitude, longitude, depthKm: depthKm <= 700 ? depthKm : null };
 }
 
 function showRecentEarthquakeNotice(message, channel = "list") {
@@ -7531,7 +7549,8 @@ async function transferRecentEarthquakeToSimulation() {
   const selected = recentEarthquakes.find((item) => item.eid === selectedRecentEarthquakeId);
   const coordinate = parseRecentEarthquakeCoordinate(selected?.cod);
   const magnitude = Number(selected?.mag);
-  if (!coordinate || !Number.isFinite(magnitude) || magnitude <= 0 || magnitude > 10 || coordinate.depthKm > 700) return;
+  if (!coordinate || !Number.isFinite(coordinate.depthKm) || !Number.isFinite(magnitude)
+    || magnitude <= 0 || magnitude > 10) return;
   recentEarthquakeTransferPending = true;
   try {
     document.querySelector("#earthquake-tab")?.click();
@@ -7763,11 +7782,11 @@ function updateRecentEarthquakeAreaLayers() {
 function updateRecentEarthquakeEewPanel() {
   if (!document.body.classList.contains("recent-earthquake-map-mode") || !els.eewForecastPanel || !els.eewForecastList) return;
   const eew = recentEarthquakeDetail?.eew;
-  const visible = Boolean(recentEarthquakeLayers["eew-warning-toggle"] && eew?.issued);
+  const visible = Boolean(recentEarthquakeLayers["eew-warning-toggle"] && eew?.issued && eew.areas?.length);
   els.eewForecastPanel.classList.toggle("hidden", !visible);
   const heading = els.eewForecastPanel.querySelector("h2");
   if (heading) heading.textContent = "緊急地震速報（警報）";
-  els.eewForecastList.replaceChildren(...(eew?.areas?.length ? eew.areas : [eew?.comment || ""]).map((name) => {
+  els.eewForecastList.replaceChildren(...(eew?.areas || []).map((name) => {
     const item = document.createElement("li");
     item.textContent = name;
     return item;
@@ -7890,7 +7909,8 @@ function renderRecentEarthquakes(message = "") {
       const coordinate = parseRecentEarthquakeCoordinate(selected.cod);
       const depthKm = coordinate?.depthKm ?? null;
       const magnitudeValue = Number(selected.mag);
-      const canTransfer = coordinate && coordinate.depthKm <= 700 && Number.isFinite(magnitudeValue) && magnitudeValue > 0 && magnitudeValue <= 10;
+      const canTransfer = coordinate && Number.isFinite(coordinate.depthKm)
+        && Number.isFinite(magnitudeValue) && magnitudeValue > 0 && magnitudeValue <= 10;
       const depth = depthKm === null ? "深さ不明" : depthKm === 0 ? "ごく浅い" : `${depthKm} km`;
       const magnitude = /^\d+(?:\.\d+)?$/.test(selected.mag || "") ? `M${selected.mag}` : "規模不明";
       card.style.setProperty("--simulation-ticket-intensity-color", intensity?.color || "#64748b");
