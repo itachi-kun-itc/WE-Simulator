@@ -7782,11 +7782,15 @@ function updateRecentEarthquakeAreaLayers() {
 function updateRecentEarthquakeEewPanel() {
   if (!document.body.classList.contains("recent-earthquake-map-mode") || !els.eewForecastPanel || !els.eewForecastList) return;
   const eew = recentEarthquakeDetail?.eew;
-  const visible = Boolean(recentEarthquakeLayers["eew-warning-toggle"] && eew?.issued && eew.areas?.length);
+  const displayAreas = compactForecastAreas((eew?.areas || []).map(getEewForecastAreaName));
+  const visible = Boolean(recentEarthquakeLayers["eew-warning-toggle"] && eew?.issued && displayAreas.length);
   els.eewForecastPanel.classList.toggle("hidden", !visible);
   const heading = els.eewForecastPanel.querySelector("h2");
   if (heading) heading.textContent = "緊急地震速報（警報）";
-  els.eewForecastList.replaceChildren(...(eew?.areas || []).map((name) => {
+  const earthquake = recentEarthquakeDetail?.earthquake
+    || recentEarthquakes.find((item) => item.eid === selectedRecentEarthquakeId);
+  updateEewForecastMessage(heading, earthquake?.anm);
+  els.eewForecastList.replaceChildren(...displayAreas.map((name) => {
     const item = document.createElement("li");
     item.textContent = name;
     return item;
@@ -21884,7 +21888,7 @@ function updateEewForecastPanel() {
   );
 }
 
-function updateEewForecastMessage(heading) {
+function updateEewForecastMessage(heading, epicenterName = state.epicenterName) {
   if (!els.eewForecastPanel) {
     return;
   }
@@ -21896,12 +21900,12 @@ function updateEewForecastMessage(heading) {
     heading?.after(message);
   }
 
-  const epicenterName = getEewMessageEpicenterAreaName();
-  message.textContent = `${epicenterName}で地震  強い揺れに警戒`;
+  const displayName = getEewMessageEpicenterAreaName(epicenterName);
+  message.textContent = `${displayName}で地震  強い揺れに警戒`;
 }
 
-function getEewMessageEpicenterAreaName() {
-  return cleanDisplayAreaName(state.epicenterName) || "震央";
+function getEewMessageEpicenterAreaName(epicenterName = state.epicenterName) {
+  return cleanDisplayAreaName(epicenterName) || "震央";
 }
 
 function getEewForecastAreaName(localAreaName) {
