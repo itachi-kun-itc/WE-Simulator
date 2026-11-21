@@ -7586,7 +7586,7 @@ function syncRecentEarthquakeSelection() {
     selectedRecentEarthquakeId = "";
     recentEarthquakeDetail = null;
     recentEarthquakePopup?.remove();
-    setRecentEarthquakeSelectionStatus("選択した地震は直近30件の一覧から外れました。");
+    setRecentEarthquakeSelectionStatus("");
     updateRecentEarthquakeMapLayers();
     return;
   }
@@ -7611,7 +7611,7 @@ async function selectRecentEarthquake(id, { collapse = true } = {}) {
   recentEarthquakePopup?.remove();
   updateRecentEarthquakeMapLayers();
   renderRecentEarthquakes();
-  setRecentEarthquakeSelectionStatus("観測点の震度情報を取得しています…");
+  setRecentEarthquakeSelectionStatus("");
   const timeout = window.setTimeout(() => controller.abort(), 15000);
   try {
     const key = getRecentEarthquakeDetailKey(earthquake);
@@ -7964,7 +7964,6 @@ function renderRecentEarthquakes(message = "") {
 
 function refreshRecentEarthquakes() {
   if (recentEarthquakesLoadPromise) {
-    showRecentEarthquakeNotice("地震情報を取得しています…");
     return recentEarthquakesLoadPromise;
   }
   recentEarthquakesLoadPromise = (async () => {
@@ -8011,7 +8010,7 @@ function refreshRecentEarthquakes() {
       recentEarthquakesLoadPromise = null;
     }
   })();
-  renderRecentEarthquakes("地震情報を取得しています…");
+  renderRecentEarthquakes();
   return recentEarthquakesLoadPromise;
 }
 
@@ -11644,6 +11643,8 @@ function setSheetState(panel, stateName, { expanded = false } = {}) {
   if (panel.id === "recent-earthquakes-panel") {
     const content = panel.querySelector(".recent-earthquakes-content");
     if (content) content.inert = stateName !== "open";
+    const tabs = panel.querySelector(".recent-earthquakes-tabs");
+    if (tabs) tabs.inert = stateName !== "open";
   }
   if (isCompactViewport() && stateName === "collapsed") {
     panel.scrollTop = 0;

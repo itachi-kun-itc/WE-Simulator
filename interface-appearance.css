@@ -51,7 +51,7 @@ body:not(.tool-station-search-mode):not(.tool-weather-quiz-mode) #learning-full-
   min-height: 0 !important;
   height: var(--sheet-open-height) !important;
   display: grid !important;
-  grid-template-rows: 30px minmax(0, 1fr) !important;
+  grid-template-rows: 30px auto minmax(0, 1fr) !important;
   margin: 0 !important;
   padding: 0 !important;
   border: 1px solid var(--app-glass-border) !important;
@@ -67,7 +67,7 @@ body:not(.tool-station-search-mode):not(.tool-weather-quiz-mode) #learning-full-
 
 #recent-earthquakes-panel:is([data-sheet-state="collapsed"], [data-sheet-state="closed"]) {
   height: 42px !important;
-  grid-template-rows: 42px minmax(0, 1fr) !important;
+  grid-template-rows: 42px 0 minmax(0, 1fr) !important;
 }
 
 #recent-earthquakes-panel.is-dragging {
@@ -246,11 +246,14 @@ html[data-resolved-theme="light"] #recent-earthquakes-panel {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 4px;
-  margin: 2px 0 9px;
+  margin: 2px 12px 9px;
   padding: 3px;
   border: 1px solid rgba(148, 163, 184, 0.25);
   border-radius: 12px;
   background: var(--app-glass-lens);
+}
+#recent-earthquakes-panel:is([data-sheet-state="collapsed"], [data-sheet-state="closed"]) .recent-earthquakes-tabs {
+  visibility: hidden;
 }
 .recent-earthquakes-tabs button {
   min-width: 0;
