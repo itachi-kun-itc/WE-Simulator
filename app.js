@@ -7680,7 +7680,7 @@ function updateRecentEarthquakeMapLayers() {
   const stationLayers = map.getStyle().layers;
   for (const [id, templateId] of [
     ["recent-earthquake-stations", "shindo-station-points"],
-    ["recent-earthquake-station-labels", "shindo-station-labels"],
+    ["recent-earthquake-stations-light-outline", "shindo-station-points-light-outline"],
   ]) {
     const template = stationLayers.find((layer) => layer.id === templateId);
     if (template) {
@@ -7688,6 +7688,11 @@ function updateRecentEarthquakeMapLayers() {
         ...template, id, source: "recent-earthquake-stations",
         layout: { ...template.layout, visibility: "visible" },
       });
+      if (map.getLayer(id)) {
+        for (const [property, value] of Object.entries(template.paint || {})) {
+          if (property.startsWith("circle-")) map.setPaintProperty(id, property, value);
+        }
+      }
     }
   }
   ensureStationIntensityLabelImages();
@@ -7718,10 +7723,10 @@ function updateRecentEarthquakeMapLayers() {
     recentEarthquakeEpicenterMarker?.remove();
     recentEarthquakeEpicenterMarker = null;
   }
-  for (const layer of ["recent-earthquake-stations", "recent-earthquake-station-labels"]) {
+  for (const layer of ["recent-earthquake-stations", "recent-earthquake-stations-light-outline"]) {
     updateLayerVisibility(layer, recentEarthquakeLayers["station-layer-toggle"]);
-    moveLayerToTop(layer);
   }
+  keepRecentEarthquakeLayerOrder();
 }
 
 function updateRecentEarthquakeAreaLayers() {
@@ -7737,16 +7742,20 @@ function updateRecentEarthquakeAreaLayers() {
     if (!map.getSource(source)) {
       addGeoJsonSource(source, emptyFeatureCollection());
     }
-    if (warning) {
-      addLayerIfMissing({ id: source, type: "fill", source, paint: { "fill-color": "#ef4444", "fill-opacity": 0.35 } });
-    } else {
-      for (const [id, templateId] of [
-        [source, "jma-intensity-fill"],
-        ["recent-earthquake-area-boundaries", "jma-intensity-area-boundaries"],
-        ["recent-earthquake-area-boundaries-light", "jma-intensity-area-boundaries-light"],
-      ]) {
-        const template = simulationLayers.find((layer) => layer.id === templateId);
-        if (template) addLayerIfMissing({ ...template, id, source, paint: observedPaint(template.paint), layout: { ...template.layout, visibility: "visible" } });
+    for (const [id, templateId] of (warning
+      ? [[source, "eew-warning-fill"], ["recent-earthquake-eew-boundaries", "jma-eew-warning-boundaries"]]
+      : [[source, "jma-intensity-fill"], ["recent-earthquake-area-boundaries", "jma-intensity-area-boundaries"], ["recent-earthquake-area-boundaries-light", "jma-intensity-area-boundaries-light"]])) {
+      const template = simulationLayers.find((layer) => layer.id === templateId);
+      if (!template) continue;
+      const paint = observedPaint(template.paint);
+      if (id === "recent-earthquake-areas") {
+        paint["fill-opacity"] = ["case", ["==", ["get", "eewWarning"], true], 0, paint["fill-opacity"]];
+      }
+      addLayerIfMissing({ ...template, id, source, paint, layout: { ...template.layout, visibility: "visible" } });
+      if (warning && map.getLayer(id)) {
+        for (const property of ["fill-color", "fill-opacity", "line-color", "line-width", "line-opacity"]) {
+          if (paint[property] !== undefined) map.setPaintProperty(id, property, paint[property]);
+        }
       }
     }
     const features = (localAreaData?.features || []).flatMap((feature) => {
@@ -7754,7 +7763,9 @@ function updateRecentEarthquakeAreaLayers() {
       if (warning ? !warnings.has(feature.properties.name) : !intensity) return [];
       return [{ ...feature, properties: { ...feature.properties,
         intensityColor: intensity?.color, intensityRank: intensity?.rank || 0,
-        intensityBoundaryColor: getIntensityBoundaryColor(intensity), eewWarning: false,
+        intensityBoundaryColor: getIntensityBoundaryColor(intensity),
+        eewWarning: warnings.has(feature.properties.name) && recentEarthquakeLayers["eew-warning-toggle"],
+        eewBlinkOff: false,
       } }];
     });
     setGeoJsonSourceData(source, { type: "FeatureCollection", features });
@@ -7763,6 +7774,7 @@ function updateRecentEarthquakeAreaLayers() {
   for (const layer of ["recent-earthquake-area-boundaries", "recent-earthquake-area-boundaries-light"]) {
     updateLayerVisibility(layer, Boolean(recentEarthquakeLayers["region-layer-toggle"]));
   }
+  updateLayerVisibility("recent-earthquake-eew-boundaries", Boolean(recentEarthquakeLayers["eew-warning-toggle"]));
   for (const [key, layers] of [
     ["plate-boundary-layer-toggle", ["plate-boundaries"]],
     ["fault-layer-toggle", ["jshis-active-fault-model-lines", "jshis-active-fault-model-fills", "jshis-subduction-detail-lines", "jshis-active-fault-traces"]],
@@ -7849,7 +7861,7 @@ function setRecentEarthquakeMapModeActive(active) {
     recentEarthquakeSelectionRequestId += 1;
     recentEarthquakeDetailController?.abort();
     recentEarthquakeDetailController = null;
-    for (const layer of ["recent-earthquake-stations", "recent-earthquake-station-labels", "recent-earthquake-areas", "recent-earthquake-area-boundaries", "recent-earthquake-area-boundaries-light", "recent-earthquake-eew"]) {
+    for (const layer of ["recent-earthquake-stations", "recent-earthquake-stations-light-outline", "recent-earthquake-station-labels", "recent-earthquake-areas", "recent-earthquake-area-boundaries", "recent-earthquake-area-boundaries-light", "recent-earthquake-eew", "recent-earthquake-eew-boundaries"]) {
       updateLayerVisibility(layer, false);
     }
     if (map?.getSource("jma-local-areas")) updateDisplayMode();
@@ -16315,11 +16327,11 @@ function addMapLayers() {
       "symbol-sort-key": ["get", "stationDisplaySortKey"],
     },
     paint: {
-      "icon-opacity": ["case", [">=", ["zoom"], SIMULATION_MAP_MAX_ZOOM - 0.1], 1, 0],
+      "icon-opacity": 1,
       "icon-opacity-transition": { duration: 0, delay: 0 },
     },
   });
-  updateLayerVisibility("shindo-station-labels", state.showStationLayer);
+  updateLayerVisibility("shindo-station-labels", false);
 
   addLayerIfMissing({
     id: "p-wave-fill",
@@ -16438,6 +16450,16 @@ function moveLayerToTop(layerId) {
   }
 }
 
+function keepRecentEarthquakeLayerOrder() {
+  if (!document.body.classList.contains("recent-earthquake-map-mode")) return;
+  for (const layer of [
+    "recent-earthquake-areas", "recent-earthquake-eew",
+    "recent-earthquake-area-boundaries", "recent-earthquake-area-boundaries-light",
+    "recent-earthquake-eew-boundaries", "recent-earthquake-stations",
+    "recent-earthquake-stations-light-outline",
+  ]) moveLayerToTop(layer);
+}
+
 function keepWaveAndStationLayerOrder() {
   moveLayerToTop("jma-local-area-boundaries");
   moveLayerToTop("jma-intensity-area-boundaries");
@@ -16461,6 +16483,7 @@ function keepWaveAndStationLayerOrder() {
   moveLayerToTop("p-wave-line");
   moveLayerToTop("s-wave-line");
   moveLayerToTop("simulation-fault-endpoints");
+  keepRecentEarthquakeLayerOrder();
 }
 
 function updateLayerVisibility(layerId, visible) {
@@ -16471,7 +16494,7 @@ function updateLayerVisibility(layerId, visible) {
     map.setLayoutProperty(layerId, "visibility", visible ? "visible" : "none");
   }
   if (layerId === "shindo-station-points" && map?.getLayer("shindo-station-labels")) {
-    map.setLayoutProperty("shindo-station-labels", "visibility", visible ? "visible" : "none");
+    map.setLayoutProperty("shindo-station-labels", "visibility", "none");
   }
   if (layerId === "shindo-station-points" && map?.getLayer("shindo-station-points-light-outline")) {
     map.setLayoutProperty("shindo-station-points-light-outline", "visibility", visible ? "visible" : "none");

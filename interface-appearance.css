@@ -310,9 +310,7 @@ html[data-resolved-theme="light"] #recent-earthquakes-panel {
   cursor: pointer;
 }
 .recent-earthquake-card[aria-pressed="true"] {
-  border-color: var(--app-glass-selected);
   background: var(--app-glass-lens);
-  box-shadow: inset 3px 0 var(--app-glass-selected);
 }
 .recent-earthquake-card:focus-visible { outline: 2px solid var(--app-glass-selected); outline-offset: 2px; }
 .recent-earthquake-summary { display: grid; min-width: 0; gap: 3px; }
