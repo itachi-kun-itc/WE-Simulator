@@ -903,13 +903,15 @@ let postMunicipalityDataScheduled = false;
 const sourceDataRefs = new Map();
 let pmtilesProtocolRegistered = false;
 let japanPmtilesProtocolUrl = "";
-const SOURCE_UPDATED_AT = "2026 07 13";
+const SOURCE_UPDATED_AT = "2026 11 22";
 const SOURCE_SECTIONS = [
   {
     title: "気象庁",
-    description: "地震情報、震度観測点、緊急地震速報、震央地名、細分区域などの参考データ。",
+    description: "実際の地震の震源・震度・観測点、緊急地震速報の発表履歴、震央地名、細分区域などの出典。観測震度は震度推定モデルの検証・補正にも利用します。",
     links: [
       { label: "気象庁", href: "https://www.jma.go.jp/" },
+      { label: "最新の地震情報", href: "https://www.jma.go.jp/bosai/map.html#contents=earthquake_map" },
+      { label: "緊急地震速報（警報）発表状況", href: "https://www.data.jma.go.jp/eew/data/nc/pub_hist/index.html" },
       {
         label: "緊急地震速報や震度情報で用いる区域の名称",
         href: "https://www.jma.go.jp/jma/kishou/know/jishin/joho/shindo-name.html",
@@ -952,7 +954,7 @@ const SOURCE_SECTIONS = [
   },
   {
     title: "震度推定の計算モデル",
-    description: "司・翠川の距離減衰式で最大速度を求め、J-SHISの速度増幅率を掛けて震度へ換算します。気象庁の現行予測そのものではありません。細分区域は区域内の代表最大震度を表示します。",
+    description: "司・翠川の距離減衰式とJ-SHISの地盤データを使い、気象庁の観測震度との比較から補正値を学習します。シミュレーションは気象庁の予測ではありません。細分区域は区域内の代表最大震度を表示します。",
     links: [
       { label: "気象庁：緊急地震速報の技術的参考資料（2024年、12〜15頁）", href: "https://www.jma.go.jp/jma/kishou/know/jishin/eew/katsuyou/reference.pdf" },
       { label: "防災科研：距離減衰式・地震タイプ・基盤速度の補正", href: "https://www.j-map.bosai.go.jp/j-map/result/tn_257/html/html/2-4-1.html" },
@@ -7821,8 +7823,13 @@ function fitRecentEarthquakeMap() {
     ? sheet.dataset.sheetExpanded === "true" ? getSetupSheetOpenHeight() : getSetupSheetDefaultHeight(window.innerHeight, sheet) : 42;
   const bottom = Math.min(sheet ? sheetBottom + sheetHeight + 20 : 160, window.innerHeight - 100);
   const card = document.querySelector("#recent-earthquake-map-card");
-  const top = card && !card.hidden
-    ? Math.min(Math.max(48, card.getBoundingClientRect().bottom + 12), Math.max(48, window.innerHeight - bottom - 80)) : 48;
+  const eewPanel = els.eewForecastPanel;
+  const overlayBottom = Math.max(
+    card && !card.hidden ? card.getBoundingClientRect().bottom : 0,
+    eewPanel && !eewPanel.classList.contains("hidden") ? eewPanel.getBoundingClientRect().bottom : 0,
+  );
+  const top = overlayBottom
+    ? Math.min(Math.max(48, overlayBottom + 12), Math.max(48, window.innerHeight - bottom - 80)) : 48;
   map.fitBounds([[Math.min(...longitudes), Math.min(...latitudes)], [Math.max(...longitudes), Math.max(...latitudes)]], {
     padding: { top, right: 32, bottom, left: 32 }, maxZoom: SIMULATION_MAP_MAX_ZOOM, duration: 650,
   });
@@ -7871,7 +7878,11 @@ function positionRecentEarthquakeMapCard() {
   const card = document.querySelector("#recent-earthquake-map-card");
   const legend = document.querySelector(".intensity-legend");
   if (!card || card.hidden || !legend || !document.body.classList.contains("recent-earthquake-map-mode")) return;
-  card.style.setProperty("--recent-earthquake-card-top", `${legend.getBoundingClientRect().bottom + 8}px`);
+  const verticalLegend = window.getComputedStyle(legend.querySelector(".intensity-scale") || legend).flexDirection === "column";
+  const topAnchor = verticalLegend
+    ? els.mapLayerControlButton?.getBoundingClientRect().bottom
+    : legend.getBoundingClientRect().bottom;
+  card.style.setProperty("--recent-earthquake-card-top", `${Math.max(0, topAnchor || 0) + 8}px`);
   els.eewForecastPanel?.style.setProperty("--recent-earthquake-eew-top", `${card.getBoundingClientRect().bottom + 8}px`);
 }
 
@@ -14967,34 +14978,36 @@ function buildPrivacyPolicyHtml() {
   return `
     <div class="source-info-sections privacy-policy-sections">
       <section class="source-info-section">
-        <h3>取得する情報</h3>
-        <p>本サイトは、震源設定や地図表示、フィードバック送信のために必要な範囲で情報を扱います。</p>
+        <h3>取り扱う情報</h3>
+        <p>WE-Simulatorは、選択した機能に応じて次の情報を扱います。</p>
         <ul>
-          <li>現在地機能を利用した場合の緯度・経度、現在地名、推定震度などの表示用情報</li>
-          <li>フィードバックとして入力された内容</li>
-          <li>フィードバック送信時の送信日時、送信元のユーザーエージェント</li>
+          <li>現在地を許可した場合の緯度・経度と、地図表示・震度計算に使う現在地情報</li>
+          <li>投稿機能で入力したアカウント名、アイコン、投稿文、選択した投稿位置、画像・動画、いいね・フォローなどの操作</li>
+          <li>通知を有効にした場合のブラウザのプッシュ購読情報</li>
+          <li>フィードバックや問題報告の内容、送信日時、ページ情報、ブラウザ情報</li>
         </ul>
       </section>
       <section class="source-info-section">
         <h3>利用目的</h3>
-        <p>取得した情報は、シミュレーション表示、問い合わせ対応、動作改善のために利用します。</p>
+        <p>地図・シミュレーションの表示、投稿とアカウントの運営、通知の配信、問い合わせ対応、問題の調査と機能改善に利用します。震度補正の学習には気象庁が公表した地震・観測震度を用い、投稿や個人の現在地を学習データにしません。</p>
       </section>
       <section class="source-info-section">
-        <h3>外部送信</h3>
-        <p>フィードバック内容は、管理者のGoogle Apps ScriptおよびGoogleスプレッドシートへ送信されます。現在地は、利用者が現在地機能を許可した場合にブラウザから取得され、画面表示や計算に利用されます。</p>
+        <h3>保存先と公開範囲</h3>
+        <p>設定、直近の現在地、通知履歴などはブラウザ内に保存します。地震一覧はCloudflare上に保存し、直近30件を更新します。緊急地震速報が発表された地震または最大震度5弱以上の地震はアーカイブします。投稿・アカウント・通知購読情報はCloudflare Workers、D1、KV、R2で処理・保存します。投稿した内容、選択した位置、アカウント名などは他の利用者にも表示されます。フィードバックと問題報告はGoogle Apps Script・Googleスプレッドシートへ送信します。</p>
       </section>
       <section class="source-info-section">
-        <h3>保存期間と管理</h3>
-        <p>送信された内容は管理者が必要な範囲で保管し、不要になった情報は適宜削除します。</p>
+        <h3>保存期間と削除</h3>
+        <p>投稿は投稿時に選んだ公開期間（24時間、7日間、または無期限）に従います。アカウントはアプリ内から削除できます。通知購読は通知設定から解除できます。ブラウザ内の情報はブラウザのサイトデータ削除でも消去できます。フィードバック・問題報告は対応と改善に必要な期間保管し、不要になったものから削除します。</p>
       </section>
       <section class="source-info-section">
-        <h3>第三者提供</h3>
-        <p>法令に基づく場合を除き、取得した情報を第三者へ提供しません。</p>
+        <h3>外部サービス</h3>
+        <p>公開サイトはGitHub Pages、データ処理と保存はCloudflare、フィードバック受付はGoogleのサービスを利用します。通知はブラウザのプッシュ通知サービスを経由します。各サービスへの接続時には、通常のWeb通信に伴う情報が各サービスへ送られます。</p>
       </section>
       <section class="source-info-section">
         <h3>問い合わせ</h3>
         <p>本サイトに関する問い合わせは、<br /><a href="mailto:akurah3000@icloud.com">akurah3000@icloud.com</a> または <a href="#settings-feedback-panel" data-feedback-link>フィードバック</a> までご連絡ください。</p>
       </section>
+      <p class="source-info-updated">最終更新：${formatSourceUpdatedAt(SOURCE_UPDATED_AT)}</p>
     </div>
   `;
 }
@@ -15008,7 +15021,7 @@ function buildAcknowledgementsHtml() {
       </section>
       <section class="source-info-section">
         <h3>気象・地震情報</h3>
-        <p>地震情報、震度階級、震央地名、緊急地震速報、警報・注意報、津波情報、予報区・細分区域、震度観測点などの基礎資料を公開している気象庁に感謝いたします。防災情報を分かりやすく、継続的に公開されていることが、本シミュレーターの表示と学習機能の土台となっています。</p>
+        <p>地震の震源・深さ・規模・観測震度、緊急地震速報の発表履歴、気象警報・津波情報、区域・観測点の資料を公開する気象庁に感謝いたします。実際の地震の一覧とアーカイブ、震度補正の学習は、これらの公開情報に支えられています。</p>
       </section>
       <section class="source-info-section">
         <h3>気象予報士試験資料</h3>
@@ -15020,7 +15033,7 @@ function buildAcknowledgementsHtml() {
       </section>
       <section class="source-info-section">
         <h3>地盤・観測網・防災研究</h3>
-        <p>J-SHIS、S-netをはじめとする地震防災関連の研究成果・観測情報を公開している防災科学技術研究所および関係機関の皆さまに感謝いたします。地盤特性、揺れやすさ、海底観測点の理解と表現において重要な知見をいただいています。</p>
+        <p>J-SHIS、S-netなどの研究成果と観測資料を公開する防災科学技術研究所および関係機関の皆さまに感謝いたします。地盤特性、揺れやすさ、海底観測網の表現に活用しています。</p>
       </section>
       <section class="source-info-section">
         <h3>世界地図・背景地図</h3>
@@ -15036,7 +15049,7 @@ function buildAcknowledgementsHtml() {
       </section>
       <section class="source-info-section">
         <h3>Web基盤と公開環境</h3>
-        <p>GitHubおよびGitHub Pages、Cloudflare Workers・D1・KV・R2、Google Apps Scriptなど、開発・公開・データ保存・通知・フィードバック受付を支えるサービスと、その運用に携わる皆さまに感謝いたします。</p>
+        <p>GitHub Pages、Cloudflare Workers・D1・KV・R2、Google Apps Scriptなど、公開、地震情報の更新・アーカイブ、震度補正の学習、投稿・通知・フィードバックの運用を支えるサービスと、その運用に携わる皆さまに感謝いたします。</p>
       </section>
       <section class="source-info-section">
         <h3>オープンソースコミュニティ</h3>

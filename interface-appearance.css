@@ -218,6 +218,13 @@ body.recent-earthquake-map-mode #eew-forecast-panel:not(.hidden) {
   width: min(300px, calc(100vw - 16px)) !important;
 }
 
+@media (min-width: 768px) {
+  body.recent-earthquake-map-mode .recent-earthquake-map-card:not([hidden]) {
+    left: max(8px, env(safe-area-inset-left));
+    right: auto;
+  }
+}
+
 body[data-active-bottom-tab="bottom-info-tab"].recent-earthquake-map-mode .epicenter-marker-shell.recent-earthquake-epicenter-marker {
   display: grid !important;
 }
