@@ -1,4 +1,4 @@
-const CACHE_NAME = "we-simulator-pwa-5a1a0ff371b2";
+const CACHE_NAME = "we-simulator-pwa-6f8a85eaf417";
 const PUSH_METADATA_CACHE_NAME = "we-simulator-push-metadata";
 const LOCAL_DEV_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
 const IS_LOCAL_DEV = isLocalDevelopmentHostname(new URL(self.location.href).hostname);
@@ -10,18 +10,18 @@ const NOTIFICATION_HISTORY_RETENTION_DAYS = 30;
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./manifest.webmanifest?v=5a1a0ff371b2",
-  "./favicon.png?v=5a1a0ff371b2",
-  "./apple-touch-icon.png?v=5a1a0ff371b2",
-  "./styles.css?v=5a1a0ff371b2",
-  "./bottom-navigation.css?v=5a1a0ff371b2",
-  "./interface-appearance.css?v=5a1a0ff371b2",
-  "./liquid-glass.js?v=5a1a0ff371b2",
-  "./bottom-navigation.js?v=5a1a0ff371b2",
-  "./vendor/pmtiles.js?v=5a1a0ff371b2",
-  "./earthquake-model.js?v=5a1a0ff371b2",
-  "./earthquake-learning.js?v=5a1a0ff371b2",
-  "./app.js?v=5a1a0ff371b2",
+  "./manifest.webmanifest?v=6f8a85eaf417",
+  "./favicon.png?v=6f8a85eaf417",
+  "./apple-touch-icon.png?v=6f8a85eaf417",
+  "./styles.css?v=6f8a85eaf417",
+  "./bottom-navigation.css?v=6f8a85eaf417",
+  "./interface-appearance.css?v=6f8a85eaf417",
+  "./liquid-glass.js?v=6f8a85eaf417",
+  "./bottom-navigation.js?v=6f8a85eaf417",
+  "./vendor/pmtiles.js?v=6f8a85eaf417",
+  "./earthquake-model.js?v=6f8a85eaf417",
+  "./earthquake-learning.js?v=6f8a85eaf417",
+  "./app.js?v=6f8a85eaf417",
   "./push-config.json"
 ];
 const APP_SHELL_PATHS = new Set(APP_SHELL.map((asset) => new URL(asset, self.location.href).pathname));
