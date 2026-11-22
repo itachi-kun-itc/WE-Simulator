@@ -8020,7 +8020,7 @@ function ensureEarthquakeLearningPanel() {
   if (panel.dataset.ready !== "true") {
     panel.dataset.ready = "true";
     panel.innerHTML = `
-      <div class="source-info-overlay-content earthquake-learning-content">
+      <div class="earthquake-learning-content">
         <p class="earthquake-learning-state" data-learning-state aria-live="polite"></p>
         <label class="earthquake-learning-toggle">
           <span>シミュレーションに適用</span>

@@ -19094,21 +19094,23 @@ html[data-resolved-theme="light"] body.tool-source-search-mode
 }
 
 /* Settings information menu order and acknowledgements page. */
+#settings-earthquake-learning-button { order: 5 !important; }
+
 #settings-feedback-button {
-  order: 5 !important;
+  order: 6 !important;
   margin-top: 10px !important;
   border-top: 1px solid rgba(255, 255, 255, 0.16) !important;
 }
 
 #settings-source-button {
-  order: 6 !important;
+  order: 7 !important;
   margin-top: 0 !important;
   border-top: 0 !important;
 }
 
-#settings-privacy-button { order: 7 !important; }
-#settings-acknowledgements-button { order: 8 !important; }
-#settings-admin-button { order: 9 !important; }
+#settings-privacy-button { order: 8 !important; }
+#settings-acknowledgements-button { order: 9 !important; }
+#settings-admin-button { order: 10 !important; }
 #settings-feedback-panel { order: 14 !important; }
 #settings-source-panel { order: 15 !important; }
 #settings-privacy-panel { order: 16 !important; }
